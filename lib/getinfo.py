@@ -1,0 +1,207 @@
+import os
+import string
+import pyfits
+import cosutil
+from calcosparam import *
+
+def initialInfo (filename):
+    """Get DETECTOR, OBSMODE, and EXPTYPE from the primary header.
+
+    argument:
+    filename      name of input file
+    """
+
+    fd = pyfits.open (filename, mode="readonly")
+    phdr = fd[0].header
+
+    info = {}
+
+    if phdr.has_key ("DETECTOR"):
+        detector = phdr["DETECTOR"]
+    else:
+        raise RuntimeError, \
+        "File " + filename + " does not have DETECTOR keyword."
+
+    if phdr.has_key ("OBSMODE"):
+        obsmode = phdr["OBSMODE"]
+    else:
+        raise RuntimeError, \
+        "File " + filename + " does not have OBSMODE keyword."
+
+    if phdr.has_key ("EXPTYPE"):
+        exptype = phdr["EXPTYPE"]
+    else:
+        raise RuntimeError, \
+        "File " + filename + " does not have EXPTYPE keyword."
+
+    if detector != "FUV" and detector != "NUV":
+        raise ValueError, \
+        "File " + filename + " has invalid DETECTOR = " + detector
+
+    if obsmode != "TIME-TAG" and obsmode != "ACCUM":
+        raise ValueError, \
+        "File " + filename + " has invalid OBSMODE = " + obsmode
+
+    info["detector"] = detector
+    info["obsmode"] = obsmode
+    info["exptype"] = exptype
+
+    fd.close()
+
+    return info
+
+def getGeneralInfo (phdr, hdr):
+    """Get keyword values from the primary and extension header.
+
+    The input argument phdr is the primary header, and the second hdr is
+    the first extension header, as provided by the pyfits module.  The
+    function value is a dictionary of keyword = value pairs.  If a keyword
+    is missing from the header, it will still be included in the dictionary,
+    but its value will be set to the NOT_APPLICABLE string, or a reasonable
+    default for keyword values that are not text strings.  npix (a tuple
+    giving the output image size) will also be assigned.  If the data
+    portion is empty (based on the NAXIS keyword), the value will be (0,);
+    otherwise, the value will be assigned an appropriate value for the
+    detector, rather than being read directly from the header.  The
+    heliocentric velocity will be initialized to zero.
+
+    arguments:
+    phdr          primary header
+    hdr           extension header
+    """
+
+    info = {}
+
+    # Get keywords from the primary header.
+
+    # FUV or NUV
+    info["detector"] = phdr["DETECTOR"]
+    # Set output image size (variables defined in calcosparam.py).
+    if info["detector"] == "FUV":
+        info["npix"] = (FUV_Y, FUV_X)
+    else:
+        info["npix"] = (NUV_Y, NUV_X)
+
+    # Replace the value for npix if there's no data (based on extension header).
+    if hdr["NAXIS"] == 0:
+        info["npix"] = (0,)
+    elif hdr["NAXIS"] == 2 and hdr["NAXIS2"] == 0:
+        info["npix"] = (0,)
+
+    # Assign an initial value for the heliocentric velocity
+    info["v_helio"] = 0.
+
+    # This is a list of primary header keywords and default values.
+    keylist = {
+        "segment":  NOT_APPLICABLE,
+        "obstype":  NOT_APPLICABLE,
+        "obsmode":  NOT_APPLICABLE,
+        "exptype":  NOT_APPLICABLE,
+        "opt_elem": NOT_APPLICABLE,
+        "targname": NOT_APPLICABLE,
+        "tagflash":  False,
+        "cenwave":   0,
+        "randseed": -1,
+        "fppos":     1,
+        "fpoffset":  0,
+        "ra_targ":  -999.,
+        "dec_targ": -999.}
+
+    for key in keylist.keys():
+        info[key] = phdr.get (key, default=keylist[key])
+
+    info["aperture"] = cosutil.getApertureKeyword (phdr, truncate=1)
+
+    #if info["obstype"] == "SPECTROSCOPY":
+    #    info["obstype"] = "SPECTROSCOPIC"
+    #    cosutil.printWarning ("OBSTYPE = SPECTROSCOPY" \
+    #                          " has been changed to SPECTROSCOPIC")
+
+    # Engineering keywords relevant to deadtime correction.
+
+    if info["detector"] == "FUV":
+        if info["segment"] == "FUVA":
+            info["countrate"] = phdr.get ("DEVENTA", default=0.)
+        else:
+            info["countrate"] = phdr.get ("DEVENTB", default=0.)
+    else:
+        info["countrate"] = phdr.get ("MEVENTS", default=0.)
+
+    # Now get keywords from the extension header.
+
+    if info["detector"] == "FUV":
+        info["stimrate"] = hdr.get ("STIMRATE", default=0.)
+    else:
+        info["stimrate"] = 0.
+
+    # This is a list of extension header keywords and default values.
+    keylist = {
+        "dispaxis":  0,
+        "sdqflags":  32767,
+        "numflash":  0,
+        "exptime":  -1.,
+        "expstart": -1.,
+        "expend":   -1.,
+        "doppon":    False,
+        "doppmag":  -1.,
+        "doppzero": -1.,
+        "orbitper": -1.}
+
+    for key in keylist.keys():
+        info[key] = hdr.get (key, default=keylist[key])
+
+    if info["tagflash"] and info["numflash"] < 1:
+        info["tagflash"] = False
+
+    return info
+
+def getSwitchValues (phdr):
+    """Get calibration switch values from the primary header.
+
+    The input argument phdr is the primary header, as provided by the fits
+    module.  The function value is a dictionary of keyword = value pairs.
+    Note that the keyword values will be converted to upper case.  If a
+    keyword is missing from the header, it will still be included in the
+    dictionary, but its value will be set to the NOT_APPLICABLE string.
+
+    argument:
+    phdr          primary header
+    """
+
+    switches = {}
+
+    for key in ["dqicorr", "randcorr", "tempcorr", "geocorr", "igeocorr",
+                "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
+                "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
+                "fluxcorr", "rptcorr", "statflag"]:
+        switches[key]  = cosutil.getSwitch (phdr, key)
+
+    return switches
+
+def getRefFileNames (phdr):
+    """Get reference file names from the primary header.
+
+    The input argument phdr is the primary header, as provided by the pyfits
+    module.  The function value is a dictionary of keyword = value pairs.
+    If a keyword is missing from the header, it will still be included in
+    the dictionary, but its value will be set to the NOT_APPLICABLE string.
+    If the name includes an environment variable (Unix-style or IRAF-style),
+    the name will be expanded to a complete pathname.  Keys of the form
+    "bpixtab_hdr" (for example) are the values read directly from the
+    header, while keys of the form "bpixtab" have been translated to full
+    path names (operating system dependent).
+
+    argument:
+    phdr          primary header
+    """
+
+    reffiles = {}
+
+    for key in ["flatfile", "bpixtab", "brftab", "geofile",
+                "deadtab", "phatab", "brsttab", "badttab",
+                "xtractab", "lamptab", "disptab", "phottab",
+                "wcptab", "tdstab"]:
+        reffiles[key+"_hdr"] = phdr.get (key, default=NOT_APPLICABLE)
+        reffiles[key] = cosutil.expandFileName (reffiles[key+"_hdr"])
+
+    return reffiles
