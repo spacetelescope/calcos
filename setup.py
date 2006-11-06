@@ -1,6 +1,6 @@
 from distutils.core import setup, Extension
 from distutils import sysconfig
-from distutils.command.install_data import install_data
+#from distutils.command.install_data import install_data
 import sys, os.path
 import numpy
 # import numpy.numarray.util as nnu
@@ -21,20 +21,15 @@ for a in args:
         dir = os.path.abspath (a.split ("=")[1])
         sys.argv.extend ([
                 "--install-lib="+dir,
+                "--install-scripts=%s" % os.path.join(dir,"calcos"),
                 ])
         #remove --local from both sys.argv and args
         args.remove (a)
         sys.argv.remove (a)
 
-class smart_install_data (install_data):
-    def run (self):
-        #need to change self.install_dir to the library dir
-        install_cmd = self.get_finalized_command ('install')
-        self.install_dir = getattr (install_cmd, 'install_lib')
-        return install_data.run (self)
 
 def getExtensions_numpy (args):
-    ext = [Extension ("ccos", ["ccos.c"],
+    ext = [Extension ("calcos.ccos", ["src/ccos.c"],
            define_macros = [('NUMPY', '1')],
            include_dirs = [pythoninc, numpyinc, numpynumarrayinc])]
     return ext
@@ -47,9 +42,9 @@ def dosetup (ext):
                author = "Phil Hodge",
                author_email = "help@stsci.edu",
                platforms = ["Linux", "Solaris", "Mac OS X", "Windows"],
-               packages = [""],
-               package_dir = {"":""},
-               cmdclass = {'install_data': smart_install_data},
+               packages = ["calcos"],
+               package_dir = {"calcos":"lib"},
+               scripts = ['lib/calcos.py'],
                ext_modules = ext)
     return r
 
