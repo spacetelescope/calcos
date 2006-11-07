@@ -1,1 +1,1 @@
-import calcos
+from calcos import *
