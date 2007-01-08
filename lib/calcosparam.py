@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
 CALCOS_VERSION_NUMBER = "1.1"
-CALCOS_VERSION_DATE = "(5 January 2007)"
+CALCOS_VERSION_DATE = "(8 January 2007)"
 CALCOS_VERSION = CALCOS_VERSION_NUMBER + " " + CALCOS_VERSION_DATE
 
 SPEED_OF_LIGHT = 299792.458     # km/s
