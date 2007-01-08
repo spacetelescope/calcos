@@ -328,7 +328,7 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
     """
 
     pha_info = cosutil.getTable (phatab, filter={"segment": segment},
-                   exactly_one=1)
+                   exactly_one=True)
 
     low = pha_info.field ("llt")[0]
     high = pha_info.field ("ult")[0]
@@ -457,7 +457,7 @@ def computeThermalParam (time, x, y, dq,
     nevents = len (time)
 
     brf_info = cosutil.getTable (brftab, filter={"segment": segment},
-                   exactly_one=1)
+                   exactly_one=True)
 
     # Find stims and compute parameters every dt_thermal seconds.
     fd_brf = pyfits.open (brftab, mode="readonly")
@@ -840,12 +840,13 @@ def doDqicorr (events, info, switches, reffiles, phdr, hdr):
         # Update the dq column in the events list with the bpixtab regions.
         dq_info = cosutil.getTable (reffiles["bpixtab"],
                             filter={"segment": info["segment"]})
-        ccos.applydq (dq_info.field ("lx"), dq_info.field ("ly"),
-                      dq_info.field ("dx"), dq_info.field ("dy"),
-                      dq_info.field ("dq"),
-                      events.field (xcorr), events.field (ycorr),
-                      events.field ("dq"))
-        del dq_info
+        if dq_info is not None:
+            ccos.applydq (dq_info.field ("lx"), dq_info.field ("ly"),
+                          dq_info.field ("dx"), dq_info.field ("dy"),
+                          dq_info.field ("dq"),
+                          events.field (xcorr), events.field (ycorr),
+                          events.field ("dq"))
+            del dq_info
 
         # Create an initially zero 2-D data quality extension array.
         dq_array = N.zeros (info["npix"], dtype=N.int16)
@@ -959,14 +960,14 @@ def dopplerRegions (eta, info, reffiles):
             filter["segment"] = "NUVC"
         filter["aperture"] = "PSA"
         xtract_info = cosutil.getTable (reffiles["xtractab"],
-                            filter, exactly_one=1)
+                            filter, exactly_one=True)
         b_spec_psa = xtract_info.field ("b_spec")[0]
 
         if info["detector"] == "NUV":
             filter["segment"] = "NUVA"
         filter["aperture"] = "WCA"
         xtract_info = cosutil.getTable (reffiles["xtractab"],
-                            filter, exactly_one=1)
+                            filter, exactly_one=True)
         b_spec_wca = xtract_info.field ("b_spec")[0]
 
         boundary = int (round ((b_spec_psa + b_spec_wca) / 2.))
@@ -1027,7 +1028,7 @@ def dopplerCorrection (hdr, time, xi, info, doppcorr, helcorr, disptab):
             filter["segment"] = info["segment"]
         else:
             filter["segment"] = "NUVB"
-        disp_info = cosutil.getTable (disptab, filter, exactly_one=1)
+        disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
         ncoeff = disp_info.field ("nelem")[0]
         coeff = disp_info.field ("coeff")[0][0:ncoeff]
         xd = heliocentricDoppler (helio_factor, xd, coeff)
@@ -1066,7 +1067,8 @@ def heliocentricDoppler (helio_factor, xi, coeff):
 
     arguments:
     helio_factor  heliocentric correction factor
-    xi            array of pixel coordinates of events, in the dispersion                           direction
+    xi            array of pixel coordinates of events, in the dispersion
+                    direction
     coeff         array of polynomial coefficients for the dispersion relation
     """
 
@@ -1202,7 +1204,7 @@ def deadtimeCorrection (events, deadtab, segment, exptime,
     nevents = len (time)
 
     live_info = cosutil.getTable (deadtab, filter={"segment": segment},
-                at_least_one=1)
+                at_least_one=True)
     obs_rate = live_info.field ("obs_rate")
     live_factor = live_info.field ("livetime")
 

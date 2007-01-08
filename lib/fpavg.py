@@ -152,7 +152,7 @@ class OutputX1D:
                         self.segments.append (segment)
                         filter["segment"] = segment
                         disp_info = cosutil.getTable (disptab, filter,
-                                    exactly_one=1)
+                                    exactly_one=True)
                         ncoeff = disp_info.field ("nelem")[0]
                         coeff = disp_info.field ("coeff")[0][0:ncoeff]
                         coeff_dict[segment] = coeff
@@ -363,13 +363,13 @@ class Spectrum:
 def initOutputSpectrum (ofd, inspec, keywords, output_pshift, segment):
     """Construct an OutputSpectrum object, depending on the detector.
 
-        arguments:
-            ofd              pyfits object for output file
-            inspec           list of Spectrum objects
-            keywords         dictionary of keywords and values, e.g. detector
-            output_pshift    pixel shift for output arrays
-            segment          segment or stripe name for current row
-        """
+    arguments:
+        ofd              pyfits object for output file
+        inspec           list of Spectrum objects
+        keywords         dictionary of keywords and values, e.g. detector
+        output_pshift    pixel shift for output arrays
+        segment          segment or stripe name for current row
+    """
 
     if keywords["detector"] == "FUV":
         osp = FUV_OutputSpectrum (ofd, inspec, keywords, output_pshift, segment)

@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
 CALCOS_VERSION_NUMBER = "1.1"
-CALCOS_VERSION_DATE = "(6 November 2006)"
+CALCOS_VERSION_DATE = "(5 January 2007)"
 CALCOS_VERSION = CALCOS_VERSION_NUMBER + " " + CALCOS_VERSION_DATE
 
 SPEED_OF_LIGHT = 299792.458     # km/s
@@ -32,6 +32,15 @@ NUV_SPECTRA = 3                 # three stripes on NUV detector
 QUIET = 0
 VERBOSE = 1
 VERY_VERBOSE = 2
+
+# These are the possible values for the TAGFLASH keyword, and corresponding
+# integer codes.
+TAGFLASH_NONE = "NONE"
+TAGFLASH_AUTO = "AUTO"
+TAGFLASH_UNIFORMLY_SPACED = "UNIFORMLY SPACED"
+TAGFLASH_TYPE_NONE = 0
+TAGFLASH_TYPE_AUTO = 1
+TAGFLASH_TYPE_UNIFORMLY_SPACED = 2
 
 # The following three parameters are used by getTable.
 # NOT_APPLICABLE will be assigned as the value of a keyword that is

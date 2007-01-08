@@ -154,11 +154,14 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
     row = 0
     for segment in segments:
 
-        # This filter will be used for both disptab and xtractab.
         filter = {"segment": segment,
                   "opt_elem": info["opt_elem"],
                   "cenwave": info["cenwave"],
                   "aperture": info["aperture"]}
+        disp_info = cosutil.getTable (reffiles["disptab"], filter)
+        xtract_info = cosutil.getTable (reffiles["xtractab"], filter)
+        if disp_info is None or xtract_info is None:
+            continue
 
         if is_wavecal:
             shift = 0.
@@ -174,8 +177,6 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
 
         # These are pixel coordinates.
         pixel = N.arange (nelem, dtype=N.float64)
-        disp_info = cosutil.getTable (reffiles["disptab"],
-                    filter, exactly_one=1)
         ncoeff = disp_info.field ("nelem")[0]
         coeff = disp_info.field ("coeff")[0][0:ncoeff]
         pixel -= shift                      # shift will be 0 for a wavecal
@@ -205,8 +206,6 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         outdata.field ("WAVELENGTH")[row][:] = wavelength
 
         axis = 2 - hdr["dispaxis"]          # 1 --> 1,  2 --> 0
-        xtract_info = cosutil.getTable (reffiles["xtractab"],
-                      filter, exactly_one=1)
 
         (N_i, ERR_i, GC_i, BK_i, AVGDQ_i, MAXDQ_i) = \
             extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
@@ -227,6 +226,12 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         outdata.field ("MAXDQ")[row][:] = MAXDQ_i
 
         row += 1
+
+    # Remove unused rows, if any.
+    if row < len (outdata):
+        data = outdata[0:row]
+        ofd[1].data = data.copy()
+        del data
 
 def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
                 snr_ff, exptime, backcorr, axis,
@@ -369,9 +374,12 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, reffiles):
     phottab = reffiles["phottab"]
     for row in range (nrows):
         filter["segment"] = segment[row]
-        phot_info = cosutil.getTable (phottab, filter, exactly_one=1)
-        flux[row][:] = net[row] / phot_info.field ("sensitivity")[0]
-        error[row][:] = error[row] / phot_info.field ("sensitivity")[0]
+        phot_info = cosutil.getTable (phottab, filter)
+        if phot_info is None:
+            flux[row][:] = 0.
+        else:
+            flux[row][:] = net[row] / phot_info.field ("sensitivity")[0]
+            error[row][:] = error[row] / phot_info.field ("sensitivity")[0]
 
     # Compute an array of time-dependent correction factors (a potentially
     # different value at each wavelength), and divide the flux and error by
@@ -386,7 +394,10 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, reffiles):
         for row in range (nrows):
             filter["segment"] = segment[row]
             # Get factor at each wavelength in the tds table.
-            (wl_tds, factor_tds) = getTdsFactors (tdstab, filter, t_obs)
+            try:
+                (wl_tds, factor_tds) = getTdsFactors (tdstab, filter, t_obs)
+            except RuntimeError:        # no matching row in table
+                continue
 
             factor = N.zeros (len (flux[row]), dtype=N.float32)
             # Interpolate factor_tds at each wavelength.
@@ -414,7 +425,7 @@ def getTdsFactors (tdstab, filter, t_obs):
     # the TIME column and for each of the nwl values in the WAVELENGTH
     # column.  nt and nwl should be at least 1.
 
-    tds_info = cosutil.getTable (tdstab, filter, exactly_one=1)
+    tds_info = cosutil.getTable (tdstab, filter, exactly_one=True)
 
     fd = pyfits.open (tdstab, mode="readonly")
     ref_time = fd[1].header.get ("ref_time", 0.)        # MJD

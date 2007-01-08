@@ -34,7 +34,7 @@ def writeOutputEvents (infile, outfile):
     else:
         nrows = indata.shape[0]
     detector = ifd[0].header.get ("detector", "FUV")
-    tagflash = ifd[0].header.get ("tagflash", default=False)
+    tagflash = (ifd[0].header.get ("tagflash", default="NONE") != "NONE")
 
     # Check whether the PHA column exists.
     if detector == "FUV":
@@ -147,7 +147,7 @@ def returnGTI (infile):
 
     return gti
 
-def getTable (table, filter, exactly_one=0, at_least_one=0):
+def getTable (table, filter, exactly_one=False, at_least_one=False):
     """Return the data portion of a table.
 
     All rows that match the filter (a dictionary of column_name = value)
@@ -206,15 +206,17 @@ def getTable (table, filter, exactly_one=0, at_least_one=0):
     else:
         newdata = fd[1].data.copy()
 
-    nselect = len (newdata)
-
     fd.close()
 
+    nselect = len (newdata)
+    if nselect < 1:
+        newdata = None
+
     if (exactly_one or at_least_one) and nselect < 1:
-        printError ("Table has no matching row;")
-        printContinuation ("table name is " + table)
-        printContinuation ("row selection is " + repr (filter))
-        raise RuntimeError, "Table has no matching row."
+        message = "Table has no matching row;\n" + \
+                  "table name is " + table + "\n" + \
+                  "row selection is " + repr (filter)
+        raise RuntimeError, message
 
     if exactly_one and nselect > 1:
         printWarning ("Table has more than one matching row;")
@@ -388,6 +390,8 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array):
     """
 
     dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
+    if dq_info is None:
+        return
 
     if doppcorr == "PERFORM":
         expstart = info["expstart"]
@@ -435,7 +439,7 @@ def activeArea (segment, brftab):
     if segment[0] == "N":
         return (0, NUV_Y-1)
 
-    brf_info = getTable (brftab, {"segment": segment}, exactly_one=1)
+    brf_info = getTable (brftab, {"segment": segment}, exactly_one=True)
 
     try:
         b_low = brf_info.field ("a_low")[0]
@@ -680,7 +684,9 @@ def doImageStat (input):
                       "cenwave": cenwave,
                       "aperture": aperture}
 
-            xtract_info = getTable (xtractab, filter, exactly_one=1)
+            xtract_info = getTable (xtractab, filter)
+            if xtract_info is None:
+                continue
 
             slope = xtract_info.field ("slope")[0]
             b_spec = xtract_info.field ("b_spec")[0]
@@ -742,7 +748,7 @@ def doSpecStat (input):
     try:
         sci_extn = fd["SCI"]
     except KeyError:
-        doTagFlashStat (fd)                     # extname is "TAGFLASH"
+        doTagFlashStat (fd)                     # extname is "LAMPFLASH"
         fd.close()
         return
 
@@ -789,7 +795,7 @@ def doTagFlashStat (fd):
     fd          HDU list for the FITS file (opened by doSpecStat)
     """
 
-    sci_extn = fd["TAGFLASH"]
+    sci_extn = fd["LAMPFLASH"]
     if sci_extn.data is None:
         return
 

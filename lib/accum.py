@@ -195,7 +195,7 @@ def checkPulseHeight (inpha, phatab, info, hdr):
     """
 
     pha_info = cosutil.getTable (phatab, filter={"segment": info["segment"]},
-                   exactly_one=1)
+                   exactly_one=True)
 
     # The peak in the pulse-height distribution should be within low and high.
     # The mean should be within the factors min_peak and max_peak of the peak.
@@ -461,7 +461,7 @@ def deadtimeCorrectionAccum (deadtab,
         fd.write ("# %s\n" % (input,))
 
     live_info = cosutil.getTable (deadtab, filter={"segment": info["segment"]},
-                    at_least_one=1)
+                    at_least_one=True)
     obs_rate = live_info.field ("obs_rate")
     live_factor = live_info.field ("livetime")
 
@@ -653,7 +653,7 @@ def stimInfo (sci, brftab, info):
     """
 
     brf_info = cosutil.getTable (brftab, filter={"segment": info["segment"]},
-                   exactly_one=1)
+                   exactly_one=True)
 
     sx1 = brf_info.field ("sx1")[0]
     sy1 = brf_info.field ("sy1")[0]

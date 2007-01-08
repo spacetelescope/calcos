@@ -6,7 +6,8 @@ import ccos
 LARGE_BURST = -20               # flag value in bkg_counts
 SMALL_BURST = -10               # flag value in bkg_counts
 
-def burstFilter (time, y, dq, reffiles, info, burstfile=None, high_countrate=0):
+def burstFilter (time, y, dq, reffiles, info, burstfile=None,
+                 high_countrate=True):
     """Flag regions where the count rate is unreasonably high.
 
     For each burst interval detected, a flag will be set in the
@@ -42,9 +43,14 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None, high_countrate=0):
 
     # Read location of active area from baseline reference table and
     # source and background locations from 1-D extraction reference table.
-    (active_low, active_high, src_low, src_high,
-     bkg1_low, bkg1_high, bkg2_low, bkg2_high) = \
-        getRegionLocations (reffiles, info)
+    try:
+        (active_low, active_high, src_low, src_high,
+         bkg1_low, bkg1_high, bkg2_low, bkg2_high) = \
+                getRegionLocations (reffiles, info)
+    except:
+        cosutil.printWarning ("Can't screen for bursts" \
+                              " due to missing row in reference table")
+        return
 
     # rows of extraction aperture / background rows
     bkgsf = float (src_high - src_low + 1) / \
@@ -164,7 +170,7 @@ def getBurstParam (brsttab, segment):
     """
 
     burst_info = cosutil.getTable (brsttab, filter={"segment": segment},
-                   exactly_one=1)
+                   exactly_one=True)
 
     median_n     = burst_info.field ("median_n")[0]
     delta_t      = burst_info.field ("delta_t")[0]
@@ -205,7 +211,7 @@ def getRegionLocations (reffiles, info):
               "cenwave": info["cenwave"],
               "aperture": info["aperture"]}
     xtract_info = cosutil.getTable (reffiles["xtractab"],
-                  filter, exactly_one=1)
+                  filter, exactly_one=True)
     b_spec = xtract_info.field ("b_spec")[0]
     b_spec = int (round (b_spec))
     height = xtract_info.field ("height")[0]
@@ -222,7 +228,7 @@ def getRegionLocations (reffiles, info):
         # Reset bkg2_low to a point above the wavecal spectrum.
         filter["aperture"] = "WCA"
         xtract_info = cosutil.getTable (reffiles["xtractab"],
-                      filter, exactly_one=1)
+                      filter, exactly_one=True)
         b_spec = xtract_info.field ("b_spec")[0]
         b_spec = int (round (b_spec))
         bkg2_low = b_spec + height * 3 // 4

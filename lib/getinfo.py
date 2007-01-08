@@ -112,6 +112,16 @@ def getGeneralInfo (phdr, hdr):
 
     info["aperture"] = cosutil.getApertureKeyword (phdr, truncate=1)
 
+    if info["tagflash"] == TAGFLASH_AUTO:
+        info["tagflash"] = True
+        info["tagflash_type"] = TAGFLASH_TYPE_AUTO
+    elif info["tagflash"] == TAGFLASH_UNIFORMLY_SPACED:
+        info["tagflash"] = True
+        info["tagflash_type"] = TAGFLASH_TYPE_UNIFORMLY_SPACED
+    else:
+        info["tagflash"] = False
+        info["tagflash_type"] = TAGFLASH_TYPE_NONE
+
     #if info["obstype"] == "SPECTROSCOPY":
     #    info["obstype"] = "SPECTROSCOPIC"
     #    cosutil.printWarning ("OBSTYPE = SPECTROSCOPY" \

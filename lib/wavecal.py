@@ -1,5 +1,4 @@
 import numpy as N
-# xxx import numarray.convolve as convolve    # for boxcar
 from convolve import boxcar
 import pyfits
 from calcosparam import *
@@ -41,7 +40,6 @@ def findWavecalShift (input, wcp_info):
     net = sci_extn.data.field ("net")
     nelem = len (net[0])
     segment = sci_extn.data.field ("segment")
-    template = N.zeros (nelem, dtype=N.float32)
     lamptab = phdr["lamptab"]
     lamptab = cosutil.expandFileName (lamptab)
 
@@ -62,19 +60,32 @@ def findWavecalShift (input, wcp_info):
 
     index = segment.argsort()
 
+    first = True
     for row in index:
-
         filter["segment"] = segment[row]
-        lamp_info = cosutil.getTable (lamptab, filter, exactly_one=1)
-        template = lamp_info.field ("intensity")[0]
+        lamp_info = cosutil.getTable (lamptab, filter)
+        if lamp_info is None:
+            continue
+        if first:
+            sum_template = lamp_info.field ("intensity")[0].copy()
+            sum_net = net[row].copy()
+            first = False
+        else:
+            sum_template += lamp_info.field ("intensity")[0]
+            sum_net += net[row]
 
-        (shift, n50) = crosscor (net[row], template, maxlag, fp)
+    (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
 
+    first = True
+    for row in index:
         key = "pshift" + segment[row][-1].lower()
         sci_extn.header.update (key, shift)
         shift_dict[key] = shift
-        message = " %4s    %6.2f   " % (segment[row], shift) 
-        message = message + str (n50)
+        if first:
+            message = " %4s    %6.2f   " % (segment[row], shift) + str (n50)
+            first = False
+        else:
+            message = " %4s" % segment[row]
         cosutil.printMsg (message, VERBOSE)
 
         # This is the offset in the cross-dispersion direction.
@@ -124,7 +135,8 @@ def cmpTime (wc_dict_a, wc_dict_b):
     """Compare the times in two wavecal_info entries.
 
     arguments:
-    wc_dict_a      one wavecal information dictionary (one element of wavecal_info)
+    wc_dict_a      one wavecal information dictionary (one element of
+                     wavecal_info)
     wc_dict_b      another wavecal information dictionary
     """
 
@@ -344,13 +356,6 @@ def crosscor (x, template, maxlag, fp=0):
         product = x[x1:x2] * template[t1:t2]
         xc[maxlag+lag] = N.sum (product)
 
-    #for lag in range (-maxlag, maxlag+1):
-    #    i1 = maxlag + lag
-    #    i2 = maxlag + lag + n
-    #    assert i2 <= length
-    #    prod = t * x[i1:i2]
-    #    xc[maxlag+lag] = N.sum (prod)
-
     # imax is the index of the maximum.  n50 is for diagnostic purposes.
     (imax, n50) = xcStat (xc)
 
@@ -402,7 +407,7 @@ def xcStat (xc):
     diff = maxval - minval
     fractions = N.arange (0.9, 0., -0.1)
     cutoff = [(fraction * diff + minval) for fraction in fractions]
-    n50 = N.zeros (len (cutoff))
+    n50 = N.zeros (len (cutoff), dtype=N.int32)
     for i in range (len (cutoff)):
         gt = xc > cutoff[i]
         # Using sum() here relies on the fact that the values are 0 or 1.
@@ -411,31 +416,28 @@ def xcStat (xc):
 
     return (imax, n50)
 
-def ttFindWavecalShift (net, segment, info, lamptab, wcp_info):
+def ttFindWavecalShift (net, template, info, wcp_info):
     """Find the shift from a wavecal spectrum.
 
     arguments:
     net             the 1-D extracted spectrum (may be either net or gross)
-    segment         segment or stripe name
+    template        template spectrum
     info            dictionary of header keywords and values
-    lamptab         name of the lamp spectrum reference table
     wcp_info        data (one row) from the wavecal parameters table
 
     The function value is a tuple of the shift in the dispersion direction
     and some diagnostic info n50.  (None, [0.]) will be returned if there
     is nothing in the net array.  n50 is an array of nine elements, giving
-    the number of pixels in the cross correlation that are greater than
-    corresponding fractions of the range from the minimum to maximum values
-    in the cross correlation.  The fractions are 0.9, 0.8, ... 0.1.  The
+    the number of elements in the cross correlation with values greater
+    than various fractions of the range from the minimum to maximum values
+    of the cross correlation.  The fractions are 0.9, 0.8, ... 0.1.  The
     idea is that if the spectrum and the template are very similar (as we
     would expect), the values in n50 should be small, but they could increase
     sharply toward the end due to noise in the spectrum.  Elements near the
     middle of n50 should be of order twice the size of the resolution element.
-    If the spectrum and template do not agree well, the values in n50 should
-    be larger.
+    Larger values in n50 indicate a poorer agreement between the spectrum
+    and the template.
     """
-
-    detector = info["detector"]
 
     nelem = len (net)
     if nelem < 1:
@@ -444,19 +446,12 @@ def ttFindWavecalShift (net, segment, info, lamptab, wcp_info):
     maxlag = wcp_info.field ("xc_range")
     fp = info["fpoffset"] * wcp_info.field ("stepsize")
 
-    filter = {"segment": segment,
-              "opt_elem": info["opt_elem"],
-              "cenwave": info["cenwave"]}
-
-    lamp_info = cosutil.getTable (lamptab, filter, exactly_one=1)
-    template = lamp_info.field ("intensity")[0]
-
     (pshift, n50) = crosscor (net, template, maxlag, fp)
 
     return (pshift, n50)
 
 def findWavecalSpectrum (corrtag, info, reffiles):
-    """Find the offset of a spectrum in the cross-dispersion direction.
+    """Find the offset of a wavecal spectrum in the cross-dispersion direction.
 
     arguments:
     corrtag         name of the corrtag FITS file containing a wavecal
@@ -483,13 +478,6 @@ def findWavecalSpectrum (corrtag, info, reffiles):
         return (0., {}, {})
     xtractab = reffiles["xtractab"]
 
-    hdr = sci_extn.header
-
-    if phdr.get ("tagflash", default=False):
-        aperture = "WCA"
-    else:
-        aperture = info["aperture"]
-
     if info["detector"] == "FUV":
         xi = sci_extn.data.field ("XCORR")
         eta = sci_extn.data.field ("YCORR")
@@ -500,7 +488,7 @@ def findWavecalSpectrum (corrtag, info, reffiles):
     dq = sci_extn.data.field ("DQ")
 
     (shift2, xd_shifts, xd_locns) = \
-                ttFindWavecalSpectrum (xi, eta, dq, info, aperture, xtractab)
+                ttFindWavecalSpectrum (xi, eta, dq, info, xtractab)
 
     fd.close()
 
@@ -517,15 +505,14 @@ def findWavecalSpectrum (corrtag, info, reffiles):
 
     return (shift2, xd_shifts, xd_locns)
 
-def ttFindWavecalSpectrum (xi, eta, dq, info, aperture, xtractab):
-    """Find the offset of a spectrum in cross-dispersion direction.
+def ttFindWavecalSpectrum (xi, eta, dq, info, xtractab):
+    """Find the offset of a wavecal spectrum in cross-dispersion direction.
 
     arguments:
     xi              corrected pixel coordinates in the dispersion direction
     eta             corrected pixel coords in the cross-dispersion direction
     dq              data quality flags
     info            dictionary of header keywords and values
-    aperture        could be "WCA", while info could have another aperture
     xtractab        name of 1-D extraction parameters table
 
     The function value is a tuple of three items:  shift2 and two dictionaries,
@@ -543,7 +530,7 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, aperture, xtractab):
     filter = {"segment": info["segment"],
               "opt_elem": info["opt_elem"],
               "cenwave": info["cenwave"],
-              "aperture": aperture}
+              "aperture": "WCA"}
 
     if info["detector"] == "FUV":
         (shift2, xd_shifts, xd_locns) = ttFindFUV (xi, eta, dq,
@@ -563,17 +550,19 @@ def ttFindFUV (xi, eta, dq, filter, xtractab):
 
     xd_range = 100
     box = 7
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=1)
-    slope = xtract_info.field ("slope")[0]
-
-    # Collapse the data along the dispersion direction, putting the result
-    # in xdisp.
-    ccos.xy_collapse (xi, eta, dq, slope, xdisp)
-
-    (shift2, y) = ttFindSpec (xdisp, xtract_info, xd_range, box)
-    segment = filter["segment"]
-    xd_shifts = {segment: shift2}
-    xd_locns = {segment: y}
+    shift2 = None
+    xd_shifts = {}
+    xd_locns = {}
+    xtract_info = cosutil.getTable (xtractab, filter)
+    if xtract_info is not None:
+        slope = xtract_info.field ("slope")[0]
+        # Collapse the data along the dispersion direction, putting the
+        # result in xdisp.
+        ccos.xy_collapse (xi, eta, dq, slope, xdisp)
+        (shift2, y) = ttFindSpec (xdisp, xtract_info, xd_range, box)
+        segment = filter["segment"]
+        xd_shifts = {segment: shift2}
+        xd_locns = {segment: y}
 
     return (shift2, xd_shifts, xd_locns)
 
@@ -585,45 +574,49 @@ def ttFindNUV (xi, eta, dq, filter, xtractab):
     box = 13
     xd_shifts = {}
     xd_locns = {}
-    got_shift = 0               # boolean
+    got_shift = False
 
     # Note that we allow for the possibility that the slopes of the
     # three stripes might not all be the same.  If they are close enough
-    # to ignore the differences, call xy_collapse only once, using the
-    # slope for, say, NUVB.
+    # to ignore the differences, the code could be modified to call
+    # xy_collapse only once, using the slope for, say, NUVB.
 
     filter["segment"] = "NUVA"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=1)
-    slope = xtract_info.field ("slope")[0]
-
-    # Collapse the data along the dispersion direction.
-    ccos.xy_collapse (xi, eta, dq, slope, xdisp)
-
-    (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
-    xd_shifts["NUVA"] = shift2
-    xd_locns["NUVA"] = y
-    if shift2 is not None:
-        got_shift = 1
+    xtract_info = cosutil.getTable (xtractab, filter)
+    if xtract_info is not None:
+        slope = xtract_info.field ("slope")[0]
+        outlier_limit = xtract_info.field ("height")[0] / 4.
+        # Collapse the data along the dispersion direction.
+        ccos.xy_collapse (xi, eta, dq, slope, xdisp)
+        (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
+        xd_shifts["NUVA"] = shift2
+        xd_locns["NUVA"] = y
+        if shift2 is not None:
+            got_shift = True
 
     filter["segment"] = "NUVB"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=1)
-    slope = xtract_info.field ("slope")[0]
-    ccos.xy_collapse (xi, eta, dq, slope, xdisp)
-    (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
-    xd_shifts["NUVB"] = shift2
-    xd_locns["NUVB"] = y
-    if shift2 is not None:
-        got_shift = 1
+    xtract_info = cosutil.getTable (xtractab, filter)
+    if xtract_info is not None:
+        slope = xtract_info.field ("slope")[0]
+        outlier_limit = xtract_info.field ("height")[0] / 4.
+        ccos.xy_collapse (xi, eta, dq, slope, xdisp)
+        (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
+        xd_shifts["NUVB"] = shift2
+        xd_locns["NUVB"] = y
+        if shift2 is not None:
+            got_shift = True
 
     filter["segment"] = "NUVC"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=1)
-    slope = xtract_info.field ("slope")[0]
-    ccos.xy_collapse (xi, eta, dq, slope, xdisp)
-    (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
-    xd_shifts["NUVC"] = shift2
-    xd_locns["NUVC"] = y
-    if shift2 is not None:
-        got_shift = 1
+    xtract_info = cosutil.getTable (xtractab, filter)
+    if xtract_info is not None:
+        slope = xtract_info.field ("slope")[0]
+        outlier_limit = xtract_info.field ("height")[0] / 4.
+        ccos.xy_collapse (xi, eta, dq, slope, xdisp)
+        (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
+        xd_shifts["NUVC"] = shift2
+        xd_locns["NUVC"] = y
+        if shift2 is not None:
+            got_shift = True
 
     if got_shift:
         # Find the average shift, ignoring outliers (beyond 1/4 the
@@ -636,7 +629,6 @@ def ttFindNUV (xi, eta, dq, filter, xtractab):
         median_shift = shifts[len(shifts)//2]
         sum_s = 0.
         nsum = 0.
-        outlier_limit = xtract_info.field ("height")[0] / 4.
         for shift in shifts:
             if abs (shift - median_shift) < outlier_limit:
                 sum_s += shift
@@ -678,9 +670,6 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
     y1 = int (round (y_nominal + xd_range)) + 1
 
     xdisp_sm = boxcar (xdisp, (box,), mode="nearest")
-    #print "debug:  y0 =", y0		# debug
-    #for i in range (y0, y1+1):		# debug
-    #    print xdisp[i], xdisp_sm[i]		# debug
 
     index = N.argsort (xdisp_sm[y0:y1])
     y = y0 + index[-1]
@@ -691,8 +680,6 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
     if signal > 4. * background:
         shift2 = y - y_nominal
     else:
-        cosutil.printWarning ("Wavecal spectrum for %s was not detected" \
-                % segment)
         shift2 = None
 
     return (shift2, y)

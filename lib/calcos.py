@@ -6,6 +6,7 @@ import time
 import getopt
 import glob
 import copy
+
 import pyfits
 import accum
 import average
@@ -154,6 +155,16 @@ def uniqueInput (infiles):
 
     return unique_files
 
+def checkNumerix():
+    """Check that the environment variable NUMERIX is set to numpy."""
+
+    if not os.environ.has_key ("NUMERIX"):
+        cosutil.printWarning (
+                "environment variable NUMERIX should be set to numpy")
+    elif os.environ["NUMERIX"] != "numpy":
+        cosutil.printWarning ("NUMERIX is set to '%s', should be numpy" % \
+                              os.environ["NUMERIX"])
+
 def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,
             stimfile=None, livetimefile=None, burstfile=None):
     """Calibrate COS data.
@@ -180,6 +191,9 @@ def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,
     t0 = time.time()
     cosutil.printMsg ("CALCOS version " + CALCOS_VERSION)
     cosutil.printMsg ("Begin " + cosutil.returnTime(), VERBOSE)
+
+    # check that NUMERIX is set to numpy
+    checkNumerix()
 
     if quiet:
         cosutil.setVerbosity (QUIET)
@@ -263,38 +277,38 @@ def getRootname (input, suffix):
 class Association:
     """Read and interpret the association table.
 
-The attributes are:
-    asntable           full name of the association file, or None if the
-                         name (or rootname) of a raw file was specified
-    asn_info           a dictionary of the contents of the association table
-    indir              name of input directory, or an empty string; if a
-                         directory was specified, it will be added as a
-                         prefix to the memnames in asn_info
-    outdir             name of output directory, or an empty string
-    combine            a dictionary of lists of file names to be
-                         averaged (i.e. individual repeatobs or fp-split
-                         exposures)
-    concat             pairs of files of 1-D extracted FUV spectra for
-                         segments A and B need to be concatenated; this
-                         is a list of dictionaries with info about files
-                         to be concatenated
-    product            rootname of the product (rootname portion is lower
-                         case; includes outdir)
-    product_type       memtype of the product (case unchanged from asn
-                         table)
-    global_switches    dictionary of the global calibration switches
-    rawfiles           a list of all rawtag or rawimage files
-    obs                a list of Observation instances, one for each raw
-                         file
-    first_science      index of first science observation in obs list
+    The attributes are:
+        asntable           full name of the association file, or None if the
+                             name (or rootname) of a raw file was specified
+        asn_info           a dictionary of the contents of the association table
+        indir              name of input directory, or an empty string; if a
+                             directory was specified, it will be added as a
+                             prefix to the memnames in asn_info
+        outdir             name of output directory, or an empty string
+        combine            a dictionary of lists of file names to be
+                             averaged (i.e. individual repeatobs or fp-split
+                             exposures)
+        concat             pairs of files of 1-D extracted FUV spectra for
+                             segments A and B need to be concatenated; this
+                             is a list of dictionaries with info about files
+                             to be concatenated
+        product            rootname of the product (rootname portion is lower
+                             case; includes outdir)
+        product_type       memtype of the product (case unchanged from asn
+                             table)
+        global_switches    dictionary of the global calibration switches
+        rawfiles           a list of all rawtag or rawimage files
+        obs                a list of Observation instances, one for each raw
+                             file
+        first_science      index of first science observation in obs list
 
- the following come from command-line options:
-    save_temp_files    true if the count-rate files should not be
-                         deleted
-    stimfile           name of file for stim positions, or None
-    livetimefile       name of file for livetime information, or None
-    burstfile          name of file for burst information, or None
-"""
+     the following come from command-line options:
+        save_temp_files    true if the count-rate files should not be
+                             deleted
+        stimfile           name of file for stim positions, or None
+        livetimefile       name of file for livetime information, or None
+        burstfile          name of file for burst information, or None
+    """
 
     def __init__ (self, asntable, outdir, save_temp_files,
                   stimfile, livetimefile, burstfile):
@@ -352,7 +366,7 @@ The attributes are:
                 concat_these = []               # x1d_a and x1d_b names
                 concat_info_flash = {}          # another element of concat
                 concat_these_flash = []         # flash_a and flash_b names
-                first = 1                       # first of a pair for FUV (bool)
+                first = True                    # first of a pair for FUV
                 for input in basic_info["rawfiles"]:    # one (NUV) or two (FUV)
                     obs = initObservation (input, self.outdir, memtype[i],
                           basic_info["detector"], basic_info["obsmode"])
@@ -379,7 +393,7 @@ The attributes are:
                         if first:
                             self.updateCombineX1d (obs.filenames,
                                   obs.info["fppos"])
-                    first = 0
+                    first = False
 
                 if concat_these:
                     concat_info["input"] = concat_these
@@ -450,16 +464,16 @@ The attributes are:
     def dummyAsnTable (self, asntable):
         """Construct a recarray corresponding to an association table.
 
-This function will be called for the case that the user specified
-the name of a raw file instead of an association table.  The
-'asntable' argument is the name as given by the user; we will
-extract the root that precedes "_raw*.fits", i.e. excluding the
-suffix.  A recarray object will be created that has the appropriate
-column names for an association table, and the "row" of data will be
-assigned the specified rootname.  There will only be this one row;
-product will be set to None.  The memtype will be set to "none",
-even though it might actually be a wavecal.
-"""
+        This function will be called for the case that the user specified
+        the name of a raw file instead of an association table.  The
+        'asntable' argument is the name as given by the user; we will
+        extract the root that precedes "_raw*.fits", i.e. excluding the
+        suffix.  A recarray object will be created that has the appropriate
+        column names for an association table, and the "row" of data will be
+        assigned the specified rootname.  There will only be this one row;
+        product will be set to None.  The memtype will be set to "none",
+        even though it might actually be a wavecal.
+        """
 
         cosutil.printMsg ("Input file = " + asntable, VERBOSE)
 
@@ -467,7 +481,7 @@ even though it might actually be a wavecal.
 
         self.asn_info["memname"] = [rootname]
         self.asn_info["memtype"] = ["none"]
-        self.asn_info["mempresent"] = [1]       # true, it is present
+        self.asn_info["mempresent"] = [True]    # yes, it is present
 
         # Because the input is not an association, there is no product.
         self.product = None
@@ -476,12 +490,12 @@ even though it might actually be a wavecal.
     def initialInfo (self, memname):
         """Get preliminary information from an input file.
 
-This gets the names of the raw files, and from the first of those
-files, reads the primary header and calls a function to get
-DETECTOR, OBSMODE, and EXPTYPE.  In addition, this function checks
-that the suffixes are as expected for the DETECTOR and OBSMODE
-keywords.
-"""
+        This gets the names of the raw files, and from the first of those
+        files, reads the primary header and calls a function to get
+        DETECTOR, OBSMODE, and EXPTYPE.  In addition, this function checks
+        that the suffixes are as expected for the DETECTOR and OBSMODE
+        keywords.
+        """
 
         # Find the names of all raw files with the specified rootname.
         rawfiles = []
@@ -508,7 +522,7 @@ keywords.
         nfiles = len (rawfiles)
         if nfiles == 0:
             raise RuntimeError, \
-                  "There are no raw files for rootname `%s'" % (memname,)
+                  "There are no raw files for rootname `%s'" % memname
         rawfiles.sort()
 
         # Read the first raw file with the specified rootname.
@@ -529,10 +543,10 @@ keywords.
             else:
                 del check[3]                    # NUV accum
 
-        bad_name = 0            # boolean false
+        bad_name = False
         for key in check:
             if num[key] > 0:
-                bad_name = 1
+                bad_name = True
                 break
         if bad_name:
             cosutil.printError (
@@ -582,27 +596,27 @@ keywords.
     def findFirstScience (self):
         """Find the first science file in the list.
 
-This is a utility function to return the index of the first science
-observation.  If there are no science observations, this returns the
-index of the first wavecal.  If there are no wavecals either, this
-returns zero (the first observation could be a TA1).
-"""
+        This is a utility function to return the index of the first science
+        observation.  If there are no science observations, this returns the
+        index of the first wavecal.  If there are no wavecals either, this
+        returns zero (the first observation could be a TA1).
+        """
 
         if len (self.obs) < 2:
             return 0
 
-        foundit = 0                                     # boolean
+        foundit = False
         for i in range (len (self.obs)):
             obs = self.obs[i]
             if obs.exp_type == EXP_SCIENCE:
-                foundit = 1
+                foundit = True
                 break
         if not foundit:
             # No science observation; find the first wavecal, if any.
             for i in range (len (self.obs)):
                 obs = self.obs[i]
                 if obs.exp_type == EXP_WAVECAL:
-                    foundit = 1
+                    foundit = True
                     break
         if not foundit:
             # No wavecal observation; take the first observation of any kind.
@@ -613,10 +627,10 @@ returns zero (the first observation could be a TA1).
     def compareConfig (self):
         """Compare detector, opt_elem, and cenwave.
 
-All the files in an association must have been taken with the same
-detector and grating (or mirror).  For spectroscopic observations,
-the central wavelength must also be the same.
-"""
+        All the files in an association must have been taken with the same
+        detector and grating (or mirror).  For spectroscopic observations,
+        the central wavelength must also be the same.
+        """
 
         if len (self.obs) < 2:
             return
@@ -643,10 +657,10 @@ the central wavelength must also be the same.
     def compareRefFiles (self):
         """Compare reference file names.
 
-This function compares the values of the reference file keywords in
-the observation list.  If there is any mismatch, the file name in
-the first science observation will take precedence.
-"""
+        This function compares the values of the reference file keywords in
+        the observation list.  If there is any mismatch, the file name in
+        the first science observation will take precedence.
+        """
 
         # Take the reference file list from the first segment for the first
         # science observation.
@@ -654,7 +668,7 @@ the first science observation will take precedence.
 
         # Now do the comparisons.  'a_file' is the value of a reference file
         # keyword, and 'compare' is the value in the first science observation.
-        message_printed = 0                             # boolean
+        message_printed = False
         for obs in self.obs:
             keys = reffiles.keys()
             keys.sort()
@@ -669,7 +683,7 @@ the first science observation will take precedence.
                     if not message_printed:
                         cosutil.printWarning ( \
                                 "Inconsistent reference file names:")
-                        message_printed = 1
+                        message_printed = True
                     if len (compare) == 0:
                         compare = "(blank)"
                     if len (a_file) == 0:
@@ -682,11 +696,12 @@ the first science observation will take precedence.
     def compareSwitches (self):
         """Compare switches.
 
-This function compares the values of the calibration switch keywords
-in the observation list.  If there is a mismatch, the value in the
-first first science observation will take precedence.  Allowance is
-made for differences in the type of observation, i.e. science,
-wavecal, or TA1.  """
+        This function compares the values of the calibration switch keywords
+        in the observation list.  If there is a mismatch, the value in the
+        first first science observation will take precedence.  Allowance is
+        made for differences in the type of observation, i.e. science,
+        wavecal, or TA1.
+        """
 
         # Take the list of switches from the first segment for the first
         # science observation.
@@ -694,7 +709,7 @@ wavecal, or TA1.  """
 
         # Do the comparisons.  'sw' is the value of a calibration keyword,
         # and 'compare' is the value in the first science observation.
-        message_printed = 0                             # boolean
+        message_printed = False
         for obs in self.obs:
             keys = switches.keys()
             keys.sort()
@@ -709,7 +724,7 @@ wavecal, or TA1.  """
                     if not message_printed:
                         cosutil.printWarning (
                                 "Inconsistent calibration switches:")
-                        message_printed = 1
+                        message_printed = True
                     if sw == "COMPLETE" or sw == "SKIPPED":
                         cosutil.printMsg (obs.input + ":  " + key + " = " + \
                                 sw + " ... NOT reset")
@@ -724,14 +739,16 @@ wavecal, or TA1.  """
 
     def missingRefFiles (self):
         """Check for missing reference files.
-This function opens each of the required reference files, gets the
-FILETYPE keyword from the primary header, and compares that value
-with the expected value.  It is an error if any of the reference
-files can't be opened, or if the value of FILETYPE doesn't match.
 
-Note that the minimum reference file version is specified here, for
-each reference file.  This is the min_ver value.
-"""
+        This function opens each of the required reference files, gets the
+        FILETYPE keyword from the primary header, and compares that value
+        with the expected value.  It is an error if any of the reference
+        files can't be opened, or if the value of FILETYPE doesn't match.
+
+        Note that the minimum reference file version is specified here, for
+        each reference file.  This is the min_ver value.
+        """
+
         # Take info from the first science observation.
         i = self.first_science
         switches = self.obs[i].switches
@@ -858,20 +875,23 @@ each reference file.  This is the min_ver value.
 
     def globalSwitches (self):
         """Set global switches.
-The global switches are "any", "science", "wavecal", and "repeat".  Their
-values are either "PERFORM" or "OMIT", though "science" and "wavecal"
-indicate the presence of one or more files of that type rather than an
-actual calibration switch.  "wavecal" refers to separate wavecal files,
-not concurrent science and wavecal data (tagflash); the latter would be
-included in "science".  "any" is "PERFORM" if any of the calibration steps
-other than wavecorr is "PERFORM".
 
-"repeat" depends on both the rptcorr switch and on the product row in
-the association table.  If there's no product, "repeat" will be "OMIT".
-If there is a product, "repeat" will be "PERFORM" if the rptcorr switch
-is "PERFORM", or if there is only one calibrated file of a given type;
-in the latter case the files will just be renamed to the product name.
-"""
+        The global switches are "any", "science", "wavecal", and "repeat".
+        Their values are either "PERFORM" or "OMIT", though "science" and
+        "wavecal" indicate the presence of one or more files of that type
+        rather than an actual calibration switch.  "wavecal" refers to
+        separate wavecal files, not concurrent science and wavecal data
+        (tagflash); the latter would be included in "science".  "any" is
+        "PERFORM" if any of the calibration steps other than wavecorr is
+        "PERFORM".
+
+        "repeat" depends on both the rptcorr switch and on the product row
+        in the association table.  If there's no product, "repeat" will be
+        "OMIT".  If there is a product, "repeat" will be "PERFORM" if the
+        rptcorr switch is "PERFORM", or if there is only one calibrated
+        file of a given type; in the latter case the files will just be
+        renamed to the product name.
+        """
 
         # Take the calibration switch list from the first science observation.
         switches = self.obs[self.first_science].switches
@@ -929,10 +949,11 @@ in the latter case the files will just be renamed to the product name.
 
     def isAnySwitchSet (self):
         """Return 1 if any calibration switch is PERFORM, 0 otherwise.
-The test is made using the global switches, because the test on
-individual switches is done in the method that sets the global
-switches.
-"""
+
+        The test is made using the global switches, because the test on
+        individual switches is done in the method that sets the global
+        switches.
+        """
 
         if self.global_switches["any"] == "PERFORM" or \
            self.global_switches["wavecal"] == "PERFORM":
@@ -942,10 +963,11 @@ switches.
 
     def checkOutputExists (self):
         """Check whether output files already exist.
-This routine checks for the existence of any output file for
-each of the input files.  If any are found it prints their names
-and raises an exception.
-"""
+
+        This routine checks for the existence of any output file for
+        each of the input files.  If any are found it prints their names
+        and raises an exception.
+        """
 
         detector = self.obs[0].info["detector"]
 
@@ -995,10 +1017,10 @@ and raises an exception.
     def checkExists (self, fname, already_exists):
         """If fname exists, append the name to already_exists.
 
-arguments:
-fname             the name of the file
-already_exists    a list of file names; fname may be appended
-"""
+        arguments:
+        fname             the name of the file
+        already_exists    a list of file names; fname may be appended
+        """
 
         if os.access (fname, os.R_OK):
             already_exists.append (fname)
@@ -1006,10 +1028,10 @@ already_exists    a list of file names; fname may be appended
     def stimfileSanityCheck (self):
         """Ignore stimfile if detector is not FUV.
 
-Only the FUV detector has stims.  If a file was specified for
-saving measured stim locations (--stim stimfile), the name will
-be reset to None if the detector was not FUV.
-"""
+        Only the FUV detector has stims.  If a file was specified for
+        saving measured stim locations (--stim stimfile), the name will
+        be reset to None if the detector was not FUV.
+        """
 
         if self.stimfile is not None and \
            self.obs[self.first_science].info["detector"] != "FUV":
@@ -1026,14 +1048,14 @@ be reset to None if the detector was not FUV.
 
         fd = pyfits.open (self.asntable, mode="update")
 
-        asn = fd[1].data._parent
+        asn = fd[1].data
         nrows = asn.shape[0]
         memtype = asn.field ("MEMTYPE")
         mempresent = asn.field ("MEMPRSNT")
 
         for i in range (nrows):
             if memtype[i].find ("PROD") >= 0:
-                mempresent[i] = ord ('T')
+                mempresent[i] = True
                 break
 
         fd.close()
@@ -1131,11 +1153,7 @@ class Observation:
                                 % (self.info["exptype"], input))
                     cosutil.printContinuation (
                             "but MEMTYPE = %s in the association table;" \
-                                % (memtype,))
-                    if self.info["aperture"] != "WCA":
-                        cosutil.printContinuation (
-                            "note also that APERTURE = %s; nevertheless," \
-                                % (self.info["aperture"],))
+                                % memtype)
                     cosutil.printContinuation (
                     "this will be processed as a wavecal because of MEMTYPE.")
 
@@ -1149,9 +1167,14 @@ class Observation:
                                 % (self.info["exptype"], input))
                     cosutil.printContinuation (
                             "but MEMTYPE = %s in the association table;" \
-                                % (memtype,))
+                                % memtype)
                     cosutil.printContinuation (
         "this will be processed as a science observation because of MEMTYPE.")
+
+        if self.exp_type == EXP_WAVECAL and self.info["aperture"] != "WCA":
+            cosutil.printWarning (
+            "APERTURE = %s for a wavecal; this could be a serious error" \
+                                % self.info["aperture"])
 
         self.checkSwitches()
 
@@ -1328,7 +1351,7 @@ class Observation:
             lom2stp = int (fd[2].header.get ("lom2stp", -1))
             fd.close()
         except IOError:
-            cosutil.printWarning ("spt file %s not found" % (sptfile,))
+            cosutil.printWarning ("spt file %s not found" % sptfile)
             cosutil.printContinuation ("can't check OPT_ELEM, CENWAVE, FPOFFSET")
             return
 
@@ -1685,7 +1708,7 @@ class Calibration:
                     # Read info from wavecal parameters table.
                     wcp_info = cosutil.getTable (obs.reffiles["wcptab"],
                                filter={"opt_elem": obs.info["opt_elem"]},
-                               exactly_one=1)
+                               exactly_one=True)
                     self.wcp_info = wcp_info[0]
                 self.basicCal (obs.filenames,
                         obs.info, obs.switches, obs.reffiles)
@@ -1721,7 +1744,7 @@ class Calibration:
             return
 
         cosutil.printMsg ("Begin calibration of science data.", VERY_VERBOSE)
-        tagflash = 0                    # initial value (boolean)
+        tagflash = False                # initial value
         for obs in self.assoc.obs:
             if obs.exp_type == EXP_SCIENCE or obs.exp_type == EXP_ACQ_IMAGE:
                 self.basicCal (obs.filenames,
@@ -1735,7 +1758,7 @@ class Calibration:
                 if not self.assoc.save_temp_files:
                     self.removeCountRateFile (obs.filenames)
                 if obs.info["tagflash"]:
-                    tagflash = 1        # there is at least one tagflash obs
+                    tagflash = True     # there is at least one tagflash obs
 
         if obs.switches["x1dcorr"] == "PERFORM":
             self.concatenateSpectra ("science")
@@ -1956,10 +1979,10 @@ class Calibration:
         if combine.has_key ("x1d"):
             x1d_list = combine["x1d"]
             osm_list = combine["fppos"]
-            do_subsets = 0                      # initial value (boolean)
+            do_subsets = False                  # initial value
             for i in range (1, len (osm_list)):
                 if osm_list[i] != osm_list[0]:
-                    do_subsets = 1
+                    do_subsets = True
                     break
             if do_subsets:
                 for osm in range (1, 5):
