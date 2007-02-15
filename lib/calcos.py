@@ -156,13 +156,10 @@ def uniqueInput (infiles):
     return unique_files
 
 def checkNumerix():
-    """Check that the environment variable NUMERIX is set to numpy."""
+    """Check whether the environment variable NUMERIX is set to numpy."""
 
-    if not os.environ.has_key ("NUMERIX"):
-        cosutil.printWarning (
-                "environment variable NUMERIX should be set to numpy")
-    elif os.environ["NUMERIX"] != "numpy":
-        cosutil.printWarning ("NUMERIX is set to '%s', should be numpy" % \
+    if os.environ.has_key ("NUMERIX") and os.environ["NUMERIX"] != "numpy":
+        cosutil.printWarning ("NUMERIX is set to '%s', should be 'numpy'" % \
                               os.environ["NUMERIX"])
 
 def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,

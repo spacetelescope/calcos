@@ -191,7 +191,7 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
         wild = None
         if isinstance (column, N.chararray):
             wild = (column == STRING_WILDCARD)
-        elif isinstance (column[0], int):
+        elif isinstance (column[0], N.integer):
             wild = (column == INT_WILDCARD)
         if wild is not None:
             selected = N.logical_or (selected, wild)
