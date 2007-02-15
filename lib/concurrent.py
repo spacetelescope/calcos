@@ -638,7 +638,7 @@ class ConcurrentWavecal:
 
         if hist is not None:
             cutoff = self.findCutoff (hist, step)
-            self.findLampOn(cutoff, time[0])
+            self.findLampOn (cutoff, time[0])
             self.findLampMedian()
 
         if cosutil.checkVerbosity (VERBOSE):

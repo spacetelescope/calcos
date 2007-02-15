@@ -7,7 +7,7 @@ LARGE_BURST = -20               # flag value in bkg_counts
 SMALL_BURST = -10               # flag value in bkg_counts
 
 def burstFilter (time, y, dq, reffiles, info, burstfile=None,
-                 high_countrate=True):
+                 high_countrate=False):
     """Flag regions where the count rate is unreasonably high.
 
     For each burst interval detected, a flag will be set in the

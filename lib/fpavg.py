@@ -401,12 +401,12 @@ class OutputSpectrum:
         self.output_pshift = output_pshift
         self.segment = segment
 
-        foundit = 0             # boolean
+        foundit = False
         for row in range (len (self.ofd[1].data)):
             if self.ofd[1].data.field ("segment")[row] == self.segment:
-                foundit = 1
+                foundit = True
                 break
-        assert foundit == 1
+        assert foundit == True
 
         # Allocate space for the sum of weights and for the sum of the
         # data qualify flags.  We can't accumulate sums for the latter
@@ -443,7 +443,7 @@ class OutputSpectrum:
         sumweight = N.where (sumweight == 0., 1., sumweight)
 
         nelem = len (sumweight)
-        x = N.arange (nelem, dtype=N.float64)     # pixel numbers
+        x = N.arange (nelem, dtype=N.float64)   # pixel numbers
         x -= self.output_pshift
         data.field ("wavelength")[:] = cosutil.evalDisp (x, coeff)
         del x
