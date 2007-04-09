@@ -1504,15 +1504,15 @@ def doStatflag (switches, output, outcounts):
         cosutil.doImageStat (output)
 
 def flag_gti (time, dq, gti):
-    """Flag events in dq that are outside any good-time interval.
+    """Flag events in dq that are outside any good time interval.
 
     xxx This function may be unnecessary, in the sense that there probably
-    won't be any events that are outside any good-time interval.
+    won't be any events that are outside any good time interval.
 
     arguments:
     time          the time column in the events table
     dq            the data quality column in the events table (updated in-place)
-    gti           list of good-time intervals
+    gti           list of good time intervals
     """
 
     SMALL_INCR = 0.02           # smaller than the timestep of 0.032 s

@@ -106,7 +106,7 @@ class ConcurrentWavecal:
     """
 
     def __init__ (self, events, outflash, info, reffiles, phdr, hdr,
-                  delta_t=1.0, buffer_time=2.0):
+                  delta_t=1.0, buffer_on=2.0, buffer_off=4.0):
 
         self.events = events
         self.outflash = outflash
@@ -128,9 +128,10 @@ class ConcurrentWavecal:
         # wavecal region of the detector
         self.src_counts = None
         self.delta_t = delta_t          # bin events in this size interval
-        # expand lamp_on,lamp_off intervals by this much (on each end of
-        # interval) before searching for lamp turn-on and turn-off times
-        self.buffer_time = buffer_time
+        # subtract buffer_on from lamp_on and add buffer_off to lamp_off
+        # before searching for actual lamp turn-on and turn-off times
+        self.buffer_on = buffer_on
+        self.buffer_off = buffer_off
 
         # for FUV segment_list is just one segment name;
         # for NUV this is all three stripe names ["NUVA", "NUVB", "NUVC"]
@@ -739,8 +740,8 @@ class ConcurrentWavecal:
         nbins = len (self.src_counts)
         for i in range (self.numflash):
             lamp_is_on = False
-            lamp_on_i = self.lamp_on[i] - self.buffer_time
-            lamp_off_i = self.lamp_off[i] + self.buffer_time
+            lamp_on_i = self.lamp_on[i] - self.buffer_on
+            lamp_off_i = self.lamp_off[i] + self.buffer_off
             (k_on, k_off) = self.getIndices (nbins, t0, lamp_on_i, lamp_off_i)
             if k_on is None:
                 continue
@@ -791,10 +792,10 @@ class ConcurrentWavecal:
         @param t0: time of first photon event
         @type t0: float
 
-        @param lamp_on_i: one element of lamp_on array (minus buffer_time)
+        @param lamp_on_i: one element of lamp_on array (minus buffer_on)
         @type lamp_on_i: float
 
-        @param lamp_off_i: one element of lamp_off array (plus buffer_time)
+        @param lamp_off_i: one element of lamp_off array (plus buffer_off)
         @type lamp_off_i: float
 
         @return: the indices corresponding to lamp_on_i and lamp_off_i;

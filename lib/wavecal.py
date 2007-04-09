@@ -548,7 +548,7 @@ def ttFindFUV (xi, eta, dq, filter, xtractab):
 
     xdisp = N.zeros (FUV_Y, dtype=N.float32)
 
-    xd_range = 100
+    xd_range = 50
     box = 7
     shift2 = None
     xd_shifts = {}
