@@ -1,18 +1,17 @@
 from distutils.core import setup, Extension
 from distutils import sysconfig
-#from distutils.command.install_data import install_data
-import sys, os.path
-import numpy
-# import numpy.numarray.util as nnu
-import numpy.numarray as nnu
 
-#if not hasattr(sys, 'version_info') or sys.version_info < (2,3,0,'alpha',0):
-#    raise SystemExit, "Python 2.3 or later required to build imagestats."
+import sys, os.path
+
+try:
+    import numpy
+    import numpy.numarray as nnu
+except ImportError:
+    print "NUMPY was not found. It may not be installed or it may not be on your PYTHONPATH")
 
 pythoninc = sysconfig.get_python_inc()
 
 numpyinc = numpy.get_include()
-
 numpynumarrayinc = nnu.get_numarray_include_dirs()[0]
 
 args = sys.argv[:]
