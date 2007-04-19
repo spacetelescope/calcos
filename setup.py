@@ -7,7 +7,7 @@ try:
     import numpy
     import numpy.numarray as nnu
 except ImportError:
-    print "NUMPY was not found. It may not be installed or it may not be on your PYTHONPATH")
+    print "NUMPY was not found. It may not be installed or it may not be on your PYTHONPATH"
 
 pythoninc = sysconfig.get_python_inc()
 
