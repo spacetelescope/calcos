@@ -1469,18 +1469,8 @@ def makeImageHDU (fd, table_hdr, data_array, name="SCI"):
     name          string to be used for EXTNAME
     """
 
-    if data_array is None:
-        shape = (0,)
-        if name == "DQ":
-            ndtype = N.int16
-        else:
-            ndtype = N.float32
-    else:
-        shape = data_array.shape
-        ndtype = data_array.dtype
-
     # Create an image header from the table header.
-    imhdr = cosutil.tableHeaderToImage (table_hdr, shape, ndtype)
+    imhdr = cosutil.tableHeaderToImage (table_hdr)
     if name == "DQ":
         imhdr.update ("BUNIT", "UNITLESS")
     else:

@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
 CALCOS_VERSION_NUMBER = "1.1"
-CALCOS_VERSION_DATE = "(9 April 2007)"
+CALCOS_VERSION_DATE = "(4 May 2007)"
 CALCOS_VERSION = CALCOS_VERSION_NUMBER + " " + CALCOS_VERSION_DATE
 
 SPEED_OF_LIGHT = 299792.458     # km/s
@@ -64,7 +64,7 @@ DQ_OUT_OF_BOUNDS = 128          # pixel is outside the subarray
 DQ_DATA_FILL = 256              # data fill due to telemetry drop-out
 DQ_PH_LOW = 512                 # pulse height is below cutoff
 DQ_PH_HIGH = 1024               # pulse height is above cutoff
-DQ_BAD_TIME = 2048              # time is inside a bad-time interval
+DQ_BAD_TIME = 2048              # time is inside a bad time interval
 DQ_BAD_WAVELENGTH = 4096        # wavelength is below MIN_WAVELENGTH
 # DQ_TBD = 8192
 # DQ_TBD = 16384

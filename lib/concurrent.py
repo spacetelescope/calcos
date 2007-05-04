@@ -379,6 +379,10 @@ class ConcurrentWavecal:
 
             # If first is still True, no spectrum was found.
             if first:
+                print "%2d no spectrum found" % (n+1,)
+                for segment in self.segment_list:
+                    pshift[segment] = 0.
+                self.pshift.append (pshift)
                 continue
 
             # find offset in dispersion direction

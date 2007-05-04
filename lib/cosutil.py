@@ -489,77 +489,18 @@ def flagOutOfBounds (phdr, hdr, dq_array):
 
     dq_array[:,:] = N.bitwise_or (dq_array, temp)
 
-def tableHeaderToImage (thdr, shape, ndtype):
-    """Modify keywords to turn a table header into an image header.
+def tableHeaderToImage (thdr):
+    """Rename table WCS keywords to image WCS keywords.
 
-    The function returns a copy of the header with table-specific keywords
-    deleted and other keywords modified, to serve as an image header for
-    data of the specified shape and type.
+    The function returns a copy of the header with table-specific WCS
+    keywords renamed to their image-style counterparts, to serve as an
+    image header.
 
-    arguments:
+    argument:
     thdr          a FITS Header object for a table
-    shape         a list of axis lengths for the associated data array
-    ndtype        numpy type, e.g. float32
     """
 
     hdr = thdr.copy()
-
-    hdr["XTENSION"] = "IMAGE"
-
-    # Set the NAXIS and NAXISi keywords, and delete unused NAXISi keywords.
-    if shape == (0,):
-        naxis = 0
-    else:
-        naxis = len (shape)
-    MAX_NAXIS = 7
-    hdr["NAXIS"] = naxis
-    previous = "NAXIS"
-    for i in range (naxis):
-        j = i + 1                       # j is one-indexed
-        key = "NAXIS" + str (j)
-        if hdr.has_key (key):
-            hdr[key] = shape[naxis-j]
-        else:
-            hdr.update (key, shape[naxis-j], after=previous)
-        previous = key
-    for i in range (naxis, MAX_NAXIS):
-        j = i + 1
-        key = "NAXIS" + str (j)
-        if hdr.has_key (key):
-            del hdr[key]
-
-    hdr["PCOUNT"] = 0
-    hdr["GCOUNT"] = 1
-
-    if ndtype == N.int32:
-        hdr["bitpix"] = 32
-    elif ndtype == N.int16:
-        hdr["bitpix"] = 16
-    elif ndtype == N.uint16:
-        hdr["bitpix"] = 16
-        hdr.update ("BSCALE", 1., comment="scale factor for unsigned data")
-        hdr.update ("BZERO", 32768., comment="zero point for unsigned data")
-    elif ndtype == N.int8 or ndtype == N.uint8:
-        hdr["bitpix"] = 8
-    elif ndtype == N.float32:
-        hdr["bitpix"] = -32
-    elif ndtype == N.float64:
-        hdr["bitpix"] = -64
-    else:
-        raise TypeError, str (ndtype) + " is not a supported data type"
-
-    if hdr.has_key ("TFIELDS"):
-        ncols = hdr["TFIELDS"]
-        del hdr["TFIELDS"]
-    else:
-        ncols = 0
-
-    for keyword in ["TTYPE", "TFORM", "TUNIT", "TNULL", "TDISP",
-                    "TSCAL", "TZERO", "TALEN"]:
-        for i in range (1, ncols+1):    # FITS keywords are one-indexed
-            key = keyword + str (i)
-            if hdr.has_key (key):
-                del hdr[key]
 
     # These are the world coordinate system keywords in an events table
     # and their corresponding names for an image.  NOTE that this assumes
