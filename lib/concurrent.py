@@ -49,6 +49,9 @@ def processConcurrentWavecal (events, outflash,
 
     cw.getStartStopTimes()
     if cw.numflash < 1:
+        # write an empty lampflash table
+        cw.outFlashSetup()
+        cw.writeOutFlash()
         return
 
     cw.zeroKeywords()
@@ -641,7 +644,9 @@ class ConcurrentWavecal:
 
         (hist, step) = self.makeHistogram()
 
-        if hist is not None:
+        if hist is None:
+            self.numflash = 0
+        else:
             cutoff = self.findCutoff (hist, step)
             self.findLampOn (cutoff, time[0])
             self.findLampMedian()

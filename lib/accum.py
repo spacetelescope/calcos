@@ -160,11 +160,11 @@ def globrate_accum (sci, exptime, segment, brftab):
         return 0.
 
     if segment[0] == "N":
-        return N.sum (sci.flat.astype (N.float32)) / exptime
+        return N.sum (sci.ravel().astype (N.float32)) / exptime
 
     (b_low, b_high) = cosutil.active_area (segment, brftab)
     temp = sci[b_low:b_high,:].copy()
-    return N.sum (temp.flat.astype (N.float32)) / exptime
+    return N.sum (temp.ravel().astype (N.float32)) / exptime
 
 def doPhacorr (inpha, info, switches, reffiles, headers):
     """Verify that the pulse height histograms are reasonable.
