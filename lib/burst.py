@@ -93,7 +93,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     src_counts = N.zeros (nbins, dtype=N.int32)
 
     # Find istart & istop for each delta_t interval.
-    ccos.getstartstop (time, y, dq, istart, istop, delta_t)
+    ccos.getstartstop (time, istart, istop, delta_t)
 
     # find the counts within the background and source regions, for each
     # delta_t interval.

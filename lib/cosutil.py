@@ -226,6 +226,41 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
 
     return newdata
 
+def getColCopy (filename="", column=None, extension=1, data=None):
+    """Return the specified column in native format.
+
+    @param filename: the name of the FITS file
+    @type filename: string
+    @param column: column name or number
+    @type column: string or integer
+    @param extension: number of extension containing the table
+    @type extension: integer
+    @param data: the data portion of a table
+    @type data: pyfits record object
+
+    @return: the column data
+    @rtype: an array
+
+    Specify either the name of the file or the data block, but not both.
+    """
+
+    if filename and data is not None:
+        raise RuntimeError, "Specify either filename or data, but not both."
+
+    if filename:
+        fd = pyfits.open (filename, mode="readonly")
+        temp = fd[extension].data.field (column)
+        fd.close()
+    elif data is not None:
+        temp = data.field (column)
+    else:
+        raise RuntimeError, "Either filename or data must be specified."
+
+    x = N.empty (temp.shape, dtype=temp.dtype.type)
+    x[...] = temp
+
+    return x
+
 def getHeaders (input):
     """Return a list of all the headers in the file.
 

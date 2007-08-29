@@ -5,14 +5,12 @@ import sys, os.path
 
 try:
     import numpy
-    import numpy.numarray as nnu
 except ImportError:
     print "NUMPY was not found. It may not be installed or it may not be on your PYTHONPATH"
 
 pythoninc = sysconfig.get_python_inc()
 
 numpyinc = numpy.get_include()
-numpynumarrayinc = nnu.get_numarray_include_dirs()[0]
 
 args = sys.argv[:]
 for a in args:
@@ -30,7 +28,7 @@ for a in args:
 def getExtensions_numpy (args):
     ext = [Extension ("calcos.ccos", ["src/ccos.c"],
            define_macros = [('NUMPY', '1')],
-           include_dirs = [pythoninc, numpyinc, numpynumarrayinc])]
+           include_dirs = [pythoninc, numpyinc])]
     return ext
 
 

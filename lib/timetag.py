@@ -386,9 +386,11 @@ def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
     if info["detector"] == "FUV" and \
        (switches["tempcorr"] == "PERFORM" or switches["deadcorr"] == "PERFORM"):
         # Compute the parameters (to be used later).
+        time = cosutil.getColCopy (data=events, column="time")
         (stim_param, stim_locations, stim_countrate, stim_livetime) = \
-         computeThermalParam (events.field ("time"), events.field (xcorr),
-            events.field (ycorr), events.field ("dq"), reffiles["brftab"],
+         computeThermalParam (time,
+            events.field (xcorr), events.field (ycorr), events.field ("dq"),
+            reffiles["brftab"],
             info["segment"], info["exptime"], info["stimrate"],
             input, stimfile)
         # Update stim location keywords in extension header.
@@ -489,8 +491,8 @@ def computeThermalParam (time, x, y, dq,
     if fd is not None:
         fd.write ("# t0 t1 stim_locations\n")
 
-    t0 = 0.
-    t1 = dt_thermal
+    t0 = time[0]
+    t1 = t0 + dt_thermal
     sumstim = (0, 0., 0., 0, 0., 0.)
     while t0 < time[nevents-1]:
 
@@ -1199,7 +1201,7 @@ def deadtimeCorrection (events, deadtab, segment, exptime,
         fd.write ("# %s\n" % input)
         fd.write ("# t0 t1 countrate livetime\n")
 
-    time = events.field ("time")
+    time = cosutil.getColCopy (data=events, column="time")
     epsilon = events.field ("epsilon")
     nevents = len (time)
 
@@ -1215,8 +1217,8 @@ def deadtimeCorrection (events, deadtab, segment, exptime,
     cosutil.printMsg ("Compute livetime factor; timestep is %.6g s:" \
                   % dt_deadtime, VERY_VERBOSE)
 
-    t0 = 0.
-    t1 = dt_deadtime
+    t0 = time[0]
+    t1 = t0 + dt_deadtime
     last_time = time[nevents-1]
     while t0 < last_time:
 

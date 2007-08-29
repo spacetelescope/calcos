@@ -138,6 +138,7 @@ class ConcurrentWavecal:
 
         # for FUV segment_list is just one segment name;
         # for NUV this is all three stripe names ["NUVA", "NUVB", "NUVC"]
+        # (except for G230L, 3360).
         self.segment_list = []          # segment names
 
         # the key is segment or stripe name, the value is a list, each
@@ -625,7 +626,7 @@ class ConcurrentWavecal:
         src_counts = N.zeros (nbins, dtype=N.int32)
         bkg_counts = N.zeros (nbins, dtype=N.int32)
 
-        ccos.getstartstop (time, eta, dq, istart, istop, self.delta_t)
+        ccos.getstartstop (time, istart, istop, self.delta_t)
         ccos.getbkgcounts (eta, dq, istart, istop,
                            bkg_counts, src_counts,
                            bkg1_low, bkg1_high, bkg2_low, bkg2_high,
@@ -949,7 +950,11 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
         self.xi_corr  = events.field ("YFULL")
         self.eta_corr = events.field ("XFULL")
         self.spectrum = N.zeros (NUV_Y, dtype=N.float64)
-        self.segment_list = ["NUVA", "NUVB", "NUVC"]
+        if phdr.get ("OPT_ELEM", "missing") == "G230L" and \
+           phdr.get ("cenwave", 0) == 3360:
+            self.segment_list = ["NUVA", "NUVB"]
+        else:
+            self.segment_list = ["NUVA", "NUVB", "NUVC"]
 
         # Copy xi and eta to the columns for corrected values.
         self.copyColumns()
