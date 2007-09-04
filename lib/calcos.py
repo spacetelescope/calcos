@@ -25,8 +25,6 @@ EXP_WAVECAL     = 2
 EXP_TARGET_ACQ  = 3
 EXP_ACQ_IMAGE   = 4
 EXP_ENGINEERING = 5
-__version__ = CALCOS_VERSION_NUMBER
-__vdate__   = CALCOS_VERSION_DATE
 
 def main (args):
     """Check arguments and call calcos.
