@@ -54,7 +54,7 @@ def fpAvgSpec (input, output):
 
     outspec = OutputX1D (input, output)
 
-class OutputX1D:
+class OutputX1D (object):
 
     def __init__ (self, input, output):
         """Average 1-D FP-POS spectra.
@@ -289,7 +289,7 @@ class OutputX1D:
         ofd[1].data.field ("maxdq")[:] = 0
         ofd[1].data.field ("avgdq")[:] = 0
 
-class Spectrum:
+class Spectrum (object):
 
     def __init__ (self, ifd, row=0):
         """This is one row of an input x1d table.
@@ -378,7 +378,7 @@ def initOutputSpectrum (ofd, inspec, keywords, output_pshift, segment):
 
     return osp
 
-class OutputSpectrum:
+class OutputSpectrum (object):
 
     def __init__ (self, ofd, inspec, keywords, output_pshift, segment):
         """This is only invoked by a subclass that depends on detector.
@@ -435,10 +435,8 @@ class OutputSpectrum:
             coeff          coefficients of the dispersion relation
         """
 
-        bad = N.zeros (1, dtype=N.int16)
-        bad[0] = DQ_OUT_OF_BOUNDS
         maxdq = data.field ("maxdq")
-        maxdq = N.where (sumweight == 0., bad, maxdq)
+        maxdq = N.where (sumweight == 0., DQ_OUT_OF_BOUNDS, maxdq)
 
         sumweight = N.where (sumweight == 0., 1., sumweight)
 

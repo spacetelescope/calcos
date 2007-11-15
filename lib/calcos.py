@@ -271,7 +271,7 @@ def getRootname (input, suffix):
 
     return root
 
-class Association:
+class Association (object):
     """Read and interpret the association table.
 
     The attributes are:
@@ -451,7 +451,7 @@ class Association:
                 if self.product is not None:
                     raise RuntimeError, \
                     "The association table may list no more than one product."
-                self.product = asn_memname[i]
+                self.product = asn_memname[i].lower()
                 self.product_type = asn_memtype[i]
 
         if self.product is not None:
@@ -1082,7 +1082,7 @@ def initObservation (input, outdir, memtype, detector, obsmode):
 
     return obs
 
-class Observation:
+class Observation (object):
     """Get information about an observation from its headers.
 
     This base class is not directly used; one of its subclasses will
@@ -1641,7 +1641,7 @@ class NUVAccumObs (Observation):
 
         self.printSwitchMessages (messages, self.input)
 
-class Calibration:
+class Calibration (object):
     """Calibrate COS data.
 
     The attributes are:
@@ -1760,7 +1760,7 @@ class Calibration:
         if obs.switches["x1dcorr"] == "PERFORM":
             self.concatenateSpectra ("science")
 
-        if tagflash:
+        if tagflash and obs.switches["wavecorr"] == "PERFORM":
             self.concatenateSpectra ("tagflash")
 
     def extractSpectrum (self, filenames):

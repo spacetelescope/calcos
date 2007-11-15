@@ -1,5 +1,4 @@
 import numpy as N
-# xxx import numarray.convolve as convolve    # for boxcar
 from convolve import boxcar
 import pyfits
 import cosutil
@@ -373,13 +372,19 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, reffiles):
 
     phottab = reffiles["phottab"]
     for row in range (nrows):
+        factor = N.zeros (len (flux[row]), dtype=N.float32)
         filter["segment"] = segment[row]
         phot_info = cosutil.getTable (phottab, filter)
         if phot_info is None:
             flux[row][:] = 0.
         else:
-            flux[row][:] = net[row] / phot_info.field ("sensitivity")[0]
-            error[row][:] = error[row] / phot_info.field ("sensitivity")[0]
+            # Interpolate sensitivity at each wavelength.
+            wl_phot = phot_info.field ("wavelength")[0]
+            sens_phot = phot_info.field ("sensitivity")[0]
+            ccos.interp1d (wl_phot, sens_phot, wavelength[row], factor)
+            factor = N.where (factor <= 0., 1., factor)
+            flux[row][:] = net[row] / factor
+            error[row][:] = error[row] / factor
 
     # Compute an array of time-dependent correction factors (a potentially
     # different value at each wavelength), and divide the flux and error by
@@ -592,7 +597,6 @@ def concatenateFUVSegments (infiles, output):
         nrows_b = seg_b[1].data.shape[0]
 
     # Take output column definitions from input for segment A.
-    # xxx cd = pyfits.ColDefs (seg_a[1].header)
     cd = pyfits.ColDefs (seg_a[1])
     hdu = pyfits.new_table (cd, seg_a[1].header, nrows=nrows_a+nrows_b)
 

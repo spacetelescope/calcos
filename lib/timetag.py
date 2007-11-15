@@ -340,9 +340,9 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
     dq |= N.where (pha > high, DQ_PH_HIGH, 0)
 
     # Count the number of rejected events.
-    rejected = N.nonzero (dq & DQ_PH_LOW)
+    rejected = N.nonzero (dq & DQ_PH_LOW)[0]
     nbad_low = len (rejected)
-    rejected = N.nonzero (dq & DQ_PH_HIGH)
+    rejected = N.nonzero (dq & DQ_PH_HIGH)[0]
     nbad_high = len (rejected)
     nbad = nbad_low + nbad_high
     if cosutil.checkVerbosity (VERY_VERBOSE):
@@ -521,7 +521,7 @@ def computeThermalParam (time, x, y, dq,
                 fd.write ("  INDEF INDEF\n")
             else:
                 fd.write ("  %.1f %.1f\n" % (s2[1], s2[0]))
-        if cosutil.checkVerbosity (VERY_VERBOSE):
+        if s1[0] is None or s2[0] is None:
             msg = "  %9d ... %9d  " % (i, j-1)
             if s1[0] is None:
                 msg += "  stim1 not found; "
@@ -531,6 +531,10 @@ def computeThermalParam (time, x, y, dq,
                 msg += "  stim2 not found"
             else:
                 msg += "  %.1f %.1f" % (s2[1], s2[0])
+            cosutil.printWarning (msg)
+        elif cosutil.checkVerbosity (VERY_VERBOSE):
+            msg = "  %9d ... %9d    %.1f %.1f  %.1f %.1f" % \
+                     (i, j-1, s1[1], s1[0], s2[1], s2[0])
             cosutil.printMsg (msg, VERY_VERBOSE)
 
         (x0_n, xslope_n, y0_n, yslope_n) = thermalParam (s1, s2, s1_ref, s2_ref)
@@ -743,7 +747,7 @@ def doTempcorr (stim_param, events, info, switches, reffiles, phdr):
                 phdr["tempcorr"] = "COMPLETE"
             else:
                 phdr["tempcorr"] = "SKIPPED"
-                cosutil.printMsg ("TEMPCORR was skipped")
+                cosutil.printWarning ("TEMPCORR was skipped")
 
 def thermalDistortion (x, y, stim_param):
     """Apply thermal distortion correction to positions in events list.
@@ -776,8 +780,8 @@ def thermalDistortion (x, y, stim_param):
     for n in range (len (i0)):
         i = i0[n]
         j = i1[n]
-        if x0[n] != 0. and xslope[n] != 1. and \
-           y0[n] != 0. and yslope[n] != 1.:
+        if x0[n] != 0. or xslope[n] != 1. or \
+           y0[n] != 0. or yslope[n] != 1.:
             x[i:j] = x0[n] + x[i:j] * xslope[n]
             y[i:j] = y0[n] + y[i:j] * yslope[n]
             actually_done = 1
@@ -1372,7 +1376,7 @@ def writeNull (input, output, outcounts, phdr, events_hdu):
 
 def writeImages (x, y, epsilon, dq,
                  phdr, hdr, dq_array, npix, exptime,
-                 outcounts, output):
+                 outcounts=None, output=None):
     """Bin events to images, and write to output files.
 
     arguments:
@@ -1402,7 +1406,8 @@ def writeImages (x, y, epsilon, dq,
     #           = (E / t) / (sqrt (C) / t) / t
     #           =  E_rate / errC_rate / t
 
-    cosutil.printMsg ("writing file %s ..." % outcounts, VERY_VERBOSE)
+    if outcounts is not None:
+        cosutil.printMsg ("writing file %s ..." % outcounts, VERY_VERBOSE)
 
     # Get the bit mask for "serious" data quality flags from the header,
     # but remove the "near edge" and "out of bounds" bits so that we'll
@@ -1416,10 +1421,14 @@ def writeImages (x, y, epsilon, dq,
     ccos.binevents (x, y, C_rate, dq, sdqflags)
 
     errC_rate = N.sqrt (C_rate) / exptime
-    C_rate /= exptime
 
-    makeImage (outcounts, phdr, hdr, C_rate, errC_rate, dq_array)
+    if outcounts is not None:
+        C_rate /= exptime
+        makeImage (outcounts, phdr, hdr, C_rate, errC_rate, dq_array)
     del C_rate                          # but we still need errC_rate
+
+    if output is None:
+        return                          # nothing further to do
 
     cosutil.printMsg ("writing file %s ..." % output, VERY_VERBOSE)
 

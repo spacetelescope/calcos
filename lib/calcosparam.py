@@ -1,8 +1,8 @@
 # This file defines parameters used by calcos.
 
 CALCOS_VERSION_NUMBER = "1.2"
-CALCOS_VERSION_DATE = "(2007-09-04)"
-CALCOS_VERSION = CALCOS_VERSION_NUMBER + " " + CALCOS_VERSION_DATE
+CALCOS_VERSION_DATE = "2007-11-13"
+CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 SPEED_OF_LIGHT = 299792.458     # km/s
 
@@ -53,7 +53,7 @@ INT_WILDCARD = -1
 
 # These are the data quality flags.
 DQ_OK = 0                       # no anomalous condition noted
-DQ_SOFTERR = 1                  # Reed-Soloman error
+DQ_SOFTERR = 1                  # Reed-Solomon error
 DQ_BRUSH_MARK = 2               # brush mark > TBD percent
 DQ_GRID_SHADOW = 4              # grid shadow mark > TBD percent
 DQ_NEAR_EDGE = 8                # spectrum near an edge of the detector

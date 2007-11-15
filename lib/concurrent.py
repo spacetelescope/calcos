@@ -40,6 +40,7 @@ def processConcurrentWavecal (events, outflash,
 
     cosutil.printSwitch ("WAVECORR", switches)
     if switches["wavecorr"] != "PERFORM":
+        cw = initWavecal (events, outflash, info, reffiles, phdr, hdr)
         return
     cosutil.printMsg ("Process tagflash wavecal")
     wavecal.printWavecalRef (reffiles)
@@ -86,7 +87,7 @@ def initWavecal (events, outflash, info, reffiles, phdr, hdr):
 
     return cw
 
-class ConcurrentWavecal:
+class ConcurrentWavecal (object):
     """Process wavecals embedded in a science observation (tagflash).
 
     @ivar events: data block for a corrtag table

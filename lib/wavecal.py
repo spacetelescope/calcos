@@ -401,6 +401,13 @@ def xcStat (xc):
     imin = xc_sort[0]
     maxval = xc[imax]
     minval = xc[imin]
+    if imax == 0 or imax == len (xc) - 1:
+        cosutil.printWarning (
+                "Peak in cross correlation is at an endpoint of the range")
+        cosutil.printContinuation (
+                "for finding the shift from a wavecal observation;")
+        cosutil.printContinuation (
+                "the shift is therefore likely to be incorrect.")
 
     # Find the number of elements that have a value greater than
     # the midpoint of the range.
