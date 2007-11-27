@@ -101,8 +101,9 @@ def main (args):
     infiles = uniqueInput (pargs)       # remove duplicate names from list
 
     for i in range (len (infiles)):
-        calcos (infiles[i], outdir, save_temp_files,
-                stimfile, livetimefile, burstfile)
+        calcos (infiles[i], outdir=outdir, save_temp_files=save_temp_files,
+                stimfile=stimfile, livetimefile=livetimefile,
+                burstfile=burstfile)
 
 def prtOptions():
     """Print a list of command-line options and arguments."""
@@ -122,11 +123,11 @@ def prtOptions():
 def uniqueInput (infiles):
     """Remove effective duplicates from list of files to process.
 
-    argument:
-    infiles           list of input files
+    @param infiles: list of input files
+    @type infiles: list
 
-    The function argument is the list of input files but with
-    duplicates removed.
+    @return: the list of input files but with duplicates removed
+    @rtype: list
     """
 
     if len (infiles) <= 1:
@@ -166,23 +167,34 @@ def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,
             stimfile=None, livetimefile=None, burstfile=None):
     """Calibrate COS data.
 
-    The arguments are:
-    asntable         the rootname (with "_asn") of an association file, or
-                     the rootname (with "_raw") of a raw file (or pair of
-                     files if FUV)
-    outdir           name of output directory, or None
-    quiet            if quiet=True, set verbosity to QUIET
-    save_temp_files  By default, the files containing the count rate image
-                     will be deleted after extracting 1-D spectra; also,
-                     the _x1d_a.fits and _x1d_b.fits files (if FUV) will
-                     be deleted after concatenating to the _x1d.fits file.
-                     Specify save_temp_files=True to keep these files.
-    stimfile         If specified, the stim positions will be written to
-                     (or appended to) a text file with this name.
-    livetimefile     If specified, the livetime factors will be written to
-                     (or appended to) a text file with this name.
-    burstfile        If specified, burst information will be written to
-                     (or appended to) a text file with this name.
+    @param asntable: the rootname (with "_asn") of an association file, or
+        the rootname (with "_raw") of a raw file (or pair of files if FUV)
+    @type asntable: string
+
+    @param outdir: name of output directory, or None
+    @type outdir: string
+
+    @param quiet: if quiet=True, set verbosity to QUIET
+    @type quiet: boolean
+
+    @param save_temp_files: By default, the files containing the count rate
+        image will be deleted after extracting 1-D spectra; also, the
+        _x1d_a.fits and _x1d_b.fits files (if FUV) will be deleted after
+        concatenating to the _x1d.fits file.  Specify save_temp_files=True
+        to keep these files.
+    @type save_temp_files: boolean
+
+    @param stimfile: if specified, the stim positions will be written to
+        (or appended to) a text file with this name
+    @type stimfile: string
+
+    @param livetimefile: if specified, the livetime factors will be written
+        to (or appended to) a text file with this name
+    @type livetimefile: string
+
+    @param burstfile: if specified, burst information will be written to
+        (or appended to) a text file with this name
+    @type burstfile: string
     """
 
     t0 = time.time()
@@ -222,6 +234,19 @@ def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,
 def replaceSuffix (rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
 
+    @param rawname: name of a raw input file
+    @type rawname: string
+
+    @param suffix: suffix (last part of root name) that is expected to be
+        found in the raw file name
+    @type suffix: string
+
+    @param new_suffix: string to replace 'suffix' to create an output file name
+    @type new_suffix: string
+
+    @return: 'rawname' with 'suffix' replaced by 'new_suffix'
+    @rtype: string
+
     >>> print replaceSuffix ("rootname_rawtag.fits", "_rawtag", "_flt")
     rootname_flt.fits
     >>> print replaceSuffix ("rootname_rawtag_a.fits", "_rawtag", "_flt")
@@ -245,6 +270,16 @@ def getRootname (input, suffix):
     If 'suffix' is found in 'input', return the portion of input
     that precedes 'suffix'.  Otherwise, if 'input' ends in ".fits",
     return everything from 'input' that precedes ".fits".
+
+    @param input: name of a raw input file
+    @type input: string
+
+    @param suffix: suffix that might be found in 'input'
+    @type suffix: string
+
+    @return: 'input' truncated before 'suffix', or truncated before ".fits"
+        if 'suffix' is not found
+    @rtype: string
 
     >>> print getRootname ("abc_asn.fits", "_asn")
     abc
@@ -274,7 +309,7 @@ def getRootname (input, suffix):
 class Association (object):
     """Read and interpret the association table.
 
-    The attributes are:
+    Some of the attributes are:
         asntable           full name of the association file, or None if the
                              name (or rootname) of a raw file was specified
         asn_info           a dictionary of the contents of the association table
@@ -298,17 +333,39 @@ class Association (object):
         obs                a list of Observation instances, one for each raw
                              file
         first_science      index of first science observation in obs list
-
-     the following come from command-line options:
-        save_temp_files    true if the count-rate files should not be
-                             deleted
-        stimfile           name of file for stim positions, or None
-        livetimefile       name of file for livetime information, or None
-        burstfile          name of file for burst information, or None
     """
 
-    def __init__ (self, asntable, outdir, save_temp_files,
-                  stimfile, livetimefile, burstfile):
+    def __init__ (self, asntable, outdir=None, save_temp_files=False,
+                  stimfile=None, livetimefile=None, burstfile=None):
+
+        """Constructor.
+
+        @param asntable: the rootname (with "_asn") of an association file, or
+            the rootname (with "_raw") of a raw file (or pair of files if FUV)
+        @type asntable: string
+
+        @param outdir: name of output directory, or None
+        @type outdir: string
+
+        @param save_temp_files: By default, the files containing the count
+            rate image will be deleted after extracting 1-D spectra; also, the
+            _x1d_a.fits and _x1d_b.fits files (if FUV) will be deleted after
+            concatenating to the _x1d.fits file.  Specify save_temp_files=True
+            to keep these files.
+        @type save_temp_files: boolean
+
+        @param stimfile: if specified, the stim positions will be written to
+            (or appended to) a text file with this name
+        @type stimfile: string
+
+        @param livetimefile: if specified, the livetime factors will be written
+            to (or appended to) a text file with this name
+        @type livetimefile: string
+
+        @param burstfile: if specified, burst information will be written to
+            (or appended to) a text file with this name
+        @type burstfile: string
+        """
 
         self.asn_info = {}          # association table info
         self.combine = {}           # files to combine
@@ -470,6 +527,10 @@ class Association (object):
         assigned the specified rootname.  There will only be this one row;
         product will be set to None.  The memtype will be set to "none",
         even though it might actually be a wavecal.
+
+        @param asntable: the name of an input raw file (not really an
+            association table name)
+        @type asntable: string
         """
 
         cosutil.printMsg ("Input file = " + asntable, VERBOSE)
@@ -492,6 +553,10 @@ class Association (object):
         DETECTOR, OBSMODE, and EXPTYPE.  In addition, this function checks
         that the suffixes are as expected for the DETECTOR and OBSMODE
         keywords.
+
+        @param memname: a value in the MEMNAME (member name) column of an
+            association table, converted to lower case
+        @type memname: string
         """
 
         # Find the names of all raw files with the specified rootname.
@@ -556,7 +621,14 @@ class Association (object):
         return basic_info
 
     def updateCombineFlt (self, filenames, detector):
-        """Add the flt name to the input lists in 'combine'."""
+        """Add the flt name to the input lists in self.combine.
+
+        @param filenames: dictionary of input and output file names
+        @type filenames: dictionary
+
+        @param detector: detector name, "FUV" or "NUV"
+        @type detector: string
+        """
 
         if detector == "FUV":
             if not self.combine.has_key ("flt_a"):
@@ -580,7 +652,14 @@ class Association (object):
             self.combine["flt"].append (flt)
 
     def updateCombineX1d (self, filenames, fppos):
-        """Add the x1d name and osm index to 'combine'."""
+        """Add the x1d name and osm index to 'combine'.
+
+        @param filenames: dictionary of input and output file names
+        @type filenames: dictionary
+
+        @param fppos: focal plane position index (1, 2, 3, or 4)
+        @type fppos: integer
+        """
 
         if not self.combine.has_key ("x1d"):
             self.combine["x1d"] = []
@@ -885,7 +964,7 @@ class Association (object):
         "repeat" depends on both the rptcorr switch and on the product row
         in the association table.  If there's no product, "repeat" will be
         "OMIT".  If there is a product, "repeat" will be "PERFORM" if the
-        rptcorr switch is "PERFORM", or if there is only one calibrated
+        rptcorr switch is "PERFORM" or if there is only one calibrated
         file of a given type; in the latter case the files will just be
         renamed to the product name.
         """
@@ -1014,9 +1093,12 @@ class Association (object):
     def checkExists (self, fname, already_exists):
         """If fname exists, append the name to already_exists.
 
-        arguments:
-        fname             the name of the file
-        already_exists    a list of file names; fname may be appended
+        @param fname: the name of the file
+        @type fname: string
+
+        @param already_exists: a list of names of files that currently
+            exist; may be modified in-place by appending 'fname'
+        @type already_exists: list
         """
 
         if os.access (fname, os.R_OK):
@@ -1060,13 +1142,24 @@ class Association (object):
 def initObservation (input, outdir, memtype, detector, obsmode):
     """Construct an Observation object for the current mode.
 
-    arguments:
-    input       the name of an input raw file
-    outdir      either an empty string or the name of the output directory
-    memtype     from association table; used to distinguish between
-                  wavecal and science obervation
-    detector    FUV or NUV
-    obsmode     TIME-TAG or ACCUM
+    @param input: the name of an input raw file
+    @type input: string
+
+    @param outdir: either an empty string or the name of the output directory
+    @type outdir: string
+
+    @param memtype: from association table; used to distinguish between
+        wavecal and science observation
+    @type memtype: string
+
+    @param detector: FUV or NUV
+    @type detector: string
+
+    @param obsmode: TIME-TAG or ACCUM
+    @type obsmode: string
+
+    @return: an Observation object
+    @rtype: instance
     """
 
     if detector == "FUV":
@@ -1092,13 +1185,20 @@ class Observation (object):
     def __init__ (self, input, outdir, memtype, suffix):
         """Invoked by a subclass.
 
-        arguments:
-        input       name of input raw file
-        outdir      either an empty string or the name of the output directory
-        memtype     from association table; used to distinguish between
-                      wavecal and science obervation
-        suffix      just "_rawtag" or "_rawimage" (i.e. excluding "_a" or
-                      "_b" if the data were taken with the FUV detector)
+        @param input: the name of an input raw file
+        @type input: string
+
+        @param outdir: an empty string or the name of the output directory
+        @type outdir: string
+
+        @param memtype: from association table; used to distinguish between
+            wavecal and science observation
+        @type memtype: string
+
+        @param suffix: suffix to the rootname, but just "_rawtag" or
+            "_rawimage" (i.e. excluding "_a" or "_b" if the data were taken
+            with the FUV detector)
+        @type suffix: string
         """
 
         self.input = input              # name of a raw input file
@@ -1237,7 +1337,8 @@ class Observation (object):
             "OBSTYPE = ACQUISITION, will be reset to IMAGING")
             info["obstype"] = "IMAGING"
         if info["obstype"] == "SPECTROSCOPIC" and \
-           info["opt_elem"][0:3] == "TA1":
+               (info["opt_elem"][0:6] == "MIRROR" or 
+                info["opt_elem"][0:3] == "TA1"):
             bad = 1
             cosutil.printError (
             "OBSTYPE = SPECTROSCOPIC and OPT_ELEM = %s is invalid"
@@ -1316,21 +1417,23 @@ class Observation (object):
             raise RuntimeError
 
     def fixRelMvReq (self, sptfile, info):
-        """Replace RelMvReq in keywords with values based on OSM step position.
+        """Replace RelMvReq in keywords with values based on OSM position.
 
         For thermal vac data (only), this function determines the values of
-        OPT_ELEM, CENWAVE and FPOFFSET based on the OSM1 or OSM2 step positions
-        as given by LOM1STP or LOM2STP respectively, in the support file header.
-        If OPT_ELEM is "RelMvReq", then OPT_ELEM, CENWAVE and FPOFFSET will be
-        silently replaced by the correct values.  If CENWAVE is unreasonably
-        small (< 1000), it will be replaced.  Otherwise, these three keywords
-        will be compared with the values determined from the OSM step positions,
-        and discrepancies will be noted and corrected.
+        OPT_ELEM, CENWAVE and FPOFFSET based on the OSM1 or OSM2 positions
+        as given by LOM1STP or LOM2STP respectively, in the support file
+        header.  If OPT_ELEM is "RelMvReq", then OPT_ELEM, CENWAVE and
+        FPOFFSET will be silently replaced by the correct values.  If CENWAVE
+        is unreasonably small (< 1000), it will be replaced.  Otherwise,
+        these three keywords will be compared with the values determined from
+        the OSM positions, and discrepancies will be noted and corrected.
 
-        arguments:
-        sptfile           i: name of support file
-        info              io: dictionary of keywords and values; values may be
-                              updated by this function
+        @param sptfile: name of support file
+        @type sptfile: string
+
+        @param info: dictionary of keywords and values; values may be
+            updated in-place by this function
+        @type info: dictionary
         """
 
         if info["targname"] != "Thermal_Vac":
@@ -1401,11 +1504,17 @@ class Observation (object):
             info, opt_elem_osm, cenwave_osm, fpoffset_osm):
         """Update keyword values in info dictionary.
 
-        arguments:
-        info              io: dictionary of keywords and values
-        opt_elem_osm      i: value of OPM_ELEM as determined from OSM position
-        cenwave_osm       i: value of CENWAVE as determined from OSM position
-        fpoffset_osm      i: value of FPOFFSET as determined from OSM position
+        @param info: dictionary of keywords and values, modified in-place
+        @type info: dictionary
+
+        @param opt_elem_osm: value of OPM_ELEM as determined from OSM position
+        @type opt_elem_osm: string
+
+        @param cenwave_osm: value of CENWAVE as determined from OSM position
+        @type cenwave_osm: integer
+
+        @param fpoffset_osm: value of FPOFFSET as determined from OSM position
+        @type fpoffset_osm: integer
         """
 
         if info["opt_elem"] == "RelMvReq":
@@ -1437,12 +1546,18 @@ class Observation (object):
     def makeFileNames (self, suffix, outdir):
         """Create names of input and output files from input raw file names.
 
-        'suffix' is an obsmode-specific string, either
-        "_rawtag" or "_rawimage"; note that 'suffix' excludes "_a" or "_b",
-        in the case that we have FUV data.  'outdir' is either an empty string
-        or the name of the output directory.  A dictionary of the input and
-        output names will be constructed and returned.  These are the keys
-        for each such dictionary:
+        @param suffix: an obsmode-specific string, either "_rawtag" or
+            "_rawimage"; note that 'suffix' excludes "_a" or "_b", in the
+            case that we have FUV data
+        @type suffix: string
+
+        @param outdir: the name of the output directory (or an empty string)
+        @type outdir: string
+
+        @return: dictionary of the input and output names
+        @rtype: dictionary
+
+        These are the keys for the dictionary of file names:
 
           root     rootname (not including suffix or directory); note that this
                      is from the file name, not the header keyword
@@ -1458,7 +1573,7 @@ class Observation (object):
           x1d      output 1-D extracted spectrum (the file that includes
                      all segments or stripes)
           flash_x  output 1-D extracted tagflash wavecal spectrum for one
-                     segment (or all 3 NUV stripes)
+                     segment (or for all 3 NUV stripes)
           flash    output 1-D extracted tagflash wavecal spectrum (the file
                      that includes all segments or stripes)
         """
@@ -1551,7 +1666,15 @@ class Observation (object):
         return messages
 
     def overrideSwitch (self, keyword, messages):
-        """If switch for keyword is "PERFORM", reset it to "OMIT"."""
+        """If switch for keyword is "PERFORM", reset it to "OMIT".
+
+        @param keyword: a calibration switch keyword
+        @type keyword: string
+
+        @param messages: tells what keywords have been changed; modified
+            in-place
+        @type messages: string
+        """
 
         key_lower = keyword.lower()
         if self.switches.has_key (key_lower):
@@ -1562,7 +1685,15 @@ class Observation (object):
             self.switches[key_lower] = "OMIT"
 
     def printSwitchMessages (self, messages, input):
-        """Print info about which calibration switches are being reset."""
+        """Print info about which calibration switches are being reset.
+
+        @param messages: tells what keywords have been changed
+        @type messages: string
+
+        @param input: name of an input file (to be included in the text
+            that is printed)
+        @type input: string
+        """
 
         if len (messages) > 0:
             msg = "Warning:  The following calibration switch"
@@ -1662,12 +1793,31 @@ class Calibration (object):
     """
 
     def __init__ (self, assoc):
+        """Constructor
+
+        @param assoc: an Association object
+        @type assoc: instance
+        """
 
         self.assoc = assoc
         self.wavecal_info = []
         self.wcp_info = None
 
     def basicCal (self, filenames, info, switches, reffiles):
+        """Do the "basic" calibration.
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
+
+        @param info: values of header keywords for general information
+        @type info: dictionary
+
+        @param switches: values of header keywords for calibration switches
+        @type switches: dictionary
+
+        @param reffiles: values of header keywords for reference file names
+        @type reffiles: dictionary
+        """
 
         input = filenames["raw"]
         inpha = filenames["pha"]
@@ -1764,7 +1914,11 @@ class Calibration (object):
             self.concatenateSpectra ("tagflash")
 
     def extractSpectrum (self, filenames):
-        """Extract a 1-D spectrum from 2-D images."""
+        """Extract a 1-D spectrum from 2-D images.
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
+        """
 
         input = filenames["flt"]
         incounts = filenames["counts"]
@@ -1772,7 +1926,11 @@ class Calibration (object):
         extract.extract1D (input, incounts, output)
 
     def removeCountRateFile (self, filenames):
-        """Delete the count rate file (_counts)."""
+        """Delete the count rate file (_counts).
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
+        """
 
         cosutil.printMsg ("Remove the count rate file(s):", VERY_VERBOSE)
         outcounts = filenames["counts"]
@@ -1815,6 +1973,15 @@ class Calibration (object):
         The shift for the two segments (or three NUV stripes) will be copied
         (or interpolated) from the list of wavecal information to the
         keywords PSHIFTA and PSHIFTB (and PSHIFTC if NUV).
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
+
+        @param wavecorr: "PERFORM" if wavecal processing is being done
+        @type wavecorr: string
+
+        @param info: values of header keywords for general information
+        @type info: dictionary
         """
 
         if info["obstype"] != "SPECTROSCOPIC":
@@ -1875,6 +2042,16 @@ class Calibration (object):
         This function is called only for a wavecal, not for a science
         observation.  (For science data, the shift2 keyword(s) will be
         updated by updateShift.)
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
+
+        @param segment: FUV segment name or NUV stripe name
+        @type segment: string
+
+        @param shift2: offset in cross-dispersion direction, as determined
+            from (conventional) wavecal data
+        @type shift2: float
         """
 
         if segment[0:3] == "FUV":
@@ -1900,6 +2077,9 @@ class Calibration (object):
         This function is called only for a wavecal, not for a science
         observation.  There must be an exact match with the rootname of the
         observation.
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
         """
 
         shift_dict = wavecal.returnExactMatch (self.wavecal_info,
@@ -1923,13 +2103,13 @@ class Calibration (object):
     def concatenateSpectra (self, type):
         """Concatenate two 1-D FUV spectra into one spectrum.
 
-        argument:
-        type          "science", "wavecal" or "tagflash" (ignore if "unknown")
-
         If type="wavecal", this routine will concatenate pairs of wavecal
         files; if type="science", this routine will concatenate pairs of
         science files.  The input _x1d_a and _x1d_b will then be deleted,
         if save_temp_files = False.
+
+        @param type: "science", "wavecal" or "tagflash" (ignore if "unknown")
+        @type type: string
         """
 
         for one_set in self.assoc.concat:
@@ -1976,13 +2156,16 @@ class Calibration (object):
         if combine.has_key ("x1d"):
             x1d_list = combine["x1d"]
             osm_list = combine["fppos"]
+            osm_list_copy = copy.copy (osm_list)
+            osm_list_copy.sort()
+            osm_max = osm_list_copy[-1]
             do_subsets = False                  # initial value
             for i in range (1, len (osm_list)):
                 if osm_list[i] != osm_list[0]:
                     do_subsets = True
                     break
             if do_subsets:
-                for osm in range (1, 5):
+                for osm in range (1, osm_max+1):
                     # extract subset for current osm position
                     x1d_subset = []
                     for i in range (len (x1d_list)):
@@ -2018,14 +2201,28 @@ class Calibration (object):
             fpavg.fpAvgSpec (combine["x1d"], output)
 
     def combineX1Di (self, input, osm):
-        """Average x1d data for one specified OSM position."""
+        """Average the x1d data for one specified FPPOS position.
+
+        @param input: name of input file
+        @type input: string
+
+        @param osm: value of header keyword FPPOS
+        @type osm: integer
+        """
 
         output = self.x1dProductName (input, osm)
 
         fpavg.fpAvgSpec (input, output)
 
     def fltProductName (self, input):
-        """Construct the product name for the flt file."""
+        """Construct the product name for the flt file.
+
+        @param input: name of input file
+        @type input: string
+
+        @return: name of output flt file
+        @rtype: string
+        """
 
         multiple = len (input) > 1
 
@@ -2054,7 +2251,7 @@ class Calibration (object):
 
         return output
 
-    def x1dProductName (self, input, osm):
+    def x1dProductName (self, input, osm=0):
         """Construct the product name for the x1d file.
 
         If there are multiple files to be combined (i.e. the length of
@@ -2062,10 +2259,15 @@ class Calibration (object):
         the output file name will be of the form "rootname_x1dsum1.fits",
         where the number appended to "x1dsum" will be the value of osm.
 
-        arguments:
-        input         list of file names (we only need this to check its
-                        length)
-        osm           OSM index (0 or 1-4)
+        @param input: list of file names (we only need this to check
+            whether there is just one file or more than one file)
+        @type input: string
+
+        @param osm: FPPOS index (0 or 1-4)
+        @type osm: integer
+
+        @return: name of output x1d file
+        @rtype: string
         """
 
         if len (input) > 1:

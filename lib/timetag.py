@@ -999,6 +999,7 @@ def dopplerCorrection (hdr, time, xi, info, doppcorr, helcorr, disptab):
     info       dictionary of keywords and values
     doppcorr   PERFORM if orbital Doppler correction is to be done
     helcorr    PERFORM if heliocentric Doppler correction is to be done
+    disptab    table for dispersion relation, used by helcorr
 
     The function value is the array of Doppler-corrected X (or Y if NUV)
     pixel coordinates.

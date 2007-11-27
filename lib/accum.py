@@ -162,7 +162,7 @@ def globrate_accum (sci, exptime, segment, brftab):
     if segment[0] == "N":
         return N.sum (sci.ravel().astype (N.float32)) / exptime
 
-    (b_low, b_high) = cosutil.active_area (segment, brftab)
+    (b_low, b_high) = cosutil.activeArea (segment, brftab)
     temp = sci[b_low:b_high,:].copy()
     return N.sum (temp.ravel().astype (N.float32)) / exptime
 
@@ -730,7 +730,7 @@ def findStimAccum (sci, stim_ref, xwidth, ywidth):
     # reduce the possibility of numerical roundoff errors.
     x = N.arange (lowX, highX, dtype=N.float32) - sX
     y = N.arange (lowY, highY, dtype=N.float32) - sY
-    y.setshape ((ny, 1))
+    y.shape = (ny, 1)
 
     x_region = region * x
     y_region = region * y
