@@ -162,7 +162,7 @@ def globrate_accum (sci, exptime, segment, brftab):
     if segment[0] == "N":
         return N.sum (sci.ravel().astype (N.float32)) / exptime
 
-    (b_low, b_high) = cosutil.activeArea (segment, brftab)
+    (b_low, b_high, b_left, b_right) = cosutil.activeArea (segment, brftab)
     temp = sci[b_low:b_high,:].copy()
     return N.sum (temp.ravel().astype (N.float32)) / exptime
 
@@ -198,9 +198,12 @@ def checkPulseHeight (inpha, phatab, info, hdr):
                    exactly_one=True)
 
     # The peak in the pulse-height distribution should be within low and high.
+    # Apply a factor to low and high to account for the fact that the
+    # histogram is from seven-bit values but the values in the table are
+    # for five-bit values (the PHA column in an EVENTS table).
     # The mean should be within the factors min_peak and max_peak of the peak.
-    low = pha_info.field ("llt")[0]
-    high = pha_info.field ("ult")[0]
+    low = pha_info.field ("llt")[0] * TWO_BITS
+    high = pha_info.field ("ult")[0] * TWO_BITS
     min_peak = pha_info.field ("min_peak")[0]
     max_peak = pha_info.field ("max_peak")[0]
 
@@ -214,9 +217,7 @@ def checkPulseHeight (inpha, phatab, info, hdr):
 
     npts = len (pha_data)
 
-    sum = N.sum ( \
-              N.arange (npts, dtype=N.float32) * \
-              pha_data.astype (N.float32))
+    sum = N.sum (N.arange (npts, dtype=N.float32) * pha_data.astype (N.float32))
     sumwgt = N.sum (pha_data.astype (N.float32))
     pha_index = N.argsort (pha_data)
     peak = pha_index[-1]

@@ -886,8 +886,9 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
         self.copyColumns()
 
         # The pshift offset should be applied only within this region.
-        self.regions[info["segment"]] = \
-                [cosutil.activeArea (info["segment"], reffiles["brftab"])]
+        (b_low, b_high, b_left, b_right) = \
+                cosutil.activeArea (info["segment"], reffiles["brftab"])
+        self.regions[info["segment"]] = [(b_low, b_high)]
 
     def zeroKeywords (self):
 

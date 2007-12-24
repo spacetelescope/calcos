@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
 CALCOS_VERSION_NUMBER = "1.2"
-CALCOS_VERSION_DATE = "2007-11-27"
+CALCOS_VERSION_DATE = "2007-12-24"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 SPEED_OF_LIGHT = 299792.458     # km/s
@@ -41,6 +41,12 @@ TAGFLASH_UNIFORMLY_SPACED = "UNIFORMLY SPACED"
 TAGFLASH_TYPE_NONE = 0
 TAGFLASH_TYPE_AUTO = 1
 TAGFLASH_TYPE_UNIFORMLY_SPACED = 2
+
+# The pulse height values range from 0 to 127.  The values in the PHA
+# column of an EVENTS table, however, come from a five-bit value, i.e.
+# the last two bits have been truncated, resulting in their being a
+# factor of four smaller.
+TWO_BITS = 4
 
 # The following three parameters are used by getTable.
 # NOT_APPLICABLE will be assigned as the value of a keyword that is

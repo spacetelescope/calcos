@@ -652,7 +652,7 @@ class Association (object):
             self.combine["flt"].append (flt)
 
     def updateCombineX1d (self, filenames, fppos):
-        """Add the x1d name and osm index to 'combine'.
+        """Add the x1d name and fppos index to 'combine'.
 
         @param filenames: dictionary of input and output file names
         @type filenames: dictionary
@@ -792,6 +792,9 @@ class Association (object):
             for key in keys:
                 compare = switches[key].strip()
                 sw = obs.switches[key].strip()
+                if sw == NOT_APPLICABLE or compare == NOT_APPLICABLE:
+                    # Time-tag and accum will have different switches.
+                    continue
                 if sw != compare:
                     if obs.exp_type == EXP_WAVECAL:
                         if key in ["wavecorr", "rptcorr",
@@ -961,12 +964,12 @@ class Association (object):
         "PERFORM" if any of the calibration steps other than wavecorr is
         "PERFORM".
 
-        "repeat" depends on both the rptcorr switch and on the product row
-        in the association table.  If there's no product, "repeat" will be
-        "OMIT".  If there is a product, "repeat" will be "PERFORM" if the
-        rptcorr switch is "PERFORM" or if there is only one calibrated
-        file of a given type; in the latter case the files will just be
-        renamed to the product name.
+        "repeat" = "PERFORM" indicates that one or more files (x1d or flt)
+        will be averaged together.  If there's no product, "repeat" will be
+        "OMIT".  If there is a product, "repeat" will be "PERFORM" if there
+        is one more more calibrated file of a given type.  If there is just
+        one, the file will just be renamed to start with the product name.
+        (Note that the calibration switch "rptcorr" is now ignored.)
         """
 
         # Take the calibration switch list from the first science observation.
@@ -978,7 +981,7 @@ class Association (object):
         self.global_switches["any"] = "OMIT"            # default value
         for key in ["dqicorr", "deadcorr", "tempcorr", "geocorr",
                     "phacorr", "flatcorr", "brstcorr", "doppcorr",
-                    "helcorr", "x1dcorr", "rptcorr"]:
+                    "helcorr", "x1dcorr"]:
             if switches[key] == "PERFORM":
                 self.global_switches["any"] = "PERFORM"
                 break
@@ -1018,10 +1021,10 @@ class Association (object):
                 self.global_switches["repeat"] = "OMIT"
             elif ncombine == 1:
                 # We'll actually just rename the file; the rptcorr switch
-                # from the input header is irrelevant.
+                # from the input header is ignored.
                 self.global_switches["repeat"] = "PERFORM"
             else:
-                self.global_switches["repeat"] = switches["rptcorr"]
+                self.global_switches["repeat"] = "PERFORM"
 
     def isAnySwitchSet (self):
         """Return 1 if any calibration switch is PERFORM, 0 otherwise.
@@ -1958,6 +1961,7 @@ class Calibration (object):
 
             if obs.exp_type == EXP_WAVECAL:
 
+                cosutil.printFilenames ([("Input", x1d_file)])
                 shift_dict = wavecal.findWavecalShift (x1d_file, self.wcp_info)
 
                 if shift_dict is not None:
@@ -2150,29 +2154,29 @@ class Calibration (object):
 
         self.combineAllX1D()
 
-        # If we have a combination of FP-pos and repeatobs data, average
-        # multiple x1d files that have the same OSM index.  If all of them
-        # have the same OSM index, however, skip this step.
+        # If we have a combination of FP-POS and repeatobs data, average
+        # multiple x1d files that have the same fppos index.  If all of them
+        # have the same fppos index, however, skip this step.
         if combine.has_key ("x1d"):
             x1d_list = combine["x1d"]
-            osm_list = combine["fppos"]
-            osm_list_copy = copy.copy (osm_list)
-            osm_list_copy.sort()
-            osm_max = osm_list_copy[-1]
+            fppos_list = combine["fppos"]
+            fppos_list_copy = copy.copy (fppos_list)
+            fppos_list_copy.sort()
+            fppos_max = fppos_list_copy[-1]
             do_subsets = False                  # initial value
-            for i in range (1, len (osm_list)):
-                if osm_list[i] != osm_list[0]:
+            for i in range (1, len (fppos_list)):
+                if fppos_list[i] != fppos_list[0]:
                     do_subsets = True
                     break
             if do_subsets:
-                for osm in range (1, osm_max+1):
+                for fppos in range (1, fppos_max+1):
                     # extract subset for current osm position
                     x1d_subset = []
                     for i in range (len (x1d_list)):
-                        if osm_list[i] == osm:
+                        if fppos_list[i] == fppos:
                             x1d_subset.append (x1d_list[i])
                     if len (x1d_subset) > 1:
-                        self.combineX1Di (x1d_subset, osm)
+                        self.combineX1Di (x1d_subset, fppos)
 
     def combineFlt (self):
         """Average flat fielded repeatobs data."""
@@ -2200,17 +2204,17 @@ class Calibration (object):
             output = self.x1dProductName (combine["x1d"], 0)
             fpavg.fpAvgSpec (combine["x1d"], output)
 
-    def combineX1Di (self, input, osm):
+    def combineX1Di (self, input, fppos):
         """Average the x1d data for one specified FPPOS position.
 
         @param input: name of input file
         @type input: string
 
-        @param osm: value of header keyword FPPOS
-        @type osm: integer
+        @param fppos: value of header keyword FPPOS
+        @type fppos: integer
         """
 
-        output = self.x1dProductName (input, osm)
+        output = self.x1dProductName (input, fppos)
 
         fpavg.fpAvgSpec (input, output)
 
@@ -2251,20 +2255,20 @@ class Calibration (object):
 
         return output
 
-    def x1dProductName (self, input, osm=0):
+    def x1dProductName (self, input, fppos=0):
         """Construct the product name for the x1d file.
 
         If there are multiple files to be combined (i.e. the length of
-        'input' is greater than one), and if osm is greater than zero, then
+        'input' is greater than one), and if fppos is greater than zero, then
         the output file name will be of the form "rootname_x1dsum1.fits",
-        where the number appended to "x1dsum" will be the value of osm.
+        where the number appended to "x1dsum" will be the value of fppos.
 
         @param input: list of file names (we only need this to check
             whether there is just one file or more than one file)
         @type input: string
 
-        @param osm: FPPOS index (0 or 1-4)
-        @type osm: integer
+        @param fppos: FPPOS index (0 or 1-4)
+        @type fppos: integer
 
         @return: name of output x1d file
         @rtype: string
@@ -2272,8 +2276,8 @@ class Calibration (object):
 
         if len (input) > 1:
             output = self.assoc.product + "_x1dsum"
-            if osm > 0:
-                output += str (osm) + ".fits"
+            if fppos > 0:
+                output += str (fppos) + ".fits"
             else:
                 output += ".fits"
         else:

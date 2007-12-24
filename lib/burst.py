@@ -203,8 +203,8 @@ def getRegionLocations (reffiles, info):
     source extraction region, and the two background regions.
     """
 
-    (active_low, active_high) = cosutil.activeArea (info["segment"],
-                reffiles["brftab"])
+    (active_low, active_high, active_left, active_right) = \
+            cosutil.activeArea (info["segment"], reffiles["brftab"])
 
     filter = {"segment": info["segment"],
               "opt_elem": info["opt_elem"],

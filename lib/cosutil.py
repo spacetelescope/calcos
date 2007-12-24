@@ -460,36 +460,28 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array):
                 dq_info.field ("dq"), dq_array, axis, mindopp, maxdopp)
 
 def activeArea (segment, brftab):
-    """Return the low and high limits of the FUV active area.
+    """Return the limits of the FUV active area.
 
-    arguments:
-    segment       for finding a row in the brftab
-    brftab        name of the baseline reference frame table
-                  (ignored for NUV)
-
-    The function value is a tuple of the low and high limits of the
-    active area of the detector.  For NUV this will be (0, 1023).
+    @param segment: for finding the appropriate row in the brftab
+    @type segment: string
+    @param brftab: name of the baseline reference frame table (ignored for NUV)
+    @type brftab: string
+    @return: the low and high limits and the left and right limits of the
+        active area of the detector.  For NUV this will be (0, 1023, 0, 1023).
+    @rtype: tuple
     """
 
     if segment[0] == "N":
-        return (0, NUV_Y-1)
+        return (0, NUV_Y-1, 0, NUV_X-1)
 
     brf_info = getTable (brftab, {"segment": segment}, exactly_one=True)
 
-    try:
-        b_low = brf_info.field ("a_low")[0]
-        b_high = brf_info.field ("a_high")[0]
-    except NameError:
-        # These are the cross-dispersion locations of the stims,
-        # rounded to the nearest integer.
-        sy1 = int (brf_info.field ("sy1")[0] + 0.5)
-        sy2 = int (brf_info.field ("sy2")[0] + 0.5)
+    a_low = brf_info.field ("a_low")[0]
+    a_high = brf_info.field ("a_high")[0]
+    a_left = brf_info.field ("a_left")[0]
+    a_right = brf_info.field ("a_right")[0]
 
-        y_max = FUV_Y - 1               # because of zero indexing
-        b_low = 2 * sy1
-        b_high = y_max - 2 * (y_max - sy2)
-
-    return (b_low, b_high)
+    return (a_low, a_high, a_left, a_right)
 
 def flagOutOfBounds (phdr, hdr, dq_array):
     """Flag regions that are outside all subarrays (done in-place).

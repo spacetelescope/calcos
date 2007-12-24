@@ -183,7 +183,7 @@ def globrate_tt (eta, exptime, segment, brftab):
     if segment[0] == "N":
         return float (len (eta)) / exptime
 
-    (b_low, b_high) = cosutil.activeArea (segment, brftab)
+    (b_low, b_high, b_left, b_right) = cosutil.activeArea (segment, brftab)
     flags = N.zeros (len (eta), dtype=N.bool8)
     flags |= N.logical_and (eta > b_low, eta < b_high)
 
@@ -944,8 +944,8 @@ def dopplerRegions (eta, info, reffiles):
     """
 
     if info["detector"] == "FUV":
-        (b_low, b_high) = cosutil.activeArea (info["segment"],
-                          reffiles["brftab"])
+        (b_low, b_high, b_left, b_right) = \
+                cosutil.activeArea (info["segment"], reffiles["brftab"])
         shift_flags = N.zeros (len (eta), dtype=N.bool8)
         shift_flags |= N.logical_and (eta >= b_low, eta <= b_high)
 
