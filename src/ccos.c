@@ -201,6 +201,9 @@ dq is an array of data quality flags (0 is good; int16).\n\
 array is the 2-D array modified in-place by binevents (float32).\n\
 lx and ly are arrays of lower left corners of DQ regions (int32).\n\
 dx and dy are arrays of DQ region widths (int32).\n\
+"
+        /* string split because it is too long for windows compiler */
+"\
 flag is an array of data quality flags to assign to DQ regions (int16).\n\
 dq_array is the 2-D array modified in-place by bindq (int16).\n\
 mindopp and maxdopp are pixel offsets for Doppler shift (int).\n\
