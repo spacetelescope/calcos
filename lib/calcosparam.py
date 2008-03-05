@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "1.2"
-CALCOS_VERSION_DATE = "2007-12-24"
+CALCOS_VERSION_NUMBER = "1.3"
+CALCOS_VERSION_DATE = "2008-02-29"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 SPEED_OF_LIGHT = 299792.458     # km/s
@@ -72,5 +72,5 @@ DQ_PH_LOW = 512                 # pulse height is below cutoff
 DQ_PH_HIGH = 1024               # pulse height is above cutoff
 DQ_BAD_TIME = 2048              # time is inside a bad time interval
 DQ_BAD_WAVELENGTH = 4096        # wavelength is below MIN_WAVELENGTH
-# DQ_TBD = 8192
-# DQ_TBD = 16384
+DQ_DIVOTS = 8192                # wrinkled appearance from detector flat field
+DQ_SDISTORTION = 16384          # vertical S distortion seen on FUVA

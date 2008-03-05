@@ -358,8 +358,9 @@ def doRandcorr (x, y, info, switches, headers):
 
     cosutil.printSwitch ("RANDCORR", switches)
     if switches["randcorr"] == "PERFORM":
-        cosutil.addRandomNumbers (x, y, info["randseed"])
+        seed = cosutil.addRandomNumbers (x, y, info["randseed"])
         headers[0]["randcorr"] = "COMPLETE"
+        headers[0]["randseed"] = seed
 
 def doTempcorr (x, y, stim_param, info, switches, reffiles, headers):
     """Apply thermal distortion correction to x and y coordinates.
@@ -736,11 +737,7 @@ def findStimAccum (sci, stim_ref, xwidth, ywidth):
     x_region = region * x
     y_region = region * y
 
-    region.ravel()
-    x_region.ravel()
-    y_region.ravel()
-
-    counts = N.sum (region)
+    counts = N.sum (region)     # sum of all elements of 2-D array
     s_loc = [None, None]
     if counts > 0:
         s_loc[1] = N.sum (x_region) / float (counts) + sX

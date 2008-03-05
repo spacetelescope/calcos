@@ -5,6 +5,7 @@ import sys
 import time
 import types
 import numpy as N
+from numpy import random
 import pyfits
 import ccos
 from calcosparam import *       # parameter definitions
@@ -329,16 +330,32 @@ def evalDerivDisp (x, coeff):
 def addRandomNumbers (x, y, seed):
     """Add pseudo-random numbers to the x and y columns.
 
-    arguments:
-    x, y          arrays of detector X and Y coordinates
-    seed          an integer value to initialize the random-number generator;
-                  -1 means use the system clock to generate a starting value
+    @param x: array of detector X coordinates, modified in-place
+    @type x: array
+    @param y: array of detector Y coordinates, modified in-place
+    @type y: array
+    @param seed: an integer value to initialize the random-number generator;
+        seed=-1 means use the system clock to generate a starting value
+    @type seed: integer
+
+    @return: the integer value that was actually used as a seed; this will
+        be the same as the input parameter 'seed' unless that was -1
+    @rtype: integer
     """
 
-    use_clock = (seed == -1)
-    seed = ccos.addrandom (x, seed, use_clock)
-    use_clock = 0
-    seed = ccos.addrandom (y, seed, use_clock)
+    if seed == -1:
+        seed = int (time.time())
+
+    random.seed (seed)
+
+    nelem = len (x)
+    if len (y) != nelem:
+        raise RuntimeError, "x and y arrays must be the same length"
+
+    x += random.uniform (-0.5, +0.5, nelem)
+    y += random.uniform (-0.5, +0.5, nelem)
+
+    return seed
 
 def geometricDistortion (x, y, geofile, segment, igeocorr):
     """Apply geometric (INL) correction.

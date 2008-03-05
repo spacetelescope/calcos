@@ -215,3 +215,45 @@ def getRefFileNames (phdr):
         reffiles[key] = cosutil.expandFileName (reffiles[key+"_hdr"])
 
     return reffiles
+
+def resetSwitches (switches, reffiles):
+    """Reset calibration switches if required reference file is "N/A".
+
+    If a calibration step needs one or more reference files, and if the
+    name of any such file is given in the header as "N/A", the calibration
+    step cannot be done.  This function checks some steps and resets the
+    switch from PERFORM to SKIPPED if a required reference file is "N/A".
+
+    @param switches: keyword and value for calibration switches
+    @type switches: dictionary
+    @param reffiles: keyword and value for reference file names
+    @type reffiles: dictionary
+    """
+
+    check_these = {"badtcorr": ["badttab"]}
+    #check_these = {"badtcorr": ["badttab"],
+    #               "brstcorr": ["brsttab"],
+    #               "dqicorr": ["bpixtab"],
+    #               "flatcorr": ["flatfile"],
+    #               "deadcorr": ["deadtab"],
+    #               "geocorr": ["geofile"],
+    #               "x1dcorr": ["xtractab", "disptab"],
+    #               "fluxcorr": ["phottab"]}
+
+    for switch_key in check_these.keys():
+        not_specified = []
+        if switches[switch_key] == "PERFORM":
+            for reffile_key in check_these[switch_key]:
+                if reffiles[reffile_key] == NOT_APPLICABLE:
+                    not_specified.append (reffile_key)
+        if not_specified:
+            switches[switch_key] = "SKIPPED"
+            cosutil.printWarning ("%s will be set to SKIPPED because" %
+                                  switch_key.upper())
+            for (i, reffile_key) in enumerate (not_specified):
+                keyword = reffile_key.upper()
+                if i == 0:
+                    message = "%s = %s" % (keyword, NOT_APPLICABLE)
+                else:
+                    message += ", %s = %s" % (keyword, NOT_APPLICABLE)
+            cosutil.printContinuation (message)

@@ -494,6 +494,8 @@ def computeThermalParam (time, x, y, dq,
     t0 = time[0]
     t1 = t0 + dt_thermal
     sumstim = (0, 0., 0., 0, 0., 0.)
+    last_s1 = s1_ref            # initial default values
+    last_s2 = s2_ref
     while t0 < time[nevents-1]:
 
         # time[i:j] matches t0 to t1.
@@ -504,38 +506,46 @@ def computeThermalParam (time, x, y, dq,
             t1 = t0 + dt_thermal
             continue
 
-        (s1, counts1) = findStim (x[i:j], y[i:j], s1_ref, xwidth, ywidth)
+        (s1, counts1, found_s1) = \
+                findStim (x[i:j], y[i:j], s1_ref, xwidth, ywidth)
 
-        (s2, counts2) = findStim (x[i:j], y[i:j], s2_ref, xwidth, ywidth)
+        (s2, counts2, found_s2) = \
+                findStim (x[i:j], y[i:j], s2_ref, xwidth, ywidth)
 
         # Increment sums for averaging the stim positions.
-        sumstim = updateStimSum (sumstim, j-i, s1, s2)
+        sumstim = updateStimSum (sumstim, j-i, s1, found_s1, s2, found_s2)
 
         if fd is not None:
-            fd.write ("%.0f %.0f" % (t0, t1))
-            if s1[0] is None:
-                fd.write ("  INDEF INDEF")
-            else:
+            fd.write ("%.0f %.0f" % (t0, min (time[nevents-1], t1)))
+            if found_s1:
                 fd.write ("  %.1f %.1f" % (s1[1], s1[0]))
-            if s2[0] is None:
-                fd.write ("  INDEF INDEF\n")
             else:
+                fd.write ("  INDEF INDEF")
+            if found_s2:
                 fd.write ("  %.1f %.1f\n" % (s2[1], s2[0]))
-        if s1[0] is None or s2[0] is None:
-            msg = "  %9d ... %9d  " % (i, j-1)
-            if s1[0] is None:
-                msg += "  stim1 not found; "
             else:
-                msg += "  %.1f %.1f" % (s1[1], s1[0])
-            if s2[0] is None:
-                msg += "  stim2 not found"
+                fd.write ("  INDEF INDEF\n")
+        if found_s1:
+            last_s1 = s1        # save current value
+        else:
+            s1 = last_s1        # use last stim position that was found
+        if found_s2:
+            last_s2 = s2
+        else:
+            s2 = last_s2
+        if cosutil.checkVerbosity (VERY_VERBOSE) or \
+           not (found_s1 and found_s2):
+            msg = "  %7d ... %7d" % (i, j-1)
+            msg += "  %.1f %.1f" % (s1[1], s1[0])
+            if not found_s1:
+                msg += " (stim1 not found)"
+            msg += "  %.1f %.1f" % (s2[1], s2[0])
+            if not found_s2:
+                msg += " (stim2 not found)"
+            if not (found_s1 and found_s2):
+                cosutil.printWarning (msg)
             else:
-                msg += "  %.1f %.1f" % (s2[1], s2[0])
-            cosutil.printWarning (msg)
-        elif cosutil.checkVerbosity (VERY_VERBOSE):
-            msg = "  %9d ... %9d    %.1f %.1f  %.1f %.1f" % \
-                     (i, j-1, s1[1], s1[0], s2[1], s2[0])
-            cosutil.printMsg (msg, VERY_VERBOSE)
+                cosutil.printMsg (msg)
 
         (x0_n, xslope_n, y0_n, yslope_n) = thermalParam (s1, s2, s1_ref, s2_ref)
         i0.append (i)
@@ -605,13 +615,15 @@ def findStim (x, y, stim_ref, xwidth, ywidth):
         sumy = N.sum ((y-stim_ref[0]) * mask)
         sx = sumx / n + stim_ref[1]
         sy = sumy / n + stim_ref[0]
+        found_stim = True
     else:
         sx = None
         sy = None
+        found_stim = False
 
-    return ((sy, sx), n)
+    return ((sy, sx), n, found_stim)
 
-def updateStimSum (sumstim, nevents, s1, s2):
+def updateStimSum (sumstim, nevents, s1, found_s1, s2, found_s2):
     """Update sums for averages of stim positions.
 
     arguments:
@@ -625,7 +637,9 @@ def updateStimSum (sumstim, nevents, s1, s2):
     nevents    number of events in current time interval
     s1         tuple of (y,x) coordinates of the first stim in current
                  interval
+    found_s1   True if the first stim was actually found
     s2         same as s1, but for the second stim
+    found_s2   True if the second stim was actually found
 
     The function value is an updated sumstim tuple.
 
@@ -636,12 +650,12 @@ def updateStimSum (sumstim, nevents, s1, s2):
 
     (n1, sum1y, sum1x, n2, sum2y, sum2x) = sumstim
 
-    if s1[0] is not None and s1[1] is not None:
+    if found_s1:
         n1 = n1 + nevents
         sum1x = sum1x + s1[1] * nevents
         sum1y = sum1y + s1[0] * nevents
 
-    if s2[0] is not None and s2[1] is not None:
+    if found_s2:
         n2 = n2 + nevents
         sum2x = sum2x + s2[1] * nevents
         sum2y = sum2y + s2[0] * nevents
@@ -720,9 +734,10 @@ def doRandcorr (events, info, switches, phdr):
     if info["detector"] == "FUV":
         cosutil.printSwitch ("RANDCORR", switches)
         if switches["randcorr"] == "PERFORM":
-            cosutil.addRandomNumbers (events.field (xcorr),
-                    events.field (ycorr), info["randseed"])
+            seed = cosutil.addRandomNumbers (events.field (xcorr),
+                            events.field (ycorr), info["randseed"])
             phdr["randcorr"] = "COMPLETE"
+            phdr["randseed"] = seed
 
 def doTempcorr (stim_param, events, info, switches, reffiles, phdr):
     """Apply thermal distortion correction.
@@ -1410,11 +1425,9 @@ def writeImages (x, y, epsilon, dq,
     if outcounts is not None:
         cosutil.printMsg ("writing file %s ..." % outcounts, VERY_VERBOSE)
 
-    # Get the bit mask for "serious" data quality flags from the header,
-    # but remove the "near edge" and "out of bounds" bits so that we'll
-    # include data over the entire detector.
-    sdqflags = hdr.get ("sdqflags", 32767)
-    sdqflags -= (DQ_NEAR_EDGE + DQ_OUT_OF_BOUNDS)
+    # Set the bit mask for "serious" data quality flags to include only
+    # bursts, pulse height out of bounds, and bad time intervals.
+    sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME)
 
     # First make an image array in which each input event counts as one,
     # i.e. ignoring flat field and deadtime corrections.

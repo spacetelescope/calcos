@@ -163,7 +163,7 @@ def checkNumerix():
         cosutil.printWarning ("NUMERIX is set to '%s', should be 'numpy'" % \
                               os.environ["NUMERIX"])
 
-def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,
+def calcos (asntable, outdir=None, verbosity=None, save_temp_files=False,
             stimfile=None, livetimefile=None, burstfile=None):
     """Calibrate COS data.
 
@@ -174,8 +174,8 @@ def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,
     @param outdir: name of output directory, or None
     @type outdir: string
 
-    @param quiet: if quiet=True, set verbosity to QUIET
-    @type quiet: boolean
+    @param verbosity: if not None, set verbosity to this level (0, 1, 2)
+    @type verbosity: int or None
 
     @param save_temp_files: By default, the files containing the count rate
         image will be deleted after extracting 1-D spectra; also, the
@@ -201,11 +201,12 @@ def calcos (asntable, outdir=None, quiet=False, save_temp_files=False,
     cosutil.printMsg ("CALCOS version " + CALCOS_VERSION)
     cosutil.printMsg ("Begin " + cosutil.returnTime(), VERBOSE)
 
-    # check that NUMERIX is set to numpy
+    # Check that NUMERIX is set to numpy (or is not set at all).
     checkNumerix()
 
-    if quiet:
-        cosutil.setVerbosity (QUIET)
+    if verbosity is not None:
+        cosutil.setVerbosity (verbosity)
+
     assoc = Association (asntable, outdir, save_temp_files,
                          stimfile, livetimefile, burstfile)
     if len (assoc.obs) == 0:
@@ -1043,26 +1044,38 @@ class Association (object):
     def checkOutputExists (self):
         """Check whether output files already exist.
 
-        This routine checks for the existence of any output file for
-        each of the input files.  If any are found it prints their names
-        and raises an exception.
+        This routine checks for the existence of any output file for each of
+        the input files.  Wavecal files and science files are treated
+        differently, because wavecal files (conventional, not tagflash) can
+        be common to more than one association.  If one or more calibrated
+        files are found, a message will be printed giving their names.
+        Existing calibrated wavecal files will be deleted.  If calibrated
+        science files are found, however, an exception will be raised.
         """
 
         detector = self.obs[0].info["detector"]
 
         already_exists = []
+        wavecal_exists = []
         for obs in self.obs:
-            if obs.info["obsmode"] == "TIME-TAG":
-                self.checkExists (obs.filenames["corrtag"], already_exists)
-                self.checkExists (obs.filenames["flash_x"], already_exists)
-                self.checkExists (obs.filenames["flash"], already_exists)
-            self.checkExists (obs.filenames["flt"], already_exists)
-            self.checkExists (obs.filenames["counts"], already_exists)
-            if obs.switches["x1dcorr"] == "PERFORM" or \
-               obs.exp_type == EXP_WAVECAL:
-                self.checkExists (obs.filenames["x1d_x"], already_exists)
+            if obs.exp_type == EXP_WAVECAL:
+                self.checkExists (obs.filenames["corrtag"], wavecal_exists)
+                self.checkExists (obs.filenames["flt"], wavecal_exists)
+                self.checkExists (obs.filenames["counts"], wavecal_exists)
+                self.checkExists (obs.filenames["x1d_x"], wavecal_exists)
                 if obs.filenames["x1d"] != obs.filenames["x1d_x"]:
-                    self.checkExists (obs.filenames["x1d"], already_exists)
+                    self.checkExists (obs.filenames["x1d"], wavecal_exists)
+            else:
+                if obs.info["obsmode"] == "TIME-TAG":
+                    self.checkExists (obs.filenames["corrtag"], already_exists)
+                    self.checkExists (obs.filenames["flash_x"], already_exists)
+                    self.checkExists (obs.filenames["flash"], already_exists)
+                self.checkExists (obs.filenames["flt"], already_exists)
+                self.checkExists (obs.filenames["counts"], already_exists)
+                if obs.switches["x1dcorr"] == "PERFORM":
+                    self.checkExists (obs.filenames["x1d_x"], already_exists)
+                    if obs.filenames["x1d"] != obs.filenames["x1d_x"]:
+                        self.checkExists (obs.filenames["x1d"], already_exists)
 
         if self.global_switches["repeat"] == "PERFORM":
             product = self.product
@@ -1078,10 +1091,14 @@ class Association (object):
             self.checkExists (product + "_x1dsum4.fits", already_exists)
 
         # Remove duplicates.
-        for i in range (len (already_exists) - 1, 0, -1):
+        for i in range (len(already_exists)-1, 0, -1):
             fname = already_exists[i]
             if fname in already_exists[0:i]:
                 del (already_exists[i])
+        for i in range (len(wavecal_exists)-1, 0, -1):
+            fname = wavecal_exists[i]
+            if fname in wavecal_exists[0:i]:
+                del (wavecal_exists[i])
 
         if already_exists:
             if len (already_exists) == 1:
@@ -1092,6 +1109,17 @@ class Association (object):
             for fname in already_exists:
                 cosutil.printError ("  %s" % fname)
             raise RuntimeError, errmess
+
+        if wavecal_exists:
+            if len (wavecal_exists) == 1:
+                msg = "Calibrated wavecal file already exists"
+            else:
+                msg = "Calibrated wavecal files already exist"
+            msg += ", will be deleted:"
+            cosutil.printWarning (msg)
+            for fname in wavecal_exists:
+                os.remove (fname)
+                cosutil.printWarning ("  %s deleted" % fname)
 
     def checkExists (self, fname, already_exists):
         """If fname exists, append the name to already_exists.
@@ -1297,6 +1325,9 @@ class Observation (object):
         self.info = getinfo.getGeneralInfo (phdr, hdr)
         self.switches = getinfo.getSwitchValues (phdr)
         self.reffiles = getinfo.getRefFileNames (phdr)
+
+        # check for ref file name "N/A"
+        getinfo.resetSwitches (self.switches, self.reffiles)
 
         self.info["cal_ver"] = CALCOS_VERSION
 

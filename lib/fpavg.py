@@ -218,6 +218,10 @@ class OutputX1D (object):
             # add almost one rather than exactly one, to allow for error
             # in floating-point computation
             self.output_nelem = int (math.ceil (max_x - min_x + 0.99999))
+            if self.keywords["detector"] == "NUV":
+                # increase the output array size by one to allow for roundoff
+                # error during interpolation (not needed for FUV)
+                self.output_nelem += 1
 
     def createOutput (self):
         """Create pyfits object for output file."""

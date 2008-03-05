@@ -171,6 +171,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         # cross-dispersion direction
         key = "shift2" + segment[-1]
         shift2 = hdr.get (key, 0.)
+        shift2 += postargOffset (ifd_e[0].header, hdr["dispaxis"])
 
         outdata.field ("NELEM")[row] = nelem
 
@@ -231,6 +232,42 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         data = outdata[0:row]
         ofd[1].data = data.copy()
         del data
+
+def postargOffset (phdr, dispaxis):
+    """Get the offset to shift2 if postarg is non-zero.
+
+    @param phdr: primary header
+    @type phdr: pyfits Header object
+    @param dispaxis: dispersion axis (1 or 2)
+    @type dispaxis: int
+    @return: offset in pixels to be added to cross-dispersion location
+    @rtype: float
+
+    xxx This will have to be rewritten when the axes are reoriented.
+    xxx The plate scale should be gotten from a header keyword.
+    xxx The sign of the offset needs to be checked.
+    """
+
+    # pixels per arcsecond in the cross-dispersion direction
+    plate_scale = {
+        "G130M":  9.02,
+        "G160M": 10.12,
+        "G140L":  9.48,
+        "G185M": 41.85,
+        "G225M": 41.89,
+        "G285M": 41.80,
+        "G230L": 42.27}
+
+    if dispaxis == 1:
+        postarg_xdisp = phdr.get ("postarg2", 0.)
+    elif dispaxis == 2:
+        postarg_xdisp = phdr.get ("postarg1", 0.)
+    else:
+        return 0.
+
+    opt_elem = phdr["opt_elem"]
+
+    return postarg_xdisp * plate_scale[opt_elem]
 
 def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
                 snr_ff, exptime, backcorr, axis,
