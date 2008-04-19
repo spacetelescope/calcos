@@ -1,6 +1,9 @@
 import math
+import time
 import numpy as N
+from numpy import random
 import pyfits
+
 import cosutil
 import burst
 import ccos
@@ -8,7 +11,7 @@ import concurrent
 from calcosparam import *       # parameter definitions
 
 # These are column names in the corrtag table.  The default values are
-# appropriate for FUV data.
+# appropriate for FUV data.  These can be reset in setCorrColNames().
 
 xcorr = "xcorr"
 ycorr = "ycorr"
@@ -84,10 +87,10 @@ def timetagBasicCalibration (input, outtag, output, outcounts, outflash,
 
     doPhacorr (events, info, switches, reffiles, phdr, events_hdu.header)
 
+    doRandcorr (events, info, switches, reffiles, phdr)
+
     (stim_param, stim_countrate, stim_livetime) = initTempcorr (events,
             input, info, switches, reffiles, events_hdu.header, stimfile)
-
-    doRandcorr (events, info, switches, phdr)
 
     doTempcorr (stim_param, events, info, switches, reffiles, phdr)
 
@@ -371,6 +374,44 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
     # (low and high are the default values).
     cosutil.updatePulseHeightKeywords (hdr, segment, low, high)
 
+def doRandcorr (events, info, switches, reffiles, phdr):
+    """Add pseudo-random numbers to x and y coordinates within the active area.
+
+    arguments:
+    events        the data unit containing the events table
+    info          dictionary of header keywords and values
+    switches      dictionary of calibration switches
+    reffiles      dictionary of reference file names
+    phdr          the input primary header
+    """
+
+    if info["detector"] == "FUV":
+        cosutil.printSwitch ("RANDCORR", switches)
+        if switches["randcorr"] == "PERFORM":
+            xi  = events.field (xcorr)
+            eta = events.field (ycorr)
+            nelem = len (xi)
+            (b_low, b_high, b_left, b_right) = \
+                    cosutil.activeArea (info["segment"], reffiles["brftab"])
+            # A value of 0 in rand_flags means the corresponding event
+            # should not be modified by adding a pseudo-random number.
+            rand_flags = N.ones (nelem, dtype=N.bool8)
+            rand_flags = N.where (xi > b_right, 0, rand_flags)
+            rand_flags = N.where (xi < b_left,  0, rand_flags)
+            rand_flags = N.where (eta > b_high, 0, rand_flags)
+            rand_flags = N.where (eta < b_low,  0, rand_flags)
+            if info["randseed"] == -1:
+                seed = int (time.time())
+                phdr["randseed"] = seed
+            else:
+                seed = info["randseed"]
+            random.seed (seed)
+            rn = random.uniform (-0.5, +0.5, nelem)
+            xi[:] = N.where (rand_flags, xi - rn, xi)
+            rn = random.uniform (-0.5, +0.5, nelem)
+            eta[:] = N.where (rand_flags, eta - rn, eta)
+            phdr["randcorr"] = "COMPLETE"
+
 def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
     """Compute parameters for thermal distortion.
 
@@ -598,6 +639,11 @@ def findStim (x, y, stim_ref, xwidth, ywidth):
     sylow  = stim_ref[0] - ywidth
     syhigh = stim_ref[0] + ywidth
 
+    # Truncate at the lower and upper borders, excluding the first
+    # and last lines.
+    sylow = max (sylow, 1)
+    syhigh = min (syhigh, 1022)
+
     # Initial value of mask is 1. (which in this case means "good").
     mask = N.ones (len (x), dtype=N.float32)
 
@@ -720,24 +766,6 @@ def thermalParam (s1, s2, s1_ref, s2_ref):
         yintercept = sy1 - s1[0] * yslope
 
     return (xintercept, xslope, yintercept, yslope)
-
-def doRandcorr (events, info, switches, phdr):
-    """Add pseudo-random numbers to x and y coordinates.
-
-    arguments:
-    events        the data unit containing the events table
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    phdr          the input primary header
-    """
-
-    if info["detector"] == "FUV":
-        cosutil.printSwitch ("RANDCORR", switches)
-        if switches["randcorr"] == "PERFORM":
-            seed = cosutil.addRandomNumbers (events.field (xcorr),
-                            events.field (ycorr), info["randseed"])
-            phdr["randcorr"] = "COMPLETE"
-            phdr["randseed"] = seed
 
 def doTempcorr (stim_param, events, info, switches, reffiles, phdr):
     """Apply thermal distortion correction.

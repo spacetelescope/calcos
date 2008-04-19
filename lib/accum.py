@@ -1,7 +1,10 @@
 import math
+import time
 import types
 import numpy as N
+from numpy import random
 import pyfits
+
 import cosutil
 import ccos
 import timetag                  # actually for more generic functions
@@ -35,8 +38,8 @@ def accumBasicCalibration (input, inpha, output, outcounts,
     cosutil.printMode (info)
 
     # Default values.
-    stim_countrate = 0.
-    stim_livetime = 1.
+    (s1, s2, s1_ref, s2_ref, stim_countrate, stim_livetime) = \
+           (None, None, None, None, 0., 1.)
 
     # Get all the headers in the input file.  This copy will be
     # modified and written to the output files.
@@ -92,10 +95,10 @@ def accumBasicCalibration (input, inpha, output, outcounts,
         y = N.zeros (ncounts, dtype=N.float32)
         ccos.unbinaccum (sci, x, y)
 
+        doRandcorr (x, y, info, switches, reffiles, headers)
+
         stim_param = initTempcorr (input, s1, s2, s1_ref, s2_ref,
                          info, switches, stimfile, headers)
-
-        doRandcorr (x, y, info, switches, headers)
 
         doTempcorr (x, y, stim_param, info, switches, reffiles, headers)
 
@@ -319,6 +322,41 @@ def doHelcorr (info, switches, headers):
     else:
         headers[1].update ("v_helio", 0.)
 
+def doRandcorr (x, y, info, switches, reffiles, headers):
+    """Add pseudo-random numbers to x and y coordinates.
+
+    arguments:
+    x, y          1-D arrays of pixel coordinates (modified in-place)
+    info          dictionary of header keywords and values
+    switches      dictionary of calibration switches
+    reffiles      dictionary of reference file names
+    headers       a list of the headers from the input file
+    """
+
+    cosutil.printSwitch ("RANDCORR", switches)
+    if switches["randcorr"] == "PERFORM":
+        nelem = len (x)
+        (b_low, b_high, b_left, b_right) = \
+                cosutil.activeArea (info["segment"], reffiles["brftab"])
+        # A value of 0 in rand_flags means the corresponding event
+        # should not be modified by adding a pseudo-random number.
+        rand_flags = N.ones (nelem, dtype=N.bool8)
+        rand_flags = N.where (x > b_right, 0, rand_flags)
+        rand_flags = N.where (x < b_left,  0, rand_flags)
+        rand_flags = N.where (y > b_high,  0, rand_flags)
+        rand_flags = N.where (y < b_low,   0, rand_flags)
+        if info["randseed"] == -1:
+            seed = int (time.time())
+            headers[0]["randseed"] = seed
+        else:
+            seed = info["randseed"]
+        random.seed (seed)
+        rn = random.uniform (-0.5, +0.5, nelem)
+        x[:] = N.where (rand_flags, x - rn, x)
+        rn = random.uniform (-0.5, +0.5, nelem)
+        y[:] = N.where (rand_flags, y - rn, y)
+        headers[0]["randcorr"] = "COMPLETE"
+
 def initTempcorr (input, s1, s2, s1_ref, s2_ref,
                          info, switches, stimfile, headers):
     """Return the stim parameters.
@@ -345,22 +383,6 @@ def initTempcorr (input, s1, s2, s1_ref, s2_ref,
         stim_param = {}
 
     return stim_param
-
-def doRandcorr (x, y, info, switches, headers):
-    """Add pseudo-random numbers to x and y coordinates.
-
-    arguments:
-    x, y          1-D arrays of pixel coordinates (modified in-place)
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    headers       a list of the headers from the input file
-    """
-
-    cosutil.printSwitch ("RANDCORR", switches)
-    if switches["randcorr"] == "PERFORM":
-        seed = cosutil.addRandomNumbers (x, y, info["randseed"])
-        headers[0]["randcorr"] = "COMPLETE"
-        headers[0]["randseed"] = seed
 
 def doTempcorr (x, y, stim_param, info, switches, reffiles, headers):
     """Apply thermal distortion correction to x and y coordinates.
@@ -718,10 +740,10 @@ def findStimAccum (sci, stim_ref, xwidth, ywidth):
     highY = sY + ywidth + 1
 
     (sci_ny,sci_nx) = sci.shape
-    lowX = max (lowX, 0)
-    lowY = max (lowY, 0)
-    highX = min (highX, sci_nx)
-    highY = min (highY, sci_ny)
+    lowX = max (lowX, 1)
+    lowY = max (lowY, 1)
+    highX = min (highX, sci_nx-1)
+    highY = min (highY, sci_ny-1)
 
     nx = highX - lowX
     ny = highY - lowY

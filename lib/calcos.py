@@ -982,7 +982,7 @@ class Association (object):
         self.global_switches["any"] = "OMIT"            # default value
         for key in ["dqicorr", "deadcorr", "tempcorr", "geocorr",
                     "phacorr", "flatcorr", "brstcorr", "doppcorr",
-                    "helcorr", "x1dcorr"]:
+                    "helcorr", "randcorr", "x1dcorr"]:
             if switches[key] == "PERFORM":
                 self.global_switches["any"] = "PERFORM"
                 break
