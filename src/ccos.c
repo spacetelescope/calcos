@@ -56,6 +56,8 @@ interp1d does linear interpolation of one 1-D array onto another.
 		when computing nearest integer.  In smoothBackground, scr
 		was allocated to be of length length+width * sizeof (float),
 		but it should have been (length+width) * sizeof (float).
+2008 Feb 8	getstartstop was not correctly handling the case that there
+		were no events within a time interval.
 */
 
 # include <Python.h>
@@ -2191,8 +2193,7 @@ static PyObject *ccos_getstartstop (PyObject *self, PyObject *args) {
 
 /* This function, called by ccos_getstartstop, finds the indices in the
    events list of the start and stop times of the time intervals (nbins
-   such intervals, uniformly spaced in time).  The number of source and
-   background counts within each such interval will also be found.
+   such intervals, uniformly spaced in time, starting at time[0]).
 */
 
 static int getStartStopTimes (float time[], int n_events,
@@ -2209,31 +2210,66 @@ delta_t			i: length of time interval
 
 	int i;			/* index for istart, istop */
 	int k;			/* index for events */
-	double t0;		/* time of the first event (close to 0) */
+	double begin_interval;	/* time of beginning of a delta_t interval */
 	double end_interval;	/* time at end of a delta_t interval */
+	double end_next_interval;	/* time at end of following interval */
+	int done;
+
+	for (i = 0;  i < nbins;  i++) {		/* initialize */
+	    istart[i] = 0;
+	    istop[i] = 0;
+	}
 
 	/* Fill in the start and stop index of each time interval.
-	   The istart and istop values are intended to be used as limits
-	   of a Python slice, e.g. time[istart[i]:istop[i]].
+	   The istart and istop values can be used as limits of a Python
+	   slice, e.g. time[istart[i]:istop[i]].
 	*/
-	t0 = time[0];
+	k = 0;
 	istart[0] = 0;
-	end_interval = t0 + delta_t;
-	for (k = 0, i = 0;  k < n_events;  k++) {
+	for (i = 0;  i < nbins;  i++) {
 
-	    if (time[k] >= end_interval) {
-		istop[i] = k;
-		if (i >= nbins - 1) {
-		    istop[nbins-1] = n_events;
+	    if (k >= n_events) {
+		istart[i] = n_events;
+		istop[i] = n_events;
+		continue;
+	    }
+
+	    begin_interval = time[0] + i * delta_t;
+	    end_interval = begin_interval + delta_t;
+	    end_next_interval = begin_interval + 2. * delta_t;
+
+	    done = 0;
+	    while (!done) {
+		if (k >= n_events) {
+		    break;
+		}
+		if (time[k] >= begin_interval) {
+		    istart[i] = k;
+		    if (time[k] > end_interval) {	/* empty interval */
+			istop[i] = k;
+			done = 1;
+		    }
+		    break;
+		}
+		k++;
+	    }
+
+	    while (!done) {
+		if (k >= n_events) {
+		    break;
+		}
+		if (time[k] >= end_interval) {
+		    if (time[k] >= end_next_interval && k > 0) {
+			istop[i] = k - 1;
+		    } else {
+			istop[i] = k;
+		    }
 		    break;
 		} else {
-		    i++;
-		    istart[i] = k;
-		    end_interval = t0 + (i+1) * delta_t;
+		    k++;
 		}
 	    }
 	}
-	istop[nbins-1] = n_events;
 
 	return 0;
 }
