@@ -942,15 +942,10 @@ def updatePulseHeightKeywords (hdr, segment, low, high):
     low, high      default values for PHALOWR[AB] and PHAUPPR[AB] respectively
     """
 
-    # Update the values for the screening limit keywords
     key_low  = "PHALOWR" + segment[-1]
-    phalowr = hdr.get (key_low, low)
-    if low < phalowr:
-        hdr.update (key_low, low)
+    hdr.update (key_low, low)
     key_high = "PHAUPPR" + segment[-1]
-    phauppr = hdr.get (key_high, high)
-    if high > phauppr:
-        hdr.update (key_high, high)
+    hdr.update (key_high, high)
 
 def getSwitch (phdr, keyword):
     """Get the value of a calibration switch from a primary header.

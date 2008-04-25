@@ -98,7 +98,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     # find the counts within the background and source regions, for each
     # delta_t interval.
     ccos.getbkgcounts (y, dq, istart, istop,
-		bkg_counts, src_counts,
+                bkg_counts, src_counts,
                 bkg1_low, bkg1_high, bkg2_low, bkg2_high,
                 src_low, src_high, bkgsf)
 

@@ -200,19 +200,21 @@ def checkPulseHeight (inpha, phatab, info, hdr):
     pha_info = cosutil.getTable (phatab, filter={"segment": info["segment"]},
                    exactly_one=True)
 
+    low = pha_info.field ("llt")[0]
+    high = pha_info.field ("ult")[0]
+
+    # Update the values for the screening limit keywords
+    cosutil.updatePulseHeightKeywords (hdr, info["segment"], low, high)
+
     # The peak in the pulse-height distribution should be within low and high.
     # Apply a factor to low and high to account for the fact that the
     # histogram is from seven-bit values but the values in the table are
     # for five-bit values (the PHA column in an EVENTS table).
     # The mean should be within the factors min_peak and max_peak of the peak.
-    low = pha_info.field ("llt")[0] * TWO_BITS
-    high = pha_info.field ("ult")[0] * TWO_BITS
+    low *= TWO_BITS
+    high *= TWO_BITS
     min_peak = pha_info.field ("min_peak")[0]
     max_peak = pha_info.field ("max_peak")[0]
-
-    # Update the values for the screening limit keywords
-    # (low and high are the default values).
-    cosutil.updatePulseHeightKeywords (hdr, info["segment"], low, high)
 
     # Read the pulse-height histogram.
     fd = pyfits.open (inpha, mode="readonly")
