@@ -414,18 +414,18 @@ def stimInfo (x, y, brftab, info):
             str2 = "stim2 not found"
         msg = "measured stim locations:  " + str1 + "   " + str2
         cosutil.printMsg (msg, VERY_VERBOSE)
-    rms_s1 = [0., 0.]
-    rms_s2 = [0., 0.]
+    rms_s1 = [-1., -1.]
+    rms_s2 = [-1., -1.]
     if counts1 > 1:
         rms_s1[0] = math.sqrt (sumsq1[0] / (counts1 - 1.))
         rms_s1[1] = math.sqrt (sumsq1[1] / (counts1 - 1.))
-    else:
+    elif counts1 > 0:
         rms_s1[0] = math.sqrt (sumsq1[0])
         rms_s1[1] = math.sqrt (sumsq1[1])
     if counts2 > 1:
         rms_s2[0] = math.sqrt (sumsq2[0] / (counts2 - 1.))
         rms_s2[1] = math.sqrt (sumsq2[1] / (counts2 - 1.))
-    else:
+    elif counts2 > 0:
         rms_s2[0] = math.sqrt (sumsq2[0])
         rms_s2[1] = math.sqrt (sumsq2[1])
 
