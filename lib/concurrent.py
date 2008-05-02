@@ -33,15 +33,22 @@ def processConcurrentWavecal (events, outflash,
 
     @param hdr: events extension header of corrtag file
     @type hdr: pyfits header object
+
+    @return: three objects:  the average offset in the X direction, the
+        average offset in the Y direction, and an array of the shifts in
+        the dispersion direction at one-second intervals; these values
+        will be (0., 0., None) if wavecorr is not perform or the input
+        data are not tagflash or there are no flashes.
+    @rtype: tuple
     """
 
     if not info["tagflash"]:
-        return
+        return (0., 0., None)
 
     cosutil.printSwitch ("WAVECORR", switches)
     if switches["wavecorr"] != "PERFORM":
         cw = initWavecal (events, outflash, info, reffiles, phdr, hdr)
-        return
+        return (0., 0., None)
     cosutil.printMsg ("Process tagflash wavecal")
     wavecal.printWavecalRef (reffiles)
     cosutil.printRef ("disptab", reffiles)
@@ -53,20 +60,25 @@ def processConcurrentWavecal (events, outflash,
         # write an empty lampflash table
         cw.outFlashSetup()
         cw.writeOutFlash()
-        return
+        return (0., 0., None)
 
-    cw.zeroKeywords()
     cw.outFlashSetup()          # create an HDU list for the outflash file
 
     cw.getWavecalParameters()
     cw.findShifts()
     cw.applyCorrections()
+    cw.setShiftKeywords()
+
+    (avg_dx, avg_dy) = cw.avgShiftXY()
+    pshift_vs_time = cw.pshiftVsTime()
 
     if switches["statflag"] == "PERFORM":
         cw.doStat()
     phdr["wavecorr"] = "COMPLETE"
 
     cw.writeOutFlash()
+
+    return (avg_dx, avg_dy, pshift_vs_time)
 
 def initWavecal (events, outflash, info, reffiles, phdr, hdr):
     """Return a ConcurrentWavecal object, depending on detector.
@@ -222,7 +234,8 @@ class ConcurrentWavecal (object):
     def deleteCoordinateKeywords (self, hdu):
         """Delete keywords that are not relevant for extracted spectra.
 
-        @param hdu: HDU for table of extracted wavecal spectra (modified)
+        @param hdu: HDU for table of extracted wavecal spectra (will be
+            modified in-place)
         @type hdu: pyfits header/data unit object
         """
 
@@ -233,6 +246,12 @@ class ConcurrentWavecal (object):
         for keyword in ikey:
             if hdu.header.has_key (keyword):
                 del hdu.header[keyword]
+
+        # Set the values of these keywords to zero.
+        zkey = ["PSHIFTA", "PSHIFTB", "PSHIFTC"] 
+        for keyword in zkey:
+            if hdu.header.has_key (keyword):
+                hdu.header[keyword] = 0.
 
     def doStat (self):
         """Compute mean and max of the GROSS column."""
@@ -346,6 +365,9 @@ class ConcurrentWavecal (object):
 
             # Extract wavecal spectra from events table, and determine offset
             # in dispersion direction.
+            zero_pixel = 0      # offset into output spectrum
+            sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME +
+                        DQ_DEAD + DQ_HOT)
             pshift = {}
             save_spectra = {}   # save just for second loop over segments
             lamp_found = {}     # for second loop over segments
@@ -361,9 +383,13 @@ class ConcurrentWavecal (object):
                 extr_height = xtract_info.field ("height")[0]
                 slope       = xtract_info.field ("slope")[0]
                 intercept   = xtract_info.field ("b_spec")[0]
+                # The spectrum will first be extracted into this 2-D band.
+                spectrum_band = N.zeros ((extr_height, len (self.spectrum)),
+                                         dtype=N.float64)
                 ccos.xy_extract (self.xi[i0:i1], self.eta[i0:i1],
-                        self.dq[i0:i1], extr_height, slope, intercept+shift2,
-                        self.spectrum)
+                        spectrum_band, slope, intercept+shift2,
+                        zero_pixel, self.dq[i0:i1], sdqflags)
+                self.spectrum = N.sum (spectrum_band, 0)
                 save_spectra[segment] = self.spectrum.copy()
                 lamp_found[segment] = True      # default
                 if xd_shifts[segment] is not None:
@@ -868,6 +894,92 @@ class ConcurrentWavecal (object):
             keyword = "LMPMED%d" % (i+1)
             self.hdr.update (keyword, self.lamp_median[i])
 
+    def avgShift (self):
+        """Compute the average pshift and shift2 offsets.
+
+        @return: a tuple containing the average shifts in the dispersion
+            and cross-dispersion directions
+        @rtype: tuple
+        """
+
+        if self.numflash < 1 or self.info["exptime"] <= 0.:
+            return (0., 0.)
+
+        exptime = self.info["exptime"]
+        segment = self.segment_list[0]
+        time = self.time
+
+        t_prev = time[0]
+        pshift_prev = self.pshift[0][segment]
+        shift2_prev = self.shift2[0]
+        sum_t = 0.
+        sum_pshift = 0.
+        sum_shift2 = 0.
+        for n in range (self.numflash):
+            t = self.lamp_median[n]
+            pshift = self.pshift[n][segment]
+            shift2 = self.shift2[n]
+            sum_pshift += (t - t_prev) * (pshift + pshift_prev) / 2.
+            sum_shift2 += (t - t_prev) * (shift2 + shift2_prev) / 2.
+            t_prev = t
+            pshift_prev = pshift
+            shift2_prev = shift2
+
+        if time[-1] > t:
+            sum_pshift += (time[-1] - t) * pshift
+            sum_shift2 += (time[-1] - t) * shift2
+
+        return (sum_pshift/exptime, sum_shift2/exptime)
+
+    def pshiftVsTime (self):
+        """Interpolate pshift at one-second intervals.
+
+        @return: an array of the shifts in the dispersion direction at
+            one-second intervals
+        @rtype: array, or None if there are either no flashes or no data
+        """
+
+        if self.numflash < 1 or self.info["exptime"] <= 0.:
+            return None
+
+        time = self.time
+        nbins = int (math.ceil (time[-1] - time[0]))
+        pshift_vs_time = N.zeros (nbins, dtype=N.float32)
+
+        segment = self.segment_list[0]
+
+        t0 = time[0]
+        t_prev = time[0]
+        pshift_prev = self.pshift[0][segment]
+        i = 0
+        for n in range (self.numflash):
+            t = self.lamp_median[n]
+            pshift_t = self.pshift[n][segment]
+            max_k = int (round (t)) - i
+            if max_k < 1:
+                continue
+            if i + max_k > nbins:
+                full = True
+                max_k = nbins - i
+            else:
+                full = False
+            subset = N.arange (max_k, dtype=N.float32)
+            slope = (pshift_t - pshift_prev) / (t - t_prev)
+            subset = slope * subset + pshift_prev
+            pshift_vs_time[i:i+max_k] = subset
+            t_prev = t
+            pshift_prev = pshift_t
+            i += max_k
+            if full:
+                break
+
+        max_k = nbins - i
+        if time[-1] > t and max_k > 0:
+            subset = N.ones (max_k, dtype=N.float32) * pshift_t
+            pshift_vs_time[i:i+max_k] = subset
+
+        return pshift_vs_time
+
 class FUVConcurrentWavecal (ConcurrentWavecal):
 
     def __init__ (self, events, outflash, info, reffiles, phdr, hdr):
@@ -889,13 +1001,6 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
         (b_low, b_high, b_left, b_right) = \
                 cosutil.activeArea (info["segment"], reffiles["brftab"])
         self.regions[info["segment"]] = [(b_low, b_high)]
-
-    def zeroKeywords (self):
-
-        self.hdr.update ("PSHIFTA", 0.)
-        self.hdr.update ("PSHIFTB", 0.)
-        self.hdr.update ("SHIFT2A", 0.)
-        self.hdr.update ("SHIFT2B", 0.)
 
     def shift2Corr (self, n, i0, i1):
         """Correct the pixel coordinates in the cross-dispersion direction.
@@ -940,6 +1045,26 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
                             ((self.time[i0:i1] - t0) * slope + shift2_zero),
                         self.eta_corr[i0:i1])
 
+    def setShiftKeywords (self):
+        """Set PSHIFTA or PSHIFTB to the average fractional pixel offset."""
+
+        xi_diff = self.xi_corr - N.around (self.xi_corr)
+        pshift = -xi_diff.mean()
+
+        for segment in self.segment_list:
+            key = "PSHIFT" + segment[-1]
+            self.hdr.update (key, pshift)
+
+        self.hdr.update ("SHIFT2A", 0.)
+        self.hdr.update ("SHIFT2B", 0.)
+
+    def avgShiftXY (self):
+        """Return the average offsets in X and Y."""
+
+        (avg_d_xi, avg_d_eta) = self.avgShift()
+
+        return (avg_d_xi, avg_d_eta)
+
 class NUVConcurrentWavecal (ConcurrentWavecal):
 
     def __init__ (self, events, outflash, info, reffiles, phdr, hdr):
@@ -963,15 +1088,6 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
 
         # The pshift offset should be applied only within this region.
         self.regions = self.setRegions()
-
-    def zeroKeywords (self):
-
-        self.hdr.update ("PSHIFTA", 0.)
-        self.hdr.update ("PSHIFTB", 0.)
-        self.hdr.update ("PSHIFTC", 0.)
-        self.hdr.update ("SHIFT2A", 0.)
-        self.hdr.update ("SHIFT2B", 0.)
-        self.hdr.update ("SHIFT2C", 0.)
 
     def setRegions (self):
         """Determine the regions over which pshift should be applied.
@@ -1082,3 +1198,24 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
                 slope = (self.shift2[n+1] - self.shift2[n]) / (t1 - t0)
             self.eta_corr[i0:i1] -= \
                         ((self.time[i0:i1] - t0) * slope + shift2_zero)
+
+    def setShiftKeywords (self):
+        """Set PSHIFT[ABC] to the average fractional pixel offset."""
+
+        xi_diff = self.xi_corr - N.around (self.xi_corr)
+        pshift = -xi_diff.mean()
+
+        for segment in self.segment_list:
+            key = "PSHIFT" + segment[-1]
+            self.hdr.update (key, pshift)
+
+        self.hdr.update ("SHIFT2A", 0.)
+        self.hdr.update ("SHIFT2B", 0.)
+        self.hdr.update ("SHIFT2C", 0.)
+
+    def avgShiftXY (self):
+        """Return the average offsets in X and Y."""
+
+        (avg_d_xi, avg_d_eta) = self.avgShift()
+
+        return (avg_d_eta, avg_d_xi)

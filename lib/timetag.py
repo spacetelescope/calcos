@@ -96,19 +96,19 @@ def timetagBasicCalibration (input, outtag, output, outcounts, outflash,
 
     doGeocorr (events, info, switches, reffiles, phdr)
 
-    dq_array = doDqicorr (events, info, switches, reffiles,
-            phdr, events_hdu.header)
-
     doDoppcorr (events, info, switches, reffiles, phdr, events_hdu.header)
 
     doFlatcorr (events, info, switches, reffiles, phdr)
 
     doDeadcorr (events, input, info, switches, reffiles, phdr,
-            stim_countrate, stim_livetime, livetimefile)
+                stim_countrate, stim_livetime, livetimefile)
 
-    concurrent.processConcurrentWavecal (events, outflash,
-                info, switches, reffiles,
-                phdr, events_hdu.header)
+    (avg_dx, avg_dy, pshift_vs_time) = \
+                concurrent.processConcurrentWavecal (events, outflash,
+                    info, switches, reffiles, phdr, events_hdu.header)
+
+    dq_array = doDqicorr (events, info, switches, reffiles,
+                          phdr, events_hdu.header, avg_dx, avg_dy)
 
     writeImages (events.field (xfull), events.field (yfull),
                  events.field ("epsilon"), events.field ("dq"),
@@ -119,6 +119,9 @@ def timetagBasicCalibration (input, outtag, output, outcounts, outflash,
     doStatflag (switches, output, outcounts)
 
     ofd.close()
+
+    # Comment this out for the time being.
+    # appendPshift (outtag, output, outcounts, pshift_vs_time)
 
     return 0            # 0 is OK
 
@@ -428,14 +431,15 @@ def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
        (switches["tempcorr"] == "PERFORM" or switches["deadcorr"] == "PERFORM"):
         # Compute the parameters (to be used later).
         time = cosutil.getColCopy (data=events, column="time")
-        (stim_param, stim_locations, stim_countrate, stim_livetime) = \
+        (stim_param, avg_s1, avg_s2, rms_s1, rms_s2,
+         stim_countrate, stim_livetime) = \
          computeThermalParam (time,
             events.field (xcorr), events.field (ycorr), events.field ("dq"),
             reffiles["brftab"],
             info["segment"], info["exptime"], info["stimrate"],
             input, stimfile)
         # Update stim location keywords in extension header.
-        stimKeywords (hdr, info["segment"], stim_locations)
+        stimKeywords (hdr, info["segment"], avg_s1, avg_s2, rms_s1, rms_s2)
     else:
         stim_param = {}
         stim_countrate = 0.
@@ -459,7 +463,7 @@ def computeThermalParam (time, x, y, dq,
     arguments:
     time          array of event times
     x, y          arrays of detector X and Y coordinates
-    dq            array of data quality flags
+    dq            array of data quality flags   (NOTE:  not currently used)
     brftab        name of baseline reference data table
     segment       segment name (for FUV)
     exptime       exposure time (for computing livetime)
@@ -468,9 +472,21 @@ def computeThermalParam (time, x, y, dq,
     stimfile      name of text file to which stim locations will be appended
 
     The function value is a tuple:
-      (stim_param, stim_locations, stim_countrate, stim_livetime)
+      (stim_param, avg_s1, avg_s2, rms_s1, rms_s2,
+       stim_countrate, stim_livetime)
+
     stim_param is a dictionary of lists:  (i0, i1, x0, xslope, y0, yslope)
-    stim_locations is a tuple of stim positions:  (avg_s1, avg_s2)
+
+    avg_s1[0] is the average Y location of the first stim.
+    avg_s1[1] is the average X location of the first stim.
+    avg_s2[0] is the average Y location of the second stim.
+    avg_s2[1] is the average X location of the second stim.
+
+    rms_s1[0] is the RMS in Y for the first stim.
+    rms_s1[1] is the RMS in X for the first stim.
+    rms_s2[0] is the RMS in Y for the second stim.
+    rms_s2[1] is the RMS in X for the second stim.
+
     stim_countrate is the observed count rate for the stims
     stim_livetime is the live time computed from the input and observed
       stim rate
@@ -484,11 +500,6 @@ def computeThermalParam (time, x, y, dq,
         direction).
       y0[i] and yslope[i] are the intercept and slope for the linear
         correction to the Y positions.
-
-    avg_s1[0] is the average Y location of the first stim.
-    avg_s1[1] is the average X location of the first stim.
-    avg_s2[0] is the average Y location of the second stim.
-    avg_s2[1] is the average X location of the second stim.
     """
 
     if stimfile is None:
@@ -534,7 +545,7 @@ def computeThermalParam (time, x, y, dq,
 
     t0 = time[0]
     t1 = t0 + dt_thermal
-    sumstim = (0, 0., 0., 0, 0., 0.)
+    sumstim = (0, 0., 0., 0., 0., 0, 0., 0., 0., 0.)
     last_s1 = s1_ref            # initial default values
     last_s2 = s2_ref
     while t0 < time[nevents-1]:
@@ -547,14 +558,15 @@ def computeThermalParam (time, x, y, dq,
             t1 = t0 + dt_thermal
             continue
 
-        (s1, counts1, found_s1) = \
+        (s1, sumsq1, counts1, found_s1) = \
                 findStim (x[i:j], y[i:j], s1_ref, xwidth, ywidth)
 
-        (s2, counts2, found_s2) = \
+        (s2, sumsq2, counts2, found_s2) = \
                 findStim (x[i:j], y[i:j], s2_ref, xwidth, ywidth)
 
         # Increment sums for averaging the stim positions.
-        sumstim = updateStimSum (sumstim, j-i, s1, found_s1, s2, found_s2)
+        sumstim = updateStimSum (sumstim, counts1, s1, sumsq1, found_s1,
+                                          counts2, s2, sumsq2, found_s2)
 
         if fd is not None:
             fd.write ("%.0f %.0f" % (t0, min (time[nevents-1], t1)))
@@ -601,12 +613,26 @@ def computeThermalParam (time, x, y, dq,
     # Compute the average of the stim positions.
     avg_s1 = [-1., -1.]
     avg_s2 = [-1., -1.]
+    rms_s1 = [-1., -1.]
+    rms_s2 = [-1., -1.]
     if sumstim[0] > 0:
-        avg_s1[0] = sumstim[1] / sumstim[0]     # y
-        avg_s1[1] = sumstim[2] / sumstim[0]     # x
-    if sumstim[3] > 0:
-        avg_s2[0] = sumstim[4] / sumstim[3]
-        avg_s2[1] = sumstim[5] / sumstim[3]
+        avg_s1[0] = sumstim[1] / sumstim[0]             # y
+        avg_s1[1] = sumstim[2] / sumstim[0]             # x
+        if sumstim[0] > 1:
+            rms_s1[0] = math.sqrt (sumstim[3] / (sumstim[0] - 1.))
+            rms_s1[1] = math.sqrt (sumstim[4] / (sumstim[0] - 1.))
+        else:
+            rms_s1[0] = math.sqrt (sumstim[3])
+            rms_s1[1] = math.sqrt (sumstim[4])
+    if sumstim[5] > 0:
+        avg_s2[0] = sumstim[6] / sumstim[5]
+        avg_s2[1] = sumstim[7] / sumstim[5]
+        if sumstim[5] > 1:
+            rms_s2[0] = math.sqrt (sumstim[8] / (sumstim[5] - 1.))
+            rms_s2[1] = math.sqrt (sumstim[9] / (sumstim[5] - 1.))
+        else:
+            rms_s2[0] = math.sqrt (sumstim[8])
+            rms_s2[1] = math.sqrt (sumstim[9])
 
     countrate = (counts1 + counts2) / (2. * exptime)
     if stimrate > 0. and countrate > 0.:
@@ -621,16 +647,29 @@ def computeThermalParam (time, x, y, dq,
                   "x0": x0, "xslope": xslope,
                   "y0": y0, "yslope": yslope}
 
-    return (stim_param, (avg_s1, avg_s2), countrate, livetime)
+    return (stim_param, avg_s1, avg_s2, rms_s1, rms_s2,
+            countrate, livetime)
 
 def findStim (x, y, stim_ref, xwidth, ywidth):
     """Find one stim in time-tag data.
 
-    arguments:
-    x, y          arrays of detector X and Y coordinates
-    stim_ref      reference position (y, x) for the stim
-    xwidth        half width of the search region in X
-    ywidth        half width of the search region in Y
+    @param x: array of detector X coordinates
+    @type x: array
+    @param y: array of detector Y coordinates
+    @type y: array
+    @param stim_ref: reference position (y, x) for the stim
+    @type stim_ref: tuple
+    @param xwidth: half width of the search region in X
+    @type xwidth: int
+    @param ywidth: half width of the search region in Y
+    @type ywidth: int
+
+    @return: ((sy, sx), (sumysq, sumxsq), n, found_stim), where (sy, sx) is
+        the stim location (if found), (sumysq, sumxsq) is the sum of squared
+        deviations from the mean location, n is the number of events for this
+        stim within the current time interval, and found_stim is True if the
+        stim was actually found (i.e. if n > 0).
+    @rtype: tuple
     """
 
     # This is the search region for finding the stim.
@@ -661,81 +700,107 @@ def findStim (x, y, stim_ref, xwidth, ywidth):
         sumy = N.sum ((y-stim_ref[0]) * mask)
         sx = sumx / n + stim_ref[1]
         sy = sumy / n + stim_ref[0]
+        # sum of squared deviations, for computing RMS
+        sumxsq = N.sum ((x-sx)**2 * mask)
+        sumysq = N.sum ((y-sy)**2 * mask)
         found_stim = True
     else:
         sx = None
         sy = None
+        sumxsq = None
+        sumysq = None
         found_stim = False
 
-    return ((sy, sx), n, found_stim)
+    return ((sy, sx), (sumysq, sumxsq), n, found_stim)
 
-def updateStimSum (sumstim, nevents, s1, found_s1, s2, found_s2):
+def updateStimSum (sumstim, nevents1, s1, sumsq1, found_s1,
+                            nevents2, s2, sumsq2, found_s2):
     """Update sums for averages of stim positions.
 
     arguments:
     sumstim    tuple with current sums:
-                 n1     number of events for first stim
-                 sum1y  sum for first stim, Y coordinate
-                 sum1x  sum for first stim, X coordinate
-                 n2     number of events for second stim
-                 sum2y  sum for second stim, Y coordinate
-                 sum2x  sum for second stim, X coordinate
-    nevents    number of events in current time interval
+                 n1      number of events for first stim
+                 sum1y   sum for first stim, Y coordinate
+                 sum1x   sum for first stim, X coordinate
+                 sumsq1y sum of squares for first stim, Y coordinate
+                 sumsq1x sum of squares for first stim, X coordinate
+                 n2      number of events for second stim
+                 sum2y   sum for second stim, Y coordinate
+                 sum2x   sum for second stim, X coordinate
+                 sumsq2y sum of squares for second stim, Y coordinate
+                 sumsq2x sum of squares for second stim, X coordinate
+    nevents1   number of events for first stim in current time interval
     s1         tuple of (y,x) coordinates of the first stim in current
                  interval
     found_s1   True if the first stim was actually found
+    nevents2   number of events for second stim in current time interval
     s2         same as s1, but for the second stim
     found_s2   True if the second stim was actually found
 
     The function value is an updated sumstim tuple.
 
-    nevents is used as a weight when incrementing the sums.  n1 and n2 are
-    the total number of events with defined first and second stim positions
+    nevents1 and nevents2 are used as weights when incrementing the sums.
+    n1 and n2 are the total number of events for the first and second stims
     respectively.
     """
 
-    (n1, sum1y, sum1x, n2, sum2y, sum2x) = sumstim
+    (n1, sum1y, sum1x, sumsq1y, sumsq1x,
+     n2, sum2y, sum2x, sumsq2y, sumsq2x) = sumstim
 
     if found_s1:
-        n1 = n1 + nevents
-        sum1x = sum1x + s1[1] * nevents
-        sum1y = sum1y + s1[0] * nevents
+        n1 = n1 + nevents1
+        sum1y = sum1y + s1[0] * nevents1
+        sum1x = sum1x + s1[1] * nevents1
+        sumsq1y = sumsq1y + sumsq1[0]
+        sumsq1x = sumsq1x + sumsq1[1]
 
     if found_s2:
-        n2 = n2 + nevents
-        sum2x = sum2x + s2[1] * nevents
-        sum2y = sum2y + s2[0] * nevents
+        n2 = n2 + nevents2
+        sum2y = sum2y + s2[0] * nevents2
+        sum2x = sum2x + s2[1] * nevents2
+        sumsq2y = sumsq2y + sumsq2[0]
+        sumsq2x = sumsq2x + sumsq2[1]
 
-    return (n1, sum1y, sum1x, n2, sum2y, sum2x)
+    return (n1, sum1y, sum1x, sumsq1y, sumsq1x,
+            n2, sum2y, sum2x, sumsq2y, sumsq2x)
 
-def stimKeywords (hdr, segment, stim_locations):
+def stimKeywords (hdr, segment, avg_s1, avg_s2, rms_s1, rms_s2):
     """Update keywords for the locations of the stims.
 
     arguments:
     hdr             the input events extension header (updated)
     segment         FUVA or FUVB
-    stim_locations  a two-element list, one for each stim; each element is
-                    the (y, x) coordinates of the stim
+
+    avg_s1[0] is the average Y location of the first stim.
+    avg_s1[1] is the average X location of the first stim.
+    avg_s2[0] is the average Y location of the second stim.
+    avg_s2[1] is the average X location of the second stim.
+
+    rms_s1[0] is the RMS in Y for the first stim.
+    rms_s1[1] is the RMS in X for the first stim.
+    rms_s2[0] is the RMS in Y for the second stim.
+    rms_s2[1] is the RMS in X for the second stim.
     """
 
     seg = segment[-1]           # "A" or "B"
 
-    # Positions of the first (left) and second (right) stims.
-    (s1, s2) = stim_locations
-
-    if s1[0] is None or s1[1] is None:
-        hdr["STIM"+seg+"_LX"] = -1.
-        hdr["STIM"+seg+"_LY"] = -1.
+    if avg_s1[0] is None or avg_s1[1] is None:
+        hdr.update ("STIM"+seg+"_LX", -1.)
+        hdr.update ("STIM"+seg+"_LY", -1.)
     else:
-        hdr["STIM"+seg+"_LX"] = s1[1]
-        hdr["STIM"+seg+"_LY"] = s1[0]
+        hdr.update ("STIM"+seg+"_LX", avg_s1[1])
+        hdr.update ("STIM"+seg+"_LY", avg_s1[0])
+        hdr.update ("SRMS"+seg+"_LX", rms_s1[1])
+        hdr.update ("SRMS"+seg+"_LY", rms_s1[0])
 
-    if s2[0] is None or s2[1] is None:
-        hdr["STIM"+seg+"_RX"] = -1.
-        hdr["STIM"+seg+"_RY"] = -1.
+    if avg_s2[0] is None or avg_s2[1] is None:
+        hdr.update ("STIM"+seg+"_RX", -1.)
+        hdr.update ("STIM"+seg+"_RY", -1.)
     else:
-        hdr["STIM"+seg+"_RX"] = s2[1]
-        hdr["STIM"+seg+"_RY"] = s2[0]
+        hdr.update ("STIM"+seg+"_RX", avg_s2[1])
+        hdr.update ("STIM"+seg+"_RY", avg_s2[0])
+        hdr.update ("SRMS"+seg+"_RX", rms_s2[1])
+        hdr.update ("SRMS"+seg+"_RY", rms_s2[0])
 
 def thermalParam (s1, s2, s1_ref, s2_ref):
     """Compute linear thermal distortion correction from stim positions.
@@ -854,7 +919,8 @@ def doGeocorr (events, info, switches, reffiles, phdr):
             if switches["igeocorr"] == "PERFORM":
                 phdr["igeocorr"] = "COMPLETE"
 
-def doDqicorr (events, info, switches, reffiles, phdr, hdr):
+def doDqicorr (events, info, switches, reffiles, phdr, hdr,
+               avg_dx=0, avg_dy=0):
     """Create a data quality array, initialized from the DQI table.
 
     arguments:
@@ -864,6 +930,7 @@ def doDqicorr (events, info, switches, reffiles, phdr, hdr):
     reffiles      dictionary of reference file names
     phdr          the input primary header
     hdr           the input events extension header
+    avg_dx, avg_dy  these are returned by processConcurrentWavecal
 
     This function applies the data quality initialization table (bpixtab) to
     two arrays, the 2-D DQ image extension and the 1-D DQ events table column.
@@ -900,13 +967,19 @@ def doDqicorr (events, info, switches, reffiles, phdr, hdr):
         # Create an initially zero 2-D data quality extension array.
         dq_array = N.zeros (info["npix"], dtype=N.int16)
 
+        # For tagflash data, we need to add an offset to the locations of
+        # the regions read from the bpixtab, i.e. the difference between
+        # (xfull, yfull) and (xdopp, ydopp).
+        avg_dx = int (round (avg_dx))
+        avg_dy = int (round (avg_dy))
+
         # Copy values from the bpixtab to the dq_array, applying an offset
         # depending on the Doppler shift.
         cosutil.updateDQArray (reffiles["bpixtab"], info,
-                      switches["doppcorr"], dq_array)
+                      switches["doppcorr"], dq_array, avg_dx, avg_dy)
 
         # Flag regions that are outside any subarray as out of bounds.
-        cosutil.flagOutOfBounds (phdr, hdr, dq_array)
+        cosutil.flagOutOfBounds (phdr, hdr, dq_array, avg_dx, avg_dy)
 
         phdr["dqicorr"] = "COMPLETE"
     else:
@@ -1005,12 +1078,16 @@ def dopplerRegions (eta, info, reffiles):
 
         if info["detector"] == "FUV":
             filter["segment"] = info["segment"]
+            middle = (float (FUV_X) - 1.) / 2.
         else:
             filter["segment"] = "NUVC"
+            middle = (float (NUV_Y) - 1.) / 2.
         filter["aperture"] = "PSA"
         xtract_info = cosutil.getTable (reffiles["xtractab"],
                             filter, exactly_one=True)
+        slope = xtract_info.field ("slope")[0]
         b_spec_psa = xtract_info.field ("b_spec")[0]
+        b_spec_psa += middle * slope
 
         if info["detector"] == "NUV":
             filter["segment"] = "NUVA"
@@ -1018,6 +1095,7 @@ def dopplerRegions (eta, info, reffiles):
         xtract_info = cosutil.getTable (reffiles["xtractab"],
                             filter, exactly_one=True)
         b_spec_wca = xtract_info.field ("b_spec")[0]
+        b_spec_wca += middle * slope
 
         boundary = int (round ((b_spec_psa + b_spec_wca) / 2.))
 
@@ -1454,8 +1532,12 @@ def writeImages (x, y, epsilon, dq,
         cosutil.printMsg ("writing file %s ..." % outcounts, VERY_VERBOSE)
 
     # Set the bit mask for "serious" data quality flags to include only
-    # bursts, pulse height out of bounds, and bad time intervals.
-    sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME)
+    # bursts, pulse height out of bounds, bad time intervals, and
+    # hot and dead pixels.
+    # xxx sdqflags = hdr.get ("sdqflags", 32767)                # previous
+    # xxx sdqflags -= (DQ_NEAR_EDGE + DQ_OUT_OF_BOUNDS)         # xxx
+    sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME +
+                DQ_DEAD + DQ_HOT)
 
     # First make an image array in which each input event counts as one,
     # i.e. ignoring flat field and deadtime corrections.
@@ -1545,6 +1627,51 @@ def doStatflag (switches, output, outcounts):
     if switches["statflag"] == "PERFORM":
         cosutil.doImageStat (outcounts)
         cosutil.doImageStat (output)
+
+def appendPshift (outtag, output, outcounts, pshift_vs_time=None):
+    """For tagflash data, append a table of pshift vs time.
+
+    @param outtag: name of the output corrtag table
+    @type outtag: string
+    @param output: name of the output flat-fielded count rate image file
+    @type output: string
+    @param outcounts: name of the output count rate image file
+    @type outcounts: string
+    @param pshift_vs_time: shift in dispersion dir. at one-second intervals
+    @type pshift_vs_time: array, or None
+    """
+
+    if pshift_vs_time is None or len (pshift_vs_time) < 1:
+        return
+
+    col = []
+    col.append (pyfits.Column (name="PSHIFT", format="1E", unit="pixel",
+                               array=pshift_vs_time))
+    cd = pyfits.ColDefs (col)
+    hdu = pyfits.new_table (cd)
+    hdu.header.update ("EXTNAME", "INFO", after="TFIELDS")
+    hdu.header.update ("EXTVER", 1, after="EXTNAME")
+
+    fd = pyfits.open (outtag, mode="update")
+    fd.append (hdu)
+    phdr = fd[0].header
+    if phdr.has_key ("nextend"):
+        phdr["nextend"] = phdr["nextend"] + 1
+    fd.close()
+
+    fd = pyfits.open (output, mode="update")
+    fd.append (hdu)
+    phdr = fd[0].header
+    if phdr.has_key ("nextend"):
+        phdr["nextend"] = phdr["nextend"] + 1
+    fd.close()
+
+    fd = pyfits.open (outcounts, mode="update")
+    fd.append (hdu)
+    phdr = fd[0].header
+    if phdr.has_key ("nextend"):
+        phdr["nextend"] = phdr["nextend"] + 1
+    fd.close()
 
 def flag_gti (time, dq, gti):
     """Flag events in dq that are outside any good time interval.

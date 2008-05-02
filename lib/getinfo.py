@@ -104,6 +104,7 @@ def getGeneralInfo (phdr, hdr):
         "randseed": -1,
         "fppos":     1,
         "fpoffset":  0,
+        "coscoord":  DETECTOR_COORDINATES,
         "ra_targ":  -999.,
         "dec_targ": -999.}
 

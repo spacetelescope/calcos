@@ -13,6 +13,12 @@ smoothbkg smooths a 1-D array (background).
 addlines creates a template spectrum based on a list of emission lines.
 geocorrection applies the geometric (INL) distortion correction.
 interp1d does linear interpolation of one 1-D array onto another.
+getstartstop gets indices of start and stop times of time intervals.
+getbkgcounts gets the number of source and background counts within intervals.
+smallerbursts screens for bursts (larger bursts screened separately).
+getbadtime returns the sum of time intervals within which dq was bad.
+xy_extract extracts a 1-D spectrum from an events list.
+xy_collapse collapses events along the dispersion direction.
 
 2001 Nov 19
 2001 Dec 7	In totalcounts, round float data to int.  In unbinaccum,
@@ -58,6 +64,8 @@ interp1d does linear interpolation of one 1-D array onto another.
 		but it should have been (length+width) * sizeof (float).
 2008 Feb 8	getstartstop was not correctly handling the case that there
 		were no events within a time interval.
+2008 Mar 7	Add pixel_zero, epsilon (the weight column) and sdqflags as
+		arguments to xy_extract.
 */
 
 # include <Python.h>
@@ -153,10 +161,9 @@ static int findSmallerBursts (float [], short [], int,
 static int median_boxcar (int [], int [], int, int, int);
 static int compare_int (const void *, const void *);
 static double getBadTime (float [], short [], int);
-static int extrFromEvents (PyArrayObject *, PyArrayObject *,
-		short [], int,
+static int extrFromEvents (PyArrayObject *, PyArrayObject *, PyArrayObject *,
 		int, double, double,
-		double [], int);
+		PyArrayObject *, short, PyArrayObject *);
 static int collapseFromEvents (PyArrayObject *, PyArrayObject *,
 		short [], int,
 		double, double [], int);
@@ -197,15 +204,18 @@ static char *DocString (void) {
                 half_block, max_iter,\n\
                 large_burst, small_burst, dq_burst, verbose)\n\
     getbadtime (time, dq)\n\n\
+    xy_extract (xi, eta, outdata, slope, intercept,\n\
+                pixel_zero, dq, sdqflags, epsilon)\n\
+    xy_collapse (xi, eta, dq, slope, xdisp)\n\
+"
+        /* string split because it is too long for windows compiler */
+"\
 x and y are arrays of pixel coordinates of the events (float32 or int16).\n\
 epsilon is an array of weights for the events (float32).\n\
 dq is an array of data quality flags (0 is good; int16).\n\
 array is the 2-D array modified in-place by binevents (float32).\n\
 lx and ly are arrays of lower left corners of DQ regions (int32).\n\
 dx and dy are arrays of DQ region widths (int32).\n\
-"
-        /* string split because it is too long for windows compiler */
-"\
 flag is an array of data quality flags to assign to DQ regions (int16).\n\
 dq_array is the 2-D array modified in-place by bindq (int16).\n\
 mindopp and maxdopp are pixel offsets for Doppler shift (int).\n\
@@ -222,6 +232,7 @@ If use_clock is true, use the system clock to generate the seed.\n\
 dopp is a 1-D array with which flat will be convolved (float32).\n\
 axis (0 or 1) is the axis along which the convolution will be done (int).\n\
 indata and outdata for extractband can be int16 or float32.\n\
+pixel_zero is an offset to add to xi.\n\
 For binevents, dq and epsilon are optional arguments.\n\
 For bindq, axis, mindopp and maxdopp are optional arguments.\n");
 }
@@ -2368,7 +2379,7 @@ static PyObject *ccos_getbkgcounts (PyObject *self, PyObject *args) {
 }
 
 /* This function, called by ccos_getbkgcounts, finds the number of
-   source and background counts within each such interval.
+   source and background counts within each interval.
 */
 
 static int getBkgCounts (PyArrayObject *y, short dq[], int n_events,
@@ -2782,20 +2793,29 @@ static double getBadTime (float time[], short dq[], int n_events) {
 
 /* calling sequence for xy_extract:
 
-   xy_extract (xi, eta, dq, extr_height, slope, intercept, spectrum)
+   xy_extract (xi, eta, outdata, slope, intercept,
+               pixel_zero, dq, sdqflags, epsilon)
 
     xi, eta     i: arrays of pixel coordinates of the events
                    (either float32 or int16); xi is in the dispersion
                    direction, eta is cross-dispersion
-    dq          i: array of data qualify flags (int16)
-    extr_height i: cross-dispersion width of the spectral extraction region
+    outdata    io: a 2-D array, into which the extracted spectrum will be put
+                   (float64)
     slope       i: the slope of the band (pixels per pixel, double)
     intercept   i: the zero point of the band (pixel number, double)
-    spectrum   io: a 1-D array, into which the extracted spectrum will be put
-                   (float64)
+
+   optional arguments:
+    pixel_zero  i: index of xi = 0 in the output spectrum (int)
+    dq          i: array of data qualify flags (int16)
+    sdqflags    i: bit mask for the "serious" dq flags (short)
+    epsilon     i: array of weights for the events (float32)
 
    xi and eta may be either Float32 or Int16, and they do not need to be
    the same type.
+
+   The pixel_zero optional argument is the offset to add to values from xi
+   to get the index into the output spectrum.  This lets the output spectrum
+   be longer than the detector width.
 
    slope is the slope of the band with respect to the axis along which
    it will be extracted.  If slope=+0.1, for example, then the band is
@@ -2804,8 +2824,8 @@ static double getBadTime (float time[], short dq[], int n_events) {
 
    ccos_xy_extract calls extrFromEvents, which first initializes the output
    spectrum to zero and then increments elements of the spectrum, one for
-   each event within the spectral extraction region.  The output spectrum
-   will be 1-D.
+   each event within the spectral extraction region.  The output array is
+   2-D, as with ccos_extractband; sum along axis 0 to get a 1-D spectrum.
 
    The location of the region to be extracted is specified by slope and
    intercept.  The slope is in pixels per pixel.  The intercept is zero
@@ -2815,17 +2835,22 @@ static double getBadTime (float time[], short dq[], int n_events) {
 
 static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 
-	PyObject *oxi, *oeta, *odq, *ospectrum;
-	PyArrayObject *xi, *eta, *dq, *spectrum;
-	int extr_height;
+	PyObject *oxi, *oeta, *ooutdata, *odq, *oepsilon;
+	PyArrayObject *xi, *eta, *outdata, *dq, *epsilon;
 	double slope, intercept;
+	int pixel_zero;
+	short sdqflags;
 	int status;
-	int n_events;		/* length of xi and eta arrays */
-	int length;		/* length of spectrum */
 
-	if (!PyArg_ParseTuple (args, "OOOiddO",
-			&oxi, &oeta, &odq, &extr_height, &slope, &intercept,
-			&ospectrum)) {
+	pixel_zero = 0;
+	odq = NULL;
+	oepsilon = NULL;
+	sdqflags = 0;
+
+	if (!PyArg_ParseTuple (args, "OOOdd|iOhO",
+			&oxi, &oeta, &ooutdata,
+			&slope, &intercept,
+			&pixel_zero, &odq, &sdqflags, &oepsilon)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -2844,20 +2869,30 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 	    eta = (PyArrayObject *)PyArray_FROM_OTF (oeta, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16, NPY_IN_ARRAY);
-	spectrum = (PyArrayObject *)PyArray_FROM_OTF (ospectrum, NPY_FLOAT64,
+
+	outdata = (PyArrayObject *)PyArray_FROM_OTF (ooutdata, NPY_FLOAT64,
 		NPY_INOUT_ARRAY);
 
-	n_events = PyArray_DIM (xi, 0);
-	length = PyArray_DIM (spectrum, 0);
-	status = extrFromEvents (xi, eta, (short *)PyArray_DATA (dq), n_events,
-			extr_height, slope, intercept,
-			(double *)PyArray_DATA (spectrum), length);
+	if (odq == NULL)
+	    dq = NULL;
+	else
+	    dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+			NPY_IN_ARRAY);
+	if (oepsilon == NULL)
+	    epsilon = NULL;
+	else
+	    epsilon = (PyArrayObject *)PyArray_FROM_OTF (oepsilon, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+
+	status = extrFromEvents (xi, eta, outdata,
+			pixel_zero, slope, intercept,
+			dq, sdqflags, epsilon);
 
 	Py_DECREF (xi);
 	Py_DECREF (eta);
-	Py_DECREF (dq);
-	Py_DECREF (spectrum);
+	Py_DECREF (outdata);
+	Py_XDECREF (dq);
+	Py_XDECREF (epsilon);
 
 	if (status) {
 	    return NULL;
@@ -2870,25 +2905,27 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 /* This is called by ccos_xy_extract. */
 
 static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
-		short dq[], int n_events,
-		int extr_height, double slope, double intercept,
-		double spectrum[], int length) {
+		PyArrayObject *outdata,
+		int pixel_zero, double slope, double intercept,
+		PyArrayObject *dq, short sdqflags, PyArrayObject *epsilon) {
 
 	int xi_type, eta_type;	/* data type code for xi and eta */
-	int half_height;	/* half of extr_height, fraction truncated */
+	int half_height;	/* half of extr height, fraction truncated */
 	/* lower is the lower limit of the spectral extraction region for a
 	   given value of xi.
 	*/
-	double lower;
 	double y0;		/* lower edge of spec extr region at xi=0 */
-	/* left is the lower limit of the spectral extraction region for
-	   a given value of eta.
-	*/
+	double y;		/* c_eta corrected for slope */
+	int n_events;		/* length of xi and eta arrays */
 	int k;			/* event index */
-	/* xi and eta for one event */
-	double c_xi, c_eta;
+	int nx, ny;		/* size of outdata */
+	double c_xi, c_eta;	/* xi and eta for one event */
+	short c_dq = 0;
+	double c_eps = 1.;	/* but the epsilon column is float32 */
 	int i, j;		/* nearest integers to c_xi, c_eta */
+	int i_z;		/* i + zero-point offset */
 
+	n_events = PyArray_DIM (xi, 0);
 	if (n_events != PyArray_DIM (eta, 0)) {
 	    PyErr_SetString (PyExc_RuntimeError,
 			"xi and eta must both be the same length");
@@ -2898,14 +2935,24 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 	xi_type = xi->descr->type_num;
 	eta_type = eta->descr->type_num;
 
-	half_height = extr_height / 2;		/* truncate */
+	/* shape is (ny,nx), nx is in the dispersion direction */
+	nx = PyArray_DIM (outdata, 1);
+	ny = PyArray_DIM (outdata, 0);
 
-	for (i = 0;  i < length;  i++)
-	    spectrum[i] = 0.;
+	half_height = ny / 2;			/* truncate */
+
+	/* Initialize outdata to zero, because we're going to increment
+	   a pixel value for each event in the list.
+	*/
+	for (i = 0;  i < nx;  i++)
+	    for (j = 0;  j < ny;  j++)
+		*(double *)PyArray_GETPTR2 (outdata, j, i) = 0.;
 
 	y0 = intercept - half_height;
 	for (k = 0;  k < n_events;  k++) {	/* for each event ... */
-	    if (dq[k] == 0) {
+	    if (dq != NULL)
+		c_dq = *(short *)PyArray_GETPTR1 (dq, k);
+	    if ((c_dq & sdqflags) == 0) {
 		if (xi_type == NPY_INT16) {
 		    i = *(short *)PyArray_GETPTR1 (xi, k);
 		    c_xi = (double)i;
@@ -2913,7 +2960,8 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 		    c_xi = *(float *)PyArray_GETPTR1 (xi, k);
 		    i = NINT (c_xi);
 		}
-		if (i < 0 || i > length-1)
+		i_z = i + pixel_zero;
+		if (i_z < 0 || i_z > nx-1)
 		    continue;
 		if (eta_type == NPY_INT16) {
 		    j = *(short *)PyArray_GETPTR1 (eta, k);
@@ -2921,10 +2969,14 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 		} else {
 		    c_eta = *(float *)PyArray_GETPTR1 (eta, k);
 		}
-		/* include this event if it's within the spectral region */
-		lower = y0 + slope * c_xi;
-		if (c_eta >= lower && c_eta <= lower+extr_height)
-		    spectrum[i] += 1.;
+		y = c_eta - (y0 + slope * c_xi);
+		j = NINT (y);
+		/* include this event if it's within the extraction region */
+		if (j >= 0 && j < ny) {
+		    if (epsilon != NULL)
+			c_eps = *(float *)PyArray_GETPTR1 (epsilon, k);
+		    *(double *)PyArray_GETPTR2 (outdata, j, i_z) += c_eps;
+		}
 	    }
 	}
 

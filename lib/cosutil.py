@@ -132,7 +132,7 @@ def returnGTI (infile):
     """
 
     fd = pyfits.open (infile, mode="readonly")
-    if len (fd) != 3:
+    if len (fd) < 3:
         fd.close()
         gti = []
         return gti
@@ -424,7 +424,7 @@ def getInputDQ (input):
 
     return dq_array
 
-def updateDQArray (bpixtab, info, doppcorr, dq_array):
+def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
     """Apply the data quality initialization table to DQ array.
 
     dq_array is a 2-D array, to be written as the DQ extension in an
@@ -472,7 +472,13 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array):
         maxdopp = 0
 
     # Update the 2-D data quality extension array from the DQI table info.
-    ccos.bindq (dq_info.field ("lx"), dq_info.field ("ly"),
+    lx = dq_info.field ("lx")
+    ly = dq_info.field ("ly")
+    if avg_dx != 0:
+        lx += avg_dx
+    if avg_dy != 0:
+        ly += avg_dy
+    ccos.bindq (lx, ly,
                 dq_info.field ("dx"), dq_info.field ("dy"),
                 dq_info.field ("dq"), dq_array, axis, mindopp, maxdopp)
 
@@ -500,7 +506,7 @@ def activeArea (segment, brftab):
 
     return (a_low, a_high, a_left, a_right)
 
-def flagOutOfBounds (phdr, hdr, dq_array):
+def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
     """Flag regions that are outside all subarrays (done in-place).
 
     arguments:
@@ -519,6 +525,7 @@ def flagOutOfBounds (phdr, hdr, dq_array):
         return
 
     temp = dq_array.copy()
+    (ny, nx) = dq_array.shape
 
     # Initially flag the entire image as out of bounds, then remove the
     # flag (set it to zero) for each subarray.
@@ -527,9 +534,17 @@ def flagOutOfBounds (phdr, hdr, dq_array):
         sub_number = str (i)
         x0 = hdr["corner"+sub_number+"x"]       # these keywords are 0-indexed
         y0 = hdr["corner"+sub_number+"y"]
+        x0 += avg_dx
+        y0 += avg_dy
         xsize = hdr["size"+sub_number+"x"]
         ysize = hdr["size"+sub_number+"y"]
-        temp[y0:y0+ysize,x0:x0+xsize] = DQ_OK
+        x1 = x0 + xsize
+        y1 = y0 + ysize
+        x0 = max (x0, 0)
+        y0 = max (y0, 0)
+        x1 = min (x1, nx)
+        y1 = min (y1, ny)
+        temp[y0:y1,x0:x1] = DQ_OK
 
     dq_array[:,:] = N.bitwise_or (dq_array, temp)
 
@@ -581,6 +596,30 @@ def imageHeaderToTable (imhdr):
             "CTYPE2", "CRVAL2", "CRPIX2", "CDELT2", "CUNIT2", "CD2_1", "CD2_2",
             "BUNIT"]
     for keyword in ikey:
+        if hdr.has_key (keyword):
+            del hdr[keyword]
+
+    return hdr
+
+def delCorrtagWCS (thdr):
+    """Delete table WCS keywords.
+
+    The function returns a copy of the header with table-specific WCS keywords
+    deleted.  This is appropriate when creating an x1d table from a corrtag
+    table.
+
+    argument:
+    thdr          a FITS Header object for a table
+    """
+
+    hdr = thdr.copy()
+
+    # These are the world coordinate system keywords in an events table.
+    # NOTE that this assumes that the XCORR and YCORR columns are 2 and 3
+    # (one indexed).
+    tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
+            "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
+    for keyword in tkey:
         if hdr.has_key (keyword):
             del hdr[keyword]
 
@@ -939,7 +978,7 @@ def updatePulseHeightKeywords (hdr, segment, low, high):
     arguments:
     hdr            header with keywords to be modified
     segment        FUVA or FUVB (last character used to construct keyword names)
-    low, high      default values for PHALOWR[AB] and PHAUPPR[AB] respectively
+    low, high      values for PHALOWR[AB] and PHAUPPR[AB] respectively
     """
 
     key_low  = "PHALOWR" + segment[-1]

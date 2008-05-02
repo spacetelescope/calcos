@@ -38,8 +38,9 @@ def accumBasicCalibration (input, inpha, output, outcounts,
     cosutil.printMode (info)
 
     # Default values.
-    (s1, s2, s1_ref, s2_ref, stim_countrate, stim_livetime) = \
-           (None, None, None, None, 0., 1.)
+    (avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref,
+     stim_countrate, stim_livetime) = \
+           (None, None, None, None, None, None, 0., 1.)
 
     # Get all the headers in the input file.  This copy will be
     # modified and written to the output files.
@@ -84,12 +85,6 @@ def accumBasicCalibration (input, inpha, output, outcounts,
             info["npix"] = (0,)
             return 1
 
-        # Get the stim locations and livetime factor now, for use later.
-        if switches["tempcorr"] == "PERFORM" or \
-           switches["deadcorr"] == "PERFORM":
-            (s1, s2, s1_ref, s2_ref, stim_countrate, stim_livetime) = \
-                  stimInfo (sci, reffiles["brftab"], info)
-
         # Create pseudo-timetag arrays (x & y, no time) from the raw image.
         x = N.zeros (ncounts, dtype=N.float32)
         y = N.zeros (ncounts, dtype=N.float32)
@@ -97,11 +92,21 @@ def accumBasicCalibration (input, inpha, output, outcounts,
 
         doRandcorr (x, y, info, switches, reffiles, headers)
 
-        stim_param = initTempcorr (input, s1, s2, s1_ref, s2_ref,
-                         info, switches, stimfile, headers)
+        # Get the stim locations and livetime factor.
+        if switches["tempcorr"] == "PERFORM" or \
+           switches["deadcorr"] == "PERFORM":
+            (avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref,
+             stim_countrate, stim_livetime) = \
+                  stimInfo (x, y, reffiles["brftab"], info)
 
+        # Compute the linear distortion parameters from the stim locations.
+        stim_param = initTempcorr (input, avg_s1, avg_s2, rms_s1, rms_s2,
+                         s1_ref, s2_ref, info, switches, stimfile, headers)
+
+        # Do the linear distortion correction based on the stim locations.
         doTempcorr (x, y, stim_param, info, switches, reffiles, headers)
 
+        # Do the nonlinear geometric correction.
         doGeocorr (x, y, info, switches, reffiles, headers)
 
         # Now convert back to an accum image, still in counts.
@@ -359,15 +364,103 @@ def doRandcorr (x, y, info, switches, reffiles, headers):
         y[:] = N.where (rand_flags, y - rn, y)
         headers[0]["randcorr"] = "COMPLETE"
 
-def initTempcorr (input, s1, s2, s1_ref, s2_ref,
-                         info, switches, stimfile, headers):
+def stimInfo (x, y, brftab, info):
+    """Get positions of stims, and get livetime from stims.
+
+    arguments:
+    x, y       pseudo-timetag pixel coordinates
+    brftab     name of the baseline reference frame table
+    info       dictionary of keywords and values
+
+    The function value is a tuple:
+    s1         measured location in raw data of first stim (y, x)
+    s2         measured location in raw data of second stim (y, x)
+               (the location will be [None, None] if there are no counts)
+    rms_s1     RMS width in raw data of first stim (y, x)
+    rms_s2     RMS width in raw data of second stim (y, x)
+    s1_ref     reference location of first stim (y, x)
+    s2_ref     reference location of second stim (y, x)
+    countrate  counts / s
+    livetime   the livetime factor (default = 1.) based on the stim rate
+    """
+
+    brf_info = cosutil.getTable (brftab, filter={"segment": info["segment"]},
+                   exactly_one=True)
+
+    sx1 = brf_info.field ("sx1")[0]
+    sy1 = brf_info.field ("sy1")[0]
+    sx2 = brf_info.field ("sx2")[0]
+    sy2 = brf_info.field ("sy2")[0]
+    xwidth = brf_info.field ("xwidth")[0]
+    ywidth = brf_info.field ("ywidth")[0]
+
+    # These are the reference locations of the stims.
+    s1_ref = (sy1, sx1)
+    s2_ref = (sy2, sx2)
+
+    (avg_s1, sumsq1, counts1, found_s1) = \
+                timetag.findStim (x, y, s1_ref, xwidth, ywidth)
+    (avg_s2, sumsq2, counts2, found_s2) = \
+                timetag.findStim (x, y, s2_ref, xwidth, ywidth)
+
+    if cosutil.checkVerbosity (VERY_VERBOSE):
+        if found_s1:
+            str1 = "%.2f %.2f" % (avg_s1[1], avg_s1[0])
+        else:
+            str1 = "stim1 not found"
+        if found_s2:
+            str2 = "%.2f %.2f" % (avg_s2[1], avg_s2[0])
+        else:
+            str2 = "stim2 not found"
+        msg = "measured stim locations:  " + str1 + "   " + str2
+        cosutil.printMsg (msg, VERY_VERBOSE)
+    rms_s1 = [0., 0.]
+    rms_s2 = [0., 0.]
+    if counts1 > 1:
+        rms_s1[0] = math.sqrt (sumsq1[0] / (counts1 - 1.))
+        rms_s1[1] = math.sqrt (sumsq1[1] / (counts1 - 1.))
+    else:
+        rms_s1[0] = math.sqrt (sumsq1[0])
+        rms_s1[1] = math.sqrt (sumsq1[1])
+    if counts2 > 1:
+        rms_s2[0] = math.sqrt (sumsq2[0] / (counts2 - 1.))
+        rms_s2[1] = math.sqrt (sumsq2[1] / (counts2 - 1.))
+    else:
+        rms_s2[0] = math.sqrt (sumsq2[0])
+        rms_s2[1] = math.sqrt (sumsq2[1])
+
+    countrate = (counts1 + counts2) / (2. * info["exptime"])
+
+    if info["stimrate"] > 0.:
+        livetime = countrate / info["stimrate"]
+    else:
+        livetime = 1.
+
+    return (avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref,
+            countrate, livetime)
+
+def initTempcorr (input, avg_s1, avg_s2, rms_s1, rms_s2,
+                  s1_ref, s2_ref, info, switches, stimfile, headers):
     """Return the stim parameters.
+
+    This function computes the stim parameters, and it also calls a
+    function (in timetag.py) to write the stim locations and RMS widths
+    to the output header.
 
     arguments:
     input         name of the input file
-    s1            measured location in raw data of first stim (y, x)
-    s2            measured location in raw data of second stim (y, x)
+
+    avg_s1[0] is the Y location of the first stim.
+    avg_s1[1] is the X location of the first stim.
+    avg_s2[0] is the Y location of the second stim.
+    avg_s2[1] is the X location of the second stim.
                   (the location will be [None, None] if there are no counts)
+
+    rms_s1[0] is the RMS in Y for the first stim.
+    rms_s1[1] is the RMS in X for the first stim.
+    rms_s2[0] is the RMS in Y for the second stim.
+    rms_s2[1] is the RMS in X for the second stim.
+
     s1_ref        reference location of first stim (y, x)
     s2_ref        reference location of second stim (y, x)
     info          dictionary of header keywords and values
@@ -378,11 +471,73 @@ def initTempcorr (input, s1, s2, s1_ref, s2_ref,
 
     if switches["tempcorr"] == "PERFORM":
         # Update stim location keywords in extension header.
-        timetag.stimKeywords (headers[1], info["segment"], (s1, s2))
-        stim_param = computeThermalParamAccum (s1, s2, s1_ref, s2_ref,
+        timetag.stimKeywords (headers[1], info["segment"],
+                              avg_s1, avg_s2, rms_s1, rms_s2)
+        stim_param = computeThermalParamAccum (avg_s1, avg_s2, s1_ref, s2_ref,
                 input, stimfile)
     else:
         stim_param = {}
+
+    return stim_param
+
+def computeThermalParamAccum (s1, s2, s1_ref, s2_ref, input, stimfile):
+    """Compute thermal distortion parameters from stim positions.
+
+    If a stimfile was specified, it will be opened (append mode), and the
+    stim positions will be written to the file.  (The 'input' argument is
+    included in the calling sequence just for the purpose of writing its
+    name to the stimfile.)
+
+    arguments:
+    s1           measured location in raw data of first stim (y, x)
+    s2           measured location in raw data of second stim (y, x)
+                 (the location will be [None, None] if there are no counts)
+    s1_ref       reference location of first stim (y, x)
+    s2_ref       reference location of second stim (y, x)
+    input        name of raw file (for writing to stimfile)
+    stimfile     name of text file to which stim locations will be appended
+
+    The function value is a dictionary of lists, with keys "x0", "xslope",
+    "y0", "yslope".
+
+    In this version (for accum), each list contains only one element:
+      x0[0] and xslope[0] are the intercept and slope respectively of the
+        linear correction to the X positions (the more rapidly varying
+        direction).
+      y0[0] and yslope[0] are the intercept and slope for the linear
+        correction to the Y positions.
+    """
+
+    if stimfile is None:
+        fd = None
+    else:
+        fd = open (stimfile, "a")
+        fd.write ("# %s\n" % (input,))
+
+    if fd is not None:
+        fd.write ("# stim_locations\n")
+        if s1[0] is None:
+            fd.write ("INDEF INDEF")
+        else:
+            fd.write ("%.1f %.1f" % (s1[0], s1[1]))
+        if s2[0] is None:
+            fd.write ("  INDEF INDEF\n")
+        else:
+            fd.write ("  %.1f %.1f\n" % (s2[0], s2[1]))
+        fd.close()
+
+    (x0_n, xslope_n, y0_n, yslope_n) = \
+                timetag.thermalParam (s1, s2, s1_ref, s2_ref)
+    x0 = [x0_n]
+    xslope = [xslope_n]
+    y0 = [y0_n]
+    yslope = [yslope_n]
+
+    cosutil.printMsg (
+                "thermal distortion:  %0.4f + %0.10fx;  %0.4f + %0.10fy" % \
+                (x0_n, xslope_n, y0_n, yslope_n), VERY_VERBOSE)
+
+    stim_param = {"x0": x0, "xslope": xslope, "y0": y0, "yslope": yslope}
 
     return stim_param
 
@@ -658,177 +813,6 @@ def doFlatAccum (raw, flat, origin):
         raise RuntimeError, "ERROR:  FLATFILE size or offset is too large."
 
     raw[ylow:yhigh,xlow:xhigh] /= flat
-
-def stimInfo (sci, brftab, info):
-    """Get positions of stims, and get livetime from stims.
-
-    arguments:
-    sci        raw (or possibly geometrically corrected) image data array,
-                 in counts
-    brftab     name of the baseline reference frame table
-    info       dictionary of keywords and values
-
-    The function value is a tuple:
-    s1         measured location in raw data of first stim (y, x)
-    s2         measured location in raw data of second stim (y, x)
-               (the location will be [None, None] if there are no counts)
-    s1_ref     reference location of first stim (y, x)
-    s2_ref     reference location of second stim (y, x)
-    countrate  counts / s
-    livetime   the livetime factor (default = 1.) based on the stim rate
-    """
-
-    brf_info = cosutil.getTable (brftab, filter={"segment": info["segment"]},
-                   exactly_one=True)
-
-    sx1 = brf_info.field ("sx1")[0]
-    sy1 = brf_info.field ("sy1")[0]
-    sx2 = brf_info.field ("sx2")[0]
-    sy2 = brf_info.field ("sy2")[0]
-    xwidth = brf_info.field ("xwidth")[0]
-    ywidth = brf_info.field ("ywidth")[0]
-
-    # These are the reference locations of the stims.
-    s1_ref = (sy1, sx1)
-    s2_ref = (sy2, sx2)
-
-    (s1, counts1) = findStimAccum (sci, s1_ref, xwidth, ywidth)
-    (s2, counts2) = findStimAccum (sci, s2_ref, xwidth, ywidth)
-
-    if cosutil.checkVerbosity (VERY_VERBOSE):
-        if s1[0] is None:
-            str1 = "stim1 not found"
-        else:
-            str1 = "%.2f %.2f" % (s1[1], s1[0])
-        if s2[0] is None:
-            str2 = "stim2 not found"
-        else:
-            str2 = "%.2f %.2f" % (s2[1], s2[0])
-        msg = "measured stim locations:  " + str1 + "   " + str2
-        cosutil.printMsg (msg, VERY_VERBOSE)
-
-    countrate = (counts1 + counts2) / (2. * info["exptime"])
-
-    if info["stimrate"] > 0.:
-        livetime = countrate / info["stimrate"]
-    else:
-        livetime = 1.
-
-    return (s1, s2, s1_ref, s2_ref, countrate, livetime)
-
-def findStimAccum (sci, stim_ref, xwidth, ywidth):
-    """Get the location and total counts for one of the stims.
-
-    arguments:
-    sci             image data, in counts
-    stim_ref        Y and X locations of stim from baseline reference frame
-    xwidth, ywidth  search range (size of subarray) for stim
-
-    The function value is a tuple of (s_loc, counts):
-    s_loc      measured location of stim:  [y, x]
-               (the location will be [None, None] if there are no counts)
-    counts     total counts in search region
-    """
-
-    sX = int (round (stim_ref[1]))
-    sY = int (round (stim_ref[0]))
-
-    # One is added to highX (and highY) because we're going to use
-    # a slice, and we want sX + xwidth (and xY + ywidth) to be
-    # inclusive upper limits.
-    lowX  = sX - xwidth
-    highX = sX + xwidth + 1
-    lowY  = sY - ywidth
-    highY = sY + ywidth + 1
-
-    (sci_ny,sci_nx) = sci.shape
-    lowX = max (lowX, 1)
-    lowY = max (lowY, 1)
-    highX = min (highX, sci_nx-1)
-    highY = min (highY, sci_ny-1)
-
-    nx = highX - lowX
-    ny = highY - lowY
-
-    region = sci[lowY:highY,lowX:highX].copy()
-
-    # sX and sY are subtracted here (and added back in later) to
-    # reduce the possibility of numerical roundoff errors.
-    x = N.arange (lowX, highX, dtype=N.float32) - sX
-    y = N.arange (lowY, highY, dtype=N.float32) - sY
-    y.shape = (ny, 1)
-
-    x_region = region * x
-    y_region = region * y
-
-    counts = N.sum (region)     # sum of all elements of 2-D array
-    s_loc = [None, None]
-    if counts > 0:
-        s_loc[1] = N.sum (x_region) / float (counts) + sX
-        s_loc[0] = N.sum (y_region) / float (counts) + sY
-
-    return (s_loc, counts)
-
-def computeThermalParamAccum (s1, s2, s1_ref, s2_ref, input, stimfile):
-    """Compute thermal distortion parameters from stim positions.
-
-    If a stimfile was specified, it will be opened (append mode), and the
-    stim positions will be written to the file.  (The 'input' argument is
-    included in the calling sequence just for the purpose of writing its
-    name to the stimfile.)
-
-    arguments:
-    s1           measured location in raw data of first stim (y, x)
-    s2           measured location in raw data of second stim (y, x)
-                 (the location will be [None, None] if there are no counts)
-    s1_ref       reference location of first stim (y, x)
-    s2_ref       reference location of second stim (y, x)
-    input        name of raw file (for writing to stimfile)
-    stimfile     name of text file to which stim locations will be appended
-
-    The function value is a dictionary of lists, with keys "x0", "xslope",
-    "y0", "yslope".
-
-    In this version (for accum), each list contains only one element:
-      x0[0] and xslope[0] are the intercept and slope respectively of the
-        linear correction to the X positions (the more rapidly varying
-        direction).
-      y0[0] and yslope[0] are the intercept and slope for the linear
-        correction to the Y positions.
-    """
-
-    if stimfile is None:
-        fd = None
-    else:
-        fd = open (stimfile, "a")
-        fd.write ("# %s\n" % (input,))
-
-    if fd is not None:
-        fd.write ("# stim_locations\n")
-        if s1[0] is None:
-            fd.write ("INDEF INDEF")
-        else:
-            fd.write ("%.1f %.1f" % (s1[0], s1[1]))
-        if s2[0] is None:
-            fd.write ("  INDEF INDEF\n")
-        else:
-            fd.write ("  %.1f %.1f\n" % (s2[0], s2[1]))
-        fd.close()
-
-    (x0_n, xslope_n, y0_n, yslope_n) = \
-                timetag.thermalParam (s1, s2, s1_ref, s2_ref)
-    x0 = [x0_n]
-    xslope = [xslope_n]
-    y0 = [y0_n]
-    yslope = [yslope_n]
-
-    cosutil.printMsg (
-                "thermal distortion:  %0.4f + %0.10fx;  %0.4f + %0.10fy" % \
-                (x0_n, xslope_n, y0_n, yslope_n), VERY_VERBOSE)
-
-    stim_param = {"x0": x0, "xslope": xslope, "y0": y0, "yslope": yslope}
-
-    return stim_param
 
 def getNcounts (sci, info):
     """Return the total number of counts in an array.

@@ -1345,6 +1345,12 @@ class Observation (object):
         warn = 0                # initial values
         bad = 0
 
+        if self.info["coscoord"] != DETECTOR_COORDINATES:
+            bad = 1
+            cosutil.printError ("Wrong coordinates for this version of calcos")
+            cosutil.printContinuation ("for %s" % self.input)
+            raise RuntimeError
+
         # Replace RelMvReq in opt_elem or aperture keywords, etc.
         self.fixRelMvReq (self.filenames["spt"], info)
 
@@ -1900,7 +1906,7 @@ class Calibration (object):
                 # Update shift2[a-c] keywords.
                 self.setSpectrumOffset (obs.filenames,
                         obs.info["segment"], shift2)
-                self.extractSpectrum (obs.filenames)
+                self.extractSpectrum (obs.filenames, obs.info["obsmode"])
                 if not self.assoc.save_temp_files:
                     self.removeCountRateFile (obs.filenames)
 
@@ -1933,7 +1939,7 @@ class Calibration (object):
                 self.updateShift (obs.filenames, obs.switches["wavecorr"],
                             obs.info)
                 if obs.switches["x1dcorr"] == "PERFORM":
-                    self.extractSpectrum (obs.filenames)
+                    self.extractSpectrum (obs.filenames, obs.info["obsmode"])
                 elif obs.info["obstype"] == "SPECTROSCOPIC":
                     cosutil.printSwitch ("X1DCORR", obs.switches)
                 if not self.assoc.save_temp_files:
@@ -1947,16 +1953,27 @@ class Calibration (object):
         if tagflash and obs.switches["wavecorr"] == "PERFORM":
             self.concatenateSpectra ("tagflash")
 
-    def extractSpectrum (self, filenames):
-        """Extract a 1-D spectrum from 2-D images.
+    def extractSpectrum (self, filenames, obsmode="TIME-TAG"):
+        """Extract a 1-D spectrum from corrtag table or from 2-D images.
 
         @param filenames: input and output file names
         @type filenames: dictionary
+        @param obsmode: "TIME-TAG" or "ACCUM"
+        @type obsmode: string
+
+        The 1-D spectrum will be extracted from the 2-D flt and counts images.
         """
 
+        #if obsmode == "TIME-TAG":
+        #    input = filenames["corrtag"]
+        #    incounts = None
+        #else:
+        #    input = filenames["flt"]
+        #    incounts = filenames["counts"]
         input = filenames["flt"]
         incounts = filenames["counts"]
         output = filenames["x1d_x"]
+
         extract.extract1D (input, incounts, output)
 
     def removeCountRateFile (self, filenames):

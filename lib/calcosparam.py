@@ -1,8 +1,13 @@
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "1.4"
-CALCOS_VERSION_DATE = "2008-04-25"
+CALCOS_VERSION_NUMBER = "1.5"
+CALCOS_VERSION_DATE = "2008-05-02"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
+
+# These are the values to indicate the detector (original) and user
+# (flipped or rotated) COS coordinates.
+DETECTOR_COORDINATES = "DETECTOR"
+USER_COORDINATES     = "USER"
 
 SPEED_OF_LIGHT = 299792.458     # km/s
 

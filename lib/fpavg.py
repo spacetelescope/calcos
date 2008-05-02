@@ -226,7 +226,7 @@ class OutputX1D (object):
     def createOutput (self):
         """Create pyfits object for output file."""
 
-        # Create the output FITS header/data unit object.
+        # Get header info from the input.
         ifd = pyfits.open (self.input[0], mode="readonly")
 
         primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
@@ -235,6 +235,10 @@ class OutputX1D (object):
         ofd = pyfits.HDUList (primary_hdu)
 
         rpt = str (self.output_nelem)           # used for column definitions
+        if self.output_nelem < 1:
+            tform = ifd[1].header.get ("tform4", "1D")
+            i = tform.find ("D")
+            rpt = tform[:i]
 
         # Define output columns.
         col = []
