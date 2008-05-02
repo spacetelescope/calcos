@@ -63,7 +63,7 @@ def extract1D (input, incounts=None, output=None):
     if info["detector"] == "FUV":
         nelem = FUV_X
     else:
-        nelem = NUV_Y
+        nelem = NUV_X
 
     if info["npix"] == (0,):
         nrows = 0
@@ -237,7 +237,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
             if info["detector"] == "FUV":
                 axis_length = FUV_X
             else:
-                axis_length = NUV_Y
+                axis_length = NUV_X
             (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i) = \
                 extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
                     axis_length, snr_ff, hdr["exptime"], switches["backcorr"],
@@ -340,11 +340,11 @@ def getColumns (ifd_e, detector):
             eta = data.field ("ycorr")
     else:
         try:
-            xi = data.field ("yfull")
-            eta = data.field ("xfull")
+            xi = data.field ("xfull")
+            eta = data.field ("yfull")
         except NameError:
-            xi = data.field ("ydopp")
-            eta = data.field ("rawx")
+            xi = data.field ("xdopp")
+            eta = data.field ("rawy")
 
     dq = data.field ("dq")
     epsilon = data.field ("epsilon")
@@ -727,7 +727,7 @@ def updateExtractionKeywords (hdr, segment, xtract_info, shift2):
     if segment[0:3] == "FUV":
         half_disp_axis = FUV_X / 2.
     else:
-        half_disp_axis = NUV_Y / 2.
+        half_disp_axis = NUV_X / 2.
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
     location = xtract_info.field ("b_spec")[0] + shift2 + \

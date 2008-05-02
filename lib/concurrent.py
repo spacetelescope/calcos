@@ -634,9 +634,9 @@ class ConcurrentWavecal (object):
             xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
             b_spec = xtract_info.field ("b_spec")[0]
             height = xtract_info.field ("height")[0]
-            src_low = 0
-            src_high = int (b_spec + height)
-            eta = self.events.field ("rawx")
+            src_low = int (b_spec - height)
+            src_high = NUV_Y - 1
+            eta = self.events.field ("rawy")
 
         # Dummy values, so no background counts will be found.
         bkg1_low = -10
@@ -1071,12 +1071,12 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
 
         ConcurrentWavecal.__init__ (self,
                         events, outflash, info, reffiles, phdr, hdr)
-        self.xi  = events.field ("YDOPP")
-        self.eta = events.field ("RAWX")
+        self.xi  = events.field ("XDOPP")
+        self.eta = events.field ("RAWY")
         self.dq  = events.field ("DQ")
-        self.xi_corr  = events.field ("YFULL")
-        self.eta_corr = events.field ("XFULL")
-        self.spectrum = N.zeros (NUV_Y, dtype=N.float64)
+        self.xi_corr  = events.field ("XFULL")
+        self.eta_corr = events.field ("YFULL")
+        self.spectrum = N.zeros (NUV_X, dtype=N.float64)
         if phdr.get ("OPT_ELEM", "missing") == "G230L" and \
            phdr.get ("cenwave", 0) == 3360:
             self.segment_list = ["NUVA", "NUVB"]
@@ -1218,4 +1218,4 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
 
         (avg_d_xi, avg_d_eta) = self.avgShift()
 
-        return (avg_d_eta, avg_d_xi)
+        return (avg_d_xi, avg_d_eta)

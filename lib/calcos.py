@@ -1345,7 +1345,7 @@ class Observation (object):
         warn = 0                # initial values
         bad = 0
 
-        if self.info["coscoord"] != DETECTOR_COORDINATES:
+        if self.info["coscoord"] != USER_COORDINATES:
             bad = 1
             cosutil.printError ("Wrong coordinates for this version of calcos")
             cosutil.printContinuation ("for %s" % self.input)
@@ -1396,19 +1396,9 @@ class Observation (object):
                 cosutil.printError (
                 "OBSTYPE = IMAGING and EXPTYPE = WAVECAL is invalid")
         elif info["obstype"] == "SPECTROSCOPIC":
-            if info["dispaxis"] == 1:
-                if info["detector"] == "NUV":
-                    warn = 1
-                    cosutil.printWarning ("DISPAXIS = 1 for NUV data")
-            elif info["dispaxis"] == 2:
-                if info["detector"] == "FUV":
-                    warn = 1
-                    cosutil.printWarning ("DISPAXIS = 2 for FUV data")
-            else:
-                bad = 1
-                cosutil.printError (
-            "DISPAXIS = %d, but it should be 1 or 2 for spectroscopic data" \
-                         % info["dispaxis"])
+            if info["dispaxis"] == 2:
+                warn = 1
+                cosutil.printWarning ("DISPAXIS = 2")
         else:
             bad = 1
             cosutil.printError (

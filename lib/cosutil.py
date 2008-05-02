@@ -57,8 +57,8 @@ def writeOutputEvents (infile, outfile):
         col.append (pyfits.Column (name="YCORR", format="1E", unit="pixel"))
     else:
         col.append (pyfits.Column (name="RAWX", format="1I", unit="pixel"))
+        col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
         col.append (pyfits.Column (name="RAWY", format="1I", unit="pixel"))
-        col.append (pyfits.Column (name="YDOPP", format="1E", unit="pixel"))
     if tagflash:
         col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
         col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
@@ -95,12 +95,7 @@ def writeOutputEvents (infile, outfile):
         outdata.field ("RAWX")[:] = indata.field ("RAWX")
         outdata.field ("RAWY")[:] = indata.field ("RAWY")
 
-    if detector == "FUV":
-        outdata.field ("XDOPP")[:] = \
-                N.zeros (nrows, dtype=N.float32)
-    else:
-        outdata.field ("YDOPP")[:] = \
-                N.zeros (nrows, dtype=N.float32)
+    outdata.field ("XDOPP")[:] = N.zeros (nrows, dtype=N.float32)
 
     outdata.field ("EPSILON")[:] = \
             N.ones (nrows, dtype=N.float32)
@@ -459,8 +454,8 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
         time = N.arange (nelem, dtype=N.float32) + \
                    (expstart - doppzero) * SEC_PER_DAY
 
-        # shift is in pixels (wavelengths decrease toward larger pixel number).
-        shift = doppmag * N.sin (2. * N.pi * time / orbitper)
+        # shift is in pixels (wavelengths increase toward larger pixel number).
+        shift = -doppmag * N.sin (2. * N.pi * time / orbitper)
         mindopp = N.minimum.reduce (shift)
         maxdopp = N.maximum.reduce (shift)
         mindopp = int (round (mindopp))

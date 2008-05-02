@@ -143,8 +143,8 @@ def setCorrColNames (detector, tagflash):
     else:
         xcorr = "RAWX"
         ycorr = "RAWY"
-        xdopp = "RAWX"
-        ydopp = "YDOPP"
+        xdopp = "XDOPP"
+        ydopp = "RAWY"
 
     if tagflash:
         xfull = "XFULL"
@@ -163,10 +163,7 @@ def updateGlobrate (events, info, reffiles, hdr):
     hdr           the input events extension header
     """
 
-    if info["detector"] == "FUV":
-        eta = events.field ("ycorr")
-    else:
-        eta = events.field ("rawx")
+    eta = events.field (ycorr)
     globrate = globrate_tt (eta,
                 info["exptime"], info["segment"], reffiles["brftab"])
     hdr.update ("globrate", globrate)
@@ -1011,9 +1008,9 @@ def doDoppcorr (events, info, switches, reffiles, phdr, hdr):
         eta = events.field ("ycorr")
         dopp = events.field ("xdopp")
     else:
-        xi = events.field ("rawy")
-        eta = events.field ("rawx")
-        dopp = events.field ("ydopp")
+        xi = events.field ("rawx")
+        eta = events.field ("rawy")
+        dopp = events.field ("xdopp")
 
     if switches["doppcorr"] == "PERFORM" or switches["helcorr"] == "PERFORM":
 
@@ -1072,16 +1069,14 @@ def dopplerRegions (eta, info, reffiles):
 
         # The computation of the 'boundary' variable makes assumptions
         # about the relative locations of the PSA and WCA regions on the
-        # FUV and NUV detectors.  For FUV, the PSA spectral region is
-        # at lower Y pixel numbers; for NUV the PSA region is at higher
-        # X pixel numbers.
+        # detectors.  The PSA spectral region is at lower Y pixel numbers.
 
         if info["detector"] == "FUV":
             filter["segment"] = info["segment"]
             middle = (float (FUV_X) - 1.) / 2.
         else:
             filter["segment"] = "NUVC"
-            middle = (float (NUV_Y) - 1.) / 2.
+            middle = (float (NUV_X) - 1.) / 2.
         filter["aperture"] = "PSA"
         xtract_info = cosutil.getTable (reffiles["xtractab"],
                             filter, exactly_one=True)
@@ -1102,7 +1097,7 @@ def dopplerRegions (eta, info, reffiles):
         if info["detector"] == "FUV":
             shift_flags &= (eta < boundary)
         else:
-            shift_flags = eta > boundary
+            shift_flags = eta < boundary
 
     elif info["detector"] == "NUV":
 
@@ -1179,10 +1174,10 @@ def orbitalDoppler (time, xi, expstart, doppmag, doppzero, orbitper):
     # t is the time of each event in seconds since doppzero.
     t = (expstart - doppzero) * SEC_PER_DAY + time
 
-    # For both FUV and NUV, wavelengths increase toward smaller pixel number.
+    # For both FUV and NUV, wavelengths increase toward larger pixel number.
     shift = doppmag * N.sin (2. * N.pi * t / orbitper)
 
-    return xi + shift
+    return xi - shift
 
 def heliocentricDoppler (helio_factor, xi, coeff):
     """Apply Doppler correction for Earth's heliocentric motion.

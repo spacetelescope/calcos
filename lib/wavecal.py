@@ -45,7 +45,7 @@ def findWavecalShift (input, wcp_info):
 
     detector = phdr["detector"]
     maxlag = wcp_info.field ("xc_range")
-    fp = phdr.get ("fpoffset", default=0) * wcp_info.field ("stepsize")
+    fp = -phdr.get ("fpoffset", default=0) * wcp_info.field ("stepsize")
 
     # segment will be added to the filter in the loop below.
     filter = {"opt_elem": phdr["opt_elem"], "cenwave": phdr["cenwave"]}
@@ -189,7 +189,7 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
         else:
             # Apply a correction to the current fpoffset.
             correction = \
-                (fpoffset - wc_dict["fpoffset"]) * wcp_info.field ("stepsize")
+                -(fpoffset - wc_dict["fpoffset"]) * wcp_info.field ("stepsize")
             shift_dict = wc_dict["shift_dict"].copy()
             for key in shift_dict.keys():
                 shift_dict[key] += correction
@@ -451,7 +451,7 @@ def ttFindWavecalShift (net, template, info, wcp_info):
         return (None, [0.])
 
     maxlag = wcp_info.field ("xc_range")
-    fp = info["fpoffset"] * wcp_info.field ("stepsize")
+    fp = -info["fpoffset"] * wcp_info.field ("stepsize")
 
     (pshift, n50) = crosscor (net, template, maxlag, fp)
 
@@ -489,8 +489,8 @@ def findWavecalSpectrum (corrtag, info, reffiles):
         xi = sci_extn.data.field ("XCORR")
         eta = sci_extn.data.field ("YCORR")
     else:
-        xi = sci_extn.data.field ("RAWY")
-        eta = sci_extn.data.field ("RAWX")
+        xi = sci_extn.data.field ("RAWX")
+        eta = sci_extn.data.field ("RAWY")
 
     dq = sci_extn.data.field ("DQ")
 
@@ -575,7 +575,7 @@ def ttFindFUV (xi, eta, dq, filter, xtractab):
 
 def ttFindNUV (xi, eta, dq, filter, xtractab):
 
-    xdisp = N.zeros (NUV_X, dtype=N.float32)
+    xdisp = N.zeros (NUV_Y, dtype=N.float32)
 
     xd_range = 40
     box = 13
