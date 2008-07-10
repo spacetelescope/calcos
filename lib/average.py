@@ -74,6 +74,11 @@ def avgImage (input, output):
     cosutil.updateFilename (primary_hdu.header, output)
     ofd = pyfits.HDUList (primary_hdu)
     scihdu = pyfits.ImageHDU (data=sci_data, header=hdr, name="SCI")
+    if cosutil.isProduct (output):
+        asn_mtyp = scihdu.header.get ("asn_mtyp", "missing")
+        asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
+        if asn_mtyp != "missing":
+            scihdu.header["asn_mtyp"] = asn_mtyp
     scihdu.header.update ("exptime", sum_exptime)
     scihdu.header.update ("expstart", expstart)
     scihdu.header.update ("expend", expend)

@@ -177,11 +177,9 @@ def calcos (asntable, outdir=None, verbosity=None, save_temp_files=False,
     @param verbosity: if not None, set verbosity to this level (0, 1, 2)
     @type verbosity: int or None
 
-    @param save_temp_files: By default, the files containing the count rate
-        image will be deleted after extracting 1-D spectra; also, the
-        _x1d_a.fits and _x1d_b.fits files (if FUV) will be deleted after
-        concatenating to the _x1d.fits file.  Specify save_temp_files=True
-        to keep these files.
+    @param save_temp_files: By default, the _x1d_a.fits and _x1d_b.fits files
+        (if FUV) will be deleted after concatenating to the _x1d.fits file.
+        Specify save_temp_files=True to keep these files.
     @type save_temp_files: boolean
 
     @param stimfile: if specified, the stim positions will be written to
@@ -330,10 +328,13 @@ class Association (object):
         product_type       memtype of the product (case unchanged from asn
                              table)
         global_switches    dictionary of the global calibration switches
-        rawfiles           a list of all rawtag or rawimage files
+        rawfiles           a list of all rawtag or rawaccum files
         obs                a list of Observation instances, one for each raw
                              file
-        first_science      index of first science observation in obs list
+        first_science_tuple indexes of first science observations in obs list
+                             (the first is time-tag and the second is accum)
+        first_science      index of first science observation (either time-tag
+                             or accum, whichever is not None)
     """
 
     def __init__ (self, asntable, outdir=None, save_temp_files=False,
@@ -348,11 +349,9 @@ class Association (object):
         @param outdir: name of output directory, or None
         @type outdir: string
 
-        @param save_temp_files: By default, the files containing the count
-            rate image will be deleted after extracting 1-D spectra; also, the
-            _x1d_a.fits and _x1d_b.fits files (if FUV) will be deleted after
-            concatenating to the _x1d.fits file.  Specify save_temp_files=True
-            to keep these files.
+        @param save_temp_files: By default, the _x1d_a.fits and _x1d_b.fits
+            files (if FUV) will be deleted after concatenating to the _x1d.fits
+            file.  Specify save_temp_files=True to keep these files.
         @type save_temp_files: boolean
 
         @param stimfile: if specified, the stim positions will be written to
@@ -376,7 +375,9 @@ class Association (object):
         self.global_switches = {}   # global calibration switches
         self.rawfiles = []          # list of all raw input files
         self.obs = []               # list of Observations
-        self.first_science = 0      # defaults to first file
+        self.first_science_tuple = None # (i_timetag, i_accum)
+        self.first_science = None   # an integer, either i_timetag or i_accum,
+                                    # whichever is not None
 
         # Copy command-line options to attributes.
         self.asntable = None                    # initial value
@@ -463,8 +464,12 @@ class Association (object):
         cosutil.printMsg ("combine = " + repr (self.combine), VERY_VERBOSE)
         cosutil.printMsg ("concat = " + repr (self.concat), VERY_VERBOSE)
 
-        # Find the first science obs (non-wavecal and non-TA1, if possible).
-        self.first_science = self.findFirstScience()
+        # Find the first science obs (i.e. non-wavecal, if possible).
+        self.first_science_tuple = self.findFirstScience()
+        (i, j) = self.first_science_tuple
+        if i is None:
+            i = j
+        self.first_science = i
 
         self.compareConfig()
         self.compareRefFiles()
@@ -560,62 +565,55 @@ class Association (object):
         @type memname: string
         """
 
-        # Find the names of all raw files with the specified rootname.
-        rawfiles = []
+        # First find out whether we've got time-tag or accum, FUV or NUV.
+        # Look for both rawaccum and rawimage.
+        all_rawfiles = []
+        raw = glob.glob (memname + "_rawtag*.fits")
+        all_rawfiles.extend (raw)
+        raw = glob.glob (memname + "_rawaccum*.fits")
+        all_rawfiles.extend (raw)
+        raw = glob.glob (memname + "_rawimage*.fits")
+        all_rawfiles.extend (raw)
+        if len (all_rawfiles) == 0:
+            raise RuntimeError, \
+                "There are no raw files for rootname `%s'" % memname
+        all_rawfiles.sort()
+        # Get info from the first raw file with the specified rootname.
+        initial_basic_info = getinfo.initialInfo (all_rawfiles[0])
+        detector = initial_basic_info["detector"]
+        obsmode = initial_basic_info["obsmode"]
 
-        # The number of files of each type, based on suffix.
-        num = {}
-
-        raw = glob.glob (memname + "_rawtag_[ab].fits")
-        rawfiles.extend (raw)
-        num["fuv_timetag"] = len (raw)
-
-        raw = glob.glob (memname + "_rawtag.fits")
-        rawfiles.extend (raw)
-        num["nuv_timetag"] = len (raw)
-
-        raw = glob.glob (memname + "_rawimage_[ab].fits")
-        rawfiles.extend (raw)
-        num["fuv_accum"] = len (raw)
-
-        raw = glob.glob (memname + "_rawimage.fits")
-        rawfiles.extend (raw)
-        num["nuv_accum"] = len (raw)
+        # Find the raw files that we expect to have.
+        if detector == "FUV":
+            suffix = "_[ab].fits"
+        else:
+            suffix = ".fits"
+        if obsmode == "TIME-TAG":
+            rawfiles = glob.glob (memname + "_rawtag" + suffix)
+        elif obsmode == "ACCUM":
+            # first look for rawaccum
+            rawfiles = glob.glob (memname + "_rawaccum" + suffix)
+            if len (rawfiles) < 1:
+                # rawaccum not found, so look for rawimage
+                rawfiles = glob.glob (memname + "_rawimage" + suffix)
+        else:
+            raise RuntimeError, \
+                  "unexpected OBSMODE `%s' in `%s'" % obsmode, all_rawfiles[0]
 
         nfiles = len (rawfiles)
         if nfiles == 0:
             raise RuntimeError, \
-                  "There are no raw files for rootname `%s'" % memname
+                "Keywords and suffixes are inconsistent for rootname `%s'" \
+                        % memname
         rawfiles.sort()
 
         # Read the first raw file with the specified rootname.
-        filename = rawfiles[0]
+        basic_info = getinfo.initialInfo (rawfiles[0])
 
-        basic_info = getinfo.initialInfo (filename)
-
-        # initial value; one element will be deleted
-        check = ["fuv_timetag", "fuv_accum", "nuv_timetag", "nuv_accum"]
-        if basic_info["detector"] == "FUV":
-            if basic_info["obsmode"] == "TIME-TAG":
-                del check[0]                    # FUV time-tag
-            else:
-                del check[1]                    # FUV accum
-        else:
-            if basic_info["obsmode"] == "TIME-TAG":
-                del check[2]                    # NUV time-tag
-            else:
-                del check[3]                    # NUV accum
-
-        bad_name = False
-        for key in check:
-            if num[key] > 0:
-                bad_name = True
-                break
-        if bad_name:
-            cosutil.printError (
-    "Filename suffixes are not as expected, based on DETECTOR and OBSMODE:")
-            cosutil.printContinuation ("filenames are " + repr (rawfiles))
-            raise RuntimeError
+        if len (rawfiles) < len (all_rawfiles):
+            cosutil.printWarning ("There are more raw files than we expected:")
+            cosutil.printContinuation ("we expected " + repr (rawfiles))
+            cosutil.printContinuation ("but we found " + repr (all_rawfiles))
 
         basic_info["rawfiles"] = rawfiles
 
@@ -673,33 +671,59 @@ class Association (object):
     def findFirstScience (self):
         """Find the first science file in the list.
 
-        This is a utility function to return the index of the first science
-        observation.  If there are no science observations, this returns the
-        index of the first wavecal.  If there are no wavecals either, this
-        returns zero (the first observation could be a TA1).
+        This function returns the indexes of the first science observations.
+        The return value is a tuple of two integers.  The first number is the
+        index of the first time-tag science observation, or None.  The second
+        number is the index of the first accum science observation, or None.
+        If there are no science observations, this returns (i, None), where i
+        is the index of the first wavecal (which are assumed to always be
+        time-tag).  If there are no wavecals either, this returns either
+        (0, None) or (None, 0), depending on whether the first observation
+        (of any kind) is time-tag or accum, respectively.
+
+        @return: indexes of the first time-tag and the first accum science
+            observations
+        @rtype: tuple of two integers
         """
 
-        if len (self.obs) < 2:
-            return 0
+        i_timetag = None
+        i_accum = None
+        foundit_timetag = False
+        foundit_accum = False
 
-        foundit = False
+        # look for a time-tag science observation
         for i in range (len (self.obs)):
             obs = self.obs[i]
-            if obs.exp_type == EXP_SCIENCE:
-                foundit = True
+            if obs.exp_type == EXP_SCIENCE and \
+               obs.info["obsmode"] == "TIME-TAG":
+                foundit_timetag = True
+                i_timetag = i
                 break
-        if not foundit:
-            # No science observation; find the first wavecal, if any.
+        # look for an accum science observation
+        for i in range (len (self.obs)):
+            obs = self.obs[i]
+            if obs.exp_type == EXP_SCIENCE and \
+               obs.info["obsmode"] == "ACCUM":
+                foundit_accum = True
+                i_accum = i
+                break
+
+        if not foundit_timetag:
+            # No time-tag science observation; find the first wavecal, if any.
             for i in range (len (self.obs)):
-                obs = self.obs[i]
-                if obs.exp_type == EXP_WAVECAL:
-                    foundit = True
+                if self.obs[i].exp_type == EXP_WAVECAL:
+                    foundit_timetag = True
+                    i_timetag = i
                     break
-        if not foundit:
+        if not foundit_timetag and not foundit_accum:
             # No wavecal observation; take the first observation of any kind.
             i = 0
+            if self.obs[i].info["obsmode"] == "TIME-TAG":
+                i_timetag = i
+            else:
+                i_accum = i
 
-        return i
+        return (i_timetag, i_accum)
 
     def compareConfig (self):
         """Compare detector, opt_elem, and cenwave.
@@ -735,18 +759,30 @@ class Association (object):
         """Compare reference file names.
 
         This function compares the values of the reference file keywords in
-        the observation list.  If there is any mismatch, the file name in
-        the first science observation will take precedence.
+        the observation list.  If there is any mismatch, a warning will be
+        printed giving the values in the first science observation (can be
+        different for time-tag vs accum) and in the current observation.
         """
 
         # Take the reference file list from the first segment for the first
         # science observation.
-        reffiles = self.obs[self.first_science].reffiles
+        if self.first_science_tuple[0] is None:
+            reffiles_timetag = None
+        else:
+            reffiles_timetag = self.obs[self.first_science_tuple[0]].reffiles
+        if self.first_science_tuple[1] is None:
+            reffiles_accum = None
+        else:
+            reffiles_accum = self.obs[self.first_science_tuple[1]].reffiles
 
         # Now do the comparisons.  'a_file' is the value of a reference file
         # keyword, and 'compare' is the value in the first science observation.
         message_printed = False
         for obs in self.obs:
+            if obs.info["obsmode"] == "TIME-TAG":
+                reffiles = reffiles_timetag
+            else:
+                reffiles = reffiles_accum
             keys = reffiles.keys()
             keys.sort()
             for key in keys:
@@ -766,36 +802,41 @@ class Association (object):
                     if len (a_file) == 0:
                         a_file = "(blank)"
                     cosutil.printMsg (obs.input + ":  " + key + " = " + \
-                            a_file_hdr + " reset to " + compare_hdr)
-                    obs.reffiles[key] = compare
-                    obs.reffiles[key+"_hdr"] = compare_hdr
+                            a_file_hdr + " vs. " + compare_hdr)
 
     def compareSwitches (self):
         """Compare switches.
 
         This function compares the values of the calibration switch keywords
-        in the observation list.  If there is a mismatch, the value in the
-        first first science observation will take precedence.  Allowance is
-        made for differences in the type of observation, i.e. science,
-        wavecal, or TA1.
+        in the observation list.  If there is any mismatch, a warning will
+        be printed giving the values in the first science observation (can
+        be different for time-tag vs accum) and in the current observation.
         """
 
         # Take the list of switches from the first segment for the first
         # science observation.
-        switches = self.obs[self.first_science].switches
+        if self.first_science_tuple[0] is None:
+            switches_timetag = None
+        else:
+            switches_timetag = self.obs[self.first_science_tuple[0]].switches
+        if self.first_science_tuple[1] is None:
+            switches_accum = None
+        else:
+            switches_accum = self.obs[self.first_science_tuple[1]].switches
 
         # Do the comparisons.  'sw' is the value of a calibration keyword,
         # and 'compare' is the value in the first science observation.
         message_printed = False
         for obs in self.obs:
+            if obs.info["obsmode"] == "TIME-TAG":
+                switches = switches_timetag
+            else:
+                switches = switches_accum
             keys = switches.keys()
             keys.sort()
             for key in keys:
                 compare = switches[key].strip()
                 sw = obs.switches[key].strip()
-                if sw == NOT_APPLICABLE or compare == NOT_APPLICABLE:
-                    # Time-tag and accum will have different switches.
-                    continue
                 if sw != compare:
                     if obs.exp_type == EXP_WAVECAL:
                         if key in ["wavecorr", "rptcorr",
@@ -805,17 +846,12 @@ class Association (object):
                         cosutil.printWarning (
                                 "Inconsistent calibration switches:")
                         message_printed = True
-                    if sw == "COMPLETE" or sw == "SKIPPED":
-                        cosutil.printMsg (obs.input + ":  " + key + " = " + \
-                                sw + " ... NOT reset")
-                    else:
-                        if len (compare) == 0:
-                            compare = "(blank)"
-                        if len (sw) == 0:
-                            sw = "(blank)"
-                        cosutil.printMsg (obs.input + ":  " + key + " = " + \
-                                sw + " reset to " + compare)
-                        obs.switches[key] = compare
+                    if len (compare) == 0:
+                        compare = "(blank)"
+                    if len (sw) == 0:
+                        sw = "(blank)"
+                    cosutil.printMsg (obs.input + ":  " + key + " = " + \
+                            sw + " vs. " + compare)
 
     def missingRefFiles (self):
         """Check for missing reference files.
@@ -842,20 +878,20 @@ class Association (object):
         # for readability; these and other values will be copied to ref,
         # which is used for the argument to findRefFile.
         temp = {
-            "flatfile": ["1.0", "FLAT FIELD REFERENCE IMAGE"],
-            "badttab":  ["1.0", "BAD TIME INTERVALS TABLE"],
-            "bpixtab":  ["1.0", "DATA QUALITY INITIALIZATION TABLE"],
-            "deadtab":  ["1.0", "DEADTIME REFERENCE TABLE"],
-            "brftab":   ["1.0", "BASELINE REFERENCE FRAME TABLE"],
-            "phatab":   ["1.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
-            "geofile":  ["1.0", "GEOMETRIC DISTORTION REFERENCE IMAGE"],
-            "lamptab":  ["1.0", "TEMPLATE CAL LAMP SPECTRA TABLE"],
-            "wcptab":   ["1.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
-            "xtractab": ["1.0", "1-D EXTRACTION PARAMETERS TABLE"],
-            "disptab":  ["1.0", "DISPERSION RELATION REFERENCE TABLE"],
-            "phottab":  ["1.0", "PHOTOMETRIC SENSITIVITY REFERENCE TABLE"],
-            "tdstab":   ["1.0", "TIME DEPENDENT SENSITIVITY TABLE"],
-            "brsttab":  ["1.0", "BURST PARAMETERS TABLE"]
+            "flatfile": ["2.0", "FLAT FIELD REFERENCE IMAGE"],
+            "badttab":  ["2.0", "BAD TIME INTERVALS TABLE"],
+            "bpixtab":  ["2.0", "DATA QUALITY INITIALIZATION TABLE"],
+            "deadtab":  ["2.0", "DEADTIME REFERENCE TABLE"],
+            "brftab":   ["2.0", "BASELINE REFERENCE FRAME TABLE"],
+            "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
+            "geofile":  ["2.0", "GEOMETRIC DISTORTION REFERENCE IMAGE"],
+            "lamptab":  ["2.0", "TEMPLATE CAL LAMP SPECTRA TABLE"],
+            "wcptab":   ["2.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
+            "xtractab": ["2.0", "1-D EXTRACTION PARAMETERS TABLE"],
+            "disptab":  ["2.0", "DISPERSION RELATION REFERENCE TABLE"],
+            "phottab":  ["2.0", "PHOTOMETRIC SENSITIVITY REFERENCE TABLE"],
+            "tdstab":   ["2.0", "TIME DEPENDENT SENSITIVITY TABLE"],
+            "brsttab":  ["2.0", "BURST PARAMETERS TABLE"]
         }
         # The contents of these dictionaries must agree with what
         # cosutil.findRefFile expects.
@@ -974,7 +1010,8 @@ class Association (object):
         """
 
         # Take the calibration switch list from the first science observation.
-        switches = self.obs[self.first_science].switches
+        i = self.first_science
+        switches = self.obs[i].switches
 
         # There are not the only calibration switches, but these are the
         # ones that are independent of others.  For example, it wouldn't
@@ -1079,11 +1116,7 @@ class Association (object):
 
         if self.global_switches["repeat"] == "PERFORM":
             product = self.product
-            if detector == "FUV":
-                self.checkExists (product + "_fltsum_a.fits", already_exists)
-                self.checkExists (product + "_fltsum_b.fits", already_exists)
-            else:
-                self.checkExists (product + "_fltsum.fits", already_exists)
+            self.checkExists (product + "_fltsum.fits", already_exists)
             self.checkExists (product + "_x1dsum.fits", already_exists)
             self.checkExists (product + "_x1dsum1.fits", already_exists)
             self.checkExists (product + "_x1dsum2.fits", already_exists)
@@ -1143,8 +1176,8 @@ class Association (object):
         be reset to None if the detector was not FUV.
         """
 
-        if self.stimfile is not None and \
-           self.obs[self.first_science].info["detector"] != "FUV":
+        i = self.first_science
+        if self.stimfile is not None and self.obs[i].info["detector"] != "FUV":
             self.stimfile = None
             cosutil.printWarning (
                 "stimfile reset to None because detector is NUV.")
@@ -1227,7 +1260,7 @@ class Observation (object):
         @type memtype: string
 
         @param suffix: suffix to the rootname, but just "_rawtag" or
-            "_rawimage" (i.e. excluding "_a" or "_b" if the data were taken
+            "_rawaccum" (i.e. excluding "_a" or "_b" if the data were taken
             with the FUV detector)
         @type suffix: string
         """
@@ -1238,6 +1271,12 @@ class Observation (object):
         self.info = {}                  # detector, opt_elem, etc.
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
+
+        # For ACCUM data, allow suffix to be either "_rawaccum" or "_rawimage".
+        if input.find (suffix) < 0:
+            suffix = "_rawimage"
+        if input.find (suffix) < 0:
+            raise RuntimeError, "can't find suffix in `%s'" % input
 
         self.getHeaderInfo()
         self.filenames = self.makeFileNames (suffix, outdir)
@@ -1377,7 +1416,7 @@ class Observation (object):
             "OBSTYPE = ACQUISITION, will be reset to IMAGING")
             info["obstype"] = "IMAGING"
         if info["obstype"] == "SPECTROSCOPIC" and \
-               (info["opt_elem"][0:6] == "MIRROR" or 
+               (info["opt_elem"][0:6] == "MIRROR" or
                 info["opt_elem"][0:3] == "TA1"):
             bad = 1
             cosutil.printError (
@@ -1577,8 +1616,8 @@ class Observation (object):
         """Create names of input and output files from input raw file names.
 
         @param suffix: an obsmode-specific string, either "_rawtag" or
-            "_rawimage"; note that 'suffix' excludes "_a" or "_b", in the
-            case that we have FUV data
+            "_rawaccum" (or "_rawimage"); note that 'suffix' excludes
+            "_a" or "_b", in the case that we have FUV data
         @type suffix: string
 
         @param outdir: the name of the output directory (or an empty string)
@@ -1751,7 +1790,7 @@ class FUVAccumObs (Observation):
 
     def __init__ (self, input, outdir, memtype):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawimage")
+        Observation.__init__ (self, input, outdir, memtype, "_rawaccum")
 
     def checkSwitches (self):
 
@@ -1786,7 +1825,7 @@ class NUVAccumObs (Observation):
 
     def __init__ (self, input, outdir, memtype):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawimage")
+        Observation.__init__ (self, input, outdir, memtype, "_rawaccum")
 
     def checkSwitches (self):
 
@@ -1862,6 +1901,7 @@ class Calibration (object):
             status = timetag.timetagBasicCalibration (input, outtag,
                         output, outcounts, outflash,
                         info, switches, reffiles,
+                        self.wavecal_info,
                         self.assoc.stimfile, self.assoc.livetimefile,
                         self.assoc.burstfile)
         else:
@@ -1897,8 +1937,6 @@ class Calibration (object):
                 self.setSpectrumOffset (obs.filenames,
                         obs.info["segment"], shift2)
                 self.extractSpectrum (obs.filenames, obs.info["obsmode"])
-                if not self.assoc.save_temp_files:
-                    self.removeCountRateFile (obs.filenames)
 
         self.concatenateSpectra ("wavecal")
 
@@ -1932,8 +1970,6 @@ class Calibration (object):
                     self.extractSpectrum (obs.filenames, obs.info["obsmode"])
                 elif obs.info["obstype"] == "SPECTROSCOPIC":
                     cosutil.printSwitch ("X1DCORR", obs.switches)
-                if not self.assoc.save_temp_files:
-                    self.removeCountRateFile (obs.filenames)
                 if obs.info["tagflash"]:
                     tagflash = True     # there is at least one tagflash obs
 
@@ -1966,26 +2002,14 @@ class Calibration (object):
 
         extract.extract1D (input, incounts, output)
 
-    def removeCountRateFile (self, filenames):
-        """Delete the count rate file (_counts).
-
-        @param filenames: input and output file names
-        @type filenames: dictionary
-        """
-
-        cosutil.printMsg ("Remove the count rate file(s):", VERY_VERBOSE)
-        outcounts = filenames["counts"]
-        if os.access (outcounts, os.R_OK):
-            cosutil.printMsg ("  remove " + outcounts, VERY_VERBOSE)
-            os.remove (outcounts)
-
     def processWavecal (self):
         """Determine shift from wavecal observation.
 
         The shift and related info will be appended to the wavecal_info list.
         """
         cosutil.printSwitch ("WAVECORR", {"wavecorr": "PERFORM"})
-        reffiles = self.assoc.obs[self.assoc.first_science].reffiles
+        i = self.assoc.first_science
+        reffiles = self.assoc.obs[i].reffiles
         wavecal.printWavecalRef (reffiles)
 
         previous_x1d_file = " "
@@ -2012,9 +2036,10 @@ class Calibration (object):
     def updateShift (self, filenames, wavecorr, info):
         """Update the shift keywords in corrtag, flt, counts headers.
 
+        This function is only relevant for ACCUM mode data.
         The shift for the two segments (or three NUV stripes) will be copied
         (or interpolated) from the list of wavecal information to the
-        keywords PSHIFTA and PSHIFTB (and PSHIFTC if NUV).
+        keywords PSHIFTA, PSHIFTB, PSHIFTC, SHIFT2A, SHIFT2B, SHIFT2C.
 
         @param filenames: input and output file names
         @type filenames: dictionary
@@ -2026,9 +2051,7 @@ class Calibration (object):
         @type info: dictionary
         """
 
-        if info["obstype"] != "SPECTROSCOPIC":
-            return
-        if info["tagflash"]:
+        if info["obsmode"] == "TIME-TAG" or info["obstype"] != "SPECTROSCOPIC":
             return
 
         if wavecorr != "PERFORM":
@@ -2036,10 +2059,14 @@ class Calibration (object):
         elif len (self.wavecal_info) < 1:
             shift_dict = None
         else:
+            shift_dict = None                           # replaced below
             time = cosutil.timeAtMidpoint (info)        # MJD
-            shift_dict = wavecal.returnWavecalShift (self.wavecal_info,
-                    self.wcp_info, info["fpoffset"], time)
-            if wavecorr == "PERFORM" and len (self.wavecal_info) > 0:
+            shift_info = wavecal.returnWavecalShift (self.wavecal_info,
+                         self.wcp_info, info["fpoffset"], time)
+            if wavecorr == "PERFORM" and len (self.wavecal_info) > 0 and \
+               shift_info is not None:
+                # only the shift will be used, not the slope
+                (shift_dict, slope_dict) = shift_info
                 cosutil.printSwitch ("WAVECORR", {"wavecorr": "PERFORM"})
                 if cosutil.checkVerbosity (VERY_VERBOSE):
                     keywords = shift_dict.keys()
@@ -2052,7 +2079,10 @@ class Calibration (object):
         if shift_dict is None:
             cosutil.printMsg (
                 "Warning:  No wavecal info; shift assumed to be 0.", VERBOSE)
+        (shift_dict, slope_dict) = (None, None)
 
+        # corrtag is in this list because there might be an output file for
+        # the pseudo-corrtag table.
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
             if os.access (fname, os.R_OK):

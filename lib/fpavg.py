@@ -99,6 +99,11 @@ class OutputX1D (object):
         for segment in self.segments:           # for each output row ...
             osp = initOutputSpectrum (self.ofd, self.inspec, self.keywords,
                         self.output_pshift, segment)
+        if cosutil.isProduct (self.output):
+            asn_mtyp = self.ofd[1].header.get ("asn_mtyp", "missing")
+            asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
+            if asn_mtyp != "missing":
+                self.ofd[1].header["asn_mtyp"] = asn_mtyp
         self.ofd.writeto (self.output)
 
     def getInputInfo (self):
@@ -251,6 +256,7 @@ class OutputX1D (object):
         col.append (pyfits.Column (name="GROSS", format=rpt+"E"))
         col.append (pyfits.Column (name="NET", format=rpt+"E"))
         col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E"))
+        col.append (pyfits.Column (name="DQ_WGT", format=rpt+"E"))
         col.append (pyfits.Column (name="MAXDQ", format=rpt+"I"))
         col.append (pyfits.Column (name="AVGDQ", format=rpt+"I"))
         cd = pyfits.ColDefs (col)
@@ -294,6 +300,7 @@ class OutputX1D (object):
         ofd[1].data.field ("gross")[:] = 0.
         ofd[1].data.field ("net")[:] = 0.
         ofd[1].data.field ("background")[:] = 0.
+        ofd[1].data.field ("dq_wgt")[:] = 0.
         ofd[1].data.field ("maxdq")[:] = 0
         ofd[1].data.field ("avgdq")[:] = 0
 
@@ -327,6 +334,7 @@ class Spectrum (object):
         self.gross = ifd[1].data.field ("gross")[row]
         self.net = ifd[1].data.field ("net")[row]
         self.background = ifd[1].data.field ("background")[row]
+        self.dq_wgt = ifd[1].data.field ("dq_wgt")[row]
         self.maxdq = ifd[1].data.field ("maxdq")[row]
         self.avgdq = ifd[1].data.field ("avgdq")[row]
         self.coeff = None       # assigned later by setCoeff
@@ -446,6 +454,8 @@ class OutputSpectrum (object):
         maxdq = data.field ("maxdq")
         maxdq = N.where (sumweight == 0., DQ_OUT_OF_BOUNDS, maxdq)
 
+        # xxx data.field ("dq_wgt")[:] = sumweight
+
         sumweight = N.where (sumweight == 0., 1., sumweight)
 
         nelem = len (sumweight)
@@ -495,27 +505,30 @@ class FUV_OutputSpectrum (OutputSpectrum):
         input_nelem = sp.nelem
         input_pshift = int (round (sp.pshift))
 
-        wavelength = data.field ("wavelength")
         flux = data.field ("flux")
         error = data.field ("error")
         gross = data.field ("gross")
         net = data.field ("net")
         background = data.field ("background")
+        dq_wgt = data.field ("dq_wgt")
         maxdq = data.field ("maxdq")
+
+        weight = sp.dq_wgt * sp.exptime
 
         i = self.output_pshift - input_pshift
         i = int (round (i))
         j = i + input_nelem
 
         data.setfield ("exptime", data.field ("exptime") + sp.exptime)
-        sumweight[i:j] += sp.exptime
-        flux[i:j] += (sp.flux * sp.exptime)
-        gross[i:j] += (sp.gross * sp.exptime)
-        net[i:j] += (sp.net * sp.exptime)
-        background[i:j] += (sp.background * sp.exptime)
-        sumdq[i:j] += (sp.avgdq * sp.exptime)
+        sumweight[i:j] += weight
+        flux[i:j] += (sp.flux * weight)
+        gross[i:j] += (sp.gross * weight)
+        net[i:j] += (sp.net * weight)
+        background[i:j] += (sp.background * weight)
+        dq_wgt[i:j] += sp.dq_wgt
+        sumdq[i:j] += (sp.avgdq * weight)
         maxdq[i:j] = N.maximum (sp.maxdq, maxdq[i:j])
-        error[i:j] += (sp.error * sp.exptime)**2
+        error[i:j] += (sp.error * weight)**2
 
 class NUV_OutputSpectrum (OutputSpectrum):
     """This is one row of an NUV output x1d table."""
@@ -541,13 +554,15 @@ class NUV_OutputSpectrum (OutputSpectrum):
         input_nelem = sp.nelem
         input_pshift = sp.pshift
 
-        wavelength = data.field ("wavelength")
         flux = data.field ("flux")
         error = data.field ("error")
         gross = data.field ("gross")
         net = data.field ("net")
         background = data.field ("background")
+        dq_wgt = data.field ("dq_wgt")
         maxdq = data.field ("maxdq")
+
+        weight = sp.dq_wgt * sp.exptime
 
         ix = self.output_pshift - input_pshift
         i = int (math.floor (ix))
@@ -556,23 +571,25 @@ class NUV_OutputSpectrum (OutputSpectrum):
         p = 1. - q
 
         data.setfield ("exptime", data.field ("exptime") + sp.exptime)
-        sumweight[i:j] += (sp.exptime * p)
-        flux[i:j] += (sp.flux * p * sp.exptime)
-        gross[i:j] += (sp.gross * p * sp.exptime)
-        net[i:j] += (sp.net * p * sp.exptime)
-        background[i:j] += (sp.background * p * sp.exptime)
-        sumdq[i:j] += (sp.avgdq * p * sp.exptime)
+        sumweight[i:j] += (weight * p)
+        flux[i:j] += (sp.flux * p * weight)
+        gross[i:j] += (sp.gross * p * weight)
+        net[i:j] += (sp.net * p * weight)
+        background[i:j] += (sp.background * p * weight)
+        dq_wgt[i:j] += (sp.dq_wgt * p)
+        sumdq[i:j] += (sp.avgdq * p * weight)
         maxdq[i:j] = N.maximum (sp.maxdq, maxdq[i:j])
-        error[i:j] += (sp.error * p * sp.exptime)**2
+        error[i:j] += (sp.error * p * weight)**2
 
         if q > 0.:
             i += 1
             j += 1
-            sumweight[i:j] += (sp.exptime * q)
-            flux[i:j] += (sp.flux * q * sp.exptime)
-            gross[i:j] += (sp.gross * q * sp.exptime)
-            net[i:j] += (sp.net * q * sp.exptime)
-            background[i:j] += (sp.background * q * sp.exptime)
-            sumdq[i:j] += (sp.avgdq * q * sp.exptime)
+            sumweight[i:j] += (weight * q)
+            flux[i:j] += (sp.flux * q * weight)
+            gross[i:j] += (sp.gross * q * weight)
+            net[i:j] += (sp.net * q * weight)
+            background[i:j] += (sp.background * q * weight)
+            dq_wgt[i:j] += (sp.dq_wgt * q)
+            sumdq[i:j] += (sp.avgdq * q * weight)
             maxdq[i:j] = N.maximum (sp.maxdq, maxdq[i:j])
-            error[i:j] += (sp.error * q * sp.exptime)**2
+            error[i:j] += (sp.error * q * weight)**2

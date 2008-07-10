@@ -118,7 +118,7 @@ def accumBasicCalibration (input, inpha, output, outcounts,
     sci /= info["exptime"]
     err /= info["exptime"]
 
-    doHelcorr (info, switches, headers)
+    initHelcorr (info, switches, headers)
 
     # Write the count rate image.
     writeImset (outcounts, headers, sci, err, dq_array)
@@ -306,7 +306,7 @@ def doDqicorr (input, info, switches, reffiles, headers):
 
     return dq_array
 
-def doHelcorr (info, switches, headers):
+def initHelcorr (info, switches, headers):
     """Compute radial velocity, and assign to v_helio keyword.
 
     arguments:
@@ -318,14 +318,12 @@ def doHelcorr (info, switches, headers):
     if info["obstype"] != "SPECTROSCOPIC":
         return
 
-    cosutil.printSwitch ("HELCORR", switches)
     if switches["helcorr"] == "PERFORM":
         t_mid = cosutil.timeAtMidpoint (info)
         radvel = timetag.heliocentricVelocity (t_mid,
                         info["ra_targ"], info["dec_targ"])
         headers[1].update ("v_helio", radvel)
         info["v_helio"] = radvel
-        headers[0]["helcorr"] = "COMPLETE"
     else:
         headers[1].update ("v_helio", 0.)
 
@@ -472,7 +470,7 @@ def initTempcorr (input, avg_s1, avg_s2, rms_s1, rms_s2,
     if switches["tempcorr"] == "PERFORM":
         # Update stim location keywords in extension header.
         timetag.stimKeywords (headers[1], info["segment"],
-                              avg_s1, avg_s2, rms_s1, rms_s2)
+                              avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref)
         stim_param = computeThermalParamAccum (avg_s1, avg_s2, s1_ref, s2_ref,
                 input, stimfile)
     else:

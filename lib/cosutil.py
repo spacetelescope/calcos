@@ -51,17 +51,16 @@ def writeOutputEvents (infile, outfile):
     # Create the output events HDU.
     col = []
     col.append (pyfits.Column (name="TIME", format="1E", unit="s"))
+    col.append (pyfits.Column (name="RAWX", format="1I", unit="pixel"))
+    col.append (pyfits.Column (name="RAWY", format="1I", unit="pixel"))
     if detector == "FUV":
         col.append (pyfits.Column (name="XCORR", format="1E", unit="pixel"))
         col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
         col.append (pyfits.Column (name="YCORR", format="1E", unit="pixel"))
     else:
-        col.append (pyfits.Column (name="RAWX", format="1I", unit="pixel"))
         col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
-        col.append (pyfits.Column (name="RAWY", format="1I", unit="pixel"))
-    if tagflash:
-        col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
-        col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
     col.append (pyfits.Column (name="EPSILON", format="1E"))
     col.append (pyfits.Column (name="DQ", format="1I"))
     if pha_exists:
@@ -88,14 +87,15 @@ def writeOutputEvents (infile, outfile):
 
     outdata.field ("TIME")[:] = indata.field ("TIME")
 
+    outdata.field ("RAWX")[:] = indata.field ("RAWX")
+    outdata.field ("RAWY")[:] = indata.field ("RAWY")
     if detector == "FUV":
         outdata.field ("XCORR")[:] = indata.field ("RAWX")
         outdata.field ("YCORR")[:] = indata.field ("RAWY")
-    else:
-        outdata.field ("RAWX")[:] = indata.field ("RAWX")
-        outdata.field ("RAWY")[:] = indata.field ("RAWY")
 
     outdata.field ("XDOPP")[:] = N.zeros (nrows, dtype=N.float32)
+    outdata.field ("XFULL")[:] = N.zeros (nrows, dtype=N.float32)
+    outdata.field ("YFULL")[:] = N.zeros (nrows, dtype=N.float32)
 
     outdata.field ("EPSILON")[:] = \
             N.ones (nrows, dtype=N.float32)
@@ -385,6 +385,30 @@ def geometricDistortion (x, y, geofile, segment, igeocorr):
 
     fd.close()
 
+def activeArea (segment, brftab):
+    """Return the limits of the FUV active area.
+
+    @param segment: for finding the appropriate row in the brftab
+    @type segment: string
+    @param brftab: name of the baseline reference frame table (ignored for NUV)
+    @type brftab: string
+    @return: the low and high limits and the left and right limits of the
+        active area of the detector.  For NUV this will be (0, 1023, 0, 1023).
+    @rtype: tuple
+    """
+
+    if segment[0] == "N":
+        return (0, NUV_Y-1, 0, NUV_X-1)
+
+    brf_info = getTable (brftab, {"segment": segment}, exactly_one=True)
+
+    a_low = brf_info.field ("a_low")[0]
+    a_high = brf_info.field ("a_high")[0]
+    a_left = brf_info.field ("a_left")[0]
+    a_right = brf_info.field ("a_right")[0]
+
+    return (a_low, a_high, a_left, a_right)
+
 def getInputDQ (input):
     """Return the data quality array, or an array of zeros.
 
@@ -470,36 +494,12 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
     lx = dq_info.field ("lx")
     ly = dq_info.field ("ly")
     if avg_dx != 0:
-        lx += avg_dx
+        lx -= avg_dx
     if avg_dy != 0:
-        ly += avg_dy
+        ly -= avg_dy
     ccos.bindq (lx, ly,
                 dq_info.field ("dx"), dq_info.field ("dy"),
                 dq_info.field ("dq"), dq_array, axis, mindopp, maxdopp)
-
-def activeArea (segment, brftab):
-    """Return the limits of the FUV active area.
-
-    @param segment: for finding the appropriate row in the brftab
-    @type segment: string
-    @param brftab: name of the baseline reference frame table (ignored for NUV)
-    @type brftab: string
-    @return: the low and high limits and the left and right limits of the
-        active area of the detector.  For NUV this will be (0, 1023, 0, 1023).
-    @rtype: tuple
-    """
-
-    if segment[0] == "N":
-        return (0, NUV_Y-1, 0, NUV_X-1)
-
-    brf_info = getTable (brftab, {"segment": segment}, exactly_one=True)
-
-    a_low = brf_info.field ("a_low")[0]
-    a_high = brf_info.field ("a_high")[0]
-    a_left = brf_info.field ("a_left")[0]
-    a_right = brf_info.field ("a_right")[0]
-
-    return (a_low, a_high, a_left, a_right)
 
 def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
     """Flag regions that are outside all subarrays (done in-place).
@@ -529,8 +529,8 @@ def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
         sub_number = str (i)
         x0 = hdr["corner"+sub_number+"x"]       # these keywords are 0-indexed
         y0 = hdr["corner"+sub_number+"y"]
-        x0 += avg_dx
-        y0 += avg_dy
+        x0 -= avg_dx
+        y0 -= avg_dy
         xsize = hdr["size"+sub_number+"x"]
         ysize = hdr["size"+sub_number+"y"]
         x1 = x0 + xsize
@@ -646,8 +646,50 @@ def renameFile (infile, outfile):
     os.rename (infile, outfile)
 
     fd = pyfits.open (outfile, mode="update")
+
+    # If the output file name is a product name (ends with '0' before
+    # the suffix), change the value of the extension keyword ASN_MTYPE.
+    if isProduct (outfile):
+        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
+        asn_mtyp = modifyAsnMtyp (asn_mtyp)
+        if asn_mtyp != "missing":
+            fd[1].header["asn_mtyp"] = asn_mtyp
     updateFilename (fd[0].header, outfile)
+
     fd.close()
+
+def isProduct (filename):
+    """Return True if 'filename' is a "product" name.
+
+    @param filename: name of an output file
+    @type filename: string
+    @return: True if the root part (before the suffix) of 'filename'
+        ends in '0', implying that it is a product name
+    @rtype: boolean
+    """
+
+    is_product = False          # may be changed below
+    i = filename.rfind ("_")
+    if i > 0 and filename[i:] == "_a.fits" or filename[i:] == "_b.fits":
+        i = filename[0:i-1].rfind ("_")
+    if i > 0 and filename[i-1] == '0':
+        is_product = True
+
+    return is_product
+
+def modifyAsnMtyp (asn_mtyp):
+    """Replace 'EXP' with 'PROD' in the ASN_MTYP keyword string.
+
+    @param asn_mtyp: value of ASN_MTYP keyword from an input file
+    @type asn_mtyp: string
+    @return: modified asn_mtyp
+    @rtype: string
+    """
+
+    if asn_mtyp.startswith ("EXP-") or asn_mtyp.startswith ("EXP_"):
+        asn_mtyp = "PROD" + asn_mtyp[3:]
+
+    return asn_mtyp
 
 def doImageStat (input):
     """Compute statistics for an image, and update keywords in header.

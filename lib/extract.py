@@ -4,26 +4,42 @@ import pyfits
 import cosutil
 import ccos
 import getinfo
+# xxx import xd_search
 from calcosparam import *       # parameter definitions
 
 # This is used in computing the data quality weight array.  This set of
 # flags must be consistent with sdqflags set in timetag.writeImages,
 # although the latter also includes event-specific flags such as burst
 # and pulse-height filtering.
-REALLY_BAD_DQ_FLAGS = DQ_DEAD + DQ_HOT
+REALLY_BAD_DQ_FLAGS = DQ_DEAD + DQ_HOT + DQ_OUT_OF_BOUNDS
 
-def extract1D (input, incounts=None, output=None):
+def extract1D (input, incounts=None, output=None,
+               location=None, find_target=False):
     """Extract 1-D spectrum from 2-D image.
 
     @param input: name of either the flat-fielded count-rate image (in which
         case incounts must also be specified) or the corrtag table
     @type input: string
     @param incounts: name of the file containing the count-rate image,
-         or None if input is the corrtag table
+        or None if input is the corrtag table
     @type incounts: string, or None
     @param output: name of the output file for 1-D extracted spectra
     @type output: string
+    @param location: the location (or list of three locations for NUV) of
+        the spectrum in the cross-dispersion direction, in pixels; this
+        is where the spectrum crosses the middle of the detector (index
+        8192 for FUV, 512 for NUV).  None means the user did not specify
+        the location.  If location was specified, that value will be used,
+        regardless of the find_target switch.
+    @type location: int or float for FUV, list or tuple for NUV
+    @param find_target: True means that we should search for the location of
+        the target in the cross-dispersion direction; False means we should
+        use the location determined from the wavecal.  find_target will be
+        locally set to False if location is not None.
+    @type find_target: boolean
     """
+
+    find_target = False         # xxx not implemented yet
 
     cosutil.printIntro ("Spectral Extraction")
     names = [("Input", input), ("Incounts", incounts), ("Output", output)]
@@ -46,9 +62,23 @@ def extract1D (input, incounts=None, output=None):
     if not is_wavecal and switches["wavecorr"] != "COMPLETE":
         cosutil.printWarning ("WAVECORR was not done for " + input)
 
+    if location is not None:
+        find_target = False
+        if isinstance (location, int) or isinstance (location, float):
+            if info["detector"] == "FUV":
+                location = [location]
+            else:
+                location = [location, location, location]
+        else:
+            try:
+                test_type = location[0]
+            except TypeError:
+                raise TypeError, "location must be an int, float, or sequence"
+
     cosutil.printSwitch ("X1DCORR", switches)
     cosutil.printRef ("XTRACTAB", reffiles)
     cosutil.printRef ("DISPTAB", reffiles)
+    cosutil.printSwitch ("HELCORR", switches)
     cosutil.printSwitch ("BACKCORR", switches)
     cosutil.printSwitch ("STATFLAG", switches)
     cosutil.printSwitch ("FLUXCORR", switches)
@@ -109,12 +139,24 @@ def extract1D (input, incounts=None, output=None):
         if info["detector"] == "FUV":
             segments = [info["segment"]]
         else:
-            segments = ["NUVC", "NUVB", "NUVA"]
+            segments = ["NUVA", "NUVB", "NUVC"]
+        # Extract the spectrum or spectra.
         doExtract (ifd_e, ifd_c, ofd, nelem,
-                   segments, info, switches, reffiles, is_wavecal)
+                   segments, info, switches, reffiles, is_wavecal,
+                   location, find_target)
         if switches["fluxcorr"] == "PERFORM":
+            # Convert net count rate to flux.
             doFluxCorr (ofd, info["opt_elem"], info["cenwave"],
                         info["aperture"], reffiles)
+
+    # Apply heliocentric Doppler correction to the wavelength array.
+    if switches["helcorr"] == "PERFORM" or switches["helcorr"] == "COMPLETE":
+        wavelength = ofd[1].data.field ("WAVELENGTH")
+        for row in range (nrows):
+            wl_row = wavelength[row]
+            wl_row += (wl_row * (-hdr["v_helio"]) / SPEED_OF_LIGHT)
+            wavelength[row][:] = wl_row
+        phdr["helcorr"] = "COMPLETE"
 
     # Update the output header.
     ofd[1].header["bitpix"] = 8         # temporary, xxx
@@ -148,7 +190,8 @@ def extract1D (input, incounts=None, output=None):
         cosutil.doSpecStat (output)
 
 def doExtract (ifd_e, ifd_c, ofd, nelem,
-                     segments, info, switches, reffiles, is_wavecal):
+               segments, info, switches, reffiles, is_wavecal,
+               location=None, find_target=False):
     """Extract either FUV or NUV data.
 
     This calls a routine to do the extraction for one segment, and it
@@ -174,14 +217,19 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
     @type reffiles: dictionary
     @param is_wavecal: true if the observation is a wavecal, based on exptype
     @type is_wavecal: boolean
+    @param location: location (if FUV) or locations (if NUV, in the order
+        NUVA, NUVB, NUVC), or None
+    @type location: sequence of int or float, or None
+    @param find_target: True means that we should search for the location of
+        the target in the cross-dispersion direction; False means we should
+        use the location determined from the wavecal.
+    @type find_target: boolean
     """
 
     hdr = ifd_e[1].header
     outdata = ofd[1].data
 
     corrtag = (ifd_c is None)
-    tagflash = (ifd_e[0].header.get ("tagflash", default=TAGFLASH_NONE)
-                != TAGFLASH_NONE)
 
     # Get columns, if the input is a corrtag table.
     if corrtag:
@@ -198,6 +246,8 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         xtract_info = cosutil.getTable (reffiles["xtractab"], filter)
         if disp_info is None or xtract_info is None:
             continue
+        slope = xtract_info.field ("slope")[0]
+        height = xtract_info.field ("height")[0]
 
         if is_wavecal:
             pshift = 0.
@@ -209,6 +259,16 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         key = "shift2" + segment[-1]
         shift2 = hdr.get (key, 0.)
         shift2 += postargOffset (ifd_e[0].header, hdr["dispaxis"])
+
+        # xdisp_locn will be the user-specified location in cross-dispersion
+        # direction (or None, if the user did not specify a value).
+        # xd_locn (assigned later) will be either xdisp_locn (if specified),
+        # or the value found by searching (if find_target is True), or the
+        # default value plus shift2.
+        if location is None:
+            xdisp_locn = None
+        else:
+            xdisp_locn = location[row]
 
         outdata.field ("NELEM")[row] = nelem
 
@@ -226,11 +286,6 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         # S/N of the flat field
         snr_ff = getSnrFf (switches, reffiles, segment)
 
-        if info["obsmode"] == "ACCUM" and switches["helcorr"] == "PERFORM":
-            wavelength += (wavelength * (-hdr["v_helio"]) / SPEED_OF_LIGHT)
-
-        outdata.field ("WAVELENGTH")[row][:] = wavelength
-
         axis = 2 - hdr["dispaxis"]          # 1 --> 1,  2 --> 0
 
         if corrtag:
@@ -238,26 +293,38 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                 axis_length = FUV_X
             else:
                 axis_length = NUV_X
-            (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i) = \
+            (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, xd_locn) = \
                 extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
                     axis_length, snr_ff, hdr["exptime"], switches["backcorr"],
-                    xtract_info, shift2)
+                    xtract_info, shift2, xdisp_locn)
             # we don't have this info
             outdata.field ("AVGDQ")[row][:] = 0
             outdata.field ("MAXDQ")[row][:] = 0
         else:
-            (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, AVGDQ_i, MAXDQ_i) = \
-                extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
+            if xdisp_locn is None and find_target:
+                y_nominal = xtract_info.field ("b_spec")[0] + shift2
+                # search for the target spectrum
+                # xxx not finished yet
+                #xd_locn = xd_search.xdSearch (ifd_e["SCI"].data,
+                #                ifd_e["DQ"].data, wavelength,
+                #                axis, slope, y_nominal,
+                #                info["detector"], info["opt_elem"])
+            else:
+                xd_locn = xdisp_locn    # updated by extractSegment()
+            (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, AVGDQ_i, MAXDQ_i, xd_locn) = \
+             extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
                     ifd_e["DQ"].data, wavelength_dq,
                     snr_ff, hdr["exptime"], switches["backcorr"], axis,
-                    xtract_info, shift2)
+                    xtract_info, shift2, xd_locn, find_target)
             outdata.field ("AVGDQ")[row][:] = AVGDQ_i
             outdata.field ("MAXDQ")[row][:] = MAXDQ_i
-        updateExtractionKeywords (ofd[1].header, segment, xtract_info, shift2)
+        updateExtractionKeywords (ofd[1].header, segment,
+                                  slope, height, xd_locn)
         del xtract_info
 
         outdata.field ("SEGMENT")[row] = segment
         outdata.field ("EXPTIME")[row] = hdr["exptime"]
+        outdata.field ("WAVELENGTH")[row][:] = wavelength
         outdata.field ("FLUX")[row][:] = 0.
         outdata.field ("ERROR")[row][:] = ERR_i
         outdata.field ("GROSS")[row][:] = GC_i
@@ -283,7 +350,6 @@ def postargOffset (phdr, dispaxis):
     @return: offset in pixels to be added to cross-dispersion location
     @rtype: float
 
-    xxx This will have to be rewritten when the axes are reoriented.
     xxx The plate scale should be gotten from a header keyword.
     xxx The sign of the offset needs to be checked.
     """
@@ -385,7 +451,7 @@ def getSnrFf (switches, reffiles, segment):
 
 def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
                 snr_ff, exptime, backcorr, axis,
-                xtract_info, shift2):
+                xtract_info, shift2, xdisp_locn=None, find_target=False):
 
     """Extract a 1-D spectrum for one segment or stripe.
 
@@ -413,10 +479,20 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
     @type xtract_info: PyFITS record object
     @param shift2: offset in the cross-dispersion direction
     @type shift2: float
+    @param xdisp_locn: user-specified location in cross-dispersion direction
+    @type xdisp_locn: int or float, or None if not specified
+    @param find_target: search for the cross-disp location of the target?
+    @type find_target: boolean
 
     @return: net count rate, error estimate, gross count rate, background
-        count rate, data quality weight array, average DQ, maximum DQ
+        count rate, data quality weight array, average DQ, maximum DQ,
+        xd_locn
     @rtype: tuple of seven 1-D arrays
+
+    The xd_locn that is returned is either the user-specified value (if
+    it was specified) or the location based on the wavecal; in either case,
+    it's where the spectrum crosses the middle of the array, not the left
+    edge of the array.
 
     An "_ij" suffix indicates a 2-D array; here they will all be sections
     extracted from full images.  An "_i" suffix indicates a 1-D array
@@ -443,9 +519,22 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
     bkg_extr_height = xtract_info.field ("bheight")[0]
     bkg_smooth      = xtract_info.field ("bwidth")[0]
 
-    b_spec += shift2
-
     axis_length = e_data.shape[axis]
+
+    if xdisp_locn is None:
+        if find_target:
+            # (shift2, xd_locn) = xxx not implemented yet xxx
+            b_spec = xd_locn - slope * (axis_length // 2)
+        else:
+            # add the shift to the nominal location; assign a value to xd_locn
+            # (which will be returned but not otherwise used)
+            b_spec += shift2
+            xd_locn = b_spec + slope * (axis_length // 2)
+    else:
+        # use the user-specified value, but convert to b_spec, the intersection
+        # with the left edge of the array
+        b_spec = xdisp_locn - slope * (axis_length // 2)
+        xd_locn = xdisp_locn
 
     # Compute the data quality weight array.
     dq_ij = N.zeros ((extr_height, axis_length), dtype=N.int16)
@@ -512,11 +601,11 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
     AVGDQ_i = avgdq.astype (N.int16)
     MAXDQ_i = N.maximum.reduce (dq_ij, 0)
 
-    return (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, AVGDQ_i, MAXDQ_i)
+    return (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, AVGDQ_i, MAXDQ_i, xd_locn)
 
 def extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
                     axis_length, snr_ff, exptime, backcorr,
-                    xtract_info, shift2):
+                    xtract_info, shift2, xdisp_locn=None):
     """Extract a 1-D spectrum for one segment or stripe.
 
     """
@@ -529,8 +618,17 @@ def extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
     bkg_extr_height = xtract_info.field ("bheight")[0]
     bkg_smooth      = xtract_info.field ("bwidth")[0]
 
-    b_spec += shift2
     zero_pixel = 0              # offset into output spectrum
+
+    if xdisp_locn is None:
+        # add the shift to the nominal location; assign a value to xd_locn
+        b_spec += shift2
+        xd_locn = b_spec + slope * (axis_length // 2)
+    else:
+        # use the user-specified value, but convert to the intersection
+        # with the left edge of the array
+        b_spec = xdisp_locn - slope * (axis_length // 2)
+        xd_locn = xdisp_locn
 
     sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME +
                 DQ_HOT + DQ_DEAD)
@@ -580,7 +678,7 @@ def extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
     # dummy weight array
     DQ_WGT_i = N.ones (axis_length, dtype=N.float32)
 
-    return (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i)
+    return (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, xd_locn)
 
 def doFluxCorr (ofd, opt_elem, cenwave, aperture, reffiles):
     """Convert net counts to flux, updating flux and error columns.
@@ -712,29 +810,22 @@ def getTdsFactors (tdstab, filter, t_obs):
 
     return (wl_tds, factor_tds)
 
-def updateExtractionKeywords (hdr, segment, xtract_info, shift2):
+def updateExtractionKeywords (hdr, segment, slope, height, xdisp_locn):
     """Update keywords giving the locations of extraction regions.
 
     arguments:
     hdr          output bintable hdu header
     segment      FUVA or FUVB; NUVA, NUVB, or NUVC
-    xtract_info  extraction information, from xtractab
-    shift2       offset in cross-dispersion direction
+    slope        slope of spectrum
+    height       height of extraction box
+    xdisp_locn   location of the spectrum in the cross-dispersion direction
+                 (where it crosses the middle of the detector)
     """
 
-    slope = xtract_info.field ("slope")[0]
-
-    if segment[0:3] == "FUV":
-        half_disp_axis = FUV_X / 2.
-    else:
-        half_disp_axis = NUV_X / 2.
-
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
-    location = xtract_info.field ("b_spec")[0] + shift2 + \
-               slope * half_disp_axis
-    hdr.update (key, location)
+    hdr.update (key, xdisp_locn)
     hdr.update ("SP_SLOPE", slope)
-    hdr.update ("SP_WIDTH", xtract_info.field ("height")[0])
+    hdr.update ("SP_WIDTH", height)
 
 def updateArchiveSearch (ofd):
     """Update the keywords giving min & max wavelengths, etc.
@@ -846,10 +937,11 @@ def concatenateFUVSegments (infiles, output):
 
     # Include segment-specific keywords from segment B.
     for key in ["stimb_lx", "stimb_ly", "stimb_rx", "stimb_ry",
-                "srmsb_lx", "srmsb_ly", "srmsb_rx", "srmsb_ry",
+                "stimb0lx", "stimb0ly", "stimb0rx", "stimb0ry",
+                "stimbslx", "stimbsly", "stimbsrx", "stimbsry",
                 "pha_badb", "phalowrb", "phaupprb", "pshiftb",
                 "sp_loc_b", "shift2b"]:
-        hdu.header.update (key, seg_b[1].header.get (key, 0))
+        hdu.header.update (key, seg_b[1].header.get (key, -1.0))
 
     # If one of the segments has no data, use the other segment for the
     # primary header.  This is so the calibration switch keywords in the

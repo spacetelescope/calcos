@@ -60,37 +60,58 @@ def findWavecalShift (input, wcp_info):
 
     index = segment.argsort()
 
-    first = True
-    for row in index:
-        filter["segment"] = segment[row]
-        lamp_info = cosutil.getTable (lamptab, filter)
-        if lamp_info is None:
-            continue
-        if first:
+    if detector == "FUV":
+        for row in index:
+            filter["segment"] = segment[row]
+            lamp_info = cosutil.getTable (lamptab, filter)
+            if lamp_info is None:
+                continue
             sum_template = lamp_info.field ("intensity")[0].copy()
             sum_net = net[row].copy()
-            first = False
-        else:
-            sum_template += lamp_info.field ("intensity")[0]
-            sum_net += net[row]
 
-    (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
+            (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
 
-    first = True
-    for row in index:
-        key = "pshift" + segment[row][-1].lower()
-        sci_extn.header.update (key, shift)
-        shift_dict[key] = shift
-        if first:
+            key = "pshift" + segment[row][-1].lower()
+            sci_extn.header.update (key, shift)
+            shift_dict[key] = shift
             message = " %4s    %6.2f   " % (segment[row], shift) + str (n50)
-            first = False
-        else:
-            message = " %4s" % segment[row]
-        cosutil.printMsg (message, VERBOSE)
+            cosutil.printMsg (message, VERBOSE)
 
-        # This is the offset in the cross-dispersion direction.
-        key = "shift2" + segment[row][-1].lower()
-        shift_dict[key] = sci_extn.header.get (key, default=0.)
+            # This is the offset in the cross-dispersion direction.
+            key = "shift2" + segment[row][-1].lower()
+            shift_dict[key] = sci_extn.header.get (key, default=0.)
+    else:
+        first = True
+        for row in index:
+            filter["segment"] = segment[row]
+            lamp_info = cosutil.getTable (lamptab, filter)
+            if lamp_info is None:
+                continue
+            if first:
+                sum_template = lamp_info.field ("intensity")[0].copy()
+                sum_net = net[row].copy()
+                first = False
+            else:
+                sum_template += lamp_info.field ("intensity")[0]
+                sum_net += net[row]
+
+        (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
+
+        first = True
+        for row in index:
+            key = "pshift" + segment[row][-1].lower()
+            sci_extn.header.update (key, shift)
+            shift_dict[key] = shift
+            if first:
+                message = " %4s    %6.2f   " % (segment[row], shift) + str (n50)
+                first = False
+            else:
+                message = " %4s" % segment[row]
+            cosutil.printMsg (message, VERBOSE)
+
+            # This is the offset in the cross-dispersion direction.
+            key = "shift2" + segment[row][-1].lower()
+            shift_dict[key] = sci_extn.header.get (key, default=0.)
 
     if nrows > 0:
         phdr.update ("WAVECORR", "COMPLETE")
@@ -145,14 +166,20 @@ def cmpTime (wc_dict_a, wc_dict_b):
 def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
     """Return the shift dictionary from wavecal_info that matches fpoffset.
 
-    arguments:
-    wavecal_info    list of wavecal information dictionaries
-    wcp_info        data (one row) from the wavecal parameters table
-    fpoffset        OSM position, used to select entries from wavecal_info
-    time            time of observation, MJD at middle of exposure
+    @param wavecal_info:   list of wavecal information dictionaries
+    @type wavecal_info:   list of dictionaries
+    @param wcp_info: data (one row) from the wavecal parameters table
+    @type wcp_info: PyFITS record
+    @param fpoffset: OSM position, used to select entries from wavecal_info
+    @type fpoffset: int
+    @param time: time of observation, MJD at middle of exposure
+    @type time: float
 
-    The function value is a dictionary, with the keyword name for the shift
-    (pshifta, pshiftb, pshiftc) as the key and the shift as the value.
+    @return: a pair of dictionaries, with the keyword name for the shift
+        (pshifta, pshiftb, pshiftc, shift2a, shift2b, shift2c) as the key.
+        For the first dictionary, the value is the shift at the specified
+        time.  For the second dictionary, the value is the slope.
+    @rtype: tuple of dictionaries, or None
 
     The element of wavecal_info that matches fpoffset will be extracted.
     If there are multiple entries that match fpoffset, we'll find the two
@@ -171,13 +198,16 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
     if len (wavecal_info) < 1:
         return None
 
+    slope_dict = {}             # initial value
+
     # Extract those elements of wavecal_info that match fpoffset.
     subset_wavecal_info = selectWavecalInfo (wavecal_info, fpoffset)
 
     if len (subset_wavecal_info) == 1:
         shift_dict = subset_wavecal_info[0]["shift_dict"]
     elif len (subset_wavecal_info) > 1:
-        shift_dict = interpolateWavecal (subset_wavecal_info, time)
+        (shift_dict, slope_dict) = \
+        interpolateWavecal (subset_wavecal_info, time)
     else:
         # No matching row; find nearest in time.
         wc_dict = minTimeWavecalInfo (wavecal_info, time,
@@ -189,12 +219,21 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
         else:
             # Apply a correction to the current fpoffset.
             correction = \
-                -(fpoffset - wc_dict["fpoffset"]) * wcp_info.field ("stepsize")
+                (fpoffset - wc_dict["fpoffset"]) * wcp_info.field ("stepsize")
             shift_dict = wc_dict["shift_dict"].copy()
             for key in shift_dict.keys():
-                shift_dict[key] += correction
+                if key.startswith ("pshift"):
+                    shift_dict[key] += correction
 
-    return shift_dict
+    if shift_dict is None:
+        return None
+
+    # The default is zero slope.
+    if not slope_dict:
+        for key in shift_dict.keys():
+            slope_dict[key] = 0.
+
+    return (shift_dict, slope_dict)
 
 def returnExactMatch (wavecal_info, rootname):
     """Return the shift dictionary for the specified wavecal rootname.
@@ -270,12 +309,16 @@ def minTimeWavecalInfo (wavecal_info, time, max_time_diff):
 def interpolateWavecal (wavecal_info, time):
     """Interpolate to get a shift dictionary at the specified time.
 
-    arguments:
-    wavecal_info    list of wavecal information dictionaries
-    time            time of observation, MJD at middle of exposure
+    @param wavecal_info: list of wavecal information dictionaries
+    @type wavecal_info: list of dictionaries
+    @param time: time of observation, MJD at middle of exposure
+    @type time: float
 
-    The function value is a dictionary, with the keyword name for the shift
-    (pshifta, pshiftb, pshiftc) as the key and the shift as the value.
+    @return: a pair of dictionaries, with the keyword name for the shift
+        (pshifta, pshiftb, pshiftc, shift2a, shift2b, shift2c) as the key.
+        For the first dictionary, the value is the shift at the specified
+        time.  For the second dictionary, the value is the slope.
+    @rtype: tuple of dictionaries, or None
 
     wavecal_info is assumed to be sorted in increasing order of time.
     If the time of observation is earlier than the first entry or later
@@ -292,11 +335,15 @@ def interpolateWavecal (wavecal_info, time):
     if wlen < 1:
         return None
 
+    slope_dict = {}
+    for key in wavecal_info[0]["shift_dict"]:
+        slope_dict[key] = 0.
+
     if time <= wavecal_info[0]["time"]:
-        return wavecal_info[0]["shift_dict"]
+        return (wavecal_info[0]["shift_dict"], slope_dict)
 
     if time >= wavecal_info[wlen-1]["time"]:
-        return wavecal_info[wlen-1]["shift_dict"]
+        return (wavecal_info[wlen-1]["shift_dict"], slope_dict)
 
     for i in range (1, wlen):
         wc_i = wavecal_info[i]
@@ -315,8 +362,10 @@ def interpolateWavecal (wavecal_info, time):
                         q = 1. - p
                         shift = q * shift0 + p * shift1
                         shift_dict0[key] = shift
+                        slope_dict[key] = (shift1 - shift0) \
+                                          / ((t1 - t0) * SEC_PER_DAY)
 
-            return shift_dict0
+            return (shift_dict0, slope_dict)
 
 def crosscor (x, template, maxlag, fp=0):
     """Cross correlate two arrays to find the offset between them.
@@ -660,15 +709,13 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
 
     The function value is a tuple of the shift from nominal in the
     cross-dispersion direction and the location of the spectrum.
-    The location is an integer, the nearest to the location of the
-    maximum.  Note that the data were collapsed to the left edge (FUV)
-    or lower edge (NUV) to get xdisp, so the location is the intercept
-    on the edge, rather than where the spectrum crosses the middle of
-    the detector.
+    The location is an integer, the nearest to the location of the maximum.
+    Note that the data were collapsed to the left edge to get xdisp, so the
+    location is the intercept on the edge, rather than where the spectrum
+    crosses the middle of the detector.
     """
 
     y_nominal = xtract_info.field ("b_spec")[0]
-    slope = xtract_info.field ("slope")[0]
     segment = xtract_info.field ("segment")[0]  # for possible warning message
 
     # The values of y_nominal and xd_range should be such that neither
