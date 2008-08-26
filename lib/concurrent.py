@@ -248,7 +248,7 @@ class ConcurrentWavecal (object):
                 del hdu.header[keyword]
 
         # Set the values of these keywords to zero.
-        zkey = ["PSHIFTA", "PSHIFTB", "PSHIFTC"] 
+        zkey = ["PSHIFTA", "PSHIFTB", "PSHIFTC"]
         for keyword in zkey:
             if hdu.header.has_key (keyword):
                 hdu.header[keyword] = 0.
@@ -335,13 +335,25 @@ class ConcurrentWavecal (object):
         """For each wavecal flash, find the shift in each axis."""
 
         xtractab = self.reffiles["xtractab"]
+        disptab = self.reffiles["disptab"]
         lamptab = self.reffiles["lamptab"]
         # segment will be added to the filter within the loop.  Note that
         # the aperture is explicitly set to "WCA", because the aperture
         # keyword will give the aperture used for the science data.
-        filter = {"opt_elem": self.info["opt_elem"],
-                  "cenwave": self.info["cenwave"],
-                  "aperture": "WCA"}
+        filter_1dx = {"opt_elem": self.info["opt_elem"],
+                      "cenwave": self.info["cenwave"],
+                      "aperture": "WCA"}
+        filter_disp = {"opt_elem": self.info["opt_elem"],
+                       "cenwave": self.info["cenwave"],
+                       "aperture": "WCA"}
+        filter_lamp = {"opt_elem": self.info["opt_elem"],
+                       "cenwave": self.info["cenwave"]}
+        # Include fpoffset in the filters for the disptab and lamptab,
+        # if the column is present.
+        if cosutil.findColumn (disptab, "fpoffset"):
+            filter_disp["fpoffset"] = self.info["fpoffset"]
+        if cosutil.findColumn (disptab, "fpoffset"):
+            filter_lamp["fpoffset"] = self.info["fpoffset"]
 
         # Find the offsets in both axes, for each wavecal exposure.
         row = 0         # incremented in the second loop over segments
@@ -373,10 +385,12 @@ class ConcurrentWavecal (object):
             lamp_found = {}     # for second loop over segments
             first = True
             for segment in self.segment_list:   # first loop over segments
-                filter["segment"] = segment
-                xtract_info = cosutil.getTable (xtractab, filter)
+                filter_1dx["segment"] = segment
+                filter_disp["segment"] = segment
+                filter_lamp["segment"] = segment
+                xtract_info = cosutil.getTable (xtractab, filter_1dx)
                 # not needed yet; just check whether there is a matching row
-                disp_info = cosutil.getTable (self.reffiles["disptab"], filter)
+                disp_info = cosutil.getTable (disptab, filter_disp)
                 if xtract_info is None or disp_info is None:
                     lamp_found[segment] = False
                     continue
@@ -393,10 +407,7 @@ class ConcurrentWavecal (object):
                 save_spectra[segment] = self.spectrum.copy()
                 lamp_found[segment] = True      # default
                 if xd_shifts[segment] is not None:
-                    lamp_info = cosutil.getTable (lamptab,
-                                {"segment": segment,
-                                 "opt_elem": self.info["opt_elem"],
-                                 "cenwave": self.info["cenwave"]})
+                    lamp_info = cosutil.getTable (lamptab, filter_lamp)
                     if lamp_info is None:       # no row matched the filter
                         lamp_found[segment] = False
                         continue
@@ -424,7 +435,7 @@ class ConcurrentWavecal (object):
             first = True
             for segment in self.segment_list:   # second loop over segments
                 pshift[segment] = global_shift
-                filter["segment"] = segment
+                filter_disp["segment"] = segment
                 if not lamp_found[segment]:
                     # no matching row in table
                     spec_found = False
@@ -450,12 +461,12 @@ class ConcurrentWavecal (object):
                 cosutil.printMsg (message, VERBOSE)
                 # copy to outflash table data
                 if lamp_found[segment]:
-                    self.saveSpectrum (self.reffiles["disptab"], filter,
+                    self.saveSpectrum (disptab, filter_disp,
                                        n, row, save_spectra[segment],
                                        pshift[segment], xd_shifts[segment],
                                        spec_found)
                 else:
-                    self.saveSpectrum (self.reffiles["disptab"], filter,
+                    self.saveSpectrum (disptab, filter_disp,
                                        n, row, None, None, None,
                                        spec_found)
                 row += 1
@@ -504,8 +515,12 @@ class ConcurrentWavecal (object):
             disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
             ncoeff = disp_info.field ("nelem")[0]
             coeff = disp_info.field ("coeff")[0][0:ncoeff]
+            if cosutil.findColumn (disp_info, "DELTA"):
+                delta = disp_info.field ("delta")[0]
+            else:
+                delta = 0.
             pixel -= pshift         # correct the wavelengths for the shift
-            wavelength = cosutil.evalDisp (pixel, coeff)
+            wavelength = cosutil.evalDisp (pixel, coeff, delta)
 
         self.ofd[1].data.field ("segment")[row] = filter["segment"]
         self.ofd[1].data.field ("time")[row] = self.lamp_median[n]

@@ -1,14 +1,16 @@
 #! /usr/bin/env python
 
 import os
+import shutil
 import sys
 import time
 import types
 import numpy as N
-from numpy import random
 import pyfits
 import ccos
 from calcosparam import *       # parameter definitions
+
+X_TINY = 1.e-8                  # pixels, used by evalInvDisp()
 
 # initial value
 verbosity = VERBOSE
@@ -39,14 +41,14 @@ def writeOutputEvents (infile, outfile):
 
     # Check whether the PHA column exists.
     if detector == "FUV":
-        pha_exists = 1
+        pha_exists = True
         if nrows > 0:
-            try:
+            if findColumn (indata, "PHA"):
                 pha = indata.field ("PHA")
-            except NameError:
-                pha_exists = 0
+            else:
+                pha_exists = False
     else:
-        pha_exists = 0
+        pha_exists = False
 
     # Create the output events HDU.
     col = []
@@ -143,6 +145,34 @@ def returnGTI (infile):
 
     return gti
 
+def findColumn (table, colname):
+    """Return True if colname is found (case-insensitive) in table.
+
+    @param table: name of table or data block for a FITS table
+    @type table: string (if name of table) or FITS record object
+    @param colname: name to test for existence in table
+    @type colname: string
+
+    @return: True if colname is in the table (without regard to case)
+    @rtype: boolean
+    """
+
+    if type (table) is str:
+        fd = pyfits.open (table, mode="readonly")
+        fits_rec = fd[1].data
+        fd.close()
+    else:
+        fits_rec = table
+
+    names = []
+    for name in fits_rec.names:
+        names.append (name.lower())
+
+    if colname.lower() in names:
+        return True
+    else:
+        return False
+
 def getTable (table, filter, exactly_one=False, at_least_one=False):
     """Return the data portion of a table.
 
@@ -187,8 +217,8 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
         wild = None
         if isinstance (column, N.chararray):
             wild = (column == STRING_WILDCARD)
-        elif isinstance (column[0], N.integer):
-            wild = (column == INT_WILDCARD)
+        #elif isinstance (column[0], N.integer):
+        #    wild = (column == INT_WILDCARD)
         if wild is not None:
             selected = N.logical_or (selected, wild)
 
@@ -280,77 +310,105 @@ def timeAtMidpoint (info):
     """
     return (info["expstart"] + info["expend"]) / 2.
 
-def evalDisp (x, coeff):
+def evalDisp (x, coeff, delta=0.):
     """Evaluate the dispersion relation at x.
 
     The function value will be the wavelength (or array of wavelengths) at x,
     in Angstroms.
 
-    arguments:
-    x             pixel coordinate (or array of coordinates)
-    coeff         array of coefficients for the dispersion relation
+    @param x: pixel coordinate (or array of coordinates)
+    @type x: numpy array or float
+    @param coeff: array of polynomial coefficients which convert pixel number
+        to wavelength in Angstroms
+    @type coeff: sequence object (e.g. numpy array)
+    @param delta: offset to subtract from pixel coordinate
+    @type delta: float
+
+    @return: wavelength (or array of wavelengths) at x
+    @rtype: numpy array or float
     """
 
     ncoeff = len (coeff)
     if ncoeff < 2:
         raise ValueError, "Dispersion relation has too few coefficients"
 
+    x_prime = x - delta
+
     sum = coeff[ncoeff-1]
     for i in range (ncoeff-2, -1, -1):
-        sum = sum * x + coeff[i]
+        sum = sum * x_prime + coeff[i]
 
     return sum
 
-def evalDerivDisp (x, coeff):
+def evalDerivDisp (x, coeff, delta=0.):
     """Evaluate the derivative of the dispersion relation at x.
 
     The function value will be the slope (or array of slopes) at x,
     in Angstroms per pixel.
 
-    arguments:
-    x             pixel coordinate (or array of coordinates)
-    coeff         array of coefficients for the dispersion relation
+    @param x: pixel coordinate (or array of coordinates)
+    @type x: numpy array or float
+    @param coeff: array of polynomial coefficients which convert pixel number
+        to wavelength in Angstroms
+    @type coeff: sequence object (e.g. numpy array)
+    @param delta: offset to subtract from pixel coordinate
+    @type delta: float
+
+    @return: slope at x, in Angstroms per pixel
+    @rtype: numpy array or float
     """
 
     ncoeff = len (coeff)
     if ncoeff < 2:
         raise ValueError, "Dispersion relation has too few coefficients"
 
+    x_prime = x - delta
+
     sum = (ncoeff-1.) * coeff[ncoeff-1]
     for n in range (ncoeff-2, 0, -1):
-        sum = sum * x + n * coeff[n]
+        sum = sum * x_prime + n * coeff[n]
 
     return sum
 
-def addRandomNumbers (x, y, seed):
-    """Add pseudo-random numbers to the x and y columns.
+def evalInvDisp (wavelength, coeff, delta=0.):
+    """Evaluate the dispersion relation at x.
 
-    @param x: array of detector X coordinates, modified in-place
-    @type x: array
-    @param y: array of detector Y coordinates, modified in-place
-    @type y: array
-    @param seed: an integer value to initialize the random-number generator;
-        seed=-1 means use the system clock to generate a starting value
-    @type seed: integer
+    The function value will be the pixel number (or array of pixel numbers)
+    at the specified wavelength(s).  Newton's method is used for finding
+    the pixel numbers, and the iterations are stopped when the largest
+    difference between the specified wavelengths and computed wavelengths
+    is less than X_TINY (defined near the top of this file).
 
-    @return: the integer value that was actually used as a seed; this will
-        be the same as the input parameter 'seed' unless that was -1
-    @rtype: integer
+    @param wavelength: wavelength (or array of wavelengths)
+    @type wavelength: numpy array or float
+    @param coeff: array of polynomial coefficients which convert pixel number
+        to wavelength in Angstroms
+    @type coeff: sequence object (e.g. numpy array)
+    @param delta: offset to subtract from pixel coordinate
+    @type delta: float
+
+    @return: pixel number (or array of pixel numbers) at wavelength
+    @rtype: numpy array or float
     """
 
-    if seed == -1:
-        seed = int (time.time())
+    x = 0.              # initial value
+    x_prev = x
 
-    random.seed (seed)
+    # Iterate to find the pixel number(s) x such that evaluating the
+    # dispersion relation at that point gives the actual wavelength
+    # at the first pixel.
+    done = 0
+    while not done:
+        wl = evalDisp (x, coeff, delta)
+        slope = evalDerivDisp (x, coeff, delta)
+        wl_diff = wavelength - wl
+        x += wl_diff / slope
+        diff = N.abs (x - x_prev)
+        if diff.max() < X_TINY:
+            done = 1
+        x_prev = x
 
-    nelem = len (x)
-    if len (y) != nelem:
-        raise RuntimeError, "x and y arrays must be the same length"
-
-    x += random.uniform (-0.5, +0.5, nelem)
-    y += random.uniform (-0.5, +0.5, nelem)
-
-    return seed
+    return x
 
 def geometricDistortion (x, y, geofile, segment, igeocorr):
     """Apply geometric (INL) correction.
@@ -634,11 +692,12 @@ def updateFilename (phdr, filename):
     phdr.update ("filename", os.path.basename (filename))
 
 def renameFile (infile, outfile):
-    """Rename a FITS file, and update FILENAME keyword.
+    """Rename a FITS file, and update the FILENAME keyword.
 
-    arguments:
-    infile      current name of a file
-    outfile     new name for the file
+    @param infile: current name of a FITS file
+    @type infile: string
+    @param outfile: new name for the file
+    @type outfile: string
     """
 
     printMsg ("rename " + infile + " --> " + outfile, VERY_VERBOSE)
@@ -648,7 +707,33 @@ def renameFile (infile, outfile):
     fd = pyfits.open (outfile, mode="update")
 
     # If the output file name is a product name (ends with '0' before
-    # the suffix), change the value of the extension keyword ASN_MTYPE.
+    # the suffix), change the value of the extension keyword ASN_MTYP.
+    if isProduct (outfile):
+        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
+        asn_mtyp = modifyAsnMtyp (asn_mtyp)
+        if asn_mtyp != "missing":
+            fd[1].header["asn_mtyp"] = asn_mtyp
+    updateFilename (fd[0].header, outfile)
+
+    fd.close()
+
+def copyFile (infile, outfile):
+    """Copy a FITS file, and update the FILENAME keyword.
+
+    @param infile: name of input FITS file
+    @type infile: string
+    @param outfile: name of output FITS file
+    @type outfile: string
+    """
+
+    printMsg ("copy " + infile + " --> " + outfile, VERY_VERBOSE)
+
+    shutil.copy (infile, outfile)
+
+    fd = pyfits.open (outfile, mode="update")
+
+    # If the output file name is a product name (ends with '0' before
+    # the suffix), change the value of the extension keyword ASN_MTYP.
     if isProduct (outfile):
         asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
         asn_mtyp = modifyAsnMtyp (asn_mtyp)

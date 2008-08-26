@@ -2,6 +2,7 @@
 
 import sys
 import os
+import shutil
 import time
 import getopt
 import glob
@@ -223,6 +224,7 @@ def calcos (asntable, outdir=None, verbosity=None, save_temp_files=False,
     cal.combineToProduct()
 
     assoc.updateMempresent()
+    assoc.copySptFile()
 
     cosutil.printMsg ("End   " + cosutil.returnTime(), VERBOSE)
 
@@ -443,12 +445,13 @@ class Association (object):
                         concat_info["output"] = obs.filenames["x1d"]
                         if obs.info["tagflash"]:
                             concat_info_flash["output"] = obs.filenames["flash"]
-                    if obs.exp_type == EXP_SCIENCE:
+                    if obs.exp_type == EXP_SCIENCE and \
+                       self.product is not None:
                         self.updateCombineFlt (obs.filenames,
-                                  basic_info["detector"])
+                                  obs.info["obstype"])
                         if first:
                             self.updateCombineX1d (obs.filenames,
-                                  obs.info["fppos"])
+                                  obs.info["fppos"], obs.info["obstype"])
                     first = False
 
                 if concat_these:
@@ -619,38 +622,26 @@ class Association (object):
 
         return basic_info
 
-    def updateCombineFlt (self, filenames, detector):
+    def updateCombineFlt (self, filenames, obstype):
         """Add the flt name to the input lists in self.combine.
 
         @param filenames: dictionary of input and output file names
         @type filenames: dictionary
 
-        @param detector: detector name, "FUV" or "NUV"
-        @type detector: string
+        @param obstype: observation type, "SPECTROSCOPIC" or "IMAGING"
+        @type obstype: string
         """
 
-        if detector == "FUV":
-            if not self.combine.has_key ("flt_a"):
-                self.combine["flt_a"] = []
-            if not self.combine.has_key ("flt_b"):
-                self.combine["flt_b"] = []
-        else:
-            if not self.combine.has_key ("flt"):
-                self.combine["flt"] = []
+        if obstype != "IMAGING":
+            return
+
+        if not self.combine.has_key ("flt"):
+            self.combine["flt"] = []
 
         flt = filenames["flt"]
-        if detector == "FUV":
-            if flt.endswith ("_a.fits"):
-                self.combine["flt_a"].append (flt)
-            elif flt.endswith ("_b.fits"):
-                self.combine["flt_b"].append (flt)
-            else:
-                # can't happen
-                raise RuntimeError, "Internal error in updateCombineFlt"
-        else:
-            self.combine["flt"].append (flt)
+        self.combine["flt"].append (flt)
 
-    def updateCombineX1d (self, filenames, fppos):
+    def updateCombineX1d (self, filenames, fppos, obstype):
         """Add the x1d name and fppos index to 'combine'.
 
         @param filenames: dictionary of input and output file names
@@ -658,7 +649,13 @@ class Association (object):
 
         @param fppos: focal plane position index (1, 2, 3, or 4)
         @type fppos: integer
+
+        @param obstype: observation type, "SPECTROSCOPIC" or "IMAGING"
+        @type obstype: string
         """
+
+        if obstype != "SPECTROSCOPIC":
+            return
 
         if not self.combine.has_key ("x1d"):
             self.combine["x1d"] = []
@@ -992,7 +989,7 @@ class Association (object):
     def globalSwitches (self):
         """Set global switches.
 
-        The global switches are "any", "science", "wavecal", and "repeat".
+        The global switches are "any", "science" and "wavecal".
         Their values are either "PERFORM" or "OMIT", though "science" and
         "wavecal" indicate the presence of one or more files of that type
         rather than an actual calibration switch.  "wavecal" refers to
@@ -1000,13 +997,6 @@ class Association (object):
         (tagflash); the latter would be included in "science".  "any" is
         "PERFORM" if any of the calibration steps other than wavecorr is
         "PERFORM".
-
-        "repeat" = "PERFORM" indicates that one or more files (x1d or flt)
-        will be averaged together.  If there's no product, "repeat" will be
-        "OMIT".  If there is a product, "repeat" will be "PERFORM" if there
-        is one more more calibrated file of a given type.  If there is just
-        one, the file will just be renamed to start with the product name.
-        (Note that the calibration switch "rptcorr" is now ignored.)
         """
 
         # Take the calibration switch list from the first science observation.
@@ -1040,9 +1030,7 @@ class Association (object):
                 self.global_switches["science"] = "PERFORM"
                 break
 
-        if self.product is None:
-            self.global_switches["repeat"] = "OMIT"
-        else:
+        if self.product is not None:
             if self.combine.has_key ("x1d"):
                 ncombine = len (self.combine["x1d"])
             elif self.combine.has_key ("flt"):
@@ -1055,14 +1043,6 @@ class Association (object):
                 if self.combine.has_key ("flt_b"):
                     ncombine_b = len (self.combine["flt_b"])
                 ncombine = max (ncombine_a, ncombine_b)
-            if ncombine < 1:
-                self.global_switches["repeat"] = "OMIT"
-            elif ncombine == 1:
-                # We'll actually just rename the file; the rptcorr switch
-                # from the input header is ignored.
-                self.global_switches["repeat"] = "PERFORM"
-            else:
-                self.global_switches["repeat"] = "PERFORM"
 
     def isAnySwitchSet (self):
         """Return 1 if any calibration switch is PERFORM, 0 otherwise.
@@ -1114,14 +1094,13 @@ class Association (object):
                     if obs.filenames["x1d"] != obs.filenames["x1d_x"]:
                         self.checkExists (obs.filenames["x1d"], already_exists)
 
-        if self.global_switches["repeat"] == "PERFORM":
-            product = self.product
-            self.checkExists (product + "_fltsum.fits", already_exists)
-            self.checkExists (product + "_x1dsum.fits", already_exists)
-            self.checkExists (product + "_x1dsum1.fits", already_exists)
-            self.checkExists (product + "_x1dsum2.fits", already_exists)
-            self.checkExists (product + "_x1dsum3.fits", already_exists)
-            self.checkExists (product + "_x1dsum4.fits", already_exists)
+        if self.product is not None:
+            self.checkExists (self.product + "_fltsum.fits", already_exists)
+            self.checkExists (self.product + "_x1dsum.fits", already_exists)
+            self.checkExists (self.product + "_x1dsum1.fits", already_exists)
+            self.checkExists (self.product + "_x1dsum2.fits", already_exists)
+            self.checkExists (self.product + "_x1dsum3.fits", already_exists)
+            self.checkExists (self.product + "_x1dsum4.fits", already_exists)
 
         # Remove duplicates.
         for i in range (len(already_exists)-1, 0, -1):
@@ -1183,13 +1162,17 @@ class Association (object):
                 "stimfile reset to None because detector is NUV.")
 
     def updateMempresent (self):
-        """Update the MEMPRSNT flag in the association table."""
+        """Update the ASN_PROD keyword and MEMPRSNT column."""
 
         if self.asntable is None or self.product is None:
             return
         cosutil.printMsg ("updateMempresent", VERY_VERBOSE)
 
+        # Modify the association table in-place.
         fd = pyfits.open (self.asntable, mode="update")
+
+        # Set ASN_PROD to true to indicate that a product has been created.
+        fd[0].header.update ("asn_prod", True)
 
         asn = fd[1].data
         nrows = asn.shape[0]
@@ -1200,6 +1183,44 @@ class Association (object):
             if memtype[i].find ("PROD") >= 0:
                 mempresent[i] = True
                 break
+
+        fd.close()
+
+    def copySptFile (self):
+        """Copy an spt file to the association product name."""
+
+        if self.asntable is None or self.product is None:
+            return
+        cosutil.printMsg ("copySptFile", VERY_VERBOSE)
+
+        i = self.first_science
+        sptfile = self.obs[i].filenames["spt"]
+        product_spt_file = self.product + "_spt.fits"
+
+        if not os.access (sptfile, os.R_OK):
+            cosutil.printWarning (
+            "spt file not found, so not copied to product", VERBOSE)
+            return
+
+        # Copy the spt file to the "product spt" file.
+        shutil.copy (sptfile, product_spt_file)
+
+        # Update keywords in the "product spt" file.
+        fd = pyfits.open (product_spt_file, mode="update")
+
+        phdr = fd[0].header
+        product = os.path.basename (self.product)
+
+        cosutil.updateFilename (phdr, product_spt_file)
+        phdr.update ("rootname", product)
+        phdr.update ("observtn", product[-3:].upper())
+        phdr.update ("asn_mtyp", self.product_type)     # do we need this?
+
+        for i in range (1, len (fd)):
+            hdr = fd[i].header
+            hdr.update ("rootname", product)
+            hdr.update ("expname", product)
+            hdr.update ("asn_mtyp", self.product_type)
 
         fd.close()
 
@@ -2207,13 +2228,12 @@ class Calibration (object):
     def combineToProduct (self):
         """Average the calibrated files, producing the product files."""
 
-        if self.assoc.global_switches["repeat"] != "PERFORM":
+        if self.assoc.product is None:
             return
 
         combine = self.assoc.combine
 
-        # If we have repeatobs data rather than FP-pos, average the flt files.
-        if self.assoc.product_type.find ("RPT") >= 0:
+        if combine.has_key ("flt"):
             self.combineFlt()
 
         i = self.assoc.first_science
@@ -2247,20 +2267,12 @@ class Calibration (object):
                         self.combineX1Di (x1d_subset, fppos)
 
     def combineFlt (self):
-        """Average flat fielded repeatobs data."""
+        """Average image mode data."""
 
         combine = self.assoc.combine
 
-        if combine.has_key ("flt_a"):
-            output = self.fltProductName (combine["flt_a"])
-            average.avgImage (combine["flt_a"], output)
-
-        if combine.has_key ("flt_b"):
-            output = self.fltProductName (combine["flt_b"])
-            average.avgImage (combine["flt_b"], output)
-
         if combine.has_key ("flt"):
-            output = self.fltProductName (combine["flt"])
+            output = self.fltProductName()
             average.avgImage (combine["flt"], output)
 
     def combineAllX1D (self):
@@ -2269,7 +2281,7 @@ class Calibration (object):
         combine = self.assoc.combine
 
         if combine.has_key ("x1d"):
-            output = self.x1dProductName (combine["x1d"], 0)
+            output = self.x1dProductName (0)
             fpavg.fpAvgSpec (combine["x1d"], output)
 
     def combineX1Di (self, input, fppos):
@@ -2282,58 +2294,27 @@ class Calibration (object):
         @type fppos: integer
         """
 
-        output = self.x1dProductName (input, fppos)
+        output = self.x1dProductName (fppos)
 
         fpavg.fpAvgSpec (input, output)
 
-    def fltProductName (self, input):
+    def fltProductName (self):
         """Construct the product name for the flt file.
-
-        @param input: name of input file
-        @type input: string
 
         @return: name of output flt file
         @rtype: string
         """
 
-        multiple = len (input) > 1
-
-        first = input[0]
-
-        if first.endswith ("flt.fits"):
-            if multiple:
-                output = self.assoc.product + "_fltsum.fits"
-            else:
-                output = self.assoc.product + "_flt.fits"
-
-        elif first.endswith ("flt_a.fits"):
-            if multiple:
-                output = self.assoc.product + "_fltsum_a.fits"
-            else:
-                output = self.assoc.product + "_flt_a.fits"
-
-        elif first.endswith ("flt_b.fits"):
-            if multiple:
-                output = self.assoc.product + "_fltsum_b.fits"
-            else:
-                output = self.assoc.product + "_flt_b.fits"
-
-        else:
-            raise RuntimeError, "Internal error"
+        output = self.assoc.product + "_fltsum.fits"
 
         return output
 
-    def x1dProductName (self, input, fppos=0):
+    def x1dProductName (self, fppos=0):
         """Construct the product name for the x1d file.
 
-        If there are multiple files to be combined (i.e. the length of
-        'input' is greater than one), and if fppos is greater than zero, then
-        the output file name will be of the form "rootname_x1dsum1.fits",
-        where the number appended to "x1dsum" will be the value of fppos.
-
-        @param input: list of file names (we only need this to check
-            whether there is just one file or more than one file)
-        @type input: string
+        If fppos is greater than zero, then the output file name will be of
+        the form "rootname_x1dsum1.fits", where the number appended to "x1dsum"
+        will be the value of fppos.
 
         @param fppos: FPPOS index (0 or 1-4)
         @type fppos: integer
@@ -2342,14 +2323,11 @@ class Calibration (object):
         @rtype: string
         """
 
-        if len (input) > 1:
-            output = self.assoc.product + "_x1dsum"
-            if fppos > 0:
-                output += str (fppos) + ".fits"
-            else:
-                output += ".fits"
+        output = self.assoc.product + "_x1dsum"
+        if fppos > 0:
+            output += str (fppos) + ".fits"
         else:
-            output = self.assoc.product + "_x1d.fits"
+            output += ".fits"
 
         return output
 

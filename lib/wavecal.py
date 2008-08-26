@@ -48,7 +48,12 @@ def findWavecalShift (input, wcp_info):
     fp = -phdr.get ("fpoffset", default=0) * wcp_info.field ("stepsize")
 
     # segment will be added to the filter in the loop below.
-    filter = {"opt_elem": phdr["opt_elem"], "cenwave": phdr["cenwave"]}
+    filter = {"opt_elem": phdr["opt_elem"],
+              "cenwave": phdr["cenwave"]}
+    # If the FPOFFSET column is present in the lamptab, include fpoffset
+    # in the filter.
+    if cosutil.findColumn (lamptab, "fpoffset"):
+        filter["fpoffset"] = phdr["fpoffset"]
 
     shift_dict = {}
     if detector == "FUV":

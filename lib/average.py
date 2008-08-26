@@ -15,13 +15,13 @@ def avgImage (input, output):
 
     assert nimages >= 1
 
-    if nimages == 1:
-        cosutil.renameFile (input[0], output)
-        return
-
     cosutil.printIntro ("Average images")
     names = [("Input", repr (input)), ("Output", output)]
     cosutil.printFilenames (names)
+
+    if nimages == 1:
+        cosutil.copyFile (input[0], output)
+        return
 
     # Average the SCI extensions.
 

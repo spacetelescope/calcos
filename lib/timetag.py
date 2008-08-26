@@ -115,14 +115,17 @@ def timetagBasicCalibration (input, outtag, output, outcounts, outflash,
     doDeadcorr (events, input, info, switches, reffiles, phdr,
                 stim_countrate, stim_livetime, livetimefile)
 
-    if info["tagflash"]:
-        (avg_dx, avg_dy, pshift_vs_time) = \
-                concurrent.processConcurrentWavecal (events, outflash,
-                    info, switches, reffiles, phdr, events_hdu.header)
+    if info["obstype"] == "SPECTROSCOPIC":
+        if info["tagflash"]:
+            (avg_dx, avg_dy, pshift_vs_time) = \
+                    concurrent.processConcurrentWavecal (events, outflash,
+                        info, switches, reffiles, phdr, events_hdu.header)
+        else:
+            (avg_dx, avg_dy, pshift_vs_time) = \
+                    updateFromWavecal (events, wavecal_info,
+                        info, switches, reffiles, phdr, events_hdu.header)
     else:
-        (avg_dx, avg_dy, pshift_vs_time) = \
-                updateFromWavecal (events, wavecal_info,
-                    info, switches, reffiles, phdr, events_hdu.header)
+        (avg_dx, avg_dy, pshift_vs_time) = (0., 0., None)
 
     dq_array = doDqicorr (events, info, switches, reffiles,
                           phdr, events_hdu.header, avg_dx, avg_dy)

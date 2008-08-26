@@ -6,8 +6,6 @@ import pyfits
 import cosutil
 from calcosparam import *       # parameter definitions
 
-X_TINY = 1.e-8                  # pixels, used by computePshift()
-
 def fpAvgSpec (input, output):
     """Average 1-D extracted FP-POS spectra.
 
@@ -44,15 +42,14 @@ def fpAvgSpec (input, output):
 
     assert nfiles >= 1
 
-    if nfiles == 1:
-        cosutil.renameFile (input[0], output)
-        return
-
     cosutil.printIntro ("Average 1-D spectra")
     names = [("Input", repr (input)), ("Output", output)]
     cosutil.printFilenames (names)
 
-    outspec = OutputX1D (input, output)
+    if nfiles == 1:
+        cosutil.copyFile (input[0], output)
+    else:
+        outspec = OutputX1D (input, output)
 
 class OutputX1D (object):
 
@@ -65,10 +62,10 @@ class OutputX1D (object):
             keywords         dictionary of relevant keywords and values,
                              e.g. detector
             inspec           list of Spectrum objects
+            smallest_wl      dictionary of (segment: wavelength[0])
             segments         list of segment names found in input x1d tables
             ofd              pyfits object for output file
             nrows            number of rows to be written to the output table
-            output_pshift    pixel shift for output arrays
             output_nelem     number of elements to use when allocating output
                              arrays
         """
@@ -77,10 +74,10 @@ class OutputX1D (object):
         self.output = output
         self.keywords = {}
         self.inspec = []
+        self.smallest_wl = {}
         self.segments = []
         self.ofd = None
         self.nrows = 0
-        self.output_pshift = 0.
         self.output_nelem = 0
 
         # Create a list of Spectrum objects, and get info from headers.
@@ -98,7 +95,7 @@ class OutputX1D (object):
         # Fill in the data in the output table.
         for segment in self.segments:           # for each output row ...
             osp = initOutputSpectrum (self.ofd, self.inspec, self.keywords,
-                        self.output_pshift, segment)
+                        self.smallest_wl[segment], segment)
         if cosutil.isProduct (self.output):
             asn_mtyp = self.ofd[1].header.get ("asn_mtyp", "missing")
             asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
@@ -115,11 +112,10 @@ class OutputX1D (object):
         output table should have.
         """
 
-        first = 1               # true for first input file
-        got_data = 0            # false until we find an input file with data
-        coeff_dict = {}         # dictionary of coeff, with segment as key
+        first = True            # true for first input file
         sum_globrate = 0.       # incremented for each row in each file
         sum_exptime = 0.        # exptime is the weight for globrate
+        first_wavelengths = {}  # dict of (segment: list of wavelength[0])
         for input in self.input:
             ifd = pyfits.open (input, mode="readonly")
             phdr = ifd[0].header
@@ -133,41 +129,58 @@ class OutputX1D (object):
                 aperture = cosutil.getApertureKeyword (phdr, truncate=1)
                 statflag = phdr.get ("statflag", False)
                 sum_plantime = hdr["plantime"]
+                sum_exptime_kwd = hdr["exptime"]
                 expstart = hdr["expstart"]
                 expend = hdr["expend"]
-                # segment will be added to filter in the loop over rows
-                filter = {"opt_elem": opt_elem,
-                          "cenwave": cenwave,
-                          "aperture": aperture}
-                first = 0
+                first = False
             else:
                 sum_plantime += hdr["plantime"]
+                # sum of header EXPTIME keywords, not column values
+                sum_exptime_kwd += hdr["exptime"]
                 expstart = min (expstart, hdr["expstart"])
                 expend = max (expend, hdr["expend"])
+            fpoffset = phdr["fpoffset"]
+            # segment will be added to filter in the loop over rows
+            filter = {"opt_elem": opt_elem,
+                      "cenwave": cenwave,
+                      "aperture": aperture}
+            if cosutil.findColumn (disptab, "fpoffset"):
+                filter["fpoffset"] = fpoffset
             if ifd[1].data is not None:
-                got_data = 1
                 nrows = len (ifd[1].data)
                 # for each row in the current input table
                 for row in range (nrows):
-                    sp = Spectrum (ifd, row)
+                    sp = Spectrum (ifd, row, fpoffset)
                     segment = sp.segment
-                    if segment in self.segments:
-                        coeff = coeff_dict[segment]
-                    else:
+                    if segment not in self.segments:
                         self.segments.append (segment)
-                        filter["segment"] = segment
-                        disp_info = cosutil.getTable (disptab, filter,
-                                    exactly_one=True)
-                        ncoeff = disp_info.field ("nelem")[0]
-                        coeff = disp_info.field ("coeff")[0][0:ncoeff]
-                        coeff_dict[segment] = coeff
-                    sp.setCoeff (coeff)
-                    sp.computePshift()
+                    filter["segment"] = segment
+                    disp_info = cosutil.getTable (disptab, filter,
+                                exactly_one=True)
+                    ncoeff = disp_info.field ("nelem")[0]
+                    coeff = disp_info.field ("coeff")[0][0:ncoeff]
+                    if cosutil.findColumn (disp_info, "delta"):
+                        delta = disp_info.field ("delta")[0]
+                    else:
+                        delta = 0.
+                    sp.setCoeff (coeff, delta)
                     self.inspec.append (sp)
+                    if segment in first_wavelengths.keys():
+                        first_wavelengths[segment].append (sp.wavelength[0])
+                    else:
+                        first_wavelengths[segment] = [sp.wavelength[0]]
                     sum_globrate += (hdr["globrate"] * sp.exptime)
                     sum_exptime += sp.exptime
 
             ifd.close()
+
+        # For each segment/stripe, compute the pixel offset of each input
+        # spectrum.  Save this value in Spectrum attribute pshift, later
+        # (in OutputSpectrum) called input_pshift.
+        for sp in self.inspec:
+            segment = sp.segment
+            self.smallest_wl[segment] = min (first_wavelengths[segment])
+            sp.computePshift (self.smallest_wl[segment])
 
         if sum_exptime > 0.:
             globrate = sum_globrate / sum_exptime
@@ -183,6 +196,7 @@ class OutputX1D (object):
              "opt_elem": opt_elem,
              "cenwave":  cenwave,
              "aperture": aperture,
+             "exptime":  sum_exptime_kwd,
              "expstart": expstart,
              "expend":   expend,
              "expstrtj": expstart + MJD_TO_JD,
@@ -201,14 +215,12 @@ class OutputX1D (object):
                 raise RuntimeError, "x1d tables have different array sizes."
 
     def computeOutputInfo (self):
-        """Compute output pshift and length of output arrays.
+        """Compute length of output arrays.
 
-        This routine assigns values to the attributes output_pshift and
-        output_nelem.
+        This routine assigns a value to the attribute output_nelem.
         """
 
         if len (self.inspec) < 1:
-            self.output_pshift = 0.
             self.output_nelem = 0
         else:
             max_pshift = self.inspec[0].pshift
@@ -219,7 +231,6 @@ class OutputX1D (object):
                 max_pshift = max (max_pshift, sp.pshift)
                 min_x = min (min_x, -sp.pshift)
                 max_x = max (max_x, sp.nelem - sp.pshift - 1.)
-            self.output_pshift = max_pshift
             # add almost one rather than exactly one, to allow for error
             # in floating-point computation
             self.output_nelem = int (math.ceil (max_x - min_x + 0.99999))
@@ -262,6 +273,7 @@ class OutputX1D (object):
         cd = pyfits.ColDefs (col)
 
         hdu = pyfits.new_table (cd, header=ifd[1].header, nrows=self.nrows)
+        hdu.header.update ("exptime", self.keywords["exptime"])
         hdu.header.update ("expstart", self.keywords["expstart"])
         hdu.header.update ("expend", self.keywords["expend"])
         hdu.header.update ("expstrtj", self.keywords["expstrtj"])
@@ -269,11 +281,11 @@ class OutputX1D (object):
         hdu.header.update ("plantime", self.keywords["plantime"])
         hdu.header.update ("globrate", self.keywords["globrate"])
         if hdu.header.has_key ("pshifta"):
-            hdu.header.update ("pshifta", self.output_pshift)
+            hdu.header.update ("pshifta", 0.)
         if hdu.header.has_key ("pshiftb"):
-            hdu.header.update ("pshiftb", self.output_pshift)
+            hdu.header.update ("pshiftb", 0.)
         if hdu.header.has_key ("pshiftc"):
-            hdu.header.update ("pshiftc", self.output_pshift)
+            hdu.header.update ("pshiftc", 0.)
 
         ofd.append (hdu)
         self.fpInitData (ofd)           # initialize data in output hdu
@@ -306,7 +318,7 @@ class OutputX1D (object):
 
 class Spectrum (object):
 
-    def __init__ (self, ifd, row=0):
+    def __init__ (self, ifd, row=0, fpoffset=0):
         """This is one row of an input x1d table.
 
         The attributes are:
@@ -321,8 +333,11 @@ class Spectrum (object):
             background       array of background values
             maxdq            array of maximum dq values
             avgdq            array of average dq values
+            fpoffset         OSM offset in motor steps from nominal
             coeff            coefficients of the dispersion relation
-            pshift           pixel shift computed from wavelength[0] and coeff
+            delta            pixel offset for the dispersion relation
+            pshift           pixel shift computed from wavelength[0] with
+                                 respect to smallest_wl
         """
 
         self.segment = ifd[1].data.field ("segment")[row]
@@ -337,10 +352,12 @@ class Spectrum (object):
         self.dq_wgt = ifd[1].data.field ("dq_wgt")[row]
         self.maxdq = ifd[1].data.field ("maxdq")[row]
         self.avgdq = ifd[1].data.field ("avgdq")[row]
+        self.fpoffset = fpoffset
         self.coeff = None       # assigned later by setCoeff
+        self.delta = None       # assigned later by setCoeff
         self.pshift = 0.        # assigned later by computePshift
 
-    def setCoeff (self, coeff):
+    def setCoeff (self, coeff, delta):
         """Assign the coefficient array to an attribute.
 
         This is not done in init because that would likely require duplicate
@@ -350,53 +367,46 @@ class Spectrum (object):
         """
 
         self.coeff = coeff
+        self.delta = delta
 
-    def computePshift (self):
+    def computePshift (self, smallest_wl):
         """Get the pixel shift from the wavelength at the first pixel.
 
         Note that setCoeff must have been called first in order to assign
         values to the coeff list.
+
+        @param smallest_wl: the minimum wavelength[0] for all input spectra
+        @type smallest_wl: float
         """
 
-        x = 0.              # initial value
-        x_prev = x
+        x = 0.
 
-        # Iterate to find the pixel number x such that evaluating the
-        # dispersion relation at that point gives the actual wavelength
-        # at the first pixel.
-        done = 0
-        while not done:
-            wl = cosutil.evalDisp (x, self.coeff)
-            slope = cosutil.evalDerivDisp (x, self.coeff)
-            wl_diff = self.wavelength[0] - wl
-            x += wl_diff / slope
-            if abs (x - x_prev) < X_TINY:
-                done = 1
-            x_prev = x
+        slope = cosutil.evalDerivDisp (x, self.coeff, self.delta)
+        x = (self.wavelength[0] - smallest_wl) / slope
 
         self.pshift = -x
 
-def initOutputSpectrum (ofd, inspec, keywords, output_pshift, segment):
+def initOutputSpectrum (ofd, inspec, keywords, smallest_wl, segment):
     """Construct an OutputSpectrum object, depending on the detector.
 
     arguments:
         ofd              pyfits object for output file
         inspec           list of Spectrum objects
         keywords         dictionary of keywords and values, e.g. detector
-        output_pshift    pixel shift for output arrays
+        smallest_wl      wavelength at the first pixel
         segment          segment or stripe name for current row
     """
 
     if keywords["detector"] == "FUV":
-        osp = FUV_OutputSpectrum (ofd, inspec, keywords, output_pshift, segment)
+        osp = FUV_OutputSpectrum (ofd, inspec, keywords, smallest_wl, segment)
     else:
-        osp = NUV_OutputSpectrum (ofd, inspec, keywords, output_pshift, segment)
+        osp = NUV_OutputSpectrum (ofd, inspec, keywords, smallest_wl, segment)
 
     return osp
 
 class OutputSpectrum (object):
 
-    def __init__ (self, ofd, inspec, keywords, output_pshift, segment):
+    def __init__ (self, ofd, inspec, keywords, smallest_wl, segment):
         """This is only invoked by a subclass that depends on detector.
 
         The attributes are:
@@ -404,17 +414,18 @@ class OutputSpectrum (object):
             inspec           list of Spectrum objects for the input tables
             keywords         dictionary of keywords and values from input
                              headers
-            output_pshift    pixel shift for output arrays
+            smallest_wl      wavelength at the first pixel
             segment          segment or stripe name for current row
 
-        All the work is done by invoking this.  Data for the current
-        output row are computed and assigned to the data block in ofd.
+        The interpolation and averaging for one row are done by invoking this.
+        Data for the current output row are computed and assigned to the data
+        block in ofd.
         """
 
         self.ofd = ofd
         self.inspec = inspec
         self.keywords = keywords
-        self.output_pshift = output_pshift
+        self.smallest_wl = smallest_wl
         self.segment = segment
 
         foundit = False
@@ -433,15 +444,23 @@ class OutputSpectrum (object):
         sumdq = N.zeros (self.ofd[1].data.field ("nelem")[row],
                         dtype=N.float64)
 
+        min_fpoffset = 999      # initial (invalid) value
+        coeff = None
+        delta = None
         for sp in self.inspec:
             if self.segment == sp.segment:
                 self.accumulateSums (sp, self.ofd[1].data[row],
                         sumdq, sumweight)
-                coeff = sp.coeff
+                # look for fpoffset = 0 (or closest to 0)
+                if abs (sp.fpoffset) < min_fpoffset:
+                    min_fpoffset = abs (sp.fpoffset)
+                    coeff = sp.coeff
+                    delta = sp.delta
 
-        self.normalizeSums (self.ofd[1].data[row], sumdq, sumweight, coeff)
+        self.normalizeSums (self.ofd[1].data[row], sumdq, sumweight,
+                            coeff, delta)
 
-    def normalizeSums (self, data, sumdq, sumweight, coeff):
+    def normalizeSums (self, data, sumdq, sumweight, coeff, delta):
         """Divide the sums by the sum of the weights.
 
         arguments:
@@ -449,19 +468,19 @@ class OutputSpectrum (object):
             sumdq          weighted sum of data quality flags
             sumweight      sum of weights
             coeff          coefficients of the dispersion relation
+            delta          offset to the pixel coordinates
         """
 
         maxdq = data.field ("maxdq")
         maxdq = N.where (sumweight == 0., DQ_OUT_OF_BOUNDS, maxdq)
 
-        # xxx data.field ("dq_wgt")[:] = sumweight
-
         sumweight = N.where (sumweight == 0., 1., sumweight)
 
         nelem = len (sumweight)
         x = N.arange (nelem, dtype=N.float64)   # pixel numbers
-        x -= self.output_pshift
-        data.field ("wavelength")[:] = cosutil.evalDisp (x, coeff)
+        # Add an offset so the wavelength at x[0] will be smallest_wl.
+        x += cosutil.evalInvDisp (self.smallest_wl, coeff, delta)
+        data.field ("wavelength")[:] = cosutil.evalDisp (x, coeff, delta)
         del x
 
         data.field ("flux")[:] /= sumweight
@@ -482,10 +501,10 @@ class FUV_OutputSpectrum (OutputSpectrum):
     rounds to the nearest pixel.
     """
 
-    def __init__ (self, ofd, inspec, keywords, output_pshift, segment):
+    def __init__ (self, ofd, inspec, keywords, smallest_wl, segment):
 
         OutputSpectrum.__init__ (self,
-                ofd, inspec, keywords, output_pshift, segment)
+                ofd, inspec, keywords, smallest_wl, segment)
 
     def accumulateSums (self, sp, data, sumdq, sumweight):
         """Add input data to output, weighting by exposure time.
@@ -515,7 +534,7 @@ class FUV_OutputSpectrum (OutputSpectrum):
 
         weight = sp.dq_wgt * sp.exptime
 
-        i = self.output_pshift - input_pshift
+        i = -input_pshift
         i = int (round (i))
         j = i + input_nelem
 
@@ -533,10 +552,10 @@ class FUV_OutputSpectrum (OutputSpectrum):
 class NUV_OutputSpectrum (OutputSpectrum):
     """This is one row of an NUV output x1d table."""
 
-    def __init__ (self, ofd, inspec, keywords, output_pshift, segment):
+    def __init__ (self, ofd, inspec, keywords, smallest_wl, segment):
 
         OutputSpectrum.__init__ (self,
-                ofd, inspec, keywords, output_pshift, segment)
+                ofd, inspec, keywords, smallest_wl, segment)
 
     def accumulateSums (self, sp, data, sumdq, sumweight):
         """Add input data to output, weighting by exposure time.
@@ -564,7 +583,7 @@ class NUV_OutputSpectrum (OutputSpectrum):
 
         weight = sp.dq_wgt * sp.exptime
 
-        ix = self.output_pshift - input_pshift
+        ix = -input_pshift
         i = int (math.floor (ix))
         j = i + input_nelem
         q = ix - i

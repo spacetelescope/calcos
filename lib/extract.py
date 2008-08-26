@@ -148,6 +148,8 @@ def extract1D (input, incounts=None, output=None,
             # Convert net count rate to flux.
             doFluxCorr (ofd, info["opt_elem"], info["cenwave"],
                         info["aperture"], reffiles)
+    # Update nrows, in case rows were skipped during 1-D extraction.
+    nrows = ofd[1].data.shape[0]
 
     # Apply heliocentric Doppler correction to the wavelength array.
     if switches["helcorr"] == "PERFORM" or switches["helcorr"] == "COMPLETE":
@@ -171,8 +173,6 @@ def extract1D (input, incounts=None, output=None,
     updateArchiveSearch (ofd)           # update some keywords
     # Fix the aperture keyword, if it's RelMvReq.
     fixApertureKeyword (ofd, info["aperture"], info["detector"])
-    # Delete the exposure time keyword, which is now saved in a column.
-    del ofd[1].header["exptime"]
     if nrows > 0:
         ofd[0].header["x1dcorr"] = "COMPLETE"
         if switches["backcorr"] == "PERFORM":
@@ -242,8 +242,12 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                   "opt_elem": info["opt_elem"],
                   "cenwave": info["cenwave"],
                   "aperture": info["aperture"]}
-        disp_info = cosutil.getTable (reffiles["disptab"], filter)
         xtract_info = cosutil.getTable (reffiles["xtractab"], filter)
+        # If the FPOFFSET column is present in the disptab, include fpoffset
+        # in the filter.
+        if cosutil.findColumn (reffiles["disptab"], "fpoffset"):
+            filter["fpoffset"] = info["fpoffset"]
+        disp_info = cosutil.getTable (reffiles["disptab"], filter)
         if disp_info is None or xtract_info is None:
             continue
         slope = xtract_info.field ("slope")[0]
@@ -276,9 +280,13 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         pixel = N.arange (nelem, dtype=N.float64)
         ncoeff = disp_info.field ("nelem")[0]
         coeff = disp_info.field ("coeff")[0][0:ncoeff]
+        if cosutil.findColumn (disp_info, "delta"):
+            delta = disp_info.field ("delta")[0]
+        else:
+            delta = 0.
 
         pixel -= pshift             # shift will be 0 for a wavecal
-        wavelength = cosutil.evalDisp (pixel, coeff)
+        wavelength = cosutil.evalDisp (pixel, coeff, delta)
         wavelength_dq = N.where (wavelength < MIN_WAVELENGTH, \
                         DQ_BAD_WAVELENGTH, 0).astype (N.int16)
         del disp_info
@@ -397,19 +405,16 @@ def getColumns (ifd_e, detector):
 
     data = ifd_e[1].data
 
-    if detector == "FUV":
-        try:
-            xi = data.field ("xfull")
-            eta = data.field ("yfull")
-        except NameError:
-            xi = data.field ("xdopp")
-            eta = data.field ("ycorr")
+    if cosutil.findColumn (data, "xfull"):
+        xi = data.field ("xfull")
     else:
-        try:
-            xi = data.field ("xfull")
-            eta = data.field ("yfull")
-        except NameError:
-            xi = data.field ("xdopp")
+        xi = data.field ("xdopp")
+    if cosutil.findColumn (data, "yfull"):
+        eta = data.field ("yfull")
+    else:
+        if detector == "FUV":
+            eta = data.field ("ycorr")
+        else:
             eta = data.field ("rawy")
 
     dq = data.field ("dq")
