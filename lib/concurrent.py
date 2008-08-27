@@ -352,7 +352,7 @@ class ConcurrentWavecal (object):
         # if the column is present.
         if cosutil.findColumn (disptab, "fpoffset"):
             filter_disp["fpoffset"] = self.info["fpoffset"]
-        if cosutil.findColumn (disptab, "fpoffset"):
+        if cosutil.findColumn (lamptab, "fpoffset"):
             filter_lamp["fpoffset"] = self.info["fpoffset"]
 
         # Find the offsets in both axes, for each wavecal exposure.

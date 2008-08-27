@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.4"
-CALCOS_VERSION_DATE = "2008-08-06"
+CALCOS_VERSION_NUMBER = "2.5"
+CALCOS_VERSION_DATE = "2008-08-27"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user

@@ -10,8 +10,6 @@ import pyfits
 import ccos
 from calcosparam import *       # parameter definitions
 
-X_TINY = 1.e-8                  # pixels, used by evalInvDisp()
-
 # initial value
 verbosity = VERBOSE
 
@@ -370,14 +368,14 @@ def evalDerivDisp (x, coeff, delta=0.):
 
     return sum
 
-def evalInvDisp (wavelength, coeff, delta=0.):
-    """Evaluate the dispersion relation at x.
+def evalInvDisp (wavelength, coeff, delta=0., tiny=1.e-8):
+    """Evaluate the inverse of the dispersion relation at wavelength.
 
     The function value will be the pixel number (or array of pixel numbers)
     at the specified wavelength(s).  Newton's method is used for finding
     the pixel numbers, and the iterations are stopped when the largest
     difference between the specified wavelengths and computed wavelengths
-    is less than X_TINY (defined near the top of this file).
+    is less than tiny.
 
     @param wavelength: wavelength (or array of wavelengths)
     @type wavelength: numpy array or float
@@ -386,27 +384,40 @@ def evalInvDisp (wavelength, coeff, delta=0.):
     @type coeff: sequence object (e.g. numpy array)
     @param delta: offset to subtract from pixel coordinate
     @type delta: float
+    @param tiny: maximum allowed difference between the final pixel number(s)
+        and the value from the previous iteration
+    @type tiny: float
 
     @return: pixel number (or array of pixel numbers) at wavelength
     @rtype: numpy array or float
     """
 
-    x = 0.              # initial value
-    x_prev = x
+    tiny = abs (tiny)
+
+    # initial value
+    try:
+        nelem = len (wavelength)
+        x = N.arange (nelem, dtype=N.float64)
+    except TypeError:
+        nelem = 0
+        x = 0.
 
     # Iterate to find the pixel number(s) x such that evaluating the
     # dispersion relation at that point gives the actual wavelength
     # at the first pixel.
     done = 0
     while not done:
+        if nelem > 0:
+            x_prev = x.copy()
+        else:
+            x_prev = x
         wl = evalDisp (x, coeff, delta)
         slope = evalDerivDisp (x, coeff, delta)
         wl_diff = wavelength - wl
         x += wl_diff / slope
         diff = N.abs (x - x_prev)
-        if diff.max() < X_TINY:
+        if diff.max() < tiny:
             done = 1
-        x_prev = x
 
     return x
 

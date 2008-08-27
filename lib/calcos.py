@@ -862,10 +862,22 @@ class Association (object):
         each reference file.  This is the min_ver value.
         """
 
-        # Take info from the first science observation.
-        i = self.first_science
+        # Take info from both time-tag and accum data, if we have both.
+        (i, j) = self.first_science_tuple
+        if i is None:
+            i = j
+            j = None
         switches = self.obs[i].switches
         reffiles = self.obs[i].reffiles
+        if j is not None:
+            j_switches = self.obs[j].switches
+            j_reffiles = self.obs[j].reffiles
+            for key in switches.keys():
+                if switches[key] != "PERFORM" and j_switches[key] == "PERFORM":
+                    switches[key] = "PERFORM"
+            for key in reffiles.keys():
+                if reffiles[key] == NOT_APPLICABLE:
+                    reffiles[key] = j_reffiles[key]
 
         missing = {}            # reference file is not accessible
         wrong_filetype = {}     # wrong FILETYPE
@@ -1193,14 +1205,32 @@ class Association (object):
             return
         cosutil.printMsg ("copySptFile", VERY_VERBOSE)
 
-        i = self.first_science
-        sptfile = self.obs[i].filenames["spt"]
-        product_spt_file = self.product + "_spt.fits"
+        # Find the first science observation that has a support file.
+        sptfile = None
+        fallback = None         # use this if no suitable spt file available
+        for i in range (len (self.obs)):
+            obs = self.obs[i]
+            if not os.access (obs.filenames["spt"], os.R_OK):
+                continue
+            if fallback is None:
+                fallback = obs.filenames["spt"]
+            if obs.exp_type == EXP_SCIENCE:
+                sptfile = obs.filenames["spt"]
+                break
 
-        if not os.access (sptfile, os.R_OK):
-            cosutil.printWarning (
-            "spt file not found, so not copied to product", VERBOSE)
-            return
+        if sptfile is None:
+            if fallback is None:
+                cosutil.printWarning (
+                "spt file not found, so not copied to product", VERBOSE)
+                return
+            else:
+                sptfile = fallback
+
+        # Change the suffix to "jnk" so that if the user gets this file it
+        # will be clear that it should be ignored.
+        product_spt_file = self.product + "_jnk.fits"
+        cosutil.printMsg ("copy %s to %s" % (sptfile, product_spt_file),
+                          VERY_VERBOSE)
 
         # Copy the spt file to the "product spt" file.
         shutil.copy (sptfile, product_spt_file)
@@ -1215,12 +1245,6 @@ class Association (object):
         phdr.update ("rootname", product)
         phdr.update ("observtn", product[-3:].upper())
         phdr.update ("asn_mtyp", self.product_type)     # do we need this?
-
-        for i in range (1, len (fd)):
-            hdr = fd[i].header
-            hdr.update ("rootname", product)
-            hdr.update ("expname", product)
-            hdr.update ("asn_mtyp", self.product_type)
 
         fd.close()
 
@@ -2029,11 +2053,9 @@ class Calibration (object):
         The shift and related info will be appended to the wavecal_info list.
         """
         cosutil.printSwitch ("WAVECORR", {"wavecorr": "PERFORM"})
-        i = self.assoc.first_science
-        reffiles = self.assoc.obs[i].reffiles
-        wavecal.printWavecalRef (reffiles)
 
         previous_x1d_file = " "
+        first = True
         for obs in self.assoc.obs:
 
             x1d_file = obs.filenames["x1d"]
@@ -2044,6 +2066,9 @@ class Calibration (object):
 
             if obs.exp_type == EXP_WAVECAL:
 
+                if first:
+                    wavecal.printWavecalRef (obs.reffiles)
+                    first = False
                 cosutil.printFilenames ([("Input", x1d_file)])
                 shift_dict = wavecal.findWavecalShift (x1d_file, self.wcp_info)
 
