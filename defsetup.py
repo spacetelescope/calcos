@@ -14,7 +14,7 @@ setupargs = {
     'author' :			"Phil Hodge",
     'author_email' :	"help@stsci.edu",
     'platforms' :		["Linux", "Solaris", "Mac OS X", "Windows"],
-    'scripts' :			['lib/calcos.py'],
+    'scripts' :			['lib/calcos'],
     'ext_modules' :		[ 
                             distutils.core.Extension ("calcos.ccos", ["src/ccos.c"],
                                define_macros = [('NUMPY', '1')],

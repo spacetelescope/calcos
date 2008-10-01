@@ -1,0 +1,6 @@
+#! python
+import calcos
+import sys
+
+calcos.main (sys.argv[1:])
+
