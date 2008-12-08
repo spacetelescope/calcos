@@ -24,15 +24,21 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     burstfile       name of output text file for burst info (or None)
     high_countrate  this boolean flag can be set to true to force the time
                     interval to be short, as if the data were high count rate
+
+    @return: list of [bad_start, bad_stop] intervals during which a burst
+        was detected (seconds since expstart)
+    @rtype: list of two-element lists, or None
     """
 
+    bursts = None
+
     if info["segment"][:3] != "FUV":
-        return
+        return None
 
     if info["exptime"] <= 0.:
         cosutil.printWarning ("burstFilter:  Can't screen for bursts because"
                 " exptime = %g" % info["exptime"])
-        return
+        return None
 
     cosutil.printMsg ("Screen for bursts", VERBOSE)
 
@@ -50,7 +56,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     except:
         cosutil.printWarning ("Can't screen for bursts" \
                               " due to missing row in reference table")
-        return
+        return None
 
     # rows of extraction aperture / background rows
     bkgsf = float (src_high - src_low + 1) / \
@@ -64,7 +70,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     t0 = time[0]
     last = time[len(time)-1]
     if last <= t0:
-        return
+        return None
 
     if countrate > high_rate:
         delta_t = delta_t_high
@@ -78,7 +84,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     if nbins <= 3:
         cosutil.printWarning ("There are so few time bins (%d) that "
                 "burst detection is not practical." % nbins)
-        return
+        return None
 
     printParam (median_n, delta_t, median_dt, burst_min,
                 stdrej, source_frac, max_iter, high_rate,
@@ -152,12 +158,17 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
         # and whether the interval was flagged as a burst, large or small.
         fd = open (burstfile, "a")
         for i in range (nbins):
-            time = t0 + (i+0.5) * delta_t
+            t = t0 + (i+0.5) * delta_t
             fd.write ("%.3f %d %d %d\n" %
-                (time, bkg_counts_save[i],
-                       bkg_counts[i] == LARGE_BURST,
-                       bkg_counts[i] == SMALL_BURST))
+                (t, bkg_counts_save[i],
+                    bkg_counts[i] == LARGE_BURST,
+                    bkg_counts[i] == SMALL_BURST))
         fd.close()
+
+    # Construct the list of start, stop intervals containing bursts.
+    bursts = extractIntervals (time, istart, bkg_counts)
+
+    return bursts
 
 def getBurstParam (brsttab, segment):
     """Read parameters from burst reference table.
@@ -235,6 +246,44 @@ def getRegionLocations (reffiles, info):
 
     return (active_low, active_high, src_low, src_high,
             bkg1_low, bkg1_high, bkg2_low, bkg2_high)
+
+def extractIntervals (time, istart, bkg_counts):
+    """Construct list of bad time intervals.
+
+    @param time: time column from events table
+    @type time: numpy array
+    @param istart: array of indices; time[istart[i]] is the time at the
+        start of bin i
+    @type istart: numpy array
+    @param bkg_counts: negative values are used to flag bursts (otherwise,
+        this is the array of background counts within each time bin)
+    @type bkg_counts: numpy array
+
+    @return: list of [bad_start, bad_stop] intervals during which a burst
+        was detected (seconds since expstart)
+    @rtype: list of two-element lists, or None
+    """
+
+    if bkg_counts.min() >= 0:
+        return None
+
+    bursts = []
+    nbins = len (bkg_counts)
+
+    in_bad_interval = False
+    for i in range (nbins):
+        if bkg_counts[i] < 0 and not in_bad_interval:
+            in_bad_interval = True
+            t1 = time[istart[i]]        # time at start of current bin
+        elif bkg_counts[i] >= 0 and in_bad_interval:
+            in_bad_interval = False
+            t2 = time[istart[i]]        # time at end of previous bin
+            bursts.append ([t1, t2])
+
+    if in_bad_interval:
+        bursts.append ([t1, time[-1]])
+
+    return bursts
 
 def printParam (median_n, delta_t, median_dt, burst_min,
                 stdrej, source_frac, max_iter, high_rate,

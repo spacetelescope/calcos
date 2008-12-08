@@ -8,10 +8,12 @@ import pyfits
 import cosutil
 import ccos
 import timetag                  # actually for more generic functions
+import wavecal
 from calcosparam import *       # parameter definitions
 
-def accumBasicCalibration (input, inpha, output, outcounts,
+def accumBasicCalibration (input, inpha, output, outcounts, outcsum,
                   info, switches, reffiles,
+                  wavecal_info,
                   stimfile, livetimefile):
     """Do the basic processing for accum data.
 
@@ -23,17 +25,23 @@ def accumBasicCalibration (input, inpha, output, outcounts,
                   histogram (FUV only)
     output        name of the output file for flat-fielded count-rate image
     outcounts     name of the output file for count-rate image
+    outcsum       name of the output image for OPUS to add to cumulative
+                      image (or None)
     info          dictionary of header keywords and values
     switches      dictionary of calibration switches
     reffiles      dictionary of reference file names
+    wavecal_info  when wavecal exposures were processed, the results
+                    were stored in this dictionary
     stimfile      name of output text file for stim positions (or None)
     livetimefile  name of output text file for livetime factors (or None)
     """
 
     cosutil.printIntro ("ACCUM calibration")
-    names = [("Input", input), ("Output", output), ("Outcounts", outcounts)]
+    names = [("Input", input), ("OutFlt", output), ("OutCounts", outcounts)]
     if info["detector"] == "FUV":
-        names.insert (1, ("Inpha", inpha))
+        names.insert (1, ("InPha", inpha))
+    if outcsum is not None:
+        names.append (("OutCsum", outcsum))
     cosutil.printFilenames (names, stimfile=stimfile, livetimefile=livetimefile)
     cosutil.printMode (info)
 
@@ -58,7 +66,8 @@ def accumBasicCalibration (input, inpha, output, outcounts,
 
     doPhacorr (inpha, info, switches, reffiles, headers)
 
-    dq_array = doDqicorr (input, info, switches, reffiles, headers)
+    dq_array = doDqicorr (input, info, switches, reffiles,
+                          wavecal_info, headers)
 
     # Open the accum image.
     fd = pyfits.open (input, mode="readonly")
@@ -113,6 +122,11 @@ def accumBasicCalibration (input, inpha, output, outcounts,
         sci = N.zeros (info["npix"], dtype=N.float32)
         ccos.binevents (x, y, sci)
 
+    if sci.dtype != N.float32:
+        sci = sci.astype (N.float32)
+
+    sci = clobberBadPixels (sci, dq_array)
+
     err = N.sqrt (sci)
 
     sci /= info["exptime"]
@@ -125,6 +139,10 @@ def accumBasicCalibration (input, inpha, output, outcounts,
 
     doDeadcorr (input, sci, err, info, switches, reffiles,
                     stim_countrate, stim_livetime, livetimefile, headers)
+
+    # Write the calcos sum image.
+    if outcsum is not None:
+        writeCsum (outcsum, headers, sci, info["exptime"])
 
     doFlatcorr (sci, err, info, switches, reffiles, headers)
 
@@ -266,20 +284,21 @@ def checkPulseHeight (inpha, phatab, info, hdr):
 
     fd.close()
 
-def doDqicorr (input, info, switches, reffiles, headers):
+def doDqicorr (input, info, switches, reffiles, wavecal_info, headers):
     """Apply the data quality initialization table.
 
     The data quality extension in the input file will be read into dq_array.
     The flag information in the bpixtab will be combined with dq_array
-    in-place via bitwise OR, taking the Doppler shift into account.  Also,
-    if the input was a subarray, regions outside the subarray will be
-    flagged as out of bounds.
+    in-place via bitwise OR, taking the Doppler shift and wavecal offset
+    into account.
 
     arguments:
     input         name of the input raw file
     info          dictionary of header keywords and values
     switches      dictionary of calibration switches
     reffiles      dictionary of reference file names
+    wavecal_info  when wavecal exposures were processed, the results
+                    were stored in this dictionary
     headers       a list of the headers from the input file
 
     The function value is dq_array, the updated data quality array.
@@ -293,18 +312,56 @@ def doDqicorr (input, info, switches, reffiles, headers):
     if switches["dqicorr"] == "PERFORM":
 
         cosutil.printRef ("BPIXTAB", reffiles)
+        minmax_shifts = getWavecalOffsets (wavecal_info,
+                                           info, switches, reffiles)
+        if minmax_shifts is not None:
+            (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
+            # xxx the following is temporary;
+            # xxx remove when the full wavecal shift is to be applied to accum
+            dx = (max_shift1 - min_shift1) / 2.
+            dy = (max_shift2 - min_shift2) / 2.
+            min_shift1 = -dx
+            min_shift2 = -dy
+            max_shift1 = dx
+            max_shift2 = dy
+            minmax_shifts = (min_shift1, max_shift1, min_shift2, max_shift2)
 
         # Read values from the bpixtab, and bitwise OR them with the dq_array,
-        # taking into account the Doppler shift.
-        cosutil.updateDQArray (reffiles["bpixtab"], info,
-                      switches["doppcorr"], dq_array)
+        # taking into account the Doppler shift and wavecal offset.
+        cosutil.updateDQArray (reffiles["bpixtab"], info, switches["doppcorr"],
+                      info["dopmagt"], info["dopzerot"], info["orbtpert"],
+                      dq_array, minmax_shifts)
 
         # Flag regions that are outside any subarray as out of bounds.
-        cosutil.flagOutOfBounds (headers[0], headers[1], dq_array)
+        #  (OPUS does this already)
+        # cosutil.flagOutOfBounds (headers[0], headers[1], dq_array)
+
+        # Flag the region that is outside the active area.
+        if info["detector"] == "FUV":
+            cosutil.flagOutsideActiveArea (dq_array,
+                        info["segment"], reffiles["brftab"])
 
         headers[0]["dqicorr"] = "COMPLETE"
 
     return dq_array
+
+def clobberBadPixels (sci, dq_array):
+    """Set pixel values to zero where the data quality is "bad".
+
+    @param sci: the data array
+    @type sci: numpy array (float32)
+    @param dq_array: the data quality array
+    @type dq_array: numpy array (int8)
+
+    @return: the data array with bad pixels set to zero
+    @rtype: numpy array (float32)
+    """
+
+    sdqflags = (DQ_DEAD + DQ_HOT)
+
+    sci = N.where (N.bitwise_and (dq_array, sdqflags), 0., sci)
+
+    return sci
 
 def initHelcorr (info, switches, headers):
     """Compute radial velocity, and assign to v_helio keyword.
@@ -713,7 +770,7 @@ def doFlatcorr (sci, err, info, switches, reffiles, headers):
         if switches["doppcorr"] == "PERFORM":
             convolveFlat (flat, info["dispaxis"], \
                  info["expstart"], info["exptime"],
-                 info["doppmag"], info["doppzero"], info["orbitper"])
+                 info["dopmagt"], info["dopzerot"], info["orbtpert"])
             headers[0]["doppcorr"] = "COMPLETE"
         # Now divide by the flat field image.
         doFlatAccum (sci, flat, origin)
@@ -751,7 +808,7 @@ def getFlatField (flatfile, detector, segment):
     return (flat, origin)
 
 def convolveFlat (flat, dispaxis,
-                expstart, exptime, doppmag, doppzero, orbitper):
+                expstart, exptime, dopmagt, dopzerot, orbtpert):
     """Convolve the flat field file with the Doppler smearing function.
 
     arguments:
@@ -759,23 +816,23 @@ def convolveFlat (flat, dispaxis,
     dispaxis   dispersion axis (1 or 2)
     expstart   exposure start time, MJD
     exptime    exposure duration, seconds
-    doppmag    magnitude of Doppler shift, pixels
-    doppzero   time when Doppler shift is zero and increasing
-    orbitper   orbital period of HST
+    dopmagt    magnitude of Doppler shift, pixels
+    dopzerot   time when Doppler shift is zero and increasing
+    orbtpert   orbital period of HST
     """
 
-    # Round doppmag up to the next integer; mag is a zero-point offset.
-    mag = int (math.ceil (doppmag))
+    # Round dopmagt up to the next integer; mag is a zero-point offset.
+    mag = int (math.ceil (dopmagt))
 
     # dopp will be the Doppler smoothing function, normalized so its sum is 1.
     dopp = N.zeros (2*mag+1, dtype=N.float32)
 
-    # time is the time in seconds since doppzero, in one second increments.
-    time = N.arange (exptime, dtype=N.float32) + \
-               (expstart - doppzero) * SEC_PER_DAY
+    # t is the time in seconds since dopzerot, in one second increments.
+    t = N.arange (int (round (exptime)), dtype=N.float32) + \
+               (expstart - dopzerot) * SEC_PER_DAY
 
-    # shift is in pixels (wavelengths decrease toward larger pixel number).
-    shift = doppmag * N.sin (2. * N.pi * time / orbitper)
+    # shift is in pixels (wavelengths increase toward larger pixel number).
+    shift = -dopmagt * N.sin (2. * N.pi * t / orbtpert)
 
     # Construct the Doppler smoothing function.
     npts = round (exptime)
@@ -862,19 +919,64 @@ def writeImset (output, headers, sci_array, err_array, dq_array):
     fd[0].header["nextend"] = 3
     cosutil.updateFilename (fd[0].header, output)
 
-    hdu = pyfits.ImageHDU (data=sci_array, header=headers[1], name="SCI")
+    sci_hdr = None
+    err_hdr = None
+    dq_hdr = None
+    for i in range (1, len (headers)):
+        extname = headers[i].get ("extname", "not found")
+        extver  = headers[i].get ("extver", 1)
+        if extver != 1:
+            cosutil.printWarning ("EXTVER = %d, should be 1" % extver)
+        if extname.upper() == "SCI":
+            sci_hdr = headers[i]
+        elif extname.upper() == "ERR":
+            err_hdr = headers[i]
+        elif extname.upper() == "DQ":
+            dq_hdr = headers[i]
+
+    hdu = pyfits.ImageHDU (data=sci_array, header=sci_hdr, name="SCI")
     hdu.header.update ("BUNIT", "count /s")
     fd.append (hdu)
 
-    hdu = pyfits.ImageHDU (data=err_array, header=headers[2], name="ERR")
+    hdu = pyfits.ImageHDU (data=err_array, header=err_hdr, name="ERR")
     hdu.header.update ("BUNIT", "count /s")
     fd.append (hdu)
 
-    hdu = pyfits.ImageHDU (data=dq_array, header=headers[3], name="DQ")
+    hdu = pyfits.ImageHDU (data=dq_array, header=dq_hdr, name="DQ")
     hdu.header.update ("BUNIT", "UNITLESS")
     fd.append (hdu)
 
     fd.writeto (output, output_verify="silentfix")
+
+def writeCsum (outcsum, headers, sci_array, exptime):
+    """Write the "calcos sum" (csum) image.
+
+    @param outcsum: name of output calcos sum image file
+    @type outcsum: string
+    @param headers: list of headers (primary, sci, err, dq)
+    @type headers: list
+    @param sci_array: data array for SCI extension
+    @type sci_array: numpy array
+    @param exptime: exposure time (s)
+    @type exptime: float
+    """
+
+    cosutil.printMsg ("writing file %s ..." % outcsum, VERY_VERBOSE)
+
+    sci_counts = sci_array * exptime
+
+    primary_hdu = pyfits.PrimaryHDU (header=headers[0])
+    fd = pyfits.HDUList (primary_hdu)
+    fd[0].header.update ("nextend", 1)
+    fd[0].header.update ("counts", sci_counts.sum())
+    fd[0].header.update ("filetype", "CALCOS SUM FILE")
+    cosutil.updateFilename (fd[0].header, outcsum)
+
+    hdu = pyfits.ImageHDU (data=sci_counts, header=headers[1], name="SCI")
+    hdu.header.update ("BUNIT", "count")
+    fd.append (hdu)
+
+    fd.writeto (outcsum, output_verify="silentfix")
 
 def doStatflag (switches, output, outcounts):
     """Compute statistics and update keywords.
@@ -889,3 +991,72 @@ def doStatflag (switches, output, outcounts):
     if switches["statflag"] == "PERFORM":
         cosutil.doImageStat (outcounts)
         cosutil.doImageStat (output)
+
+def getWavecalOffsets (wavecal_info,
+                       info, switches, reffiles):
+    """Return offsets based on auto or GO wavecal info.
+
+    @param wavecal_info: when wavecal exposures were processed, the results
+        were stored in this dictionary
+    @type wavecal_info: dictionary
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+
+    @return: four values:  the min and max offsets in the dispersion
+        direction and the min and max offsets in the cross-dispersion
+        direction during the exposure; these values will all be zero if
+        the current observation is a wavecal or if wavecal processing was
+        not done.
+    @rtype: tuple
+    """
+
+    min_shift1 = 0.
+    max_shift1 = 0.
+    min_shift2 = 0.
+    max_shift2 = 0.
+
+    # Read info from wavecal parameters table.
+    wcp_info = cosutil.getTable (reffiles["wcptab"],
+                       filter={"opt_elem": info["opt_elem"]},
+                       exactly_one=True)
+    wcp_info = wcp_info[0]
+
+    # Get the shifts in dispersion and cross-dispersion directions at the
+    # start of the exposure.  If the current exposure was bracketed by
+    # two wavecals, the slopes of the shifts can be non-zero.
+    shift_info = wavecal.returnWavecalShift (wavecal_info,
+                        wcp_info, info["fpoffset"], info["expstart"])
+    if shift_info is None:
+        return (min_shift1, max_shift1, min_shift2, max_shift2)
+
+    (shift_dict, slope_dict) = shift_info
+
+    if info["detector"] == "FUV":
+        segment = info["segment"]
+    else:
+        segment = "NUVB"
+
+    key = "shift1" + segment[-1].lower()
+    shift1_zero = shift_dict[key]
+    shift1_slope = slope_dict[key]
+
+    key = "shift2" + segment[-1].lower()
+    shift2_zero = shift_dict[key]
+    shift2_slope = slope_dict[key]
+
+    # the slope of the shift is in pixels per second
+    min_shift1 = shift1_zero
+    max_shift1 = shift1_zero + info["exptime"] * shift1_slope
+    min_shift2 = shift2_zero
+    max_shift2 = shift2_zero + info["exptime"] * shift2_slope
+
+    if max_shift1 < min_shift1:
+        (min_shift1, max_shift1) = (max_shift1, min_shift1)
+    if max_shift2 < min_shift2:
+        (min_shift2, max_shift2) = (max_shift2, min_shift2)
+
+    return (min_shift1, max_shift1, min_shift2, max_shift2)

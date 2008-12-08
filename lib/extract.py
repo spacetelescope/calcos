@@ -84,7 +84,9 @@ def extract1D (input, incounts=None, output=None,
     cosutil.printSwitch ("FLUXCORR", switches)
     if switches["fluxcorr"] == "PERFORM":
         cosutil.printRef ("phottab", reffiles)
-        cosutil.printRef ("tdstab", reffiles)
+        cosutil.printSwitch ("TDSCORR", switches)
+        if switches["tdscorr"] == "PERFORM":
+            cosutil.printRef ("tdstab", reffiles)
 
     # Create the output FITS header/data unit object.
     ofd = pyfits.HDUList (ifd_e[0])
@@ -126,9 +128,8 @@ def extract1D (input, incounts=None, output=None,
                 unit="count /s"))
     col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E",
                 unit="count /s"))
+    col.append (pyfits.Column (name="DQ", format=rpt+"I"))
     col.append (pyfits.Column (name="DQ_WGT", format=rpt+"E"))
-    col.append (pyfits.Column (name="MAXDQ", format=rpt+"I"))
-    col.append (pyfits.Column (name="AVGDQ", format=rpt+"I"))
     cd = pyfits.ColDefs (col)
 
     hdu = pyfits.new_table (cd, header=hdr, nrows=nrows)
@@ -147,7 +148,7 @@ def extract1D (input, incounts=None, output=None,
         if switches["fluxcorr"] == "PERFORM":
             # Convert net count rate to flux.
             doFluxCorr (ofd, info["opt_elem"], info["cenwave"],
-                        info["aperture"], reffiles)
+                        info["aperture"], switches["tdscorr"], reffiles)
     # Update nrows, in case rows were skipped during 1-D extraction.
     nrows = ofd[1].data.shape[0]
 
@@ -177,14 +178,16 @@ def extract1D (input, incounts=None, output=None,
         ofd[0].header["x1dcorr"] = "COMPLETE"
         if switches["backcorr"] == "PERFORM":
             ofd[0].header["backcorr"] = "COMPLETE"
-        if switches["fluxcorr"] == "PERFORM":
-            ofd[0].header["fluxcorr"] = "COMPLETE"
+        # FLUXCORR and TDSCORR are updated in doFluxCorr.
 
     ofd.writeto (output, output_verify="silentfix")
     del ofd
     ifd_e.close()
     if ifd_c is not None:
         ifd_c.close()
+
+    if nrows > 0:
+        copyKeywordsToInput (output, input, incounts)
 
     if switches["statflag"] == "PERFORM":
         cosutil.doSpecStat (output)
@@ -254,14 +257,20 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         height = xtract_info.field ("height")[0]
 
         if is_wavecal:
-            pshift = 0.
+            dshift1 = 0.
         else:
-            key = "pshift" + segment[-1]
-            pshift = hdr[key]
+            if info["obsmode"] == "ACCUM":
+                key = "shift1" + segment[-1]
+            else:
+                key = "dshift1" + segment[-1]
+            dshift1 = hdr.get (key, 0.)
 
         # cross-dispersion direction
-        key = "shift2" + segment[-1]
-        shift2 = hdr.get (key, 0.)
+        if info["obsmode"] == "ACCUM":
+            key = "shift2" + segment[-1]
+            shift2 = hdr.get (key, 0.)
+        else:
+            shift2 = 0.
         shift2 += postargOffset (ifd_e[0].header, hdr["dispaxis"])
 
         # xdisp_locn will be the user-specified location in cross-dispersion
@@ -285,7 +294,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         else:
             delta = 0.
 
-        pixel -= pshift             # shift will be 0 for a wavecal
+        pixel -= dshift1            # shift will be 0 for a wavecal
         wavelength = cosutil.evalDisp (pixel, coeff, delta)
         wavelength_dq = N.where (wavelength < MIN_WAVELENGTH, \
                         DQ_BAD_WAVELENGTH, 0).astype (N.int16)
@@ -301,13 +310,10 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                 axis_length = FUV_X
             else:
                 axis_length = NUV_X
-            (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, xd_locn) = \
+            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn) = \
                 extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
                     axis_length, snr_ff, hdr["exptime"], switches["backcorr"],
                     xtract_info, shift2, xdisp_locn)
-            # we don't have this info
-            outdata.field ("AVGDQ")[row][:] = 0
-            outdata.field ("MAXDQ")[row][:] = 0
         else:
             if xdisp_locn is None and find_target:
                 y_nominal = xtract_info.field ("b_spec")[0] + shift2
@@ -319,13 +325,11 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                 #                info["detector"], info["opt_elem"])
             else:
                 xd_locn = xdisp_locn    # updated by extractSegment()
-            (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, AVGDQ_i, MAXDQ_i, xd_locn) = \
+            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn) = \
              extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
                     ifd_e["DQ"].data, wavelength_dq,
                     snr_ff, hdr["exptime"], switches["backcorr"], axis,
                     xtract_info, shift2, xd_locn, find_target)
-            outdata.field ("AVGDQ")[row][:] = AVGDQ_i
-            outdata.field ("MAXDQ")[row][:] = MAXDQ_i
         updateExtractionKeywords (ofd[1].header, segment,
                                   slope, height, xd_locn)
         del xtract_info
@@ -338,6 +342,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         outdata.field ("GROSS")[row][:] = GC_i
         outdata.field ("NET")[row][:] = N_i
         outdata.field ("BACKGROUND")[row][:] = BK_i
+        outdata.field ("DQ")[row][:] = DQ_i
         outdata.field ("DQ_WGT")[row][:] = DQ_WGT_i
 
         row += 1
@@ -490,8 +495,7 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
     @type find_target: boolean
 
     @return: net count rate, error estimate, gross count rate, background
-        count rate, data quality weight array, average DQ, maximum DQ,
-        xd_locn
+        count rate, data quality array, data quality weight array, xd_locn
     @rtype: tuple of seven 1-D arrays
 
     The xd_locn that is returned is either the user-specified value (if
@@ -511,9 +515,8 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
       N_i       net count rate
       eps_i     effective count rate / gross count rate
       ERR_i     error estimate for net count rate
+      DQ_i      data quality flags, bitwise OR of input DQ array
       DQ_WGT_i  data quality weight array
-      AVGDQ_i   average data quality
-      MAXDQ_i   maximum data quality
     """
 
     slope           = xtract_info.field ("slope")[0]
@@ -541,15 +544,25 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
         b_spec = xdisp_locn - slope * (axis_length // 2)
         xd_locn = xdisp_locn
 
-    # Compute the data quality weight array.
-    dq_ij = N.zeros ((extr_height, axis_length), dtype=N.int16)
+    # Compute the data quality and data quality weight arrays.
+    DQ_i = N.zeros (axis_length, dtype=N.int16)
     if e_dq_data is not None:
+
+        # Get data quality flags within extraction region.
+        dq_ij = N.zeros ((extr_height, axis_length), dtype=N.int16)
         ccos.extractband (e_dq_data, axis, slope, b_spec, dq_ij)
-        dq_wgt_ij = N.ones ((extr_height, axis_length), dtype=N.float32)
-        dq_wgt_ij[:,:] = N.where (N.bitwise_and (dq_ij, REALLY_BAD_DQ_FLAGS),
-                                  0., 1.)
-        DQ_WGT_i = dq_wgt_ij.mean (axis=0)
-        del dq_wgt_ij
+        # xxx replace with a C function
+        for j in range (extr_height-1):
+            DQ_i[:] = N.bitwise_or (dq_ij[j], dq_ij[j+1])
+
+        # In bad_ij and bad_i, 0 means OK and 1 means bad
+        bad_ij = N.zeros ((extr_height, axis_length), dtype=N.int32)
+        bad_ij[:,:] = N.where (N.bitwise_and (dq_ij, REALLY_BAD_DQ_FLAGS), 1, 0)
+        bad_i = bad_ij.sum (axis=0)
+        # Any bad pixel in extraction region?  DQ_WGT is a weight,
+        # so 0 is bad and 1 is good.
+        DQ_WGT_i = N.where (bad_i > 0, 0., 1.)
+        del dq_ij, bad_ij, bad_i
     else:
         DQ_WGT_i = N.ones (axis_length, dtype=N.float32)
 
@@ -564,11 +577,6 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
 
     eps_i = e_i / N.where (GC_i <= 0., 1., GC_i)
     del e_ij, e_i
-
-    # Correct for the fraction of bad pixels in the extraction region.
-    temp = N.where (DQ_WGT_i <= 0., 1., DQ_WGT_i)
-    GC_i = GC_i / temp
-    del temp
 
     bkg_norm = float (extr_height) / (2. * float (bkg_extr_height))
     if backcorr == "PERFORM":
@@ -594,25 +602,14 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
                 (GC_i + BK_i * (bkg_norm / float (bkg_smooth)))
     ERR_i = N.sqrt (term1_i + term2_i) / exptime
 
-    # Flag regions where the wavelength is ridiculously low.
-    N.bitwise_or (dq_ij, wavelength_dq, dq_ij)
-    n_ij = GC_ij * exptime                      # counts in each pixel
-    weighted_dq = n_ij * dq_ij
-    sum = weighted_dq.sum (axis=0)
-    sum_weight = n_ij.sum (axis=0)              # counts in extraction region
-    # replace 0 with 1 so we don't divide by zero
-    sum_weight = N.where (sum_weight == 0., 1., sum_weight)
-    avgdq = sum / sum_weight + 0.49999          # round off
-    AVGDQ_i = avgdq.astype (N.int16)
-    MAXDQ_i = N.maximum.reduce (dq_ij, 0)
-
-    return (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, AVGDQ_i, MAXDQ_i, xd_locn)
+    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn)
 
 def extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
                     axis_length, snr_ff, exptime, backcorr,
                     xtract_info, shift2, xdisp_locn=None):
     """Extract a 1-D spectrum for one segment or stripe.
 
+    not finished
     """
 
     slope           = xtract_info.field ("slope")[0]
@@ -680,12 +677,15 @@ def extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
                 (GC_i + BK_i * (bkg_norm / float (bkg_smooth)))
     ERR_i = N.sqrt (term1_i + term2_i) / exptime
 
+    # dummy DQ array
+    DQ_i = N.zeros (axis_length, dtype=N.int16)
+
     # dummy weight array
     DQ_WGT_i = N.ones (axis_length, dtype=N.float32)
 
-    return (N_i, ERR_i, GC_i, BK_i, DQ_WGT_i, xd_locn)
+    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn)
 
-def doFluxCorr (ofd, opt_elem, cenwave, aperture, reffiles):
+def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
     """Convert net counts to flux, updating flux and error columns.
 
     The correction to flux is made by dividing by the appropriate row
@@ -693,12 +693,20 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, reffiles):
     been specified, the flux and error will be corrected to the time of
     observation.
 
-    arguments:
-    ofd         output (FITS HDUList object), modified in-place
-    opt_elem    grating name
-    cenwave     central wavelength (integer)
-    aperture    PSA, BOA, WCA
-    reffiles    dictionary of reference file names
+    @param ofd: HDUList for the output table; the primary header will be
+        modified to set FLUXCORR to COMPLETE, and TDSCORR may be set to
+        either COMPLETE or SKIPPED
+    @type ofd: PyFITS HDUList object
+    @param opt_elem: grating name
+    @type opt_elem: string
+    @param cenwave: central wavelength
+    @type cenwave: integer
+    @param aperture: PSA, BOA, WCA
+    @type aperture: string
+    @param tdscorr: calibration switch, time-dependent sensitivity correction
+    @type tdscorr: string
+    @param reffiles: dictionary of reference file names
+    @type reffiles: dictionary
     """
 
     outdata = ofd[1].data
@@ -729,45 +737,74 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, reffiles):
             factor = N.where (factor <= 0., 1., factor)
             flux[row][:] = net[row] / factor
             error[row][:] = error[row] / factor
+    ofd[0].header["fluxcorr"] = "COMPLETE"
 
     # Compute an array of time-dependent correction factors (a potentially
     # different value at each wavelength), and divide the flux and error by
     # this array.
 
-    tdstab = reffiles["tdstab"]
-    if tdstab != NOT_APPLICABLE:
+    if tdscorr == "PERFORM":
+        tdstab = reffiles["tdstab"]
         t_obs = (ofd[1].header["expstart"] + ofd[1].header["expend"]) / 2.
         filter = {"opt_elem": opt_elem,
                   "aperture": aperture}
-
+        # First check for dummy rows in the TDS table.  If there is no
+        # pedigree column, assume all rows are good (i.e. not dummy).
+        dummy = False           # initial value
         for row in range (nrows):
             filter["segment"] = segment[row]
-            # Get factor at each wavelength in the tds table.
-            try:
-                (wl_tds, factor_tds) = getTdsFactors (tdstab, filter, t_obs)
-            except RuntimeError:        # no matching row in table
-                continue
-
-            factor = N.zeros (len (flux[row]), dtype=N.float32)
-            # Interpolate factor_tds at each wavelength.
-            ccos.interp1d (wl_tds, factor_tds, wavelength[row], factor)
-
-            flux[row][:] /= factor
-            error[row][:] /= factor
+            tds_info = cosutil.getTable (tdstab, filter, exactly_one=True)
+            names = []
+            for name in tds_info.names:
+                names.append (name.lower())
+            if "pedigree" not in names:
+                break
+            pedigree = tds_info.field ("pedigree")[0]
+            if pedigree == "DUMMY":
+                dummy = True
+                cosutil.printWarning ("Current row in TDSTAB %s is dummy" % \
+                                      tdstab, level=VERBOSE)
+                cosutil.printContinuation ("for filter = %s," % \
+                                           filter, level=VERBOSE)
+                cosutil.printContinuation ("so TDSTAB will not be done.", \
+                                           level=VERBOSE)
+                break
+        if dummy:
+            ofd[0].header["tdscorr"] = "SKIPPED"
+        else:
+            for row in range (nrows):
+                filter["segment"] = segment[row]
+                # Get an array of factors vs. wavelength at the time of the obs.
+                try:
+                    tds_results = getTdsFactors (tdstab, filter, t_obs)
+                except RuntimeError:    # no matching row in table
+                    continue
+                (wl_tds, factor_tds) = tds_results
+                factor = N.zeros (len (flux[row]), dtype=N.float32)
+                # Interpolate factor_tds at each wavelength.
+                ccos.interp1d (wl_tds, factor_tds, wavelength[row], factor)
+                flux[row][:] /= factor
+                error[row][:] /= factor
+            ofd[0].header["tdscorr"] = "COMPLETE"
 
 def getTdsFactors (tdstab, filter, t_obs):
     """Get arrays of wavelengths and corresponding TDS factors.
 
-    arguments:
-    tdstab      name of the time-dependent sensitivity reference table
-    filter      dictionary for selecting a row from tdstab
-    t_obs       time of the observation (MJD)
+    @param tdstab: name of the time-dependent sensitivity reference table
+    @type tdstab: string
+    @param filter: dictionary for selecting a row from tdstab
+    @type filter: dictionary
+    @param t_obs: time of the observation (MJD)
+    @type t_obs: float
 
-    The function value is the tuple (wl_tds, factor_tds), where wl_tds
-    is the array of wavelengths from the TDS table, and factor_tds is the
-    corresponding array of time-dependent sensitivity factors, evaluated
-    at the time of observation from the slope and intercept from the TDS
-    table.
+    @return: (wl_tds, factor_tds), where wl_tds is the array of wavelengths
+        from the TDS table, and factor_tds is the corresponding array of
+        time-dependent sensitivity factors, evaluated at the time of
+        observation from the slope and intercept from the TDS table;
+        if the time of observation is outside the range of times in the
+        table, factor_tds will be independent of time and equal to the
+        factor at the first or last time in the table respectively
+    @rtype: tuple, or None
     """
 
     # Slope and intercept are specified for each of the nt entries in
@@ -804,7 +841,17 @@ def getTdsFactors (tdstab, filter, t_obs):
 
     # The slope in the tdstab is in percent per year.  Convert the time
     # interval to years, and convert the slope to fraction per year.
-    delta_t = (t_obs - ref_time) / DAYS_PER_YEAR
+    # If the time of observation is before the first time in the table or
+    # after the last time, the correction factor is to be the factor at
+    # the first time or the last time respectively.  This is done by setting
+    # delta_t to be the difference from the reference time to the first or
+    # last time.
+    if t_obs < time[0]:
+        delta_t = (time[0] - ref_time) / DAYS_PER_YEAR
+    elif t_obs > time[nt-1]:
+        delta_t = (time[nt-1] - ref_time) / DAYS_PER_YEAR
+    else:
+        delta_t = (t_obs - ref_time) / DAYS_PER_YEAR
     slope[:] /= 100.
 
     # Take the slice [0:nwl] to avoid using elements that may not be valid,
@@ -829,7 +876,8 @@ def updateExtractionKeywords (hdr, segment, slope, height, xdisp_locn):
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
     hdr.update (key, xdisp_locn)
-    hdr.update ("SP_SLOPE", slope)
+    key = "SP_SLP_" + segment[-1]           # SP_SLP_A, SP_SLP_B, SP_SLP_C
+    hdr.update (key, slope)
     hdr.update ("SP_WIDTH", height)
 
 def updateArchiveSearch (ofd):
@@ -944,9 +992,11 @@ def concatenateFUVSegments (infiles, output):
     for key in ["stimb_lx", "stimb_ly", "stimb_rx", "stimb_ry",
                 "stimb0lx", "stimb0ly", "stimb0rx", "stimb0ry",
                 "stimbslx", "stimbsly", "stimbsrx", "stimbsry",
-                "pha_badb", "phalowrb", "phaupprb", "pshiftb",
-                "sp_loc_b", "shift2b"]:
-        hdu.header.update (key, seg_b[1].header.get (key, -1.0))
+                "pha_badb", "phalowrb", "phaupprb",
+                "sp_loc_b", "sp_slp_b",
+                "shift1b", "shift2b", "dshift1b"]:
+        if seg_b[1].header.has_key (key):
+            hdu.header.update (key, seg_b[1].header.get (key, -1.0))
 
     # If one of the segments has no data, use the other segment for the
     # primary header.  This is so the calibration switch keywords in the
@@ -989,3 +1039,104 @@ def copySegments (data_a, nrows_a, data_b, nrows_b, outdata):
     for i in range (nrows_b):
         outdata[n] = data_b[i]
         n += 1
+
+def copyKeywordsToInput (output, input, incounts):
+    """Copy extraction location keywords to the input headers.
+
+    @param output: name of the output file for 1-D extracted spectra
+    @type output: string
+    @param input: name of either the flat-fielded count-rate image, or the
+        corrtag table
+    @type input: string
+    @param incounts: name of the file containing the count-rate image,
+        or None if input is the corrtag table
+    @type incounts: string, or None
+    """
+
+    ofd = pyfits.open (output, mode="readonly")
+    ifd_e = pyfits.open (input, mode="update")
+    if incounts is not None:
+        ifd_c = pyfits.open (incounts, mode="update")
+
+    for key in ["sp_loc_a", "sp_loc_b", "sp_loc_c",
+                "sp_slp_a", "sp_slp_b", "sp_slp_c",
+                "sp_width"]:
+        value = ofd[1].header.get (key, -999.)
+        if ifd_e[1].header.has_key (key):
+            ifd_e[1].header[key] = value
+        if incounts is not None and ifd_c[1].header.has_key (key):
+            ifd_c[1].header[key] = value
+
+    ofd.close()
+    ifd_e.close()
+    if incounts is not None:
+        ifd_c.close()
+
+def recomputeWavelengths (input):
+    """Update the wavelength column in a wavecal x1d table.
+
+    The values in the wavelength column will be recomputed (updated in-place)
+    to include the shift in the dispersion direction, as read from the
+    shift1[abc] keywords.
+
+    If wavecorr is already COMPLETE, this function returns without doing
+    anything; otherwise, after correcting the wavelengths, wavecorr will be
+    set to COMPLETE.  (Wavecal processing was done earlier, but it was not
+    really finished until this function was called.)  The check on wavecorr
+    is necessary because for FUV data the list of files may include the
+    x1d file name twice, once for each segment.
+
+    @param input: name of an x1d file for a wavecal
+    @type input: string
+    """
+
+    fd = pyfits.open (input, mode="update")
+    phdr = fd[0].header
+    hdr = fd[1].header
+    if hdr["naxis2"] == 0 or phdr["wavecorr"].upper() == "COMPLETE":
+        fd.close()
+        return
+    cosutil.printMsg ("Updating wavelengths in %s" % input, VERY_VERBOSE)
+
+    data = fd[1].data
+
+    info = getinfo.getGeneralInfo (phdr, hdr)
+    disptab = cosutil.expandFileName (phdr["disptab"])
+
+    segment_col = data.field ("SEGMENT")
+    nelem_col = data.field ("NELEM")
+    wl_col = data.field ("WAVELENGTH")
+
+    for row in range (len (data)):
+
+        segment = segment_col[row]
+        filter = {"segment": segment,
+                  "opt_elem": info["opt_elem"],
+                  "cenwave": info["cenwave"],
+                  "aperture": "WCA"}
+        # If the FPOFFSET column is present, include it in the filter.
+        if cosutil.findColumn (disptab, "fpoffset"):
+            filter["fpoffset"] = info["fpoffset"]
+        disp_info = cosutil.getTable (disptab, filter)
+        if disp_info is None:
+            continue
+        key = "shift1" + segment[-1]
+        shift1 = hdr.get (key, 0.)
+
+        # 'pixel' is an array of pixel coordinates.
+        nelem = nelem_col[row]
+        pixel = N.arange (nelem, dtype=N.float64)
+        ncoeff = disp_info.field ("nelem")[0]
+        coeff = disp_info.field ("coeff")[0][0:ncoeff]
+        if cosutil.findColumn (disp_info, "delta"):
+            delta = disp_info.field ("delta")[0]
+        else:
+            delta = 0.
+
+        pixel -= shift1
+        wl_col[row][0:nelem] = cosutil.evalDisp (pixel, coeff, delta)
+        del disp_info
+
+    phdr.update ("WAVECORR", "COMPLETE")
+
+    fd.close()

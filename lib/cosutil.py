@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import math                     # for floor and ceil
 import os
 import shutil
 import sys
@@ -12,6 +13,9 @@ from calcosparam import *       # parameter definitions
 
 # initial value
 verbosity = VERBOSE
+
+# for appending to a trailer file
+fd_trl = None
 
 def writeOutputEvents (infile, outfile):
     """
@@ -263,7 +267,7 @@ def getColCopy (filename="", column=None, extension=1, data=None):
     @type data: pyfits record object
 
     @return: the column data
-    @rtype: an array
+    @rtype: array
 
     Specify either the name of the file or the data block, but not both.
     """
@@ -512,7 +516,9 @@ def getInputDQ (input):
 
     return dq_array
 
-def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
+def updateDQArray (bpixtab, info, doppcorr,
+                   doppmag, doppzero, orbitper,
+                   dq_array, minmax_shifts=None):
     """Apply the data quality initialization table to DQ array.
 
     dq_array is a 2-D array, to be written as the DQ extension in an
@@ -522,11 +528,25 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
     pixels.  The flag information in the bpixtab will be combined
     (in-place) with dq_array using bitwise OR.
 
-    arguments:
-    bpixtab    name of the data quality initialization table
-    info       dictionary of keywords and values (for doppcorr)
-    doppcorr   shift DQ positions to track Doppler shift during exposure?
-    dq_array   data quality image array (modified in-place)
+    @param bpixtab: name of the data quality initialization table
+    @type bpixtab: string
+    @param info: keywords and values
+    @type info: dictionary
+    @param doppcorr: if doppcorr = "PERFORM", shift DQ positions to track
+        Doppler shift during exposure
+    @type doppcorr: string
+    @param doppmag: magnitude (pixels) of Doppler shift
+    @type doppmag: int or float
+    @param doppzero: time (MJD) when Doppler shift is zero and increasing
+    @type doppzero: float
+    @param orbitper: orbital period (s) of HST
+    @type orbitper: float
+    @param dq_array: data quality image array (modified in-place)
+    @type dq_array: numpy array
+    @param minmax_shifts: the min and max offsets in the dispersion direction
+        and the min and max offsets in the cross-dispersion direction during
+        the exposure
+    @type minmax_shifts: tuple
     """
 
     dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
@@ -536,9 +556,6 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
     if doppcorr == "PERFORM":
         expstart = info["expstart"]
         exptime  = info["exptime"]
-        doppmag  = info["doppmag"]
-        doppzero = info["doppzero"]
-        orbitper = info["orbitper"]
         axis = 2 - info["dispaxis"]     # 1 --> 1,  2 --> 0
 
         # time is the time in seconds since doppzero.
@@ -553,7 +570,7 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
         maxdopp = N.maximum.reduce (shift)
         mindopp = int (round (mindopp))
         maxdopp = int (round (maxdopp))
-        printMsg ("DOPPCORR applied to BPIXTAB positions", VERBOSE)
+        printMsg ("DOPPCORR was applied to BPIXTAB positions", VERBOSE)
     else:
         axis = -1                       # disable Doppler correction
         mindopp = 0
@@ -562,13 +579,17 @@ def updateDQArray (bpixtab, info, doppcorr, dq_array, avg_dx=0, avg_dy=0):
     # Update the 2-D data quality extension array from the DQI table info.
     lx = dq_info.field ("lx")
     ly = dq_info.field ("ly")
-    if avg_dx != 0:
-        lx -= avg_dx
-    if avg_dy != 0:
-        ly -= avg_dy
-    ccos.bindq (lx, ly,
-                dq_info.field ("dx"), dq_info.field ("dy"),
-                dq_info.field ("dq"), dq_array, axis, mindopp, maxdopp)
+    dx = dq_info.field ("dx")
+    dy = dq_info.field ("dy")
+    if minmax_shifts is not None:
+        (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
+        lx -= int (math.floor (min_shift1))
+        ly -= int (math.floor (min_shift2))
+        dx += int (math.ceil (max_shift1 - min_shift1))
+        dy += int (math.ceil (max_shift2 - min_shift2))
+        
+    ccos.bindq (lx, ly, dx, dy, dq_info.field ("dq"),
+                dq_array, axis, mindopp, maxdopp)
 
 def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
     """Flag regions that are outside all subarrays (done in-place).
@@ -588,13 +609,23 @@ def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
     if nsubarrays < 1:
         return
 
+    detector = phdr["detector"]
+    if detector == "FUV":
+        # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
+        nsub = nsubarrays // 2
+        indices = N.arange (nsub, dtype=N.int32)
+        if phdr["segment"] == "FUVB":
+            indices += 4
+    else:
+        indices = N.arange (nsubarrays, dtype=N.int32)
+
     temp = dq_array.copy()
     (ny, nx) = dq_array.shape
 
     # Initially flag the entire image as out of bounds, then remove the
     # flag (set it to zero) for each subarray.
     temp[:,:] = DQ_OUT_OF_BOUNDS
-    for i in range (nsubarrays):
+    for i in indices:
         sub_number = str (i)
         x0 = hdr["corner"+sub_number+"x"]       # these keywords are 0-indexed
         y0 = hdr["corner"+sub_number+"y"]
@@ -611,6 +642,32 @@ def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
         temp[y0:y1,x0:x1] = DQ_OK
 
     dq_array[:,:] = N.bitwise_or (dq_array, temp)
+
+def flagOutsideActiveArea (dq_array, segment, brftab):
+    """Flag the region that is outside the active area.
+
+    This is only relevant for FUV data.
+
+    @param dq_array: 2-D data quality array, modified in-place
+    @type dq_array: numpy array
+    @param segment: segment name (FUVA or FUVB)
+    @type segment: string
+    @param brftab: name of baseline reference table
+    @type brftab: string
+    """
+
+    if segment[0:3] != "FUV":
+        return
+
+    (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
+    dq_array[0:b_low,:]    = N.bitwise_or (dq_array[0:b_low,:],
+                                           DQ_OUT_OF_BOUNDS)
+    dq_array[b_high+1:,:]  = N.bitwise_or (dq_array[b_high+1:,:],
+                                           DQ_OUT_OF_BOUNDS)
+    dq_array[:,0:b_left]   = N.bitwise_or (dq_array[:,0:b_left],
+                                           DQ_OUT_OF_BOUNDS)
+    dq_array[:,b_right+1:] = N.bitwise_or (dq_array[:,b_right+1:],
+                                           DQ_OUT_OF_BOUNDS)
 
 def tableHeaderToImage (thdr):
     """Rename table WCS keywords to image WCS keywords.
@@ -912,7 +969,6 @@ def doSpecStat (input):
     if sci_extn.data is None:
         fd.close()
         return
-    sdqflags = sci_extn.header["sdqflags"]
     outdata = sci_extn.data
     nrows = outdata.shape[0]
     if nrows < 1:
@@ -921,16 +977,13 @@ def doSpecStat (input):
     exptime_col = outdata.field ("EXPTIME")
     net = outdata.field ("NET")
     error = outdata.field ("ERROR")
-    maxdq = outdata.field ("MAXDQ")
 
     # This will be a list of dictionaries, one for each segment or stripe.
     stat_info = []
     sum_exptime = 0.
     for row in range (nrows):
-        #stat_info.append (computeStat (net[row], error[row], maxdq[row],
-        #                  sdqflags))
         sum_exptime += exptime_col[row]
-        onestat = computeStat (net[row], error[row], maxdq[row], sdqflags)
+        onestat = computeStat (net[row], error[row])
         stat_info.append (onestat)
     exptime = sum_exptime / nrows
 
@@ -1168,6 +1221,46 @@ def checkVerbosity (level):
 
     return (verbosity >= level)
 
+def openTrailer (filename):
+    """Open the trailer file for 'filename' in append mode.
+
+    @param filename: name of an input (science or wavecal) file
+    @type filename: string
+    """
+
+    global fd_trl
+
+    closeTrailer()
+
+    fd_trl = open (filename, 'a')
+
+def closeTrailer():
+    """Close the trailer file if it is open."""
+
+    global fd_trl
+
+    if fd_trl is not None and not fd_trl.closed:
+        fd_trl.close()
+    fd_trl = None
+
+def printMsg (message, level=QUIET):
+    """Print 'message' if verbosity is at least as great as 'level'.
+
+    >>> setVerbosity (VERBOSE)
+    >>> printMsg ("quiet", QUIET)
+    quiet
+    >>> printMsg ("verbose", VERBOSE)
+    verbose
+    >>> printMsg ("very verbose", VERY_VERBOSE)
+    """
+
+    if verbosity >= level:
+        print message
+        sys.stdout.flush()
+        if fd_trl is not None:
+            fd_trl.write (message+"\n")
+            fd_trl.flush()
+
 def printIntro (str):
     """Print introductory message.
 
@@ -1279,21 +1372,6 @@ def printRef (keyword, reffiles):
     key_lower = keyword.lower()
     printMsg ("%-8s= %s" % (key_upper, reffiles[key_lower+"_hdr"]), VERBOSE)
 
-def printMsg (message, level=QUIET):
-    """Print 'message' if verbosity is at least as great as 'level'.
-
-    >>> setVerbosity (VERBOSE)
-    >>> printMsg ("quiet", QUIET)
-    quiet
-    >>> printMsg ("verbose", VERBOSE)
-    verbose
-    >>> printMsg ("very verbose", VERY_VERBOSE)
-    """
-
-    if verbosity >= level:
-        print message
-        sys.stdout.flush()
-
 def printWarning (message, level=QUIET):
     """Print a warning message."""
 
@@ -1313,6 +1391,36 @@ def returnTime():
     """Return the current date and time, formatted into a string."""
 
     return time.strftime ("%d-%b-%Y %H:%M:%S %Z", time.localtime (time.time()))
+
+def getPedigree (switch, refkey, filename, level=VERBOSE):
+    """Return the value of the PEDIGREE keyword.
+
+    @param switch: keyword name for calibration switch
+    @type switch: string
+    @param refkey: keyword name for the reference file
+    @type refkey: string
+    @param filename: name of the reference file
+    @type filename: string
+    @param level: QUIET, VERBOSE, or VERY_VERBOSE
+    @type level: integer
+
+    @return: the value of the PEDIGREE keyword, or "OK" if not found
+    @rtype: string
+    """
+
+    if filename == "N/A":
+        return "OK"
+
+    fd = pyfits.open (filename, mode="readonly")
+    pedigree = fd[0].header.get ("pedigree", "OK")
+    fd.close()
+    if pedigree == "DUMMY":
+        printWarning ("%s %s is a dummy file" % (refkey.upper(), filename),
+                      level=VERBOSE)
+        printContinuation ("so %s will not be done." %
+                           switch.upper(), level=VERBOSE)
+
+    return pedigree
 
 def getApertureKeyword (hdr, truncate=1):
     """Get the value of the APERTURE keyword.

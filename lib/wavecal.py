@@ -16,14 +16,13 @@ def findWavecalShift (input, wcp_info):
     input           name of an x1d FITS file containing a wavecal observation
     wcp_info        data (one row) from the wavecal parameters table
 
-    The function value is a dictionary of shifts, with keys pshifta,
-    pshiftb, pshiftc.  The shift is the value for that segment or stripe
+    The function value is a dictionary of shifts, with keys shift1a,
+    shift1b, shift1c.  The shift is the value for that segment or stripe
     only.  For FUV, there may be only one element in the dictionary.
 
-    Note that the input file will be opened read-write, the PSHIFTA, PSHIFTB
-    (and PSHIFTC if NUV) keywords will be updated with the shift of each
-    individual segment or stripe, and the primary header keyword WAVECORR
-    will be set to "COMPLETE".
+    Note that the input file will be opened read-write, the SHIFT1A, SHIFT1B
+    (and SHIFT1C if NUV) keywords will be updated with the shift of each
+    individual segment or stripe.
 
     None will be returned if there is no data in the first extension of input.
     """
@@ -76,7 +75,7 @@ def findWavecalShift (input, wcp_info):
 
             (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
 
-            key = "pshift" + segment[row][-1].lower()
+            key = "shift1" + segment[row][-1].lower()
             sci_extn.header.update (key, shift)
             shift_dict[key] = shift
             message = " %4s    %6.2f   " % (segment[row], shift) + str (n50)
@@ -104,7 +103,7 @@ def findWavecalShift (input, wcp_info):
 
         first = True
         for row in index:
-            key = "pshift" + segment[row][-1].lower()
+            key = "shift1" + segment[row][-1].lower()
             sci_extn.header.update (key, shift)
             shift_dict[key] = shift
             if first:
@@ -117,9 +116,6 @@ def findWavecalShift (input, wcp_info):
             # This is the offset in the cross-dispersion direction.
             key = "shift2" + segment[row][-1].lower()
             shift_dict[key] = sci_extn.header.get (key, default=0.)
-
-    if nrows > 0:
-        phdr.update ("WAVECORR", "COMPLETE")
 
     fd.close()
 
@@ -136,11 +132,15 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict, rootname):
     rootname        the rootname (typically lower case) of the observation
 
     shift_dict can have any of the following keys:
-    "pshifta" for FUV segment A or NUV stripe A,
-    "pshiftb" for FUV segment B or NUV stripe B,
-    "pshiftc" for NUV stripe C
+    "shift1a" for FUV segment A or NUV stripe A,
+    "shift1b" for FUV segment B or NUV stripe B,
+    "shift1c" for NUV stripe C
+    "shift2a" for FUV segment A or NUV stripe A,
+    "shift2b" for FUV segment B or NUV stripe B,
+    "shift2c" for NUV stripe C
     For each key, the value is the shift that was measured for that segment
-    or stripe.
+    or stripe in the dispersion direction (shift1[abc]) or in the cross
+    dispersion direction (shift2[abc]).
 
     The input information will be combined into a dictionary, which will then
     be appended to wavecal_info.  wavecal_info will be sorted in increasing
@@ -181,7 +181,7 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
     @type time: float
 
     @return: a pair of dictionaries, with the keyword name for the shift
-        (pshifta, pshiftb, pshiftc, shift2a, shift2b, shift2c) as the key.
+        (shift1a, shift1b, shift1c, shift2a, shift2b, shift2c) as the key.
         For the first dictionary, the value is the shift at the specified
         time.  For the second dictionary, the value is the slope.
     @rtype: tuple of dictionaries, or None
@@ -227,7 +227,7 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
                 (fpoffset - wc_dict["fpoffset"]) * wcp_info.field ("stepsize")
             shift_dict = wc_dict["shift_dict"].copy()
             for key in shift_dict.keys():
-                if key.startswith ("pshift"):
+                if key.startswith ("shift1"):
                     shift_dict[key] += correction
 
     if shift_dict is None:
@@ -320,9 +320,10 @@ def interpolateWavecal (wavecal_info, time):
     @type time: float
 
     @return: a pair of dictionaries, with the keyword name for the shift
-        (pshifta, pshiftb, pshiftc, shift2a, shift2b, shift2c) as the key.
+        (shift1a, shift1b, shift1c, shift2a, shift2b, shift2c) as the key.
         For the first dictionary, the value is the shift at the specified
-        time.  For the second dictionary, the value is the slope.
+        time.  For the second dictionary, the value is the slope in
+        pixels per second.
     @rtype: tuple of dictionaries, or None
 
     wavecal_info is assumed to be sorted in increasing order of time.
@@ -507,9 +508,9 @@ def ttFindWavecalShift (net, template, info, wcp_info):
     maxlag = wcp_info.field ("xc_range")
     fp = -info["fpoffset"] * wcp_info.field ("stepsize")
 
-    (pshift, n50) = crosscor (net, template, maxlag, fp)
+    (shift1, n50) = crosscor (net, template, maxlag, fp)
 
-    return (pshift, n50)
+    return (shift1, n50)
 
 def findWavecalSpectrum (corrtag, info, reffiles):
     """Find the offset of a wavecal spectrum in the cross-dispersion direction.

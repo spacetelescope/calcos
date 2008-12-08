@@ -148,15 +148,20 @@ def getGeneralInfo (phdr, hdr):
     # This is a list of extension header keywords and default values.
     keylist = {
         "dispaxis":  0,
+        "tc2_2":     1.,        # dispersion for spectroscopic data
         "sdqflags":  32767,
         "numflash":  0,
         "exptime":  -1.,
         "expstart": -1.,
         "expend":   -1.,
         "doppon":    False,
-        "doppmag":  -1.,
+        "doppont":   False,
+        "doppmagv": -1.,
+        "dopmagt":  -1.,
         "doppzero": -1.,
-        "orbitper": -1.}
+        "dopzerot": -1.,
+        "orbitper": -1.,
+        "orbtpert": -1.}
 
     for key in keylist.keys():
         info[key] = hdr.get (key, default=keylist[key])
@@ -184,7 +189,7 @@ def getSwitchValues (phdr):
     for key in ["dqicorr", "randcorr", "tempcorr", "geocorr", "igeocorr",
                 "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
                 "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
-                "fluxcorr", "rptcorr", "statflag"]:
+                "fluxcorr", "tdscorr", "statflag"]:
         switches[key]  = cosutil.getSwitch (phdr, key)
 
     return switches
@@ -231,7 +236,8 @@ def resetSwitches (switches, reffiles):
     @type reffiles: dictionary
     """
 
-    check_these = {"badtcorr": ["badttab"]}
+    check_these = {"badtcorr": ["badttab"],
+                   "tdscorr": ["tdstab"]}
     #check_these = {"badtcorr": ["badttab"],
     #               "brstcorr": ["brsttab"],
     #               "dqicorr": ["bpixtab"],

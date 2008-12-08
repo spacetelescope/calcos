@@ -70,7 +70,6 @@ def avgImage (input, output):
 
     # Create the output file, and write the averaged SCI extension.
     primary_hdu = pyfits.PrimaryHDU (header=phdr)
-    primary_hdu.header.update ("RPTCORR", "COMPLETE")
     cosutil.updateFilename (primary_hdu.header, output)
     ofd = pyfits.HDUList (primary_hdu)
     scihdu = pyfits.ImageHDU (data=sci_data, header=hdr, name="SCI")
