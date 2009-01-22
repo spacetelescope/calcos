@@ -12,6 +12,7 @@ extractband extracts a 2-D band (spectrum or background) from a 2-D image.
 smoothbkg smooths a 1-D array (background).
 addlines creates a template spectrum based on a list of emission lines.
 geocorrection applies the geometric (INL) distortion correction.
+clear_rows sets a temporary DQ array to 0 within curved boundaries.
 interp1d does linear interpolation of one 1-D array onto another.
 getstartstop gets indices of start and stop times of time intervals.
 getbkgcounts gets the number of source and background counts within intervals.
@@ -69,10 +70,14 @@ xy_collapse collapses events along the dispersion direction.
 2008 Oct 16	In getStartStopTimes, initialize istop to n_events instead of
 		to zero, because the last element of istop won't otherwise
 		be assigned if the time range isn't divisible by delta_t.
-2008 Oct 23	Add functions fuv_csum and nuv_csum.
+2008 Oct 23	Add functions csum_3d and csum_2d.
 		Test for NULL return from PyArray_FROM_OTF.
 2008 Nov 7	Fix a bug in getbadtime:  if the last event is flagged as bad,
 		the last bad time interval was not included in the sum.
+2009 Jan 22	Add argument x_offset to binevents, bindq, unbinaccum,
+		extractband, and xy_extract.  Add clear_rows.
+		Remove axis, mindopp, maxdopp from bindq, and replace
+		dx, dy with ux, uy (upper limits, inclusive).
 */
 
 # include <Python.h>
@@ -113,6 +118,7 @@ static PyObject *ccos_extractband (PyObject *, PyObject *);
 static PyObject *ccos_smoothbkg (PyObject *, PyObject *);
 static PyObject *ccos_addlines (PyObject *, PyObject *);
 static PyObject *ccos_geocorrection (PyObject *, PyObject *);
+static PyObject *ccos_clear_rows (PyObject *, PyObject *);
 static PyObject *ccos_interp1d (PyObject *, PyObject *);
 static PyObject *ccos_getstartstop (PyObject *self, PyObject *args);
 static PyObject *ccos_getbkgcounts (PyObject *, PyObject *);
@@ -120,15 +126,14 @@ static PyObject *ccos_smallerbursts (PyObject *, PyObject *);
 static PyObject *ccos_getbadtime (PyObject *, PyObject *);
 static PyObject *ccos_xy_extract (PyObject *, PyObject *);
 static PyObject *ccos_xy_collapse (PyObject *, PyObject *);
-static PyObject *ccos_fuv_csum (PyObject *, PyObject *);
-static PyObject *ccos_nuv_csum (PyObject *, PyObject *);
+static PyObject *ccos_csum_3d (PyObject *, PyObject *);
+static PyObject *ccos_csum_2d (PyObject *, PyObject *);
 
 static int binEventsToImage (PyArrayObject *, PyArrayObject *,
-	PyArrayObject *, PyArrayObject *, short, PyArrayObject *);
+	PyArrayObject *, int, PyArrayObject *, short, PyArrayObject *);
 static int binDQToImage (
-	int [], int [], int [], int [], int [], int,
-	PyArrayObject *,
-	int, int, int);
+	int [], int [], int [], int [],
+	int [], int, PyArrayObject *, int);
 static int applyDQToEvents (int [], int [],
 		int [], int [], int [], int,
 		PyArrayObject *, PyArrayObject *, short []);
@@ -137,11 +142,11 @@ static void applyFlatField (PyArrayObject *, PyArrayObject *,
 static PyObject *timeRange (PyArrayObject *, double, double);
 static int search (PyArrayObject *, int, float);
 static int search_d (PyArrayObject *, int, double);
-static int unbinImage (PyArrayObject *, float [], float[], int);
+static int unbinImage (PyArrayObject *, int, float [], float[], int);
 static int addRN (float [], int, int, int);
 static int convolveWithDopp (PyArrayObject *, int, int, float [], int, int);
 static int extract2DBand (PyArrayObject *,
-	int, double, double, PyArrayObject *);
+	int, double, double, int, PyArrayObject *);
 static int smoothBackground (int, int, float []);
 static int addEmissionLines (float [], double [], int,
 		double, double [], float [], int);
@@ -150,6 +155,8 @@ static int binarySearch (double, double [], int);
 static void addLSF (double, float, double, float [], int);
 static int geoInterp2D (float [], float [], int,
 	PyArrayObject *, PyArrayObject *, int, float, float, float, float);
+static int clearRows (PyArrayObject *,
+	float [], float [], float [], float []);
 static void bilinearInterp (float, float,
 	PyArrayObject *, PyArrayObject *, int, int,
 	float *, float *);
@@ -176,10 +183,10 @@ static int extrFromEvents (PyArrayObject *, PyArrayObject *, PyArrayObject *,
 static int collapseFromEvents (PyArrayObject *, PyArrayObject *,
 		short [], int,
 		double, double [], int);
-static void binFUVtoCsum (float [], int, int, int,
+static void bin3DtoCsum (float [], int, int, int,
 		float [], float [],
 		float [], short [], int);
-static void binNUVtoCsum (float [], int, int,
+static void bin2DtoCsum (float [], int, int,
 		short [], short [], float [], int);
 
 /* This function returns the documentation string to be assigned to
@@ -190,22 +197,24 @@ static char *DocString (void) {
 
 	return (
 "This module contains the following functions:\n\n\
-    binevents (x, y, array,\n\
+    binevents (x, y, array, x_offset,\n\
                 <optional:  dq, epsilon>)\n\
-    bindq (lx, ly, dx, dy, flag, dq_array,\n\
+    bindq (lx, ly, dx, dy, flag, dq_array, x_offset\n\
                 <optional:  axis, mindopp, maxdopp>)\n\
     applydq (lx, ly, dx, dy, flag, x, y, dq)\n\
     applyflat (x, y, epsilon, flat,\n\
-                <optional:  x_offset, y_offset>)\n\
+                <optional:  origin_x, origin_y>)\n\
     indices = range (time, t0, t1)\n\
-    unbinaccum (image, x, y)\n\
+    unbinaccum (image, x, y,\n\
+                <optional:  x_offset>)\n\
     newseed = addrandom (x, seed, use_clock)\n\
     convolve1d (flat, dopp, axis)\n\
-    extractband (indata, axis, slope, intercept, outdata)\n\
+    extractband (indata, axis, slope, intercept, x_offset, outdata)\n\
     smoothbkg (data, width)\n\
     addlines (intensity, wavelength, reswidth, x1d_wl, dq, template)\n\
     geocorrection (x, y, x_image, y_image, interp_flag,\n\
-                <optional:  x_offset, y_offset, xbin, ybin>)\n\
+                <optional:  origin_x, origin_y, xbin, ybin>)\n\
+    clear_rows (dq, y_lower, y_upper, x_left, x_right)\n\
     interp1d (x_a, y_a, x_b, y_b)\n\
     getstartstop (time, istart, istop, delta_t)\n\
     getbkgcounts (y, dq,\n\
@@ -218,15 +227,16 @@ static char *DocString (void) {
                 half_block, max_iter,\n\
                 large_burst, small_burst, dq_burst, verbose)\n\
     getbadtime (time, dq)\n\n\
-    xy_extract (xi, eta, outdata, slope, intercept,\n\
-                pixel_zero, dq, sdqflags, epsilon)\n\
+    xy_extract (xi, eta, outdata, slope, intercept, x_offset\n\
+                <optional:  dq, sdqflags, epsilon>)\n\
     xy_collapse (xi, eta, dq, slope, xdisp)\n\
-    fuv_csum (array, x, y, epsilon, pha)\n\
-    nuv_csum (array, x, y, epsilon)\n\
+    csum_3d (array, x, y, epsilon, pha)\n\
+    csum_2d (array, x, y, epsilon)\n\
 "
         /* string split because it is too long for windows compiler */
 "\
 x and y are arrays of pixel coordinates of the events (float32 or int16).\n\
+x_offset is such that image pixel = detector coord + x_offset (int).\n\
 epsilon is an array of weights for the events (float32).\n\
 dq is an array of data quality flags (0 is good; int16).\n\
 array is the 2-D array modified in-place by binevents (float32).\n\
@@ -255,11 +265,13 @@ For bindq, axis, mindopp and maxdopp are optional arguments.\n");
 
 /* calling sequence for binevents:
 
-   binevents (x, y, array, dq, sdqflags, epsilon)
+   binevents (x, y, array, x_offset, dq, sdqflags, epsilon)
 
     x, y       i: arrays of pixel coordinates of the events
                   (int16, or default is float32)
     array     io: the output 2-D array (float32)
+    x_offset   i: the offset (it's zero or positive) to add to
+                  the x pixel coordinate to get image pixel (int)
 
    optional arguments:
     dq         i: array of data quality flags (int16; 0 is good)
@@ -269,17 +281,18 @@ For bindq, axis, mindopp and maxdopp are optional arguments.\n");
    ccos_binevents calls binEventsToImage, which converts arrays of pixel
    coordinates to an image array.  The 2-D array ('array') will first be
    initialized to zero.  For each pair of elements (x[i],y[i]), the value
-   in the nearest pixel of array will be incremented.  If epsilon is not
-   null, the increment will be epsilon[i]; otherwise, the increment will be
-   one.  If dq is not null, the pixel will be incremented only if dq[i]
-   does not include a "serious" flag value (e.g. pulse height out of
-   range or within a bad time interval).
+   in the nearest pixel to (x[i]+x_offset,y[i]) of array will be incremented.
+   If epsilon is not null, the increment will be epsilon[i]; otherwise, the
+   increment will be one.  If dq is not null, the pixel will be incremented
+   only if dq[i] does not include a "serious" flag value (e.g. pulse height
+   out of range or within a bad time interval).
 */
 
 static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *oarray, *odq, *oepsilon;
 	PyArrayObject *x, *y, *array, *dq, *epsilon;
+	int x_offset;
 	short sdqflags;
 	int status;
 
@@ -287,8 +300,9 @@ static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
 	oepsilon = NULL;
 	sdqflags = 32767;
 
-	if (!PyArg_ParseTuple (args, "OOO|OhO",
-			&ox, &oy, &oarray, &odq, &sdqflags, &oepsilon)) {
+	if (!PyArg_ParseTuple (args, "OOOi|OhO",
+			&ox, &oy, &oarray, &x_offset,
+			&odq, &sdqflags, &oepsilon)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -332,7 +346,8 @@ static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
 		return NULL;
 	}
 
-	status = binEventsToImage (x, y, array, dq, sdqflags, epsilon);
+	status = binEventsToImage (x, y, array, x_offset,
+			dq, sdqflags, epsilon);
 
 	Py_DECREF (x);
 	Py_DECREF (y);
@@ -351,9 +366,10 @@ static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
 /* This is called by ccos_binevents. */
 
 static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
-	PyArrayObject *array,
+	PyArrayObject *array, int x_offset,
 	PyArrayObject *dq, short sdqflags, PyArrayObject *epsilon) {
 
+	float f_x_offset;	/* same as x_offset */
 	int x_type, y_type;	/* data type codes */
 	int n_events;		/* size of input arrays (number of events) */
 	int nx, ny;		/* size of array */
@@ -364,6 +380,13 @@ static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
 	float c_y;
 	short c_dq;
 	float c_eps;
+
+	/* The NINT macro should work the same way for both positive and
+	   negative values.  To avoid any possibility of a discontinuity
+	   at zero, however, for floating point data, f_x_offset will be
+	   added to the x pixel coordinate (c_x) before rounding to an int.
+	*/
+	f_x_offset = (float)x_offset;
 
 	x_type = x->descr->type_num;
 	y_type = y->descr->type_num;
@@ -384,8 +407,10 @@ static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
 	    /* get the coordinates of the current event */
 	    if (x_type == NPY_INT16) {
 		i = *(short *)PyArray_GETPTR1 (x, k);
+		i += x_offset;
 	    } else {
 		c_x = *(float *)PyArray_GETPTR1 (x, k);
+		c_x += f_x_offset;
 		i = NINT (c_x);		/* the more rapidly varying index */
 	    }
 	    if (y_type == NPY_INT16) {
@@ -420,22 +445,20 @@ static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
 
 /* calling sequence for bindq:
 
-   bindq (lx, ly, dx, dy, flag, dq_array, axis, mindopp, maxdopp)
+   bindq (lx, ly, ux, uy, flag, dq_array, x_offset)
 
     lx, ly     i: arrays of lower left corners of regions (int32)
-    dx, dy     i: arrays of region widths (int32)
+    ux, uy     i: arrays of upper right corners of regions (int32)
     flag       i: array of data quality flags (int32)
     dq_array  io: 2-D array (int16); dq_array must have already been
                   initialized before calling bindq
+    x_offset   i: the offset (it's zero or positive) to add to
+                  x pixel coordinate to get the pixel in dq_array (int)
 
-   optional arguments:
-    axis       i: the axis along which Doppler shift will be applied (int);
-                  this is used in conjunction with mindopp and maxdopp
-    mindopp    i: minimum Doppler shift (pixels) during the exposure (int)
-    maxdopp    i: maximum Doppler shift (pixels) during the exposure (int)
-
-   The arrays lx, ly, dx, dy and flag are all of the same length; these
-   were taken from the data quality initialization table.
+   The arrays lx, ly, ux, uy and flag are all of the same length.  These
+   were taken from the data quality initialization table, but they may
+   have been modified by adding wavecal offsets and Doppler shifts.
+   Note that x_offset is added by this function.
 
    ccos_bindq calls binDQToImage, which updates in-place a 2-D DQ image
    array, flagging regions according to the regions specified in a data
@@ -454,30 +477,25 @@ static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
 
 static PyObject *ccos_bindq (PyObject *self, PyObject *args) {
 
-	PyObject *olx, *oly, *odx, *ody, *oflag, *odq_array;
-	PyArrayObject *lx, *ly, *dx, *dy, *flag, *dq_array;
-	int axis, mindopp, maxdopp;
+	PyObject *olx, *oly, *oux, *ouy, *oflag, *odq_array;
+	PyArrayObject *lx, *ly, *ux, *uy, *flag, *dq_array;
+	int x_offset;
 	int status;
 	int nrows;
 
-	axis = -1;
-	mindopp = 0;
-	maxdopp = 0;
-
-	if (!PyArg_ParseTuple (args, "OOOOOO|iii",
-		&olx, &oly, &odx, &ody, &oflag, &odq_array,
-		&axis, &mindopp, &maxdopp)) {
+	if (!PyArg_ParseTuple (args, "OOOOOOi",
+		&olx, &oly, &oux, &ouy, &oflag, &odq_array, &x_offset)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
 	lx = (PyArrayObject *)PyArray_FROM_OTF (olx, NPY_INT32, NPY_IN_ARRAY);
 	ly = (PyArrayObject *)PyArray_FROM_OTF (oly, NPY_INT32, NPY_IN_ARRAY);
-	dx = (PyArrayObject *)PyArray_FROM_OTF (odx, NPY_INT32, NPY_IN_ARRAY);
-	dy = (PyArrayObject *)PyArray_FROM_OTF (ody, NPY_INT32, NPY_IN_ARRAY);
+	ux = (PyArrayObject *)PyArray_FROM_OTF (oux, NPY_INT32, NPY_IN_ARRAY);
+	uy = (PyArrayObject *)PyArray_FROM_OTF (ouy, NPY_INT32, NPY_IN_ARRAY);
 	flag = (PyArrayObject *)PyArray_FROM_OTF (oflag, NPY_INT32,
 			NPY_IN_ARRAY);
-	if (lx == NULL || ly == NULL || dx == NULL || dy == NULL ||
+	if (lx == NULL || ly == NULL || ux == NULL || uy == NULL ||
 		flag == NULL)
 	    return NULL;
 	dq_array = (PyArrayObject *)PyArray_FROM_OTF (odq_array, NPY_INT16,
@@ -488,14 +506,14 @@ static PyObject *ccos_bindq (PyObject *self, PyObject *args) {
 	nrows = PyArray_DIM (lx, 0);
 	status = binDQToImage (
 		(int *)PyArray_DATA (lx), (int *)PyArray_DATA (ly),
-		(int *)PyArray_DATA (dx), (int *)PyArray_DATA (dy),
+		(int *)PyArray_DATA (ux), (int *)PyArray_DATA (uy),
 		(int *)PyArray_DATA (flag), nrows,
-		dq_array, axis, mindopp, maxdopp);
+		dq_array, x_offset);
 
 	Py_DECREF (lx);
 	Py_DECREF (ly);
-	Py_DECREF (dx);
-	Py_DECREF (dy);
+	Py_DECREF (ux);
+	Py_DECREF (uy);
 	Py_DECREF (flag);
 	Py_DECREF (dq_array);
 
@@ -510,16 +528,15 @@ static PyObject *ccos_bindq (PyObject *self, PyObject *args) {
 /* This is called by ccos_bindq. */
 
 static int binDQToImage (
-	int lx[], int ly[], int dx[], int dy[], int flag[], int nrows,
-	PyArrayObject *dq_array,
-	int axis, int mindopp, int maxdopp) {
+	int lx[], int ly[], int ux[], int uy[],
+	int flag[], int nrows, PyArrayObject *dq_array, int x_offset) {
 
 	int nx, ny;		/* size of array */
 	int k;			/* loop index for events */
 	int i, j;		/* indices in 2-D array */
 	/* individual values */
 	int c_lx, c_ly;		/* lower left corner */
-	int c_ux, c_uy;		/* upper right corner (from lx,ly and dx, dy) */
+	int c_ux, c_uy;		/* upper right corner (from lx,ly and ux, uy) */
 	int temp_flag;
 
 	nx = PyArray_DIM (dq_array, 1);		/* shape (ny,nx) */
@@ -527,17 +544,10 @@ static int binDQToImage (
 
 	for (k = 0;  k < nrows;  k++) {
 
-	    c_lx = lx[k];
+	    c_lx = lx[k] + x_offset;
 	    c_ly = ly[k];
-	    c_ux = c_lx + dx[k] - 1;
-	    c_uy = c_ly + dy[k] - 1;
-	    if (axis == 1) {			/* dispaxis = 1 */
-		c_lx += mindopp;
-		c_ux += maxdopp;
-	    } else if (axis == 0) {		/* dispaxis = 2 */
-		c_ly += mindopp;
-		c_uy += maxdopp;
-	    }				/* else ignore Doppler shift */
+	    c_ux = ux[k] + x_offset;
+	    c_uy = uy[k];
 
 	    /* ignore regions that are entirely out of bounds */
 	    if (c_ux < 0 || c_lx >= nx || c_uy < 0 || c_ly >= ny)
@@ -723,7 +733,7 @@ static int applyDQToEvents (int lx[], int ly[],
 
 /* calling sequence for applyflat:
 
-   applyflat (x, y, epsilon, flat, x_offset, y_offset)
+   applyflat (x, y, epsilon, flat, origin_x, origin_y)
 
     x, y       i: arrays of pixel coordinates of the events
                   (either float32 or int16)
@@ -731,11 +741,11 @@ static int applyDQToEvents (int lx[], int ly[],
     flat       i: the 2-D flat field image array (float32)
 
    optional arguments:
-    x_offset   i: offset in the more rapidly varying axis (int)
-    y_offset   i: offset in the less rapidly varying axis (int)
-            x_offset and y_offset are the offsets of the flat field array
+    origin_x   i: offset in the more rapidly varying axis (int)
+    origin_y   i: offset in the less rapidly varying axis (int)
+            origin_x and origin_y are the offsets of the flat field array
             from the beginning of the detector, to allow the flat to be
-	    a subarray.  x_offset & y_offset are the values of the keywords
+	    a subarray.  origin_x & origin_y are the values of the keywords
 	    ORIGIN_X and ORIGIN_Y respectively.  These are in units of
             pixels, and they are zero-indexed.  These are the negative of
             the IRAF keywords LTV1 & LTV2 respectively.
@@ -749,11 +759,11 @@ static int applyDQToEvents (int lx[], int ly[],
 static PyObject *ccos_applyflat (PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *oepsilon, *oflat;
-	int x_offset=0, y_offset=0;
+	int origin_x=0, origin_y=0;
 	PyArrayObject *x, *y, *epsilon, *flat;
 
 	if (!PyArg_ParseTuple (args, "OOOO|ii",
-			&ox, &oy, &oepsilon, &oflat, &x_offset, &y_offset)) {
+			&ox, &oy, &oepsilon, &oflat, &origin_x, &origin_y)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -779,7 +789,7 @@ static PyObject *ccos_applyflat (PyObject *self, PyObject *args) {
 	if (x == NULL || y == NULL || epsilon == NULL || flat == NULL)
 	    return NULL;
 
-	applyFlatField (x, y, epsilon, flat, x_offset, y_offset);
+	applyFlatField (x, y, epsilon, flat, origin_x, origin_y);
 
 	Py_DECREF (x);
 	Py_DECREF (y);
@@ -794,7 +804,7 @@ static PyObject *ccos_applyflat (PyObject *self, PyObject *args) {
 
 static void applyFlatField (PyArrayObject *x, PyArrayObject *y,
 	PyArrayObject *epsilon, PyArrayObject *flat,
-	int x_offset, int y_offset) {
+	int origin_x, int origin_y) {
 
 	int x_type, y_type;	/* data type codes for x and y */
 	int nx, ny;		/* size of flat */
@@ -818,16 +828,16 @@ static void applyFlatField (PyArrayObject *x, PyArrayObject *y,
 
 	    /* get the coordinates of the current event */
 	    if (x_type == NPY_INT16) {
-		i = *(short *)PyArray_GETPTR1 (x, k) - x_offset;
+		i = *(short *)PyArray_GETPTR1 (x, k) - origin_x;
 	    } else {
 		c_x = *(float *)PyArray_GETPTR1 (x, k);
-		i = NINT (c_x) - x_offset;
+		i = NINT (c_x) - origin_x;
 	    }
 	    if (y_type == NPY_INT16) {
-		j = *(short *)PyArray_GETPTR1 (y, k) - y_offset;
+		j = *(short *)PyArray_GETPTR1 (y, k) - origin_y;
 	    } else {
 		c_y = *(float *)PyArray_GETPTR1 (y, k);
-		j = NINT (c_y) - y_offset;
+		j = NINT (c_y) - origin_y;
 	    }
 
 	    /* ignore events that are outside the flat field image */
@@ -1016,10 +1026,14 @@ static int search_d (PyArrayObject *time, int n_events, double t) {
 
 /* calling sequence for unbinaccum:
 
-   unbinaccum (image, x, y)
+   unbinaccum (image, x, y, x_offset)
 
     image      i: a 2-D array (int16, or default is float32)
     x, y      io: the arrays of pixel coordinates (float32)
+
+   optional argument:
+    x_offset   i: the offset (it's zero or positive) to subtract from the
+                  image x pixel number to get the value to assign to x (int)
 
    ccos_unbinaccum calls unbinImage, which converts an image array ('image')
    to a pseudo time-tag list.  No time array will be created, just x and y
@@ -1033,10 +1047,11 @@ static PyObject *ccos_unbinaccum (PyObject *self, PyObject *args) {
 
 	PyObject *oimage, *ox, *oy;
 	PyArrayObject *image, *x, *y;
+	int x_offset = 0;
 	int status;
 	int n_events;
 
-	if (!PyArg_ParseTuple (args, "OOO", &oimage, &ox, &oy)) {
+	if (!PyArg_ParseTuple (args, "OOO|i", &oimage, &ox, &oy, &x_offset)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -1058,7 +1073,7 @@ static PyObject *ccos_unbinaccum (PyObject *self, PyObject *args) {
 	n_events = PyArray_DIM (x, 0);
 	if (PyArray_DIM (y, 0) < n_events)
 	    n_events = PyArray_DIM (y, 0);
-	status = unbinImage (image,
+	status = unbinImage (image, x_offset,
 		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y), n_events);
 
 	Py_DECREF (image);
@@ -1075,7 +1090,7 @@ static PyObject *ccos_unbinaccum (PyObject *self, PyObject *args) {
 
 /* This is called by ccos_unbinaccum. */
 
-static int unbinImage (PyArrayObject *image,
+static int unbinImage (PyArrayObject *image, int x_offset,
 		float x[], float y[], int n_events) {
 
 	float im_data_f32;		/* value before finding nearest int */
@@ -1111,7 +1126,7 @@ static int unbinImage (PyArrayObject *image,
 		}
 
 		/* these coordinates are zero indexed */
-		ix = (float)i;
+		ix = (float)i - x_offset;
 		jy = (float)j;
 		for (n = 0;  n < counts;  n++, k++) {
 		    x[k] = ix;
@@ -1333,18 +1348,22 @@ static int convolveWithDopp (PyArrayObject *flat, int nx, int ny,
 
 /* calling sequence for extractband:
 
-   extractband (indata, axis, slope, intercept, outdata)
+   extractband (indata, axis, slope, intercept, x_offset, outdata)
 
     indata     i: 2-D image array, from which a band will be extracted
                   (either float32 or int16)
     axis       i: the axis (0 or 1) along which the band will be extracted (int)
                   axis 1 is the more rapidly varying axis
     slope      i: the slope of the band (pixels per pixel, double)
-    intercept  i: the zero point of the band (pixel number, double)
+    intercept  i: the center line of the band should cross this location
+                  in the cross dispersion direction at pixel 'x_offset'
+                  in the dispersion direction (pixel number, double)
+    x_offset   i: x_offset is zero or positive; this is the offset of the
+                  detector in the dispersion direction within indata (int)
     outdata   io: a 2-D array, into which the extracted data will be put
                   (either float32 or int16)
 
-   While indata and outdata may be either Float32 or Int16, they both
+   While indata and outdata may be either float32 or int16, they both
    must be the same type.
 
    slope is the slope of the band with respect to the axis along which
@@ -1377,11 +1396,13 @@ static PyObject *ccos_extractband (PyObject *self, PyObject *args) {
 	PyObject *oindata, *ooutdata;
 	int axis;
 	double slope, intercept;
+	int x_offset;
 	PyArrayObject *indata, *outdata;
 	int status;
 
-	if (!PyArg_ParseTuple (args, "OiddO",
-			&oindata, &axis, &slope, &intercept, &ooutdata)) {
+	if (!PyArg_ParseTuple (args, "OiddiO",
+			&oindata, &axis, &slope, &intercept, &x_offset,
+			&ooutdata)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -1410,7 +1431,8 @@ static PyObject *ccos_extractband (PyObject *self, PyObject *args) {
 	if (outdata == NULL)
 	    return NULL;
 
-	status = extract2DBand (indata, axis, slope, intercept, outdata);
+	status = extract2DBand (indata, axis, slope, intercept, x_offset,
+			outdata);
 
 	Py_DECREF (indata);
 	Py_DECREF (outdata);
@@ -1427,6 +1449,7 @@ static PyObject *ccos_extractband (PyObject *self, PyObject *args) {
 
 static int extract2DBand (PyArrayObject *indata,
 		int axis, double slope, double intercept,
+		int x_offset,
 		PyArrayObject *outdata) {
 
 	int data_type;		/* data type code for indata and outdata */
@@ -1438,6 +1461,14 @@ static int extract2DBand (PyArrayObject *indata,
 	double y, y0;
 	int i, j, k;		/* loop indices */
 	int bounds_error;	/* true if band would be out of bounds */
+
+	/* The intercept specified by the calling routine is the location
+	   where the spectrum crosses the first column of the detector.
+	   indata can be wider than the detector, in which case we change
+	   the value of intercept to be where the spectrum crosses the first
+	   column of indata.  x_offset is zero or positive.
+	*/
+	intercept -= slope * (double)x_offset;
 
 	data_type = indata->descr->type_num;
 	if (data_type != outdata->descr->type_num) {
@@ -1880,7 +1911,7 @@ int nelem            i: size of template
 /* calling sequence for geocorrection:
 
    geocorrection (x, y, x_image, y_image, interp_flag, \
-		x_offset, y_offset, xbin, ybin)
+		origin_x, origin_y, xbin, ybin)
 
     x, y       io: arrays of pixel coordinates of the events (float32)
     x_image     i: the 2-D image array of dx values (float32)
@@ -1889,13 +1920,13 @@ int nelem            i: size of template
                    0 --> use nearest neighbor, 1 --> use bilinear interpolation
 
    optional arguments:
-    x_offset    i: offset in the more rapidly varying axis (int)
-    y_offset    i: offset in the less rapidly varying axis (int)
+    origin_x    i: offset in the more rapidly varying axis (int)
+    origin_y    i: offset in the less rapidly varying axis (int)
     xbin        i: bin factor in the more rapidly varying axis (int)
     ybin        i: bin factor in the less rapidly varying axis (int)
-            x_offset and y_offset are the offsets of x_image and y_image
+            origin_x and origin_y are the offsets of x_image and y_image
             from the beginning of the detector, to allow them to be
-            subarrays.  x_offset & y_offset are the values of the keywords
+            subarrays.  origin_x & origin_y are the values of the keywords
             ORIGIN_X and ORIGIN_Y respectively.  These are in units of
             unbinned pixels, and they are zero-indexed.
             xbin and ybin are the bin factors of x_image and y_image
@@ -1905,7 +1936,7 @@ int nelem            i: size of template
    ccos_geocorrection calls geoInterp2D, which applies the geometric (INL)
    correction to the x and y arrays (in-place).  The corrections to x and y
    are given by the values in x_image and y_image respectively, which have
-   offsets of x_offset and y_offset from the origin (so the images do not
+   offsets of origin_x and origin_y from the origin (so the images do not
    have to be full size).  If interp_flag is true, bilinear interpolation
    within x_image and y_image will be used to get the corrections to x and
    y; otherwise, the nearest pixel in x_image and y_image will be used.
@@ -1915,20 +1946,20 @@ static PyObject *ccos_geocorrection (PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *ox_image, *oy_image;
 	int interp_flag;
-	int x_offset, y_offset;
+	int origin_x, origin_y;
 	int xbin, ybin;
 	PyArrayObject *x, *y, *x_image, *y_image;
 	int status;
 	int n_events;		/* number of rows in events table */
 
-	x_offset = 0;
-	y_offset = 0;
+	origin_x = 0;
+	origin_y = 0;
 	xbin = 1;
 	ybin = 1;
 
 	if (!PyArg_ParseTuple (args, "OOOOi|iiii",
 			&ox, &oy, &ox_image, &oy_image, &interp_flag,
-			&x_offset, &y_offset, &xbin, &ybin)) {
+			&origin_x, &origin_y, &xbin, &ybin)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -1948,7 +1979,7 @@ static PyObject *ccos_geocorrection (PyObject *self, PyObject *args) {
 	status = geoInterp2D (
 		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y), n_events,
 		x_image, y_image, interp_flag,
-		(float)x_offset, (float)y_offset, (float)xbin, (float)ybin);
+		(float)origin_x, (float)origin_y, (float)xbin, (float)ybin);
 
 	Py_DECREF (x);
 	Py_DECREF (y);
@@ -1967,7 +1998,7 @@ static PyObject *ccos_geocorrection (PyObject *self, PyObject *args) {
 
 static int geoInterp2D (float x[], float y[], int n_events,
 	PyArrayObject *x_image, PyArrayObject *y_image, int interp_flag,
-	float x_offset, float y_offset, float xbin, float ybin) {
+	float origin_x, float origin_y, float xbin, float ybin) {
 
 	/* dx and dy are the values interplated from x_image and y_image;
 	   they will be subtracted from the x and y columns to correct
@@ -1990,8 +2021,8 @@ static int geoInterp2D (float x[], float y[], int n_events,
 	for (k = 0;  k < n_events;  k++) {
 
 	    /* Adjust for offset and scale of geo images. */
-	    ix = (x[k] - x_offset) / xbin;
-	    jy = (y[k] - y_offset) / ybin;
+	    ix = (x[k] - origin_x) / xbin;
+	    jy = (y[k] - origin_y) / ybin;
 
 	    if (interp_flag) {
 
@@ -2063,6 +2094,129 @@ static void bilinearInterp (float x, float y,
 	      q * r * *(float *)PyArray_GETPTR2 (y_image, j, i+1) +
 	      p * s * *(float *)PyArray_GETPTR2 (y_image, j+1, i) +
 	      q * s * *(float *)PyArray_GETPTR2 (y_image, j+1, i+1);
+}
+
+/* calling sequence for clear_rows:
+
+   clear_rows (dq, y_lower, y_upper, x_left, x_right)
+
+    dq             io: array of data quality flags (int16)
+    y_lower         i: array of Y coordinates at lower edge (float32)
+    y_upper         i: array of Y coordinates at upper edge (float32)
+    x_left          i: array of X coordinates at left edge (float32)
+    x_right         i: array of X coordinates at right edge (float32)
+
+   ccos_clear_rows calls clearRows, which assigns zero to the region within
+   the specified (curved) borders.
+*/
+
+static PyObject *ccos_clear_rows (PyObject *self, PyObject *args) {
+
+	PyObject *odq, *oy_lower, *oy_upper, *ox_left, *ox_right;
+	PyArrayObject *dq, *y_lower, *y_upper, *x_left, *x_right;
+	int status;
+
+	if (!PyArg_ParseTuple (args, "OOOOO",
+			&odq, &oy_lower, &oy_upper, &ox_left, &ox_right)) {
+	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    return NULL;
+	}
+
+	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+			NPY_INOUT_ARRAY);
+	y_lower = (PyArrayObject *)PyArray_FROM_OTF (oy_lower, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	y_upper = (PyArrayObject *)PyArray_FROM_OTF (oy_upper, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	x_left  = (PyArrayObject *)PyArray_FROM_OTF (ox_left, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	x_right = (PyArrayObject *)PyArray_FROM_OTF (ox_right, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	if (dq == NULL ||
+	    y_lower == NULL || y_upper == NULL ||
+	    x_left  == NULL || x_right == NULL)
+	    return NULL;
+
+	status = clearRows (dq,
+		(float *)PyArray_DATA (y_lower),
+		(float *)PyArray_DATA (y_upper),
+		(float *)PyArray_DATA (x_left),
+		(float *)PyArray_DATA (x_right));
+
+	Py_DECREF (dq);
+	Py_DECREF (y_lower);
+	Py_DECREF (y_upper);
+	Py_DECREF (x_left);
+	Py_DECREF (x_right);
+
+	if (status) {
+	    return NULL;
+	} else {
+	    Py_INCREF (Py_None);
+	    return Py_None;
+	}
+}
+
+/* This is called by ccos_clear_rows. */
+
+static int clearRows (PyArrayObject *dq,
+	float y_lower[], float y_upper[], float x_left[], float x_right[]) {
+
+	int nx, ny;		/* size of DQ array */
+	int i, j;		/* indices in DQ array */
+	float ymin, ymax;	/* min of y_lower, max of y_upper */
+	int iymin, iymax;	/* int ymin and ymax for loop indices */
+	int *i_x_left, *i_x_right, *i_y_lower, *i_y_upper;
+
+	nx = PyArray_DIM (dq, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM (dq, 0);
+
+	i_x_left  = PyMem_Malloc (ny * sizeof (int));
+	i_x_right = PyMem_Malloc (ny * sizeof (int));
+	i_y_lower = PyMem_Malloc (nx * sizeof (int));
+	i_y_upper = PyMem_Malloc (nx * sizeof (int));
+	if (i_x_left == NULL || i_x_right == NULL ||
+	    i_y_lower == NULL || i_y_upper == NULL) {
+	    PyErr_NoMemory();
+	    return 1;
+	}
+	/* Copy to integer arrays, and compress the range in X. */
+	for (j = 0;  j < ny;  j++) {
+	    i_x_left[j] = (int) (ceil (x_left[j]));
+	    i_x_right[j] = (int) (floor (x_right[j]));
+	}
+	for (i = 0;  i < nx;  i++) {
+	    i_y_lower[i] = NINT (y_lower[i]);
+	    i_y_upper[i] = NINT (y_upper[i]);
+	}
+
+	/* Find the min of y_lower and the max of y_upper. */
+	ymin = y_lower[0];
+	ymax = y_upper[0];
+	for (i = 0;  i < nx;  i++) {
+	    ymin = (y_lower[i] < ymin) ? y_lower[i] : ymin;
+	    ymax = (y_upper[i] > ymax) ? y_upper[i] : ymax;
+	}
+	/* Convert to integer, and compress the range. */
+	iymin = (int) (ceil (ymin));
+	iymax = (int) (floor (ymax));
+
+	for (j = iymin;  j <= iymax;  j++) {
+	    for (i = i_x_left[j];  i <= i_x_right[j];  i++) {
+		if (i < 0 || i >= nx)
+		    continue;
+		if (j >= i_y_lower[i] && j <= i_y_upper[i]) {
+		    *(short *)PyArray_GETPTR2 (dq, j, i) = 0;
+		}
+	    }
+	}
+
+	PyMem_Free (i_x_left);
+	PyMem_Free (i_x_right);
+	PyMem_Free (i_y_lower);
+	PyMem_Free (i_y_upper);
+
+	return 0;
 }
 
 /* calling sequence for interp1d:
@@ -2868,8 +3022,8 @@ static double getBadTime (float time[], short dq[], int n_events) {
 
 /* calling sequence for xy_extract:
 
-   xy_extract (xi, eta, outdata, slope, intercept,
-               pixel_zero, dq, sdqflags, epsilon)
+   xy_extract (xi, eta, outdata, slope, intercept, x_offset,
+               dq, sdqflags, epsilon)
 
     xi, eta     i: arrays of pixel coordinates of the events
                    (either float32 or int16); xi is in the dispersion
@@ -2878,9 +3032,10 @@ static double getBadTime (float time[], short dq[], int n_events) {
                    (float64)
     slope       i: the slope of the band (pixels per pixel, double)
     intercept   i: the zero point of the band (pixel number, double)
+    x_offset    i: the offset (it's zero or positive) to add to the xi pixel
+                   coordinate to get the pixel in the output array (int)
 
    optional arguments:
-    pixel_zero  i: index of xi = 0 in the output spectrum (int)
     dq          i: array of data qualify flags (int16)
     sdqflags    i: bit mask for the "serious" dq flags (short)
     epsilon     i: array of weights for the events (float32)
@@ -2888,9 +3043,9 @@ static double getBadTime (float time[], short dq[], int n_events) {
    xi and eta may be either Float32 or Int16, and they do not need to be
    the same type.
 
-   The pixel_zero optional argument is the offset to add to values from xi
-   to get the index into the output spectrum.  This lets the output spectrum
-   be longer than the detector width.
+   The x_offset argument is the offset to add to values from xi to get the
+   index into the output spectrum.  This lets the output spectrum be longer
+   than the detector width.
 
    slope is the slope of the band with respect to the axis along which
    it will be extracted.  If slope=+0.1, for example, then the band is
@@ -2913,19 +3068,19 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 	PyObject *oxi, *oeta, *ooutdata, *odq, *oepsilon;
 	PyArrayObject *xi, *eta, *outdata, *dq, *epsilon;
 	double slope, intercept;
-	int pixel_zero;
+	int x_offset;
 	short sdqflags;
 	int status;
 
-	pixel_zero = 0;
+	x_offset = 0;
 	odq = NULL;
 	oepsilon = NULL;
 	sdqflags = 0;
 
-	if (!PyArg_ParseTuple (args, "OOOdd|iOhO",
+	if (!PyArg_ParseTuple (args, "OOOddi|OhO",
 			&oxi, &oeta, &ooutdata,
-			&slope, &intercept,
-			&pixel_zero, &odq, &sdqflags, &oepsilon)) {
+			&slope, &intercept, &x_offset,
+			&odq, &sdqflags, &oepsilon)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -2970,7 +3125,7 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 	}
 
 	status = extrFromEvents (xi, eta, outdata,
-			pixel_zero, slope, intercept,
+			x_offset, slope, intercept,
 			dq, sdqflags, epsilon);
 
 	Py_DECREF (xi);
@@ -2991,7 +3146,7 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 
 static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 		PyArrayObject *outdata,
-		int pixel_zero, double slope, double intercept,
+		int x_offset, double slope, double intercept,
 		PyArrayObject *dq, short sdqflags, PyArrayObject *epsilon) {
 
 	int xi_type, eta_type;	/* data type code for xi and eta */
@@ -3045,7 +3200,7 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 		    c_xi = *(float *)PyArray_GETPTR1 (xi, k);
 		    i = NINT (c_xi);
 		}
-		i_z = i + pixel_zero;
+		i_z = i + x_offset;	/* note:  don't add x_offset to c_xi */
 		if (i_z < 0 || i_z > nx-1)
 		    continue;
 		if (eta_type == NPY_INT16) {
@@ -3079,8 +3234,7 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
     slope       i: the slope of the band (pixels per pixel, double)
     xdisp      io: a 1-D array, into which the collapsed data will be put;
                    the location of a feature in this array shows where the
-                   spectrum crosses the left edge (if FUV) or bottom edge
-                   (if NUV) of the detector (float64)
+                   spectrum crosses the left edge of the detector (float64)
 
    xi and eta may be either Float32 or Int16, and they do not need to be
    the same type.
@@ -3096,9 +3250,8 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
    slope of the spectrum were zero, element i of xdisp would be incremented
    for each element of eta that is between i-0.5 and i+0.5.  For a non-zero
    slope, each eta position is first adjusted by subtracting (slope * xi),
-   so the position is projected to the left edge (if FUV) or bottom edge
-   (if NUV).  Note that this is the same convention as for the intercept
-   as given in the xtractab reference table.
+   so the position is projected to the left edge.  Note that this is the same
+   convention as for the intercept as given in the xtractab reference table.
 */
 
 static PyObject *ccos_xy_collapse (PyObject *self, PyObject *args) {
@@ -3195,7 +3348,7 @@ static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 		} else {
 		    c_eta = *(float *)PyArray_GETPTR1 (eta, k);
 		}
-		/* shift to where spectrum crosses left (or bottom) edge */
+		/* shift to where spectrum crosses left edge */
 		c_eta -= slope * c_xi;
 		j = NINT (c_eta);
 		if (j >= 0 && j < length)
@@ -3206,22 +3359,22 @@ static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 	return (0);
 }
 
-/* calling sequence for fuv_csum:
+/* calling sequence for csum_3d:
 
-   fuv_csum (array, x, y, epsilon, pha)
+   csum_3d (array, x, y, epsilon, pha)
 
     array     io: the output 3-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (float32)
     epsilon    i: array of weights for the events (float32)
     pha        i: array of pulse heights (int16)
 
-   ccos_fuv_csum calls binFUVtoCsum, which converts arrays of pixel
+   ccos_csum_3d calls bin3DtoCsum, which converts arrays of pixel
    coordinates to an image array.  The 3-D array ('array') is assumed
    to have already been initialized to zero.  For each event n, the
    array element at [pha[n],y[n],x[n]] will be incremented by epsilon[n].
 */
 
-static PyObject *ccos_fuv_csum (PyObject *self, PyObject *args) {
+static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon, *opha;
 	PyArrayObject *array, *x, *y, *epsilon, *pha;
@@ -3264,7 +3417,7 @@ static PyObject *ccos_fuv_csum (PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	binFUVtoCsum ((float *)PyArray_DATA (array), nx, ny, nz,
+	bin3DtoCsum ((float *)PyArray_DATA (array), nx, ny, nz,
 		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
 		(float *)PyArray_DATA (epsilon),
 		(short *)PyArray_DATA (pha), n_events);
@@ -3279,9 +3432,9 @@ static PyObject *ccos_fuv_csum (PyObject *self, PyObject *args) {
 	return Py_None;
 }
 
-/* This is called by ccos_fuv_csum. */
+/* This is called by ccos_csum_3d. */
 
-static void binFUVtoCsum (float array[], int nx, int ny, int nz,
+static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 		float x[], float y[],
 		float epsilon[], short pha[], int n_events) {
 
@@ -3305,21 +3458,21 @@ static void binFUVtoCsum (float array[], int nx, int ny, int nz,
 	}
 }
 
-/* calling sequence for nuv_csum:
+/* calling sequence for csum_2d:
 
-   nuv_csum (array, x, y, epsilon)
+   csum_2d (array, x, y, epsilon)
 
     array     io: the output 2-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (int16)
     epsilon    i: array of weights for the events (float32)
 
-   ccos_nuv_csum calls binNUVtoCsum, which converts arrays of pixel
+   ccos_csum_2d calls bin2DtoCsum, which converts arrays of pixel
    coordinates to an image array.  The 2-D array ('array') is assumed
    to have already been initialized to zero.  For each event n, the
    array element at [y[n],x[n]] will be incremented by epsilon[n].
 */
 
-static PyObject *ccos_nuv_csum (PyObject *self, PyObject *args) {
+static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon;
 	PyArrayObject *array, *x, *y, *epsilon;
@@ -3349,7 +3502,7 @@ static PyObject *ccos_nuv_csum (PyObject *self, PyObject *args) {
 	nx = PyArray_DIM (array, 1);	/* shape (ny,nx) */
 	ny = PyArray_DIM (array, 0);
 
-	binNUVtoCsum ((float *)PyArray_DATA (array), nx, ny,
+	bin2DtoCsum ((float *)PyArray_DATA (array), nx, ny,
 		(short *)PyArray_DATA (x), (short *)PyArray_DATA (y),
 		(float *)PyArray_DATA (epsilon), n_events);
 
@@ -3362,9 +3515,9 @@ static PyObject *ccos_nuv_csum (PyObject *self, PyObject *args) {
 	return Py_None;
 }
 
-/* This is called by ccos_nuv_csum. */
+/* This is called by ccos_csum_2d. */
 
-static void binNUVtoCsum (float array[], int nx, int ny,
+static void bin2DtoCsum (float array[], int nx, int ny,
 		short x[], short y[], float epsilon[], int n_events) {
 
 	int n;		/* loop index for events */
@@ -3421,6 +3574,9 @@ static PyMethodDef ccos_methods[] = {
 	{"geocorrection", ccos_geocorrection, METH_VARARGS,
 	"apply the geometric correction to events table x and y arrays"},
 
+	{"clear_rows", ccos_clear_rows, METH_VARARGS,
+	"assign 0 to the region in a DQ array within specified borders"},
+
 	{"interp1d", ccos_interp1d, METH_VARARGS,
 	"linearly interpolate within y_a for each element of x_b"},
 
@@ -3442,10 +3598,10 @@ static PyMethodDef ccos_methods[] = {
 	{"xy_collapse", ccos_xy_collapse, METH_VARARGS,
 	    "collapse an events list along the dispersion direction"},
 
-	{"fuv_csum", ccos_fuv_csum, METH_VARARGS,
+	{"csum_3d", ccos_csum_3d, METH_VARARGS,
 	    "bin FUV events to a 'calcos sum' (csum) image"},
 
-	{"nuv_csum", ccos_nuv_csum, METH_VARARGS,
+	{"csum_2d", ccos_csum_2d, METH_VARARGS,
 	    "bin NUV events to a 'calcos sum' (csum) image"},
 
 	{NULL, NULL, 0, NULL}

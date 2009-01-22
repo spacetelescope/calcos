@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.6"
-CALCOS_VERSION_DATE = "2008-12-05"
+CALCOS_VERSION_NUMBER = "2.6b"
+CALCOS_VERSION_DATE = "2009-01-22"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
@@ -28,6 +28,13 @@ FUV_X = 16384                   # more rapidly varying axis
 FUV_Y = 1024
 NUV_X = 1024                    # more rapidly varying axis
 NUV_Y = 1024
+
+# X_OFFSET is the offset of the detector in a calibrated image.
+# Pixel X in a calibrated image = XFULL + X_OFFSET
+FUV_X_OFFSET = 0
+FUV_EXTENDED_X = FUV_X
+NUV_X_OFFSET = 100
+NUV_EXTENDED_X = NUV_X + 250
 
 # These give the number of spectra per detector (used in extract.py).
 FUV_SPECTRA = 1                 # one spectrum on one FUV segment

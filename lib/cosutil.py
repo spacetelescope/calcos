@@ -41,39 +41,9 @@ def writeOutputEvents (infile, outfile):
     detector = ifd[0].header.get ("detector", "FUV")
     tagflash = (ifd[0].header.get ("tagflash", default="NONE") != "NONE")
 
-    # Check whether the PHA column exists.
-    if detector == "FUV":
-        pha_exists = True
-        if nrows > 0:
-            if findColumn (indata, "PHA"):
-                pha = indata.field ("PHA")
-            else:
-                pha_exists = False
-    else:
-        pha_exists = False
-
     # Create the output events HDU.
-    col = []
-    col.append (pyfits.Column (name="TIME", format="1E", unit="s"))
-    col.append (pyfits.Column (name="RAWX", format="1I", unit="pixel"))
-    col.append (pyfits.Column (name="RAWY", format="1I", unit="pixel"))
-    if detector == "FUV":
-        col.append (pyfits.Column (name="XCORR", format="1E", unit="pixel"))
-        col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
-        col.append (pyfits.Column (name="YCORR", format="1E", unit="pixel"))
-    else:
-        col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="EPSILON", format="1E"))
-    col.append (pyfits.Column (name="DQ", format="1I"))
-    if pha_exists:
-        col.append (pyfits.Column (name="PHA", format="1B"))
-        cd = pyfits.ColDefs (col)
-    else:
-        cd = pyfits.ColDefs (col)
+    hdu = createCorrtagHDU (nrows, detector, events_extn.header)
 
-    hdu = pyfits.new_table (cd, header=events_extn.header, nrows=nrows)
     if nrows == 0:
         primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
         ofd = pyfits.HDUList (primary_hdu)
@@ -93,21 +63,19 @@ def writeOutputEvents (infile, outfile):
 
     outdata.field ("RAWX")[:] = indata.field ("RAWX")
     outdata.field ("RAWY")[:] = indata.field ("RAWY")
-    if detector == "FUV":
-        outdata.field ("XCORR")[:] = indata.field ("RAWX")
-        outdata.field ("YCORR")[:] = indata.field ("RAWY")
+    outdata.field ("XCORR")[:] = indata.field ("RAWX")
+    outdata.field ("YCORR")[:] = indata.field ("RAWY")
 
     outdata.field ("XDOPP")[:] = N.zeros (nrows, dtype=N.float32)
     outdata.field ("XFULL")[:] = N.zeros (nrows, dtype=N.float32)
     outdata.field ("YFULL")[:] = N.zeros (nrows, dtype=N.float32)
 
-    outdata.field ("EPSILON")[:] = \
-            N.ones (nrows, dtype=N.float32)
-
+    outdata.field ("EPSILON")[:] = N.ones (nrows, dtype=N.float32)
     outdata.field ("DQ")[:] = N.zeros (nrows, dtype=N.int16)
-
-    if pha_exists:
+    if detector == "FUV":
         outdata.field ("PHA")[:] = indata.field ("PHA")
+    else:
+        outdata.field ("PHA")[:] = 255
 
     primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
     ofd = pyfits.HDUList (primary_hdu)
@@ -122,6 +90,60 @@ def writeOutputEvents (infile, outfile):
     ifd.close()
 
     return nrows
+
+def createCorrtagHDU (nrows, detector, header):
+    """Create the output events HDU.
+
+    @param nrows: number of rows to allocate (may be zero)
+    @type nrows: int
+    @param detector: FUV or NUV
+    @type detector: string
+    @param header: events extension header
+    @type header: pyfits Header object
+
+    @return: header/data unit for a corrtag table
+    @rtype: pyfits BinTableHDU object
+    """
+
+    col = []
+    col.append (pyfits.Column (name="TIME", format="1E", unit="s"))
+    col.append (pyfits.Column (name="RAWX", format="1I", unit="pixel"))
+    col.append (pyfits.Column (name="RAWY", format="1I", unit="pixel"))
+    col.append (pyfits.Column (name="XCORR", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="YCORR", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="EPSILON", format="1E"))
+    col.append (pyfits.Column (name="DQ", format="1I"))
+    col.append (pyfits.Column (name="PHA", format="1B"))
+    cd = pyfits.ColDefs (col)
+
+    hdu = pyfits.new_table (cd, header=header, nrows=nrows)
+
+    return hdu
+
+def dummyGTI (exptime):
+    """Return a GTI table.
+
+    @param exptime: exposure time in seconds
+    @type exptime: float
+
+    @return: header/data unit for a GTI table covering the entire exposure
+    @rtype: pyfits BinTableHDU object
+    """
+
+    col = []
+    col.append (pyfits.Column (name="START", format="1D", unit="s"))
+    col.append (pyfits.Column (name="STOP", format="1D", unit="s"))
+    cd = pyfits.ColDefs (col)
+    hdu = pyfits.new_table (cd, nrows=1)
+    hdu.header.update ("extname", "GTI")
+    outdata = hdu.data
+    outdata.field ("START")[:] = 0.
+    outdata.field ("STOP")[:] = exptime
+
+    return hdu
 
 def returnGTI (infile):
     """Return a list of (start, stop) good time intervals.
@@ -288,6 +310,27 @@ def getColCopy (filename="", column=None, extension=1, data=None):
     x[...] = temp
 
     return x
+
+def getTemplate (raw_template, x_offset, nelem):
+    """Return the template spectrum embedded in a possibly larger array.
+
+    @param raw_template: template spectrum as read from the lamptab
+    @type raw_template: numpy array
+    @param x_offset: offset of raw_template in the extended template
+    @type x_offset: int
+    @param nelem: length of template spectrum to return
+    @type nelem: int
+    """
+
+    len_raw = len (raw_template)
+
+    if x_offset == 0 and nelem == len_raw:
+        return raw_template.copy()
+
+    template = N.zeros (nelem, dtype=raw_template.dtype)
+    template[x_offset:len_raw+x_offset] = raw_template
+
+    return template
 
 def getHeaders (input):
     """Return a list of all the headers in the file.
@@ -499,14 +542,32 @@ def getInputDQ (input):
     fd = pyfits.open (input, mode="readonly")
 
     hdr = fd[("DQ",1)].header
+    detector = fd[0].header["detector"]
+    obsmode = fd[0].header["obsmode"]
+
+    # this section for npix and x_offset is based on getinfo.getGeneralInfo
+    if detector == "FUV":
+        npix = (FUV_Y, FUV_EXTENDED_X)
+        x_offset = FUV_X_OFFSET
+    else:
+        if obsmode == "IMAGING":
+            npix = (NUV_Y, NUV_X)
+            x_offset = 0
+        else:
+            npix = (NUV_Y, NUV_EXTENDED_X)
+            x_offset = NUV_X_OFFSET
 
     # Does the data portion exist?
     if hdr["naxis"] > 0:
-        dq_array = fd[("DQ",1)].data
+        if fd[("DQ",1)].data.shape[1] == npix[1]:
+            dq_array = fd[("DQ",1)].data
+            # undo the flagging of regions outside subarrays
+            dq_array = N.bitwise_and (dq_array, 16383-(64+128))
+        else:
+            dq_array = N.zeros (npix, dtype=N.int16)
+            dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",1)].data
     else:
-        npix1 = hdr["npix1"]
-        npix2 = hdr["npix2"]
-        dq_array = N.zeros ((npix2, npix1), dtype=N.int16)
+        dq_array = N.zeros (npix, dtype=N.int16)
         if hdr.has_key ("pixvalue"):
             pixvalue = hdr["pixvalue"]
             if pixvalue != 0:
@@ -581,23 +642,52 @@ def updateDQArray (bpixtab, info, doppcorr,
     ly = dq_info.field ("ly")
     dx = dq_info.field ("dx")
     dy = dq_info.field ("dy")
+    ux = lx + dx - 1
+    uy = ly + dy - 1
     if minmax_shifts is not None:
         (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
-        lx -= int (math.floor (min_shift1))
-        ly -= int (math.floor (min_shift2))
-        dx += int (math.ceil (max_shift1 - min_shift1))
-        dy += int (math.ceil (max_shift2 - min_shift2))
-        
-    ccos.bindq (lx, ly, dx, dy, dq_info.field ("dq"),
-                dq_array, axis, mindopp, maxdopp)
+        if max_shift1 >= 0:
+            lx -= int (math.floor (max_shift1))
+            ux -= int (math.floor (min_shift1))
+        else:
+            lx -= int (math.floor (min_shift1))
+            ux -= int (math.floor (max_shift1))
+        if max_shift2 >= 0:
+            ly -= int (math.floor (max_shift2))
+            uy -= int (math.floor (min_shift2))
+        else:
+            ly -= int (math.floor (min_shift2))
+            uy -= int (math.floor (max_shift2))
 
-def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
+    lx += mindopp
+    ux += maxdopp
+
+    ccos.bindq (lx, ly, ux, uy, dq_info.field ("dq"),
+                dq_array, info["x_offset"])
+
+def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
+                     brftab, geofile, minmax_shifts=None):
     """Flag regions that are outside all subarrays (done in-place).
 
-    arguments:
-    phdr          primary header
-    hdr           extension header
-    dq_array      data quality array
+    @param phdr: the primary header
+    @type phdr: pyfits Header object
+    @param hdr: the extension header
+    @type hdr: pyfits Header object
+    @param dq_array: data quality image array (modified in-place)
+    @type dq_array: numpy array
+    @param stim_param: a dictionary of lists, with keys
+        i0, i1, x0, xslope, y0, yslope
+    @type stim_param: dictionary
+    @param info: keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param brftab: name of baseline reference table (for active area)
+    @type brftab: string
+    @param minmax_shifts: the min and max offsets in the dispersion direction
+        and the min and max offsets in the cross-dispersion direction during
+        the exposure
+    @type minmax_shifts: tuple
     """
 
     if not phdr.has_key ("subarray"):
@@ -609,11 +699,13 @@ def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
     if nsubarrays < 1:
         return
 
-    detector = phdr["detector"]
+    x_offset = info["x_offset"]
+    detector = info["detector"]
+    segment = info["segment"]
+
     if detector == "FUV":
         # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
-        nsub = nsubarrays // 2
-        indices = N.arange (nsub, dtype=N.int32)
+        indices = N.arange (4, dtype=N.int32)
         if phdr["segment"] == "FUVB":
             indices += 4
     else:
@@ -622,26 +714,244 @@ def flagOutOfBounds (phdr, hdr, dq_array, avg_dx=0, avg_dy=0):
     temp = dq_array.copy()
     (ny, nx) = dq_array.shape
 
+    (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
+    # These are for shifting and smearing the out-of-bound region into
+    # the subarray due to the wavecal offset and its variation during
+    # the exposure.
+    if min_shift1 >= 0:
+        dx = int (math.floor (min_shift1))
+    else:
+        dx = int (math.ceil (max_shift1))
+    if min_shift2 >= 0:
+        dy = int (math.floor (min_shift2))
+    else:
+        dy = int (math.ceil (max_shift2))
+    xwidth = int (math.ceil (max_shift1 - min_shift1))
+    ywidth = int (math.ceil (max_shift2 - min_shift2))
+
+    # get a list of subarray locations
+    subarrays = []
+    for i in indices:
+        sub = {}
+        sub_number = str (i)
+        # these keywords are 0-indexed
+        x0 = hdr["corner"+sub_number+"x"]
+        y0 = hdr["corner"+sub_number+"y"]
+        xsize = hdr["size"+sub_number+"x"]
+        ysize = hdr["size"+sub_number+"y"]
+        if xsize <= 0 or ysize <= 0:
+            continue
+        if detector == "FUV" and (ysize, xsize) == (FUV_Y, FUV_X):
+            continue
+        if detector == "NUV" and (ysize, xsize) == (NUV_Y, NUV_X):
+            continue
+        x1 = x0 + xsize - xwidth
+        y1 = y0 + ysize - ywidth
+        sub["x0"] = x0
+        sub["y0"] = y0
+        sub["x1"] = x1
+        sub["y1"] = y1
+        subarrays.append (sub)
+    if not subarrays:
+        # Create one full-size "subarray" in order to account for the NUV
+        # image being larger than the detector and because of fpoffset.
+        sub["x0"] = 0
+        sub["y0"] = 0
+        if detector == "FUV":
+            sub["x1"] = FUV_X
+            sub["y1"] = FUV_Y
+        else:
+            sub["x1"] = NUV_X
+            sub["y1"] = NUV_Y
+        subarrays.append (sub)
+
     # Initially flag the entire image as out of bounds, then remove the
     # flag (set it to zero) for each subarray.
     temp[:,:] = DQ_OUT_OF_BOUNDS
-    for i in indices:
-        sub_number = str (i)
-        x0 = hdr["corner"+sub_number+"x"]       # these keywords are 0-indexed
-        y0 = hdr["corner"+sub_number+"y"]
-        x0 -= avg_dx
-        y0 -= avg_dy
-        xsize = hdr["size"+sub_number+"x"]
-        ysize = hdr["size"+sub_number+"y"]
-        x1 = x0 + xsize
-        y1 = y0 + ysize
-        x0 = max (x0, 0)
-        y0 = max (y0, 0)
-        x1 = min (x1, nx)
-        y1 = min (y1, ny)
-        temp[y0:y1,x0:x1] = DQ_OK
+    (ny, nx) = dq_array.shape
+
+    if switches["tempcorr"] == "PERFORM":
+        # These are the parameters found by computeThermalParam.
+        xintercept = stim_param["x0"]
+        xslope = stim_param["xslope"]
+        yintercept = stim_param["y0"]
+        yslope = stim_param["yslope"]
+        # check the length; we expect (for accum mode) only one element
+        if len (xintercept) != 1:
+            printWarning ("in flagOutOfBounds, more stim_param than expected")
+        xintercept = xintercept[0]
+        xslope = xslope[0]
+        yintercept = yintercept[0]
+        yslope = yslope[0]
+
+        # subarrays is a list of dictionaries, each with keys:
+        #     "x0", "x1", "y0", "y1"
+        # x is the more rapidly varying axis (dispersion direction), and
+        # y is the less rapidly varying axis.  The limits can be used as a
+        # slice, i.e. x1 and y1 are one larger than the actual upper limits.
+        new_subarrays = []
+        for sub in subarrays:
+            x0 = sub["x0"]
+            x1 = sub["x1"]
+            y0 = sub["y0"]
+            y1 = sub["y1"]
+            # apply the correction for thermal distortion
+            sub["x0"] = xintercept + x0 * xslope
+            sub["y0"] = yintercept + y0 * yslope
+            sub["x1"] = xintercept + (x1 - 1.) * xslope + 1.
+            sub["y1"] = yintercept + (y1 - 1.) * yslope + 1.
+            new_subarrays.append (sub)
+        del subarrays
+        subarrays = new_subarrays
+
+    # Add shifts, apply geometric correction to the subarray for the
+    # source spectrum, and set flags to zero in temp within subarrays.
+    (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
+    nfound = 0
+    save_sub = None
+    for sub in subarrays:
+        x0 = sub["x0"]
+        x1 = sub["x1"]
+        y0 = sub["y0"]
+        y1 = sub["y1"]
+        # the subarrays for the stims are outside the active area
+        if y1 < b_low or y0 > b_high:
+            clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset)
+            continue
+        nfound += 1
+        # These are arrays of pixel coordinates just inside the borders
+        # of the subarray.
+        x_lower = N.arange (x0, x1, dtype=N.float32)
+        x_upper = N.arange (x0, x1, dtype=N.float32)
+        y_left  = N.arange (y0, y1, dtype=N.float32)
+        y_right = N.arange (y0, y1, dtype=N.float32)
+        y_lower = y0 + 0. * x_lower
+        y_upper = (y1 - 1.) + 0. * x_upper
+        x_left  = x0 + 0. * y_left
+        x_right = (x1 - 1.) + 0. * y_right
+        # These are independent variable arrays for interpolation.
+        x_lower_uniform = N.arange (nx, dtype=N.float32)
+        x_upper_uniform = N.arange (nx, dtype=N.float32)
+        y_left_uniform  = N.arange (ny, dtype=N.float32)
+        y_right_uniform = N.arange (ny, dtype=N.float32)
+        # These will be the arrays of interpolated edge coordinates.
+        y_lower_interp = N.arange (nx, dtype=N.float32)
+        y_upper_interp = N.arange (nx, dtype=N.float32)
+        x_left_interp  = N.arange (ny, dtype=N.float32)
+        x_right_interp = N.arange (ny, dtype=N.float32)
+        save_sub = (x0, x1, y0, y1)             # in case geocorr is omit
+    if nfound == 0:
+        printWarning (
+        "in flagOutOfBounds, there should be at least one full-size 'subarray'")
+    if nfound > 1:
+        printWarning ("in flagOutOfBounds, more subarrays than expected")
+    if switches["geocorr"] == "PERFORM":
+        interp_flag = (switches["igeocorr"] == "PERFORM")
+        (x_data, origin_x, xbin, y_data, origin_y, ybin) = \
+                        getGeoData (geofile, segment)
+        # Undistort x_lower, y_lower, etc., in-place.
+        ccos.geocorrection (x_lower, y_lower, x_data, y_data, interp_flag,
+                            origin_x, origin_y, xbin, ybin)
+        ccos.geocorrection (x_upper, y_upper, x_data, y_data, interp_flag,
+                            origin_x, origin_y, xbin, ybin)
+        ccos.geocorrection (x_left, y_left, x_data, y_data, interp_flag,
+                            origin_x, origin_y, xbin, ybin)
+        ccos.geocorrection (x_right, y_right, x_data, y_data, interp_flag,
+                            origin_x, origin_y, xbin, ybin)
+        del (x_data, y_data)
+        # Interpolate to uniform spacing (pixel spacing).
+        ccos.interp1d (x_lower, y_lower, x_lower_uniform, y_lower_interp)
+        ccos.interp1d (x_upper, y_upper, x_upper_uniform, y_upper_interp)
+        ccos.interp1d (y_left,  x_left,  y_left_uniform,  x_left_interp)
+        ccos.interp1d (y_right, x_right, y_right_uniform, x_right_interp)
+        # Apply offsets for zero point and wavecal shifts, replacing the
+        # previous x_lower, y_lower, etc.  The independent variable arrays
+        # will now be uniform, and the dependent variable arrays will have
+        # been interpolated onto the uniform grid.
+        (y_lower, y_upper) = applyOffsets (y_lower_interp, y_upper_interp,
+                                           ny, dy)
+        (x_left, x_right)  = applyOffsets (x_left_interp, x_right_interp,
+                                           nx, dx, x_offset)
+
+        ccos.clear_rows (temp, y_lower, y_upper, x_left, x_right)
+    elif save_sub is not None:
+        (x0, x1, y0, y1) = save_sub
+        clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset)
 
     dq_array[:,:] = N.bitwise_or (dq_array, temp)
+
+def applyOffsets (x_left, x_right, nx, dx, x_offset=0):
+
+    x_left += x_offset
+    x_right += x_offset
+    x_left -= dx
+    x_right -= dx
+    x_left = N.where (x_left < 0., 0., x_left)
+    x_right = N.where (x_right > nx-1., nx-1., x_right)
+
+    return (x_left, x_right)
+
+def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
+    """Set the subarray to zero in temp."""
+
+    (ny, nx) = temp.shape
+    x0 += x_offset
+    x0 -= dx
+    y0 -= dy
+    x1 += x_offset
+    x1 -= dx
+    y1 -= dy
+    x0 = max (x0, 0)
+    y0 = max (y0, 0)
+    x1 = min (x1, nx)
+    y1 = min (y1, ny)
+    temp[y0:y1,x0:x1] = DQ_OK
+
+def getGeoData (geofile, segment):
+    """Open and read the geofile.
+
+    @param geofile: name of geometric correction reference file
+    @type geofile: string
+    @param segment: FUVA or FUVB
+    @type segment: string
+
+    @return: the data from the geofile for X and Y, and the offsets;
+        x_hdu.data:  array to correct distortion in X
+        origin_x:  offset of x_hdu.data within detector coordinates
+        xbin:  binning (int) in the X direction
+        y_hdu.data:  array to correct distortion in Y
+        origin_y:  offset of y_hdu.data within detector coordinates
+        ybin:  binning (int) in the Y direction
+    @rtype: tuple
+    """
+
+    fd = pyfits.open (geofile, mode="readonly", memmap=0)
+    x_hdu = fd[(segment,1)]
+    y_hdu = fd[(segment,2)]
+
+    # The images in the geofile will typically be smaller than the full
+    # detector.  These offsets give the location of geofile pixel [0,0]
+    # on the detector.
+    origin_x = x_hdu.header.get ("origin_x", 0)
+    origin_y = x_hdu.header.get ("origin_y", 0)
+
+    if origin_x != y_hdu.header.get ("origin_x", 0) or \
+       origin_y != y_hdu.header.get ("origin_y", 0):
+        raise RuntimeError, "Inconsistent ORIGIN_X or _Y keywords in GEOFILE"
+
+    xbin = x_hdu.header.get ("xbin", 1)
+    ybin = x_hdu.header.get ("ybin", 1)
+    if xbin != y_hdu.header.get ("xbin", 1) or \
+       ybin != y_hdu.header.get ("ybin", 1):
+        raise RuntimeError, "Inconsistent XBIN or YBIN keywords in GEOFILE"
+
+    # "touch" the data before closing the file.  Is this necessary?
+    x_data = x_hdu.data
+    y_data = y_hdu.data
+
+    fd.close()
+
+    return (x_data, origin_x, xbin, y_data, origin_y, ybin)
 
 def flagOutsideActiveArea (dq_array, segment, brftab):
     """Flag the region that is outside the active area.
@@ -852,19 +1162,12 @@ def doImageStat (input):
                 in-place
     """
 
-    # Open the file readonly to read the data.
-    fd = pyfits.open (input, mode="readonly", memmap=0)
-    # fd = pyfits.open (input, mode="readonly", memmap=1)
+    fd = pyfits.open (input, mode="update")
 
     if fd[1].data is None:
         fd.close()
         return
     phdr = fd[0].header
-    hdr = fd["SCI"].header
-    sci = fd["SCI"].data
-    err = fd["ERR"].data
-    dq = fd["DQ"].data
-
     xtractab = expandFileName (phdr.get ("xtractab", ""))
     detector = phdr.get ("detector", "")
     if detector == "FUV":
@@ -872,80 +1175,98 @@ def doImageStat (input):
     opt_elem = phdr.get ("opt_elem", "")
     cenwave = phdr.get ("cenwave", 0)
     aperture = getApertureKeyword (phdr, truncate=1)
-    dispaxis = hdr.get ("dispaxis", 0)
-    exptime = hdr.get ("exptime", 0.)
-    sdqflags = hdr.get ("sdqflags", 32767)
+    exptype = phdr.get ("exptype", "")
+    nextend = len (fd) - 1      # number of extensions
+    nimsets = nextend // 3      # number of image sets
 
-    if dispaxis > 0:
-        axis = 2 - dispaxis         # 1 --> 1,  2 --> 0
-        axis_length = fd[1].data.shape[axis]
+    for k in range (nimsets):
+        extver = k + 1          # extver is one indexed
 
-    # This will be a list of dictionaries, one for FUV, three for NUV.
-    stat_info = []
+        hdr = fd[("SCI",extver)].header
+        sci = fd[("SCI",extver)].data
+        err = fd[("ERR",extver)].data
+        dq = fd[("DQ",extver)].data
 
-    if detector == "FUV":
-        segment_list = [fuv_segment]            # just one
-    elif dispaxis == 0:
-        segment_list = ["NUV"]                  # target-acq image
-    else:
-        segment_list = ["NUVA", "NUVB", "NUVC"]
+        dispaxis = hdr.get ("dispaxis", 0)
+        exptime = hdr.get ("exptime", 0.)
+        sdqflags = hdr.get ("sdqflags", 3832)
+        x_offset = hdr.get ("x_offset", 0)
 
-    for segment in segment_list:
+        if exptype == "ACQ/IMAGE":
+            dispaxis = 0
 
         if dispaxis > 0:
-            filter = {"segment": segment,
-                      "opt_elem": opt_elem,
-                      "cenwave": cenwave,
-                      "aperture": aperture}
+            axis = 2 - dispaxis         # 1 --> 1,  2 --> 0
+            axis_length = fd[1].data.shape[axis]
 
-            xtract_info = getTable (xtractab, filter)
-            if xtract_info is None:
-                continue
+        # This will be a list of dictionaries, one for FUV, three for NUV.
+        stat_info = []
 
-            slope = xtract_info.field ("slope")[0]
-            b_spec = xtract_info.field ("b_spec")[0]
-            extr_height = xtract_info.field ("height")[0]
-
-            sci_band = N.zeros ((extr_height, axis_length),
-                                   dtype=N.float32)
-            ccos.extractband (sci, axis, slope, b_spec, sci_band)
-
-            if err is None:
-                err_band = None
-            else:
-                err_band = N.zeros ((extr_height, axis_length),
-                                       dtype=N.float32)
-                ccos.extractband (err, axis, slope, b_spec, err_band)
-
-            if dq is None:
-                dq_band = None
-            else:
-                dq_band = N.zeros ((extr_height, axis_length),
-                                      dtype=N.int16)
-                ccos.extractband (dq, axis, slope, b_spec, dq_band)
-
-            stat_info.append (computeStat (sci_band,
-                          err_band, dq_band, sdqflags))
-
+        if detector == "FUV":
+            segment_list = [fuv_segment]            # just one
+        elif dispaxis == 0:
+            segment_list = ["NUV"]                  # target-acq image
         else:
-            # This is presumably a target-acquisition image.  Compute info
-            # for the entire image.
-            stat_info.append (computeStat (sci, err, dq, sdqflags))
+            segment_list = ["NUVA", "NUVB", "NUVC"]
 
-    # Combine the three NUV stripes, or for FUV just return the first element.
-    stat_avg = combineStat (stat_info)
+        for segment in segment_list:
 
-    fd.close()
+            if dispaxis > 0:
+                filter = {"segment": segment,
+                          "opt_elem": opt_elem,
+                          "cenwave": cenwave,
+                          "aperture": aperture}
 
-    # Now re-open the file read/write to update the keywords.
-    fd = pyfits.open (input, mode="update")
-    fd["SCI"].header.update ("ngoodpix", stat_avg["ngoodpix"])
-    fd["SCI"].header.update ("goodmean", exptime * stat_avg["sci_goodmean"])
-    fd["SCI"].header.update ("goodmax", exptime * stat_avg["sci_goodmax"])
-    if err is not None:
-        fd["ERR"].header.update ("ngoodpix", stat_avg["ngoodpix"])
-        fd["ERR"].header.update ("goodmean", exptime * stat_avg["err_goodmean"])
-        fd["ERR"].header.update ("goodmax", exptime * stat_avg["err_goodmax"])
+                xtract_info = getTable (xtractab, filter)
+                if xtract_info is None:
+                    continue
+
+                slope = xtract_info.field ("slope")[0]
+                b_spec = xtract_info.field ("b_spec")[0]
+                extr_height = xtract_info.field ("height")[0]
+
+                sci_band = N.zeros ((extr_height, axis_length),
+                                       dtype=N.float32)
+                ccos.extractband (sci, axis, slope, b_spec, x_offset,
+                                  sci_band)
+
+                if err is None:
+                    err_band = None
+                else:
+                    err_band = N.zeros ((extr_height, axis_length),
+                                       dtype=N.float32)
+                    ccos.extractband (err, axis, slope, b_spec, x_offset,
+                                      err_band)
+
+                if dq is None:
+                    dq_band = None
+                else:
+                    dq_band = N.zeros ((extr_height, axis_length),
+                                          dtype=N.int16)
+                    ccos.extractband (dq, axis, slope, b_spec, x_offset,
+                                      dq_band)
+
+                stat_info.append (computeStat (sci_band,
+                              err_band, dq_band, sdqflags))
+
+            else:
+                # This is presumably a target-acquisition image.  Compute info
+                # for the entire image.
+                stat_info.append (computeStat (sci, err, dq, sdqflags))
+
+        # Combine the three NUV stripes, or for FUV return the first element.
+        stat_avg = combineStat (stat_info)
+
+        sci_hdr = fd[("SCI",extver)].header
+        sci_hdr.update ("ngoodpix", stat_avg["ngoodpix"])
+        sci_hdr.update ("goodmean", exptime * stat_avg["sci_goodmean"])
+        sci_hdr.update ("goodmax", exptime * stat_avg["sci_goodmax"])
+        if err is not None:
+            err_hdr = fd[("ERR",extver)].header
+            err_hdr.update ("ngoodpix", stat_avg["ngoodpix"])
+            err_hdr.update ("goodmean", exptime * stat_avg["err_goodmean"])
+            err_hdr.update ("goodmax", exptime * stat_avg["err_goodmax"])
+
     fd.close()
 
 def doSpecStat (input):
@@ -969,6 +1290,7 @@ def doSpecStat (input):
     if sci_extn.data is None:
         fd.close()
         return
+    sdqflags = sci_extn.header["sdqflags"]
     outdata = sci_extn.data
     nrows = outdata.shape[0]
     if nrows < 1:
@@ -977,13 +1299,15 @@ def doSpecStat (input):
     exptime_col = outdata.field ("EXPTIME")
     net = outdata.field ("NET")
     error = outdata.field ("ERROR")
+    dq = outdata.field ("DQ")
 
     # This will be a list of dictionaries, one for each segment or stripe.
+    # (statistics for the error array are computed but then ignored)
     stat_info = []
     sum_exptime = 0.
     for row in range (nrows):
         sum_exptime += exptime_col[row]
-        onestat = computeStat (net[row], error[row])
+        onestat = computeStat (net[row], error[row], dq[row], sdqflags)
         stat_info.append (onestat)
     exptime = sum_exptime / nrows
 
@@ -1028,7 +1352,7 @@ def doTagFlashStat (fd):
     sci_extn.header.update ("goodmean", sum_gross / float (n))
     sci_extn.header.update ("goodmax", max_gross)
 
-def computeStat (sci_band, err_band=None, dq_band=None, sdqflags=32767):
+def computeStat (sci_band, err_band=None, dq_band=None, sdqflags=3832):
     """Compute statistics.
 
     The function value is a dictionary with the info.  The keys are the
@@ -1040,7 +1364,7 @@ def computeStat (sci_band, err_band=None, dq_band=None, sdqflags=32767):
     sci_band       science data array for which statistics are needed
     err_band       error array (but may be None) associated with sci_band
     dq_band        data quality array (may be None) associated with sci_band
-    sdqflags       "serious" data quality flags (default includes all flags)
+    sdqflags       "serious" data quality flags
     """
 
     # default values:
@@ -1122,7 +1446,7 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
     """Override the calibration switch and reference file keywords.
 
     The calibration switch and reference file keywords and a few other
-    specific keywords will be overridden.
+    specific keywords will be overridden.  The x_offset keyword will be set.
 
     arguments:
     phdr          primary header from input
@@ -1155,6 +1479,8 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
 
     if hdr.has_key ("dispaxis"):
         hdr["dispaxis"] = info["dispaxis"]
+
+    hdr.update ("x_offset", info["x_offset"])
 
 def updatePulseHeightKeywords (hdr, segment, low, high):
     """Update the screening limit keywords for pulse height.
@@ -1233,6 +1559,13 @@ def openTrailer (filename):
     closeTrailer()
 
     fd_trl = open (filename, 'a')
+
+def writeVersionToTrailer():
+    """Write the calcos version string to the trailer file."""
+
+    if fd_trl is not None:
+        fd_trl.write ("CALCOS version " + CALCOS_VERSION + "\n")
+        fd_trl.flush()
 
 def closeTrailer():
     """Close the trailer file if it is open."""

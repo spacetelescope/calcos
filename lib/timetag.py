@@ -11,6 +11,11 @@ import concurrent
 import wavecal
 from calcosparam import *       # parameter definitions
 
+# This variable gives the data quality flags that will result in events
+# not being included when writeImages writes the flt and counts images.
+# It will be modified if brstcorr, badtcorr or phacorr is set to perform.
+serious_dq_flags = 0
+
 # These are column names in the corrtag table.  The default values are
 # appropriate for FUV data.  These can be reset in setCorrColNames().
 
@@ -26,11 +31,11 @@ yfull = "yfull"
 # for NUV (all True).
 active_area = None
 
-def timetagBasicCalibration (input, outtag,
+def timetagBasicCalibration (input, inpha, outtag,
                   output, outcounts, outflash, outcsum,
                   info, switches, reffiles,
                   wavecal_info,
-                  stimfile, livetimefile, burstfile):
+                  stimfile=None, livetimefile=None, burstfile=None):
     """Do the basic processing for time-tag data.
 
     The function value will be zero if there was no problem,
@@ -38,6 +43,8 @@ def timetagBasicCalibration (input, outtag,
 
     arguments:
     input         name of the input file
+    inpha         name of the input file containing the pulse height
+                  histogram (FUV ACCUM only)
     outtag        name of the output file for corrected time-tag data
     output        name of the output file for flat-fielded count-rate image
     outcounts     name of the output file for count-rate image
@@ -54,20 +61,24 @@ def timetagBasicCalibration (input, outtag,
     burstfile     name of output text file for burst info (or None)
     """
 
-    cosutil.printIntro ("TIME-TAG calibration")
-    names = [("Input", input), ("OutTag", outtag),
-             ("OutFlt", output), ("OutCounts", outcounts)]
-    if outflash is not None:
-        names.append (("OutFlash", outflash))
-    if outcsum is not None:
-        names.append (("OutCsum", outcsum))
-    cosutil.printFilenames (names, stimfile=stimfile, livetimefile=livetimefile)
-    cosutil.printMode (info)
+    if info["obsmode"] == "TIME-TAG":
+        cosutil.printIntro ("TIME-TAG calibration")
+        names = [("Input", input), ("OutTag", outtag),
+                 ("OutFlt", output), ("OutCounts", outcounts)]
+        if outflash is not None:
+            names.append (("OutFlash", outflash))
+        if outcsum is not None:
+            names.append (("OutCsum", outcsum))
+        cosutil.printFilenames (names, stimfile=stimfile,
+                                livetimefile=livetimefile)
+        cosutil.printMode (info)
 
     # Copy data from the input file to the output.  Then open the output
     # file read/write.
-    nrows = cosutil.writeOutputEvents (input, outtag)
-    ofd = pyfits.open (outtag, mode="update", memmap=0)
+    if info["obsmode"] == "TIME-TAG":
+        nrows = cosutil.writeOutputEvents (input, outtag)
+    ofd = pyfits.open (outtag, mode="update")
+    nrows = len (ofd["EVENTS"].data)
 
     # Get a copy of the primary header.  This copy will be modified and
     # written to the output image files.
@@ -86,7 +97,7 @@ def timetagBasicCalibration (input, outtag,
         ofd.close()
         return 1
 
-    setCorrColNames (info["detector"], info["tagflash"])
+    setCorrColNames (info["detector"])
 
     events = events_hdu.data
 
@@ -98,11 +109,12 @@ def timetagBasicCalibration (input, outtag,
 
     badt = doBadtcorr (events, info, switches, reffiles, phdr)
 
-    gti = recomputeExptime (input, bursts, badt, events,
-                            events_hdu.header, info)
-    saveNewGTI (ofd, gti)
+    if info["obsmode"] == "TIME-TAG":
+        gti = recomputeExptime (input, bursts, badt, events,
+                                events_hdu.header, info)
+        saveNewGTI (ofd, gti)
 
-    doPhacorr (events, info, switches, reffiles, phdr, events_hdu.header)
+    doPhacorr (inpha, events, info, switches, reffiles, phdr, events_hdu.header)
 
     doRandcorr (events, info, switches, reffiles, phdr)
 
@@ -124,7 +136,7 @@ def timetagBasicCalibration (input, outtag,
 
     # Write the calcos sum image.
     if outcsum is not None:
-        if info["detector"] == "FUV":
+        if info["detector"] == "FUV" and info["obsmode"] == "TIME-TAG":
             pha = events.field ("pha")
         else:
             pha = None
@@ -149,13 +161,14 @@ def timetagBasicCalibration (input, outtag,
 
     minmax_shifts = getWavecalOffsets (events)
 
-    dq_array = doDqicorr (events, info, switches, reffiles,
+    dq_array = doDqicorr (events, input, info, switches, reffiles,
+                          stim_param,
                           phdr, events_hdu.header, minmax_shifts)
 
     writeImages (events.field (xfull), events.field (yfull),
                  events.field ("epsilon"), events.field ("dq"),
                  phdr, events_hdu.header,
-                 dq_array, info["npix"], info["exptime"],
+                 dq_array, info["npix"], info["x_offset"], info["exptime"],
                  outcounts, output)
 
     doStatflag (switches, output, outcounts)
@@ -168,7 +181,7 @@ def timetagBasicCalibration (input, outtag,
     return 0            # 0 is OK
 
 
-def setCorrColNames (detector, tagflash):
+def setCorrColNames (detector):
     """Assign column names to global variables.
 
     argument:
@@ -177,16 +190,10 @@ def setCorrColNames (detector, tagflash):
 
     global xcorr, ycorr, xdopp, ydopp, xfull, yfull
 
-    if detector == "FUV":
-        xcorr = "XCORR"
-        ycorr = "YCORR"
-        xdopp = "XDOPP"
-        ydopp = "YCORR"
-    else:
-        xcorr = "RAWX"
-        ycorr = "RAWY"
-        xdopp = "XDOPP"
-        ydopp = "RAWY"
+    xcorr = "XCORR"
+    ycorr = "YCORR"
+    xdopp = "XDOPP"
+    ydopp = "YCORR"
 
     xfull = "XFULL"
     yfull = "YFULL"
@@ -276,11 +283,14 @@ def doBurstcorr (events, info, switches, reffiles, phdr, burstfile):
     @rtype: list of two-element lists, or None
     """
 
+    global serious_dq_flags
+
     bursts = None
     if info["segment"][:3] == "FUV":
         # Find and flag regions where the count rate is unreasonably high.
         cosutil.printSwitch ("BRSTCORR", switches)
         if switches["brstcorr"] == "PERFORM":
+            serious_dq_flags |= DQ_BURST
             cosutil.printRef ("brsttab", reffiles)
             cosutil.printRef ("xtractab", reffiles)
             bursts = burst.burstFilter (events.field ("time"),
@@ -309,10 +319,13 @@ def doBadtcorr (events, info, switches, reffiles, phdr):
     @rtype: list of two-element lists
     """
 
+    global serious_dq_flags
+
     badt = []
 
     cosutil.printSwitch ("BADTCORR", switches)
     if switches["badtcorr"] == "PERFORM":
+        serious_dq_flags |= DQ_BAD_TIME
         cosutil.printRef ("BADTTAB", reffiles)
         badt = filterByTime (events.field ("time"), events.field ("dq"),
                     reffiles["badttab"], info["expstart"], info["segment"])
@@ -345,10 +358,10 @@ def filterByTime (time, dq, badttab, expstart, segment):
     # Flag regions listed in the badt table.
     badt_info = cosutil.getTable (badttab, filter={"segment": segment})
 
-    nrows = badt_info.shape[0]
-
     badt = []
-    if nrows > 0:
+    if badt_info is not None:
+        nrows = badt_info.shape[0]
+
         start = badt_info.field ("start")
         stop  = badt_info.field ("stop")
 
@@ -451,10 +464,11 @@ def saveNewGTI (ofd, gti):
     """xxx not implemented yet"""
     pass
 
-def doPhacorr (events, info, switches, reffiles, phdr, hdr):
+def doPhacorr (inpha, events, info, switches, reffiles, phdr, hdr):
     """Filter by pulse height.
 
     arguments:
+    inpha         name of the input file containing the pulse height histogram
     events        the data unit containing the events table
     info          dictionary of header keywords and values
     switches      dictionary of calibration switches
@@ -463,16 +477,25 @@ def doPhacorr (events, info, switches, reffiles, phdr, hdr):
     hdr           the input events extension header
     """
 
+    global serious_dq_flags
+
     if info["detector"] == "FUV":
         cosutil.printSwitch ("PHACORR", switches)
         if switches["phacorr"] == "PERFORM":
-            cosutil.printRef ("PHATAB", reffiles)
-            filterByPulseHeight (events.field ("pha"), events.field ("dq"),
-                    reffiles["phatab"], info["segment"], hdr)
+            serious_dq_flags |= DQ_PH_LOW
+            serious_dq_flags |= DQ_PH_HIGH
+            if info["obsmode"] == "TIME-TAG":
+                cosutil.printRef ("PHATAB", reffiles)
+                filterByPulseHeight (events.field ("pha"), events.field ("dq"),
+                        reffiles["phatab"], info["segment"], hdr)
+            else:
+                checkPulseHeight (inpha, reffiles["phatab"], info, hdr)
             phdr["phacorr"] = "COMPLETE"
 
 def filterByPulseHeight (pha, dq, phatab, segment, hdr):
     """Flag events that have a pulse height outside an allowed range.
+
+    This is only called for TIME-TAG mode data.
 
     arguments:
     pha        pulse-height column in events table
@@ -532,6 +555,82 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
     # (low and high are the default values).
     cosutil.updatePulseHeightKeywords (hdr, segment, low, high)
 
+def checkPulseHeight (inpha, phatab, info, hdr):
+    """Check that the pulse-height distribution is reasonable.
+
+    This is only called for ACCUM mode data.
+
+    arguments:
+    inpha         name of file containing pulse-height distribution
+    phatab        name of table of pulse-height parameters
+    info          dictionary of keywords and values
+    hdr           extension header
+    """
+
+    pha_info = cosutil.getTable (phatab, filter={"segment": info["segment"]},
+                   exactly_one=True)
+
+    low = pha_info.field ("llt")[0]
+    high = pha_info.field ("ult")[0]
+
+    # Update the values for the screening limit keywords
+    cosutil.updatePulseHeightKeywords (hdr, info["segment"], low, high)
+
+    # The peak in the pulse-height distribution should be within low and high.
+    # Apply a factor to low and high to account for the fact that the
+    # histogram is from seven-bit values but the values in the table are
+    # for five-bit values (the PHA column in an EVENTS table).
+    # The mean should be within the factors min_peak and max_peak of the peak.
+    low *= TWO_BITS
+    high *= TWO_BITS
+    min_peak = pha_info.field ("min_peak")[0]
+    max_peak = pha_info.field ("max_peak")[0]
+
+    # Read the pulse-height histogram.
+    fd = pyfits.open (inpha, mode="readonly")
+    pha_data = fd[1].data
+
+    npts = len (pha_data)
+
+    sum = N.sum (N.arange (npts, dtype=N.float32) * pha_data.astype (N.float32))
+    sumwgt = N.sum (pha_data.astype (N.float32))
+    pha_index = N.argsort (pha_data)
+    peak = pha_index[-1]
+
+    if sumwgt == 0.:
+        cosutil.printWarning ("Histogram is empty.")
+        fd.close()
+        return
+
+    meanval = sum / sumwgt
+
+    warn = (cosutil.checkVerbosity (VERY_VERBOSE))      # initial value
+    if peak <= low:
+        cosutil.printWarning ("Peak in pulse-height distribution is too low.")
+        warn = 1
+    if peak >= high:
+        cosutil.printWarning ("Peak in pulse-height distribution is too high.")
+        warn = 1
+
+    if meanval < peak * min_peak:
+        cosutil.printWarning ("Mean of pulse-height distribution is too low.")
+        warn = 1
+    if meanval > peak * max_peak:
+        cosutil.printWarning ("Mean of pulse-height distribution is too high.")
+        warn = 1
+
+    if warn:
+        cosutil.printMsg (
+                "Pulse-height distribution peak = %d, mean = %.6g;" % \
+                (peak, meanval))
+        cosutil.printMsg (
+                "the peak should be between %.6g and %.6g," % (low, high))
+        cosutil.printMsg (
+                "and the mean should be between %.6g and %.6g." % \
+                (peak * min_peak, peak * max_peak))
+
+    fd.close()
+
 def doRandcorr (events, info, switches, reffiles, phdr):
     """Add pseudo-random numbers to x and y coordinates within the active area.
 
@@ -568,6 +667,7 @@ def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
 
     arguments:
     events        the data unit containing the events table
+    input         name of raw file (for writing to stimfile)
     info          dictionary of header keywords and values
     switches      dictionary of calibration switches
     reffiles      dictionary of reference file names
@@ -583,21 +683,22 @@ def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
          stim_countrate, stim_livetime) = \
          computeThermalParam (time,
             events.field (xcorr), events.field (ycorr), events.field ("dq"),
-            reffiles["brftab"],
+            reffiles["brftab"], info["obsmode"],
             info["segment"], info["exptime"], info["stimrate"],
             input, stimfile)
         # Update stim location keywords in extension header.
         stimKeywords (hdr, info["segment"], avg_s1, avg_s2, rms_s1, rms_s2,
                       s1_ref, s2_ref)
     else:
-        stim_param = {}
         stim_countrate = 0.
         stim_livetime = 1.
+        stim_param = {}
 
     return (stim_param, stim_countrate, stim_livetime)
 
 def computeThermalParam (time, x, y, dq,
-           brftab, segment, exptime, stimrate, input, stimfile):
+           brftab, obsmode,
+           segment, exptime, stimrate, input, stimfile):
     """Compute thermal distortion parameters from stim positions.
 
     This function loops over intervals of time, and within each interval
@@ -614,9 +715,10 @@ def computeThermalParam (time, x, y, dq,
     x, y          arrays of detector X and Y coordinates
     dq            array of data quality flags   (NOTE:  not currently used)
     brftab        name of baseline reference data table
+    obsmode       TIME-TAG or ACCUM
     segment       segment name (for FUV)
     exptime       exposure time (for computing livetime)
-    stimrate      input count rate for stims (for computing livetime)
+    stimrate      input count rate for a stim (for computing livetime)
     input         name of raw file (for writing to stimfile)
     stimfile      name of text file to which stim locations will be appended
 
@@ -636,7 +738,8 @@ def computeThermalParam (time, x, y, dq,
     rms_s2[0] is the RMS in Y for the second stim.
     rms_s2[1] is the RMS in X for the second stim.
 
-    stim_countrate is the observed count rate for the stims
+    stim_countrate is the observed count rate for a stim, or None if
+      neither stim could be found
     stim_livetime is the live time computed from the input and observed
       stim rate
 
@@ -663,12 +766,16 @@ def computeThermalParam (time, x, y, dq,
                    exactly_one=True)
 
     # Find stims and compute parameters every dt_thermal seconds.
-    fd_brf = pyfits.open (brftab, mode="readonly")
-    dt_thermal = fd_brf[1].header["timestep"]
-    fd_brf.close()
-    cosutil.printMsg (
+    if obsmode == "TIME-TAG":
+        fd_brf = pyfits.open (brftab, mode="readonly")
+        dt_thermal = fd_brf[1].header["timestep"]
+        fd_brf.close()
+        cosutil.printMsg (
 "Compute thermal corrections from stim positions; timestep is %.6g s:" \
-        % dt_thermal, VERY_VERBOSE)
+            % dt_thermal, VERY_VERBOSE)
+    else:
+        # For ACCUM data we want just one time interval.
+        dt_thermal = time[-1] - time[0] + 1.
 
     sx1 = brf_info.field ("sx1")[0]
     sy1 = brf_info.field ("sy1")[0]
@@ -697,7 +804,7 @@ def computeThermalParam (time, x, y, dq,
     sumstim = (0, 0., 0., 0., 0., 0, 0., 0., 0., 0.)
     last_s1 = s1_ref            # initial default values
     last_s2 = s2_ref
-    while t0 < time[nevents-1]:
+    while t0 <= time[nevents-1]:
 
         # time[i:j] matches t0 to t1.
         try:
@@ -746,7 +853,7 @@ def computeThermalParam (time, x, y, dq,
                 msg += " (stim2 not found)"
             if not (found_s1 and found_s2):
                 cosutil.printWarning (msg)
-                if time[j-1] - time[i] < dt_thermal:
+                if time[j-1] - time[i] < dt_thermal and obsmode == "TIME-TAG":
                     cosutil.printContinuation (\
                 "Note that the time interval is %g s" % (time[j-1] - time[i]))
             else:
@@ -786,11 +893,18 @@ def computeThermalParam (time, x, y, dq,
             rms_s2[0] = math.sqrt (sumstim[8])
             rms_s2[1] = math.sqrt (sumstim[9])
 
-    countrate = (counts1 + counts2) / (2. * exptime)
-    if stimrate > 0. and countrate > 0.:
-        livetime = countrate / stimrate
+    if counts1 > 0 and counts2 > 0:
+        stim_countrate = (counts1 + counts2) / (2. * exptime)
+    elif counts1 > 0:
+        stim_countrate = counts1 / exptime
+    elif counts2 > 0:
+        stim_countrate = counts2 / exptime
     else:
-        livetime = 1.
+        stim_countrate = None
+    if stim_countrate is not None and stimrate > 0.:
+        stim_livetime = stim_countrate / stimrate
+    else:
+        stim_livetime = 1.
 
     if fd is not None:
         fd.close()
@@ -800,7 +914,7 @@ def computeThermalParam (time, x, y, dq,
                   "y0": y0, "yslope": yslope}
 
     return (stim_param, avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref,
-            countrate, livetime)
+            stim_countrate, stim_livetime)
 
 def findStim (x, y, stim_ref, xwidth, ywidth):
     """Find one stim in time-tag data.
@@ -1082,15 +1196,19 @@ def doGeocorr (events, info, switches, reffiles, phdr):
             if switches["igeocorr"] == "PERFORM":
                 phdr["igeocorr"] = "COMPLETE"
 
-def doDqicorr (events, info, switches, reffiles, phdr, hdr,
-               minmax_shifts=None):
+def doDqicorr (events, input, info, switches, reffiles,
+               stim_param,
+               phdr, hdr, minmax_shifts=None):
     """Create a data quality array, initialized from the DQI table.
 
     arguments:
     events         the data unit containing the events table
+    input          name of raw file, used for getting DQ array for ACCUM data
     info           dictionary of header keywords and values
     switches       dictionary of calibration switches
     reffiles       dictionary of reference file names
+    stim_param     a dictionary of lists, with keys
+                     i0, i1, x0, xslope, y0, yslope
     phdr           the input primary header
     hdr            the input events extension header
     minmax_shifts  (min_shift1, max_shift1, min_shift2, max_shift2)
@@ -1112,6 +1230,13 @@ def doDqicorr (events, info, switches, reffiles, phdr, hdr,
 
     cosutil.printSwitch ("DQICORR", switches)
 
+    if info["obsmode"] == "TIME-TAG":
+        # Create an initially zero 2-D data quality extension array.
+        dq_array = N.zeros (info["npix"], dtype=N.int16)
+    else:
+        # Read the data quality array from the rawaccum file.
+        dq_array = cosutil.getInputDQ (input)
+
     if switches["dqicorr"] == "PERFORM":
 
         cosutil.printRef ("BPIXTAB", reffiles)
@@ -1127,11 +1252,49 @@ def doDqicorr (events, info, switches, reffiles, phdr, hdr,
                           events.field ("dq"))
             del dq_info
 
-        # Create an initially zero 2-D data quality extension array.
-        dq_array = N.zeros (info["npix"], dtype=N.int16)
-
         # Copy values from the bpixtab to the dq_array, applying an offset
         # depending on the Doppler shift.
+        (doppmag, doppzero, orbitper) = dopplerParam (info,
+                                reffiles["disptab"], switches["doppcorr"])
+        cosutil.updateDQArray (reffiles["bpixtab"], info, switches["doppcorr"],
+                      doppmag, doppzero, orbitper, dq_array, minmax_shifts)
+
+        # Flag regions that are outside any subarray as out of bounds.
+        cosutil.flagOutOfBounds (phdr, hdr, dq_array, stim_param,
+                                 info, switches,
+                                 reffiles["brftab"], reffiles["geofile"],
+                                 minmax_shifts)
+
+        # Flag the region that is outside the active area.
+        if info["detector"] == "FUV":
+            cosutil.flagOutsideActiveArea (dq_array,
+                        info["segment"], reffiles["brftab"])
+
+        phdr["dqicorr"] = "COMPLETE"
+
+    return dq_array
+
+def dopplerParam (info, disptab, doppcorr):
+    """Return the appropriate set of Doppler keyword values.
+
+    @param info: keywords and values
+    @type info: dictionary
+    @param disptab: name of dispersion relation table
+    @type disptab: string
+    @param doppcorr: if Doppler correction is OMIT, return dummy values
+    @type doppcorr: string
+
+    @return: Doppler magnitude in pixels, time (MJD) when the Doppler shift
+        is zero and increasing, period (seconds) of HST; different keywords
+        will be used depending on whether the data are TIME-TAG or ACCUM
+    @rtype: tuple
+    """
+
+    if doppcorr != "PERFORM":
+        doppmag  = 0.
+        doppzero = info["expstart"]
+        orbitper = 5760.
+    elif info["obsmode"] == "TIME-TAG":
         if info["tc2_2"] == 1.:                 # default value
             # tc2_2 is the dispersion.  If its value is the default,
             # compute the dispersion from the central wavelength and
@@ -1147,9 +1310,9 @@ def doDqicorr (events, info, switches, reffiles, phdr, hdr,
             else:
                 filter["segment"] = "NUVB"
                 middle = float (NUV_X) / 2.
-            if cosutil.findColumn (reffiles["disptab"], "fpoffset"):
+            if cosutil.findColumn (disptab, "fpoffset"):
                 filter["fpoffset"] = info["fpoffset"]
-            disp_info = cosutil.getTable (reffiles["disptab"], filter)
+            disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
             ncoeff = disp_info.field ("nelem")[0]
             coeff = disp_info.field ("coeff")[0][0:ncoeff]
             # get the dispersion (disp) at the middle of the detector
@@ -1158,25 +1321,15 @@ def doDqicorr (events, info, switches, reffiles, phdr, hdr,
             disp = info["tc2_2"]
         # Compute the Doppler shift in pixels from the shift in km/s.
         doppmag = (info["doppmagv"] / SPEED_OF_LIGHT) * (info["cenwave"] / disp)
-        cosutil.updateDQArray (reffiles["bpixtab"], info, switches["doppcorr"], 
-                      doppmag, info["doppzero"], info["orbitper"],
-                      dq_array, minmax_shifts)
+        doppzero = info["doppzero"]
+        orbitper = info["orbitper"]
 
-        # Flag regions that are outside any subarray as out of bounds.
-        avg_dx = 0      # temp, xxx
-        avg_dy = 0      # temp, xxx
-        cosutil.flagOutOfBounds (phdr, hdr, dq_array, avg_dx, avg_dy)
+    else:               # ACCUM
+        doppmag  = info["dopmagt"]
+        doppzero = info["dopzerot"]
+        orbitper = info["orbtpert"]
 
-        # Flag the region that is outside the active area.
-        if info["detector"] == "FUV":
-            cosutil.flagOutsideActiveArea (dq_array,
-                        info["segment"], reffiles["brftab"])
-
-        phdr["dqicorr"] = "COMPLETE"
-    else:
-        dq_array = None
-
-    return dq_array
+    return (doppmag, doppzero, orbitper)
 
 def doDoppcorr (events, info, switches, reffiles, phdr):
     """Apply Doppler correction to the x and y pixel coordinates.
@@ -1189,6 +1342,9 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
     phdr          the input primary header
     """
 
+    if info["obsmode"] == "ACCUM":              # done on-board
+        return
+
     if info["obstype"] == "SPECTROSCOPIC":
         cosutil.printSwitch ("DOPPCORR", switches)
 
@@ -1197,14 +1353,10 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
         # xi and eta are the columns of pixel coordinates for the
         # dispersion and cross-dispersion directions respectively.
         # (explicit column names are used here for clarity)
-        if info["detector"] == "FUV":
-            xi = events.field ("xcorr")
-            eta = events.field ("ycorr")
-            dopp = events.field ("xdopp")
-        else:
-            xi = events.field ("rawx")
-            eta = events.field ("rawy")
-            dopp = events.field ("xdopp")
+        xi = events.field ("xcorr")
+        eta = events.field ("ycorr")
+        dopp = events.field ("xdopp")
+        xi_full  = events.field ("xfull")
 
         cosutil.printRef ("XTRACTAB", reffiles)
         cosutil.printRef ("DISPTAB", reffiles)
@@ -1213,13 +1365,14 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
 
         xtractab = reffiles["xtractab"]
         disptab = reffiles["disptab"]
+        wcptab = reffiles["wcptab"]
         if info["detector"] == "FUV":
             # This array of flags indicates which events should be corrected.
             shift_flags = fuvDopplerRegions (eta, info, xtractab)
             # Apply the orbital Doppler correction to the flagged events.
             dopp[:] = N.where (shift_flags, \
                                dopplerCorrection (events.field ("time"),
-                                           xi, info, disptab),
+                                           xi, info, reffiles),
                                xi)
         else:
             shift_flags_dict = nuvDopplerRegions (eta, info, xtractab)
@@ -1227,8 +1380,11 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
             for stripe in ["NUVA", "NUVB", "NUVC"]:
                 dopp[:] = N.where (shift_flags_dict[stripe], \
                                    dopplerCorrection (events.field ("time"),
-                                           xi, info, disptab, stripe=stripe),
+                                           xi, info, reffiles, stripe=stripe),
                                    dopp)
+
+        # Copy to xfull in case wavecal processing will not be done.
+        xi_full[:] = dopp.copy()
 
         phdr["doppcorr"] = "COMPLETE"
 
@@ -1345,7 +1501,7 @@ def nuvDopplerRegions (eta, info, xtractab):
 
     return shift_flags_dict
 
-def dopplerCorrection (time, xi, info, disptab, stripe=None):
+def dopplerCorrection (time, xi, info, reffiles, stripe=None):
     """Apply orbital and heliocentric Doppler correction.
 
     @param time: times of events (seconds)
@@ -1354,14 +1510,16 @@ def dopplerCorrection (time, xi, info, disptab, stripe=None):
     @type xi: numpy array
     @param info: keywords and values
     @type info: dictionary
-    @param disptab: name of dispersion relation reference table
-    @type disptab: string
+    @param reffiles: dictionary of reference file names
+    @type reffiles: dictionary
     @param stripe: name of NUV stripe ("NUVA", "NUVB", "NUVC"), or None for FUV
     @type stripe: string
 
     @return: array of Doppler-corrected X pixel coordinates
     @rtype: numpy array
     """
+
+    disptab = reffiles["disptab"]
 
     # Compute the wavelength and dispersion at each pixel.
     filter = {"opt_elem": info["opt_elem"],
@@ -1373,9 +1531,10 @@ def dopplerCorrection (time, xi, info, disptab, stripe=None):
         filter["segment"] = stripe
     # If the FPOFFSET column is present in the disptab, include fpoffset
     # in the filter.
-    if cosutil.findColumn (disptab, "fpoffset"):
+    fpoffset_present = cosutil.findColumn (disptab, "fpoffset")
+    if fpoffset_present:
         filter["fpoffset"] = info["fpoffset"]
-    disp_info = cosutil.getTable (disptab, filter)
+    disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
 
     ncoeff = disp_info.field ("nelem")[0]
     coeff = disp_info.field ("coeff")[0][0:ncoeff]
@@ -1385,8 +1544,23 @@ def dopplerCorrection (time, xi, info, disptab, stripe=None):
         delta = 0.
 
     xi = xi.astype (N.float64)
-    wavelength = cosutil.evalDisp (xi, coeff, delta)
-    dispersion = cosutil.evalDerivDisp (xi, coeff, delta)
+    if fpoffset_present:
+        # Compute wavelength and dispersion at each element of xi.
+        wavelength = cosutil.evalDisp (xi, coeff, delta)
+        dispersion = cosutil.evalDerivDisp (xi, coeff, delta)
+    else:
+        # Correct for fpoffset when computing wavelength and dispersion
+        # (a feature will be at larger pixel number if fpoffset is larger,
+        # so the wavelength at a given pixel will be smaller).
+        wcp_info = cosutil.getTable (reffiles["wcptab"],
+                                     filter={"opt_elem": info["opt_elem"]},
+                                     exactly_one=True)
+        stepsize = wcp_info.field ("stepsize")[0]
+        wavelength = cosutil.evalDisp (xi, coeff, delta)
+        xi_temp = xi - info["fpoffset"] * stepsize
+        wavelength = cosutil.evalDisp (xi_temp, coeff, delta)
+        dispersion = cosutil.evalDerivDisp (xi_temp, coeff, delta)
+        del xi_temp, wcp_info
 
     # Apply the Doppler correction to the pixel coordinates.
     xd = orbitalDoppler (time, xi, wavelength, dispersion, info["expstart"],
@@ -1510,23 +1684,72 @@ def doFlatcorr (events, info, switches, reffiles, phdr):
 
         cosutil.printRef ("FLATFILE", reffiles)
 
-        fd = pyfits.open (reffiles["flatfile"], mode="readonly", memmap=0)
-        # fd = pyfits.open (reffiles["flatfile"], mode="readonly", memmap=1)
+        fd = pyfits.open (reffiles["flatfile"], mode="readonly")
 
         if info["detector"] == "NUV":
             hdu = fd[1]
         else:
             hdu = fd[(info["segment"],1)]
+        flat = hdu.data
 
         origin_x = hdu.header.get ("origin_x", 0)
         origin_y = hdu.header.get ("origin_y", 0)
 
+        if info["obsmode"] == "ACCUM":
+            if info["obstype"] == "SPECTROSCOPIC":
+                cosutil.printSwitch ("DOPPCORR", switches)
+            if switches["doppcorr"] == "PERFORM":
+                convolveFlat (flat, info["dispaxis"], \
+                     info["expstart"], info["exptime"],
+                     info["dopmagt"], info["dopzerot"], info["orbtpert"])
+                phdr["doppcorr"] = "COMPLETE"
+
         ccos.applyflat (events.field (xcorr), events.field (ycorr),
-                        events.field ("epsilon"), hdu.data, origin_x, origin_y)
+                        events.field ("epsilon"), flat, origin_x, origin_y)
 
         fd.close()
 
         phdr["flatcorr"] = "COMPLETE"
+
+def convolveFlat (flat, dispaxis,
+                expstart, exptime, dopmagt, dopzerot, orbtpert):
+    """Convolve the flat field file with the Doppler smearing function.
+
+    arguments:
+    flat       flat field data array, modified in-place
+    dispaxis   dispersion axis (1 or 2)
+    expstart   exposure start time, MJD
+    exptime    exposure duration, seconds
+    dopmagt    magnitude of Doppler shift, pixels
+    dopzerot   time when Doppler shift is zero and increasing
+    orbtpert   orbital period of HST
+    """
+
+    # Round dopmagt up to the next integer; mag is a zero-point offset.
+    mag = int (math.ceil (dopmagt))
+
+    # dopp will be the Doppler smoothing function, normalized so its sum is 1.
+    dopp = N.zeros (2*mag+1, dtype=N.float32)
+
+    # t is the time in seconds since dopzerot, in one second increments.
+    t = N.arange (int (round (exptime)), dtype=N.float32) + \
+               (expstart - dopzerot) * SEC_PER_DAY
+
+    # shift is in pixels (wavelengths increase toward larger pixel number).
+    shift = -dopmagt * N.sin (2. * N.pi * t / orbtpert)
+
+    # Construct the Doppler smoothing function.
+    npts = round (exptime)
+    increment = 1. / npts
+    npts = int (npts)
+    for i in range (npts):                      # one-second increments
+        ishift = int (round (shift[i])) + mag
+        assert ishift >= 0 and ishift <= 2*mag
+        dopp[ishift] += increment
+
+    # Do the convolution (in-place).
+    axis = 2 - dispaxis         # 1 --> 1,  2 --> 0
+    ccos.convolve1d (flat, dopp, axis)
 
 def doDeadcorr (events, input, info, switches, reffiles, phdr,
             stim_countrate, stim_livetime, livetimefile):
@@ -1539,151 +1762,359 @@ def doDeadcorr (events, input, info, switches, reffiles, phdr,
     switches        dictionary of calibration switches
     reffiles        dictionary of reference file names
     phdr            the input primary header
-    stim_countrate  the observed count rate for the stims
-    stim_livetime   live time computed from the input and observed stim rate
     livetimefile    name of output text file for livetime factors (or None)
+    stim_countrate  the observed count rate for a stim (for info)
+    stim_livetime   live time computed from the input and observed stim rate
     """
 
     cosutil.printSwitch ("DEADCORR", switches)
     if switches["deadcorr"] == "PERFORM":
         cosutil.printRef ("DEADTAB", reffiles)
-        deadtimeCorrection (events, reffiles["deadtab"], info["segment"],
-                info["exptime"],
-                stim_countrate, stim_livetime, info["countrate"],
-                input, livetimefile)
+        if info["obsmode"] == "TIME-TAG":
+            (dead_rate, dead_method) = deadtimeCorrection (
+                          events, reffiles["deadtab"], info,
+                          stim_countrate, stim_livetime,
+                          input, livetimefile)
+        else:
+            (dead_rate, dead_method) = deadtimeCorrectionAccum (
+                          events, reffiles["deadtab"], info,
+                          stim_countrate, stim_livetime,
+                          input, livetimefile)
+        if info["detector"] == "FUV":
+            if info["segment"] == "FUVA":
+                phdr.update ("deadrt_a", dead_rate)
+                phdr.update ("deadmt_a", dead_method)
+            else:
+                phdr.update ("deadrt_b", dead_rate)
+                phdr.update ("deadmt_b", dead_method)
+        else:
+            phdr.update ("deadrt", dead_rate)
+            phdr.update ("deadmt", dead_method)
         phdr["deadcorr"] = "COMPLETE"
 
-def deadtimeCorrection (events, deadtab, segment, exptime,
-            stim_countrate, stim_livetime, dec_countrate,
-            input, livetimefile):
-    """Apply livetime factor to correct for dead time.
+def deadtimeCorrection (events, deadtab, info,
+                        stim_countrate, stim_livetime,
+                        input, livetimefile):
+    """Compute and apply livetime factor to correct for dead time.
 
-    arguments:
-    events          the data unit containing the events table
-    deadtab         reference table of count rates and livetime factors
-    segment         segment name (for FUV)
-    exptime         exposure time
-    stim_countrate  the observed count rate for the stims
-    stim_livetime   live time computed from the input and observed stim rate
-    dec_countrate   the count rate from the digital event counter
-    input           name of input raw file (for writing to livetimefile)
-    livetimefile    name of output text file for livetime factors (or None)
+    Calculate one livetime factor from the count rate averaged over
+    the whole exposure.
+    Calculate another livetime factor from keyword deventa, deventb
+    or mevents.
+    if there are subarrays:
+        if the difference between the two livetime factors is > 10%:
+            Use the livetime factor based on the keyword (the same
+            factor for all events).
+        else:
+            Calculate and apply the livetime factor based on the
+            actual count rate within each TIMESTEP time interval.
+    else no subarrays:
+        if the difference between the two livetime factors is > 10%:
+            Print a warning.
+        Calculate and apply the livetime factor based on the actual
+        count rate within each TIMESTEP time interval.
+
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param deadtab: name of reference table of count rates and livetime factors
+    @type deadtab: string
+    @param info: header keywords and values
+    @type info: dictionary
+    @param stim_countrate: the observed count rate for the stims
+    @type stim_countrate: float
+    @param stim_livetime: livetime computed from the stims
+    @type stim_livetime: float
+    @param input: name of input raw file (for writing to livetimefile)
+    @type input: string
+    @param livetimefile: name of output text file for livetime factors (or None)
+    @type livetimefile: string
+
+    @return: the count rate used for determining the livetime factor, and
+        a string that indicates which method was used for determining the
+        livetime factor
+    @rtype: tuple
     """
 
     if livetimefile is None:
         fd = None
     else:
         fd = open (livetimefile, "a")
-        fd.write ("# %s\n" % input)
-        fd.write ("# t0 t1 countrate livetime\n")
+
+    # dec_countrate is the count rate from the digital event counter.
+    segment = info["segment"]
+    dec_countrate = info["countrate"]
 
     time = cosutil.getColCopy (data=events, column="time")
     epsilon = events.field ("epsilon")
     nevents = len (time)
 
     live_info = cosutil.getTable (deadtab, filter={"segment": segment},
-                at_least_one=True)
+                                  at_least_one=True)
+    # These are the values in the deadtab table columns.
     obs_rate = live_info.field ("obs_rate")
     live_factor = live_info.field ("livetime")
 
-    # Use counts over dt_deadtime seconds to compute livetime.
-    fd_dead = pyfits.open (deadtab, mode="readonly")
-    dt_deadtime = fd_dead[1].header["timestep"]
-    fd_dead.close()
-    cosutil.printMsg ("Compute livetime factor; timestep is %.6g s:" \
-                  % dt_deadtime, VERY_VERBOSE)
-
-    t0 = time[0]
-    t1 = t0 + dt_deadtime
-    last_time = time[nevents-1]
-    while t0 < last_time:
-
-        # time[i:j] matches t0 to t1.
-        try:
-            (i, j) = ccos.range (time, t0, t1)
-        except:
-            t0 = t1
-            t1 = t0 + dt_deadtime
-            continue
-
-        if t1 < last_time:
-            countrate = (j - i + 1.) / dt_deadtime
-        elif t0 < last_time:
-            countrate = (j - i + 1.) / (last_time - t0)
-        else:
-            countrate = 0.
-        livetime = determineLivetime (countrate, obs_rate, live_factor)
-        if livetime > 0.:
-            epsilon[i:j] = epsilon[i:j] / livetime
-
-        if fd is not None:
-            fd.write ("%.0f %.0f %.6g %.6g\n" % (t0, t1, countrate, livetime))
-
-        t0 = t1
-        t1 = t0 + dt_deadtime
-
-    # This livetime value is effectively an average over the entire exposure.
+    # This livetime value is based on count rate over the entire exposure.
     if time[nevents-1] > time[0]:
-        countrate = float (nevents) / (time[nevents-1] - time[0])
-    elif exptime > 0.:
-        countrate = float (nevents) / exptime
+        actual_countrate = float (nevents) / (time[nevents-1] - time[0])
     else:
-        countrate = 0.
-    livetime = determineLivetime (countrate, obs_rate, live_factor)
+        actual_countrate = 0.
+    actual_rate_livetime = determineLivetime (actual_countrate,
+                                              obs_rate, live_factor)
 
     # dec_countrate is from DEVENTA, DEVENTB or from MEVENTS.
     dec_livetime = determineLivetime (dec_countrate, obs_rate, live_factor)
 
     print_details = (cosutil.checkVerbosity (VERY_VERBOSE))     # initial value
-    if abs (stim_livetime - livetime) > LIVETIME_CRITERION * livetime or \
-        abs (dec_livetime - livetime) > LIVETIME_CRITERION * livetime:
+    if abs (dec_livetime - actual_rate_livetime) > \
+            LIVETIME_CRITERION * actual_rate_livetime:
         cosutil.printWarning ("livetime estimates differ.")
-        print_details = 1
+        if info["subarray"] and info["nsubarry"] > 0:   # are there subarrays?
+            use_actual_rate = False
+        else:
+            use_actual_rate = True
+        print_details = True
+    else:
+        use_actual_rate = True
+
+    if use_actual_rate:
+        livetime_source = "actual count rate"
+        dead_rate = actual_countrate
+        dead_method = "DATA"
+    else:
+        livetime_source = "digital event counter"
+        dead_rate = dec_countrate
+        if info["detector"] == "FUV":
+            dead_method = "DEVENT"
+        else:
+            dead_method = "MEVENTS"
 
     if print_details:
-        printLiveInfo (segment, countrate, livetime,
-                stim_countrate, stim_livetime,
-                dec_countrate, dec_livetime)
+        printLiveInfo (segment, stim_countrate, stim_livetime,
+                       actual_countrate, actual_rate_livetime,
+                       dec_countrate, dec_livetime, livetime_source)
+    if fd is not None:
+        printLiveInfo (segment, stim_countrate, stim_livetime,
+                       actual_countrate, actual_rate_livetime,
+                       dec_countrate, dec_livetime, livetime_source, fd=fd)
+
+    if use_actual_rate:
+
+        if fd is not None:
+            fd.write ("# %s\n" % input)
+            fd.write ("# t0 t1 countrate livetime\n")
+
+        # Use counts over dt_deadtime seconds to compute livetime.
+        fd_dead = pyfits.open (deadtab, mode="readonly")
+        dt_deadtime = fd_dead[1].header["timestep"]
+        fd_dead.close()
+        cosutil.printMsg ("Compute livetime factor; timestep is %.6g s:" \
+                      % dt_deadtime, VERY_VERBOSE)
+
+        t0 = time[0]
+        t1 = t0 + dt_deadtime
+        last_time = time[nevents-1]
+        while t0 < last_time:
+
+            # time[i:j] matches t0 to t1.
+            try:
+                (i, j) = ccos.range (time, t0, t1)
+            except:
+                t0 = t1
+                t1 = t0 + dt_deadtime
+                continue
+
+            if t1 < last_time:
+                countrate = (j - i + 1.) / dt_deadtime
+            elif t0 < last_time:
+                countrate = (j - i + 1.) / (last_time - t0)
+            else:
+                countrate = 0.
+            livetime = determineLivetime (countrate, obs_rate, live_factor)
+            if livetime > 0.:
+                epsilon[i:j] = epsilon[i:j] / livetime
+
+            if fd is not None:
+                fd.write ("%.0f %.0f %.6g %.6g\n" %
+                          (t0, t1, countrate, livetime))
+
+            t0 = t1
+            t1 = t0 + dt_deadtime
+
+    else:
+        epsilon[:] = epsilon / dec_livetime
 
     if fd is not None:
-        printLiveInfo (segment, countrate, livetime,
-                stim_countrate, stim_livetime,
-                dec_countrate, dec_livetime, fd=fd)
         fd.close()
 
-def printLiveInfo (segment, countrate, livetime,
-                stim_countrate, stim_livetime,
-                dec_countrate, dec_livetime, fd=None):
+    return (dead_rate, dead_method)
+
+def deadtimeCorrectionAccum (events, deadtab, info,
+                             stim_countrate, stim_livetime,
+                             input, livetimefile):
+    """Determine and apply the livetime factor for ACCUM data.
+
+    If there are subarrays, the livetime factor is gotten from the digital
+    event counter.  If there are no subarrays, the livetime factor is based
+    on the actual count rate.
+
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param deadtab: name of reference table of count rates and livetime factors
+    @type deadtab: string
+    @param info: header keywords and values
+    @type info: dictionary
+    @param stim_countrate: the observed count rate for the stims
+    @type stim_countrate: float
+    @param stim_livetime: livetime computed from the stims
+    @type stim_livetime: float
+    @param input: name of input raw file (for writing to livetimefile)
+    @type input: string
+    @param livetimefile: name of output text file for livetime factors (or None)
+    @type livetimefile: string
+
+    @return: the count rate used for determining the livetime factor, and
+        a string that indicates which method was used for determining the
+        livetime factor
+    @rtype: tuple
+    """
+
+    if livetimefile is None:
+        fd = None
+    else:
+        fd = open (livetimefile, "a")
+        fd.write ("# %s\n" % (input,))
+
+    # This is the column that will be modified in-place.
+    epsilon = events.field ("epsilon")
+    ncounts = len (epsilon)
+
+    live_info = cosutil.getTable (deadtab, filter={"segment": info["segment"]},
+                                  at_least_one=True)
+    obs_rate = live_info.field ("obs_rate")
+    live_factor = live_info.field ("livetime")
+
+    # keyword used if print_details is true or we're writing to a livetimefile.
+    if info["segment"] == "FUVA":
+        keyword = "DEVENTA"
+    elif info["segment"] == "FUVB":
+        keyword = "DEVENTB"
+    else:
+        keyword = "MEVENTS"
+
+    # Output count rate from digital event counter (DEC), and corresponding
+    # livetime factor.
+    dec_countrate = info["countrate"]
+    dec_livetime = determineLivetime (dec_countrate, obs_rate, live_factor)
+
+    if info["exptime"] <= 0.:
+        cosutil.printWarning ("Can't do deadcorr, exptime = %.6g." %
+                              info["exptime"])
+        return (0., "SKIPPED")
+    actual_countrate = float (ncounts) / info["exptime"]
+    actual_rate_livetime = determineLivetime (actual_countrate,
+                                              obs_rate, live_factor)
+
+    if info["subarray"]:
+        livetime_source = "digital event counter (%s)" % keyword
+        livetime = dec_livetime
+        dead_rate = dec_countrate
+        if info["detector"] == "FUV":
+            dead_method = "DEVENT"
+        else:
+            dead_method = "MEVENTS"
+    else:
+        livetime_source = "actual count rate"
+        livetime = actual_rate_livetime
+        dead_rate = actual_countrate
+        dead_method = "DATA"
+
+    epsilon[:] = epsilon / livetime
+
+    print_details = (cosutil.checkVerbosity (VERY_VERBOSE))     # initial value
+
+    if abs (dec_livetime - actual_rate_livetime) > \
+            LIVETIME_CRITERION * actual_rate_livetime:
+        cosutil.printWarning ("livetime estimates differ.")
+        print_details = True
+
+    if print_details:
+        cosutil.printMsg ("  countrate and livetime from %s:  %.6g, %6.4f" % \
+                          (keyword, dec_countrate, dec_livetime))
+        cosutil.printMsg ("  actual countrate and livetime:  %.6g, %6.4f" % \
+                          (actual_countrate, actual_rate_livetime))
+        cosutil.printMsg ("Livetime %6.4f is based on %s." % \
+                          (livetime, livetime_source))
+        if info["detector"] == "FUV":
+            if stim_countrate is None:
+                cosutil.printMsg (
+                "  stim countrate and livetime could not be determined")
+            else:
+                cosutil.printMsg (
+                "  stim countrate and livetime:  %.6g, %6.4f" % \
+                                  (stim_countrate, stim_livetime))
+
+    if fd is not None:
+        fd.write ("countrate and livetime from %s:  %.6g, %6.4f\n" %
+                  (keyword, dec_countrate, dec_livetime))
+        fd.write ("actual countrate and livetime:  %.6g, %6.4f\n" %
+                  (actual_countrate, actual_rate_livetime))
+        fd.write ("livetime %6.4f is based on %s.\n" % \
+                  (livetime, livetime_source))
+        if info["detector"] == "FUV":
+            if stim_countrate is None:
+                fd.write (
+                "stim countrate and livetime could not be determined\n")
+            else:
+                fd.write ("stim countrate and livetime:  %.6g, %6.4f\n" %
+                          (stim_countrate, stim_livetime))
+
+    if fd is not None:
+        fd.close()
+
+    return (dead_rate, dead_method)
+
+def printLiveInfo (segment, stim_countrate, stim_livetime,
+                   actual_countrate, actual_rate_livetime,
+                   dec_countrate, dec_livetime, livetime_source, fd=None):
     """Print or write information about livetime.
 
     arguments:
     segment         segment name (for setting keyword name for DEC count rate)
-    countrate       observed count rate, from events table
-    livetime        livetime factor derived from countrate
-    stim_countrate  the observed count rate for the stims
+    stim_countrate  the observed count rate for the stims, or None
     stim_livetime   livetime factor computed from the input and observed
                       stim rate
+    actual_countrate       observed count rate, from events table
+    actual_rate_livetime   livetime factor derived from countrate
     dec_countrate   the count rate from the digital event counter
     dec_livetime    livetime factor computed from dec_countrate
+    livetime_source a string saying whether actual rate or DEC was used
+                      for computing the livetime factor
     fd              None if printing to trailer; an fd for printing to a
                       log file
     """
 
     if segment == "FUVA":
-        kwd = "DEVENTA"
+        keyword = "DEVENTA"
     elif segment == "FUVB":
-        kwd = "DEVENTB"
+        keyword = "DEVENTB"
     else:
-        kwd = "MEVENTS"
+        keyword = "MEVENTS"
+    livetime_source = livetime_source + " (%s)" % keyword
 
     messages = []
-    messages.append ("Average event rate and livetime:  %.6g, %6.4f" % \
-              (countrate, livetime))
     if segment == "FUVA" or segment == "FUVB":
-        messages.append ("Stim countrate and livetime:  %.6g, %6.4f" % \
-                  (stim_countrate, stim_livetime))
-    messages.append ("Countrate and livetime from %s:  %.6g, %6.4f" % \
-              (kwd, dec_countrate, dec_livetime))
+        if stim_countrate is None:
+            messages.append (
+                "stim countrate and livetime could not be determined")
+        else:
+            messages.append ("stim countrate and livetime:  %.6g, %6.4f" %
+                             (stim_countrate, stim_livetime))
+    messages.append ("actual (average) event rate and livetime:  %.6g, %6.4f" %
+                     (actual_countrate, actual_rate_livetime))
+    messages.append ("countrate and livetime from %s:  %.6g, %6.4f" %
+                     (keyword, dec_countrate, dec_livetime))
+    messages.append ("Livetime is based on %s." % livetime_source)
 
     if fd is None:
         for msg in messages:
@@ -1691,7 +2122,7 @@ def printLiveInfo (segment, countrate, livetime,
     else:
         fd.write ("\n")
         for msg in messages:
-            fd.write ("# " + msg + "\n")
+            fd.write (msg + "\n")
 
 def determineLivetime (countrate, obs_rate, live_factor):
     """Compute livetime factor from observed count rate.
@@ -1747,7 +2178,7 @@ def writeNull (input, output, outcounts, phdr, events_hdu):
     makeImage (output, phdr, events_hdu.header, None, None, None)
 
 def writeImages (x, y, epsilon, dq,
-                 phdr, hdr, dq_array, npix, exptime,
+                 phdr, hdr, dq_array, npix, x_offset, exptime,
                  outcounts=None, output=None):
     """Bin events to images, and write to output files.
 
@@ -1759,10 +2190,13 @@ def writeImages (x, y, epsilon, dq,
     hdr           the input events extension header
     dq_array      the data quality array
     npix          the array shape (ny, nx)
+    x_offset      offset of the detector in a calibrated image
     exptime       the exposure time
     outcounts     name of the output file for count-rate image
     output        name of the output file for flat-fielded count-rate image
     """
+
+    global serious_dq_flags
 
     # notation:
     # t = exposure time (exptime)
@@ -1781,18 +2215,10 @@ def writeImages (x, y, epsilon, dq,
     if outcounts is not None:
         cosutil.printMsg ("writing file %s ..." % outcounts, VERY_VERBOSE)
 
-    # Set the bit mask for "serious" data quality flags to include only
-    # bursts, pulse height out of bounds, bad time intervals, and
-    # hot and dead pixels, and out of bounds.
-    # xxx sdqflags = hdr.get ("sdqflags", 32767)                # previous
-    # xxx sdqflags -= (DQ_NEAR_EDGE + DQ_OUT_OF_BOUNDS)         # xxx
-    sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME +
-                DQ_DEAD + DQ_HOT + DQ_OUT_OF_BOUNDS)
-
     # First make an image array in which each input event counts as one,
     # i.e. ignoring flat field and deadtime corrections.
     C_rate = N.zeros (npix, dtype=N.float32)
-    ccos.binevents (x, y, C_rate, dq, sdqflags)
+    ccos.binevents (x, y, C_rate, x_offset, dq, serious_dq_flags)
 
     errC_rate = N.sqrt (C_rate) / exptime
 
@@ -1808,7 +2234,7 @@ def writeImages (x, y, epsilon, dq,
 
     # Make an image array where event number i has weight epsilon[i].
     E_rate = N.zeros (npix, dtype=N.float32)
-    ccos.binevents (x, y, E_rate, dq, sdqflags, epsilon)
+    ccos.binevents (x, y, E_rate, x_offset, dq, serious_dq_flags, epsilon)
 
     # errC_rate will likely have a number of zero values, so we
     # have to set those to one before dividing.
@@ -1899,16 +2325,23 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector,
     cosutil.updateFilename (fd[0].header, outcsum)
 
     if detector == "FUV":
-        fd.append (
-            pyfits.ImageHDU (data=N.zeros ((PULSE_HEIGHT_RANGE, FUV_Y, FUV_X),
-                                           dtype=N.float32),
-                             header=hdr, name="SCI"))
-        ccos.fuv_csum (fd[1].data, xcorr, ycorr, epsilon, pha.astype(N.int16))
+        if pha is None:
+            fd.append (pyfits.ImageHDU (data=N.zeros ((FUV_Y, FUV_X),
+                                                      dtype=N.float32),
+                                        header=hdr, name="SCI"))
+            ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
+        else:
+            fd.append (pyfits.ImageHDU (data=N.zeros ((PULSE_HEIGHT_RANGE,
+                                                             FUV_Y, FUV_X),
+                                                      dtype=N.float32),
+                                        header=hdr, name="SCI"))
+            ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
+                          pha.astype(N.int16))
     else:
-        fd.append (
-            pyfits.ImageHDU (data=N.zeros ((NUV_Y, NUV_X), dtype=N.float32),
-                             header=hdr, name="SCI"))
-        ccos.nuv_csum (fd[1].data, xcorr, ycorr, epsilon)
+        fd.append (pyfits.ImageHDU (data=N.zeros ((NUV_Y, NUV_X),
+                                                  dtype=N.float32),
+                                    header=hdr, name="SCI"))
+        ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
 
     fd[0].header.update ("counts", fd[1].data.sum())
     fd[1].header.update ("BUNIT", "count")
@@ -2043,11 +2476,8 @@ def updateFromWavecal (events, wavecal_info,
     eta_full = events.field (yfull)
 
     # If the current exposure is a wavecal, or for a science exposure if
-    # wavecal processing has not been done, just copy the data to the
-    # XFULL & YFULL columns with no change.
+    # wavecal processing has not been done, there's nothing to do.
     if info["exptype"].find ("WAVE") >= 0 or not wavecal_info:
-        xi_full[:] = xi.copy()
-        eta_full[:] = eta.copy()
         return (0., 0., None)
 
     # Get the shifts in dispersion and cross-dispersion directions at the
@@ -2056,8 +2486,6 @@ def updateFromWavecal (events, wavecal_info,
     shift_info = wavecal.returnWavecalShift (wavecal_info,
                         wcp_info, info["fpoffset"], info["expstart"])
     if shift_info is None:
-        xi_full[:] = xi.copy()
-        eta_full[:] = eta.copy()
         return (0., 0., None)
 
     (shift_dict, slope_dict) = shift_info
@@ -2101,11 +2529,12 @@ def updateFromWavecal (events, wavecal_info,
     shift1_vs_time = shift1_slope * t + shift1_zero
 
     # Set the SHIFT1[A-C] and SHIFT2[A-C] keywords to the average offsets
-    # in the dispersion and cross-dispersion directions respectively, and
-    # set DSHIFT1[A-C] to the average fractional pixel offset, which will be
-    # used when assigning wavelengths in extract.py.
+    # in the dispersion and cross-dispersion directions respectively.
+    # Set DPIXEL1[A-C] to the average of the difference xfull minus the
+    # nearest integer to xfull, where xfull is the column of that name;
+    # this will be used when assigning wavelengths in extract.py.
     xi_diff = xi_full - N.around (xi_full)
-    dshift1 = -xi_diff.mean()
+    dpixel1 = xi_diff.mean()
     if info["detector"] == "FUV":
         segment_list = [info["segment"]]
     else:
@@ -2115,26 +2544,44 @@ def updateFromWavecal (events, wavecal_info,
         hdr.update (key, avg_dx)
         key = "SHIFT2" + segment[-1]
         hdr.update (key, avg_dy)
-        key = "DSHIFT1" + segment[-1]
-        hdr.update (key, dshift1)
+        key = "DPIXEL1" + segment[-1]
+        hdr.update (key, dpixel1)
     if info["opt_elem"] == "G230L" and info["cenwave"] == 3360:
         hdr.update ("SHIFT1C", 0.)
         hdr.update ("SHIFT2C", 0.)
-        hdr.update ("DSHIFT1C", 0.)
+        hdr.update ("DPIXEL1C", 0.)
 
     phdr["wavecorr"] = "COMPLETE"
 
     return (avg_dx, avg_dy, shift1_vs_time)
 
 def getWavecalOffsets (events):
+    """Get min and max values of shift1 and shift2.
 
-    xi  = events.field (xcorr)
+    @param events: the data unit containing the events table
+    @type events: record array
+
+    @return: (min_shift1, max_shift1, min_shift2, max_shift2), where
+        min_shift1 and max_shift1 are the minimum and maximum values
+        of the wavecal shift in the dispersion direction during the
+        exposure (positive means a feature was detected at larger pixel
+        coordinate than in the template); min_shift2 and max_shift2 are
+        the corresponding values in the cross-dispersion direction
+    @rtype: tuple
+    """
+
+    global active_area
+
+    xi  = events.field (xdopp)
     eta = events.field (ycorr)
     xi_full  = events.field (xfull)
     eta_full = events.field (yfull)
 
-    xdiff = xi_full - xi
-    ydiff = eta_full - eta
+    xdiff = xi - xi_full
+    ydiff = eta - eta_full
+    xdiff = xdiff[active_area]
+    ydiff = ydiff[active_area]
+
     min_shift1 = xdiff.min()
     max_shift1 = xdiff.max()
     min_shift2 = ydiff.min()

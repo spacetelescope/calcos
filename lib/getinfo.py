@@ -74,31 +74,16 @@ def getGeneralInfo (phdr, hdr):
 
     # Get keywords from the primary header.
 
-    # FUV or NUV
-    info["detector"] = phdr["DETECTOR"]
-    # Set output image size (variables defined in calcosparam.py).
-    if info["detector"] == "FUV":
-        info["npix"] = (FUV_Y, FUV_X)
-    else:
-        info["npix"] = (NUV_Y, NUV_X)
-
-    # Replace the value for npix if there's no data (based on extension header).
-    if hdr["NAXIS"] == 0:
-        info["npix"] = (0,)
-    elif hdr["NAXIS"] == 2 and hdr["NAXIS2"] == 0:
-        info["npix"] = (0,)
-
-    # Assign an initial value for the heliocentric velocity
-    info["v_helio"] = 0.
-
     # This is a list of primary header keywords and default values.
     keylist = {
+        "detector":  NOT_APPLICABLE,
         "segment":  NOT_APPLICABLE,
         "obstype":  NOT_APPLICABLE,
         "obsmode":  NOT_APPLICABLE,
         "exptype":  NOT_APPLICABLE,
         "opt_elem": NOT_APPLICABLE,
         "targname": NOT_APPLICABLE,
+        "subarray":  False,
         "tagflash":  False,
         "cenwave":   0,
         "randseed": -1,
@@ -110,6 +95,27 @@ def getGeneralInfo (phdr, hdr):
 
     for key in keylist.keys():
         info[key] = phdr.get (key, default=keylist[key])
+
+    # Set output image size (variables defined in calcosparam.py).
+    if info["detector"] == "FUV":
+        info["npix"] = (FUV_Y, FUV_EXTENDED_X)
+        info["x_offset"] = FUV_X_OFFSET
+    else:
+        if info["obsmode"] == "IMAGING":
+            info["npix"] = (NUV_Y, NUV_X)
+            info["x_offset"] = 0
+        else:
+            info["npix"] = (NUV_Y, NUV_EXTENDED_X)
+            info["x_offset"] = NUV_X_OFFSET
+
+    # Replace the value for npix if there's no data (based on extension header).
+    if hdr["NAXIS"] == 0:
+        info["npix"] = (0,)
+    elif hdr["NAXIS"] == 2 and hdr["NAXIS2"] == 0:
+        info["npix"] = (0,)
+
+    # Assign an initial value for the heliocentric velocity
+    info["v_helio"] = 0.
 
     info["aperture"] = cosutil.getApertureKeyword (phdr, truncate=1)
 
@@ -141,7 +147,9 @@ def getGeneralInfo (phdr, hdr):
     # Now get keywords from the extension header.
 
     if info["detector"] == "FUV":
-        info["stimrate"] = hdr.get ("STIMRATE", default=0.)
+        # The header keyword is the rate for both stims together; we want
+        # the rate for one stim.
+        info["stimrate"] = hdr.get ("STIMRATE", default=0.) / 2.
     else:
         info["stimrate"] = 0.
 
@@ -149,7 +157,8 @@ def getGeneralInfo (phdr, hdr):
     keylist = {
         "dispaxis":  0,
         "tc2_2":     1.,        # dispersion for spectroscopic data
-        "sdqflags":  32767,
+        "sdqflags":  3832,      # 8 + 16 + 32 + 64 + 128 + 512 + 1024 + 2048
+        "nsubarry":  0,
         "numflash":  0,
         "exptime":  -1.,
         "expstart": -1.,

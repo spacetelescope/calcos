@@ -35,6 +35,8 @@ def findWavecalShift (input, wcp_info):
         fd.close()
         return None
 
+    x_offset = fd[1].header.get ("x_offset", 0)
+
     nrows = sci_extn.data.shape[0]
     net = sci_extn.data.field ("net")
     nelem = len (net[0])
@@ -70,7 +72,8 @@ def findWavecalShift (input, wcp_info):
             lamp_info = cosutil.getTable (lamptab, filter)
             if lamp_info is None:
                 continue
-            sum_template = lamp_info.field ("intensity")[0].copy()
+            raw_template = lamp_info.field ("intensity")[0]
+            sum_template = cosutil.getTemplate (raw_template, x_offset, nelem)
             sum_net = net[row].copy()
 
             (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
@@ -91,12 +94,15 @@ def findWavecalShift (input, wcp_info):
             lamp_info = cosutil.getTable (lamptab, filter)
             if lamp_info is None:
                 continue
+            raw_template = lamp_info.field ("intensity")[0]
             if first:
-                sum_template = lamp_info.field ("intensity")[0].copy()
+                sum_template = cosutil.getTemplate (raw_template,
+                                                    x_offset, nelem)
                 sum_net = net[row].copy()
                 first = False
             else:
-                sum_template += lamp_info.field ("intensity")[0]
+                sum_template += cosutil.getTemplate (raw_template,
+                                                     x_offset, nelem)
                 sum_net += net[row]
 
         (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
@@ -116,6 +122,12 @@ def findWavecalShift (input, wcp_info):
             # This is the offset in the cross-dispersion direction.
             key = "shift2" + segment[row][-1].lower()
             shift_dict[key] = sci_extn.header.get (key, default=0.)
+
+    # Assign zero values to dpixel1[a-c].
+    for row in index:
+        key = "dpixel1" + segment[row][-1].lower()
+        sci_extn.header.update (key, 0.)
+        shift_dict[key] = 0.
 
     fd.close()
 
@@ -540,6 +552,20 @@ def findWavecalSpectrum (corrtag, info, reffiles):
         return (0., {}, {})
     xtractab = reffiles["xtractab"]
 
+    wcp_info = cosutil.getTable (reffiles["wcptab"],
+                                 filter={"opt_elem": info["opt_elem"]},
+                                 exactly_one=True)
+    if cosutil.findColumn (reffiles["wcptab"], "xd_range"):
+        xd_range = wcp_info.field ("xd_range")[0]
+        box = wcp_info.field ("box")[0]
+    else:
+        if info["detector"] == "FUV":
+            xd_range = 50
+            box = 7
+        else:
+            xd_range = 40
+            box = 13
+
     if info["detector"] == "FUV":
         xi = sci_extn.data.field ("XCORR")
         eta = sci_extn.data.field ("YCORR")
@@ -549,8 +575,8 @@ def findWavecalSpectrum (corrtag, info, reffiles):
 
     dq = sci_extn.data.field ("DQ")
 
-    (shift2, xd_shifts, xd_locns) = \
-                ttFindWavecalSpectrum (xi, eta, dq, info, xtractab)
+    (shift2, xd_shifts, xd_locns) = ttFindWavecalSpectrum (xi, eta, dq,
+                                    info, xd_range, box, xtractab)
 
     fd.close()
 
@@ -567,7 +593,7 @@ def findWavecalSpectrum (corrtag, info, reffiles):
 
     return (shift2, xd_shifts, xd_locns)
 
-def ttFindWavecalSpectrum (xi, eta, dq, info, xtractab):
+def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     """Find the offset of a wavecal spectrum in cross-dispersion direction.
 
     arguments:
@@ -575,6 +601,10 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xtractab):
     eta             corrected pixel coords in the cross-dispersion direction
     dq              data quality flags
     info            dictionary of header keywords and values
+    xd_range        search within + or - xd_range from the nominal location
+                    for the peak in the cross-dispersion direction
+    box             smooth the cross-dispersion profile with a box of this
+                    width before looking for the maximum
     xtractab        name of 1-D extraction parameters table
 
     The function value is a tuple of three items:  shift2 and two dictionaries,
@@ -596,22 +626,20 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xtractab):
 
     if info["detector"] == "FUV":
         (shift2, xd_shifts, xd_locns) = ttFindFUV (xi, eta, dq,
-                filter, xtractab)
+                xd_range, box, filter, xtractab)
     else:
         (shift2, xd_shifts, xd_locns) = ttFindNUV (xi, eta, dq,
-                filter, xtractab)
+                xd_range, box, filter, xtractab)
 
     if shift2 is None:
         shift2 = 0.
 
     return (shift2, xd_shifts, xd_locns)
 
-def ttFindFUV (xi, eta, dq, filter, xtractab):
+def ttFindFUV (xi, eta, dq, xd_range, box, filter, xtractab):
 
     xdisp = N.zeros (FUV_Y, dtype=N.float32)
 
-    xd_range = 50
-    box = 7
     shift2 = None
     xd_shifts = {}
     xd_locns = {}
@@ -628,20 +656,13 @@ def ttFindFUV (xi, eta, dq, filter, xtractab):
 
     return (shift2, xd_shifts, xd_locns)
 
-def ttFindNUV (xi, eta, dq, filter, xtractab):
+def ttFindNUV (xi, eta, dq, xd_range, box, filter, xtractab):
 
     xdisp = N.zeros (NUV_Y, dtype=N.float32)
 
-    xd_range = 40
-    box = 13
     xd_shifts = {}
     xd_locns = {}
     got_shift = False
-
-    # Note that we allow for the possibility that the slopes of the
-    # three stripes might not all be the same.  If they are close enough
-    # to ignore the differences, the code could be modified to call
-    # xy_collapse only once, using the slope for, say, NUVB.
 
     filter["segment"] = "NUVA"
     xtract_info = cosutil.getTable (xtractab, filter)

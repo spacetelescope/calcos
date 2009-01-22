@@ -224,7 +224,6 @@ def calcos (asntable, outdir=None, verbosity=None,
                          create_csum_image, save_temp_files,
                          stimfile, livetimefile, burstfile)
     if len (assoc.obs) == 0:
-        cosutil.printMsg ("The association table is empty.")
         return
     if not assoc.isAnySwitchSet():
         cosutil.printMsg ("Nothing to do; all calibration switches are OMIT.")
@@ -446,6 +445,8 @@ class Association (object):
             if mempresent[i]:
 
                 basic_info = self.initialInfo (memname[i])
+                if basic_info is None:
+                    continue
                 self.rawfiles.extend (basic_info["rawfiles"])
                 concat_info = {}                # will be one element of concat
                 concat_these = []               # x1d_a and x1d_b names
@@ -458,7 +459,7 @@ class Association (object):
                 first = True                    # first of a pair for FUV
                 for input in basic_info["rawfiles"]:    # one (NUV) or two (FUV)
                     obs = initObservation (input, self.outdir, memtype[i],
-                          basic_info["detector"], basic_info["obsmode"])
+                          basic_info["detector"], basic_info["obsmode"], first)
                     self.obs.append (obs)
                     if basic_info["detector"] == "FUV":
                         concat_these.append (obs.filenames["x1d_x"])
@@ -602,6 +603,11 @@ class Association (object):
         @param memname: a value in the MEMNAME (member name) column of an
             association table, converted to lower case
         @type memname: string
+
+        @return: dictionary of keywords and values; the value will be None
+            if there are no files that match the template, or if the input
+            is an ACQ other than ACQ/IMAGE.
+        @rtype: dictionary
         """
 
         # First find out whether we've got time-tag or accum, FUV or NUV.
@@ -613,38 +619,59 @@ class Association (object):
         all_rawfiles.extend (raw)
         raw = glob.glob (memname + "_rawimage*.fits")
         all_rawfiles.extend (raw)
+        # The input should not include both science files and acq files,
+        # but if it does, make sure the first raw file (see below) is a
+        # science file rather than an acq.  If the only file is an acq,
+        # however, it must be the first raw file, and that's OK.
+        if len (all_rawfiles) > 0:
+            all_rawfiles.sort()
+        raw = glob.glob (memname + "_rawacq.fits")
+        if raw:
+            if self.isAcqImage (raw[0]):
+                all_rawfiles.extend (raw)
+            else:
+                cosutil.printWarning (
+            "File %s will be skipped because it is not an ACQ/IMAGE" % raw[0])
         if len (all_rawfiles) == 0:
-            raise RuntimeError, \
-                "There are no raw files for rootname `%s'" % memname
-        all_rawfiles.sort()
+            cosutil.printWarning (
+                "There are no raw files for rootname `%s'" % memname)
+            return None
         # Get info from the first raw file with the specified rootname.
         initial_basic_info = getinfo.initialInfo (all_rawfiles[0])
         detector = initial_basic_info["detector"]
         obsmode = initial_basic_info["obsmode"]
+        exptype = initial_basic_info["exptype"]
+        if exptype[0:3] == "ACQ" and exptype != "ACQ/IMAGE":
+            cosutil.printWarning (
+                "Rootname `%s' is an %s, which cannot be processed." %
+                    (memname, exptype))
+            return None
 
         # Find the raw files that we expect to have.
         if detector == "FUV":
-            suffix = "_[ab].fits"
+            tail = "_[ab].fits"
         else:
-            suffix = ".fits"
+            tail = ".fits"
         if obsmode == "TIME-TAG":
-            rawfiles = glob.glob (memname + "_rawtag" + suffix)
+            rawfiles = glob.glob (memname + "_rawtag" + tail)
         elif obsmode == "ACCUM":
             # first look for rawaccum
-            rawfiles = glob.glob (memname + "_rawaccum" + suffix)
+            rawfiles = glob.glob (memname + "_rawaccum" + tail)
             if len (rawfiles) < 1:
                 # rawaccum not found, so look for rawimage
-                rawfiles = glob.glob (memname + "_rawimage" + suffix)
+                rawfiles = glob.glob (memname + "_rawimage" + tail)
         else:
             raise RuntimeError, \
                   "unexpected OBSMODE `%s' in `%s'" % obsmode, all_rawfiles[0]
+        if len (rawfiles) > 0:
+            rawfiles.sort()
+        rawfiles.extend (glob.glob (memname + "_rawacq.fits"))
 
         nfiles = len (rawfiles)
         if nfiles == 0:
             raise RuntimeError, \
-                "Keywords and suffixes are inconsistent for rootname `%s'" \
+                "Keywords and filenames are inconsistent for rootname `%s'" \
                         % memname
-        rawfiles.sort()
 
         # Read the first raw file with the specified rootname.
         basic_info = getinfo.initialInfo (rawfiles[0])
@@ -657,6 +684,25 @@ class Association (object):
         basic_info["rawfiles"] = rawfiles
 
         return basic_info
+
+    def isAcqImage (self, rawacq):
+        """Check whether rawacq is an ACQ/IMAGE.
+
+        @param rawacq: name of an acq file
+        @type rawacq: string
+
+        @return: True if exptype for rawacq is "ACQ/IMAGE", False otherwise
+        @rtype: boolean
+        """
+
+        fd = pyfits.open (rawacq, mode="readonly")
+        exptype = fd[0].header.get ("exptype", "not found")
+        fd.close()
+
+        if exptype == "ACQ/IMAGE":
+            return True
+        else:
+            return False
 
     def updateCombineFlt (self, filenames, obstype):
         """Add the flt name to the input lists in self.combine.
@@ -1298,24 +1344,24 @@ class Association (object):
 
         fd.close()
 
-def initObservation (input, outdir, memtype, detector, obsmode):
+def initObservation (input, outdir, memtype, detector, obsmode, first=False):
     """Construct an Observation object for the current mode.
 
     @param input: the name of an input raw file
     @type input: string
-
     @param outdir: either an empty string or the name of the output directory
     @type outdir: string
-
     @param memtype: from association table; used to distinguish between
         wavecal and science observation
     @type memtype: string
-
     @param detector: FUV or NUV
     @type detector: string
-
     @param obsmode: TIME-TAG or ACCUM
     @type obsmode: string
+    @param first: True if the current file is the first for a given rootname
+        (this is for writing the calcos version string to the trailer, so
+        it won't be written for both FUV segments A and B)
+    @type first: boolean
 
     @return: an Observation object
     @rtype: instance
@@ -1323,14 +1369,14 @@ def initObservation (input, outdir, memtype, detector, obsmode):
 
     if detector == "FUV":
         if obsmode == "TIME-TAG":
-            obs = FUVTimetagObs (input, outdir, memtype)
+            obs = FUVTimetagObs (input, outdir, memtype, first)
         else:
-            obs = FUVAccumObs (input, outdir, memtype)
+            obs = FUVAccumObs (input, outdir, memtype, first)
     else:
         if obsmode == "TIME-TAG":
-            obs = NUVTimetagObs (input, outdir, memtype)
+            obs = NUVTimetagObs (input, outdir, memtype, first)
         else:
-            obs = NUVAccumObs (input, outdir, memtype)
+            obs = NUVAccumObs (input, outdir, memtype, first)
 
     return obs
 
@@ -1341,23 +1387,22 @@ class Observation (object):
     be invoked, depending on DETECTOR and OBSMODE.
     """
 
-    def __init__ (self, input, outdir, memtype, suffix):
+    def __init__ (self, input, outdir, memtype, suffix, first):
         """Invoked by a subclass.
 
         @param input: the name of an input raw file
         @type input: string
-
         @param outdir: an empty string or the name of the output directory
         @type outdir: string
-
         @param memtype: from association table; used to distinguish between
             wavecal and science observation
         @type memtype: string
-
         @param suffix: suffix to the rootname, but just "_rawtag" or
             "_rawaccum" (i.e. excluding "_a" or "_b" if the data were taken
             with the FUV detector)
         @type suffix: string
+        @param first: True if the current file is the first of two for FUV
+        @type first: boolean
         """
 
         self.input = input              # name of a raw input file
@@ -1367,15 +1412,18 @@ class Observation (object):
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
 
-        # For ACCUM data, allow suffix to be either "_rawaccum" or "_rawimage".
+        # For ACCUM data, allow suffix to be "_rawaccum", "_rawimage" or
+        # "_rawacq".
         if input.find (suffix) < 0:
             suffix = "_rawimage"
+        if input.find (suffix) < 0:
+            suffix = "_rawacq"
         if input.find (suffix) < 0:
             raise RuntimeError, "can't find suffix in `%s'" % input
 
         self.getHeaderInfo()
         self.filenames = self.makeFileNames (suffix, outdir)
-        self.openTrailer()      # Open the trailer file for this input file.
+        self.openTrailer (first)    # open the trailer file for this input file
         self.sanityCheck()
 
         # Determine what type of observation this is.
@@ -1442,10 +1490,12 @@ class Observation (object):
         self.checkSwitches()
         self.closeTrailer()
 
-    def openTrailer (self):
+    def openTrailer (self, first=False):
         """Open the trailer file for this file."""
 
         cosutil.openTrailer (self.filenames["trl"])
+        if first:
+            cosutil.writeVersionToTrailer()
 
     def closeTrailer (self):
         """Close the trailer file for this file."""
@@ -1464,7 +1514,7 @@ class Observation (object):
         try:
             hdr = fd["EVENTS"].header
         except:
-            hdr = fd["SCI"].header
+            hdr = fd[("SCI",1)].header
 
         # Each of these is a dictionary with (lower case) header keywords
         # as the keys.
@@ -1900,9 +1950,9 @@ class Observation (object):
 
 class FUVTimetagObs (Observation):
 
-    def __init__ (self, input, outdir, memtype):
+    def __init__ (self, input, outdir, memtype, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawtag")
+        Observation.__init__ (self, input, outdir, memtype, "_rawtag", first)
 
     def checkSwitches (self):
 
@@ -1912,9 +1962,9 @@ class FUVTimetagObs (Observation):
 
 class FUVAccumObs (Observation):
 
-    def __init__ (self, input, outdir, memtype):
+    def __init__ (self, input, outdir, memtype, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawaccum")
+        Observation.__init__ (self, input, outdir, memtype, "_rawaccum", first)
 
     def checkSwitches (self):
 
@@ -1930,9 +1980,9 @@ class FUVAccumObs (Observation):
 
 class NUVTimetagObs (Observation):
 
-    def __init__ (self, input, outdir, memtype):
+    def __init__ (self, input, outdir, memtype, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawtag")
+        Observation.__init__ (self, input, outdir, memtype, "_rawtag", first)
 
     def checkSwitches (self):
 
@@ -1948,9 +1998,9 @@ class NUVTimetagObs (Observation):
 
 class NUVAccumObs (Observation):
 
-    def __init__ (self, input, outdir, memtype):
+    def __init__ (self, input, outdir, memtype, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawaccum")
+        Observation.__init__ (self, input, outdir, memtype, "_rawaccum", first)
 
     def checkSwitches (self):
 
@@ -1971,7 +2021,7 @@ class Calibration (object):
 
     The attributes are:
         assoc              the Association instance
-        wavecal_info       list of lists, each of which contains the
+        wavecal_info       list of dictionaries, each of which contains the
                              following:
                                time (MJD of middle of exposure)
                                fpoffset (header keyword fpoffset)
@@ -2027,14 +2077,14 @@ class Calibration (object):
         else:
             outcsum = None
         if info["obsmode"] == "TIME-TAG":
-            status = timetag.timetagBasicCalibration (input, outtag,
+            status = timetag.timetagBasicCalibration (input, None, outtag,
                         output, outcounts, outflash, outcsum,
                         info, switches, reffiles,
                         self.wavecal_info,
                         self.assoc.stimfile, self.assoc.livetimefile,
                         self.assoc.burstfile)
         else:
-            status = accum.accumBasicCalibration (input, inpha,
+            status = accum.accumBasicCalibration (input, inpha, outtag,
                         output, outcounts, outcsum,
                         info, switches, reffiles,
                         self.wavecal_info,
@@ -2067,7 +2117,7 @@ class Calibration (object):
                 # Update shift2[a-c] keywords.
                 self.setSpectrumOffset (obs.filenames,
                         obs.info["segment"], shift2)
-                self.extractSpectrum (obs.filenames, obs.info["obsmode"])
+                self.extractSpectrum (obs.filenames)
                 obs.closeTrailer()
 
         self.concatenateSpectra ("wavecal")
@@ -2108,7 +2158,7 @@ class Calibration (object):
                 self.updateShift (obs.filenames, obs.switches["wavecorr"],
                             obs.info)
                 if obs.switches["x1dcorr"] == "PERFORM":
-                    self.extractSpectrum (obs.filenames, obs.info["obsmode"])
+                    self.extractSpectrum (obs.filenames)
                 elif obs.info["obstype"] == "SPECTROSCOPIC":
                     cosutil.printSwitch ("X1DCORR", obs.switches)
                 if obs.info["tagflash"]:
@@ -2121,23 +2171,15 @@ class Calibration (object):
         if tagflash and obs.switches["wavecorr"] == "PERFORM":
             self.concatenateSpectra ("tagflash")
 
-    def extractSpectrum (self, filenames, obsmode="TIME-TAG"):
+    def extractSpectrum (self, filenames):
         """Extract a 1-D spectrum from corrtag table or from 2-D images.
 
         @param filenames: input and output file names
         @type filenames: dictionary
-        @param obsmode: "TIME-TAG" or "ACCUM"
-        @type obsmode: string
 
         The 1-D spectrum will be extracted from the 2-D flt and counts images.
         """
 
-        #if obsmode == "TIME-TAG":
-        #    input = filenames["corrtag"]
-        #    incounts = None
-        #else:
-        #    input = filenames["flt"]
-        #    incounts = filenames["counts"]
         input = filenames["flt"]
         incounts = filenames["counts"]
         output = filenames["x1d_x"]
@@ -2238,10 +2280,10 @@ class Calibration (object):
                     hdr = fd["SCI"].header
                 if wavecorr == "PERFORM" and len (self.wavecal_info) > 0:
                     phdr.update ("WAVECORR", "COMPLETE")
-                hdr.update ("DSHIFT1A", 0.)     # dshift not used for ACCUM
-                hdr.update ("DSHIFT1B", 0.)
+                hdr.update ("DPIXEL1A", 0.)     # dpixel1 not used for ACCUM
+                hdr.update ("DPIXEL1B", 0.)
                 if info["detector"] == "NUV":
-                    hdr.update ("DSHIFT1C", 0.)
+                    hdr.update ("DPIXEL1C", 0.)
                 if shift_dict is None:
                     hdr.update ("SHIFT1A", 0.)
                     hdr.update ("SHIFT1B", 0.)
@@ -2335,7 +2377,7 @@ class Calibration (object):
                 "stimXslx", "stimXsly", "stimXsrx", "stimXsry",
                 "pha_badX", "phalowrX", "phaupprX",
                 "sp_loc_X", "sp_slp_X",
-                "shift1X", "shift2X", "dshift1X"]
+                "shift1X", "shift2X", "dpixel1X"]
         a_kwds = []
         b_kwds = []
         for keyword in incl_wildcard:
@@ -2352,10 +2394,10 @@ class Calibration (object):
             for i in range (len (a_kwds)):
                 keyword_a = a_kwds[i]
                 keyword_b = b_kwds[i]
-                if hdr_b.has_key (keyword_a):
-                    hdr_b[keyword_a] = hdr_a[keyword_a]
-                if hdr_a.has_key (keyword_b):
-                    hdr_a[keyword_b] = hdr_b[keyword_b]
+                if hdr_a.has_key (keyword_a):
+                    hdr_b.update (keyword_a, hdr_a[keyword_a])
+                if hdr_b.has_key (keyword_b):
+                    hdr_a.update (keyword_b, hdr_b[keyword_b])
             fd_a.close()
             fd_b.close()
 

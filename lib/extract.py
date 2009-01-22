@@ -7,12 +7,6 @@ import getinfo
 # xxx import xd_search
 from calcosparam import *       # parameter definitions
 
-# This is used in computing the data quality weight array.  This set of
-# flags must be consistent with sdqflags set in timetag.writeImages,
-# although the latter also includes event-specific flags such as burst
-# and pulse-height filtering.
-REALLY_BAD_DQ_FLAGS = DQ_DEAD + DQ_HOT + DQ_OUT_OF_BOUNDS
-
 def extract1D (input, incounts=None, output=None,
                location=None, find_target=False):
     """Extract 1-D spectrum from 2-D image.
@@ -93,9 +87,9 @@ def extract1D (input, incounts=None, output=None,
 
     # Set the default length of the dispersion axis.
     if info["detector"] == "FUV":
-        nelem = FUV_X
+        nelem = FUV_EXTENDED_X 
     else:
-        nelem = NUV_X
+        nelem = NUV_EXTENDED_X 
 
     if info["npix"] == (0,):
         nrows = 0
@@ -257,21 +251,12 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         height = xtract_info.field ("height")[0]
 
         if is_wavecal:
-            dshift1 = 0.
+            dpixel1 = 0.
         else:
-            if info["obsmode"] == "ACCUM":
-                key = "shift1" + segment[-1]
-            else:
-                key = "dshift1" + segment[-1]
-            dshift1 = hdr.get (key, 0.)
+            key = "dpixel1" + segment[-1]
+            dpixel1 = hdr.get (key, 0.)
 
-        # cross-dispersion direction
-        if info["obsmode"] == "ACCUM":
-            key = "shift2" + segment[-1]
-            shift2 = hdr.get (key, 0.)
-        else:
-            shift2 = 0.
-        shift2 += postargOffset (ifd_e[0].header, hdr["dispaxis"])
+        shift2 = 0.              # cross-dispersion direction
 
         # xdisp_locn will be the user-specified location in cross-dispersion
         # direction (or None, if the user did not specify a value).
@@ -294,10 +279,13 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         else:
             delta = 0.
 
-        pixel -= dshift1            # shift will be 0 for a wavecal
+        x_offset = hdr.get ("x_offset", 0)
+
+        # Correct for the extra pixels (if any) in the dispersion direction.
+        pixel -= x_offset
+
+        pixel += dpixel1                # shift will be 0 for a wavecal
         wavelength = cosutil.evalDisp (pixel, coeff, delta)
-        wavelength_dq = N.where (wavelength < MIN_WAVELENGTH, \
-                        DQ_BAD_WAVELENGTH, 0).astype (N.int16)
         del disp_info
 
         # S/N of the flat field
@@ -307,11 +295,11 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
 
         if corrtag:
             if info["detector"] == "FUV":
-                axis_length = FUV_X
+                axis_length = FUV_EXTENDED_X 
             else:
-                axis_length = NUV_X
+                axis_length = NUV_EXTENDED_X 
             (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn) = \
-                extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
+                extractCorrtag (xi, eta, dq, epsilon, hdr["sdqflags"],
                     axis_length, snr_ff, hdr["exptime"], switches["backcorr"],
                     xtract_info, shift2, xdisp_locn)
         else:
@@ -322,12 +310,12 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                 #xd_locn = xd_search.xdSearch (ifd_e["SCI"].data,
                 #                ifd_e["DQ"].data, wavelength,
                 #                axis, slope, y_nominal,
-                #                info["detector"], info["opt_elem"])
+                #                x_offset, info["detector"], info["opt_elem"])
             else:
                 xd_locn = xdisp_locn    # updated by extractSegment()
             (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn) = \
              extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
-                    ifd_e["DQ"].data, wavelength_dq,
+                    ifd_e["DQ"].data, x_offset, hdr["sdqflags"],
                     snr_ff, hdr["exptime"], switches["backcorr"], axis,
                     xtract_info, shift2, xd_locn, find_target)
         updateExtractionKeywords (ofd[1].header, segment,
@@ -355,6 +343,12 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
 
 def postargOffset (phdr, dispaxis):
     """Get the offset to shift2 if postarg is non-zero.
+
+    I don't think this should be used, but I'll leave the function here
+    for the time being.  If it were to be used, the function value would
+    be added to (or subtracted from?) shift2 in doExtract, e.g.:
+        shift2 = 0.              # cross-dispersion direction
+        shift2 += postargOffset (ifd_e[0].header, hdr["dispaxis"])
 
     @param phdr: primary header
     @type phdr: pyfits Header object
@@ -459,7 +453,7 @@ def getSnrFf (switches, reffiles, segment):
 
     return snr_ff
 
-def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
+def extractSegment (e_data, c_data, e_dq_data, x_offset, sdqflags,
                 snr_ff, exptime, backcorr, axis,
                 xtract_info, shift2, xdisp_locn=None, find_target=False):
 
@@ -468,14 +462,15 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
     This does the actual extraction, returning the results as a tuple.
 
     @param e_data: SCI data from the flt file ('e' for effective count rate)
-    @type e_data: 2-D array
+    @type e_data: 2-D numpy array
     @param c_data: SCI data from the counts file (count rate)
-    @type c_data: 2-D array
+    @type c_data: 2-D numpy array
     @param e_dq_data: DQ data from the flt file
-    @type e_dq_data: 2-D array
-    @param wavelength_dq: nominally 0, but DQ_BAD_WAVELENGTH if the wavelength
-        is out of range (so small there can't be any signal)
-    @type wavelength_dq: 1-D array
+    @type e_dq_data: 2-D numpy array
+    @param x_offset: offset of the detector in the output array
+    @type x_offset: int
+    @param sdqflags: "serious" data quality flags
+    @type sdqflags: int
     @param snr_ff: the signal-to-noise ratio of the flat field reference file
         (from the extension header of the flat field)
     @type snr_ff: float
@@ -537,11 +532,11 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
             # add the shift to the nominal location; assign a value to xd_locn
             # (which will be returned but not otherwise used)
             b_spec += shift2
-            xd_locn = b_spec + slope * (axis_length // 2)
+            xd_locn = b_spec + slope * (axis_length // 2 - x_offset)
     else:
         # use the user-specified value, but convert to b_spec, the intersection
         # with the left edge of the array
-        b_spec = xdisp_locn - slope * (axis_length // 2)
+        b_spec = xdisp_locn - slope * (axis_length // 2 - x_offset)
         xd_locn = xdisp_locn
 
     # Compute the data quality and data quality weight arrays.
@@ -550,14 +545,15 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
 
         # Get data quality flags within extraction region.
         dq_ij = N.zeros ((extr_height, axis_length), dtype=N.int16)
-        ccos.extractband (e_dq_data, axis, slope, b_spec, dq_ij)
+        ccos.extractband (e_dq_data, axis, slope, b_spec, x_offset, dq_ij)
         # xxx replace with a C function
+        DQ_i[:] = dq_ij[0].copy()
         for j in range (extr_height-1):
-            DQ_i[:] = N.bitwise_or (dq_ij[j], dq_ij[j+1])
+            DQ_i[:] = N.bitwise_or (DQ_i, dq_ij[j+1])
 
         # In bad_ij and bad_i, 0 means OK and 1 means bad
         bad_ij = N.zeros ((extr_height, axis_length), dtype=N.int32)
-        bad_ij[:,:] = N.where (N.bitwise_and (dq_ij, REALLY_BAD_DQ_FLAGS), 1, 0)
+        bad_ij[:,:] = N.where (N.bitwise_and (dq_ij, sdqflags), 1, 0)
         bad_i = bad_ij.sum (axis=0)
         # Any bad pixel in extraction region?  DQ_WGT is a weight,
         # so 0 is bad and 1 is good.
@@ -567,25 +563,25 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
         DQ_WGT_i = N.ones (axis_length, dtype=N.float32)
 
     e_ij = N.zeros ((extr_height, axis_length), dtype=N.float32)
-    ccos.extractband (e_data, axis, slope, b_spec, e_ij)
+    ccos.extractband (e_data, axis, slope, b_spec, x_offset, e_ij)
 
     GC_ij = N.zeros ((extr_height, axis_length), dtype=N.float32)
-    ccos.extractband (c_data, axis, slope, b_spec, GC_ij)
+    ccos.extractband (c_data, axis, slope, b_spec, x_offset, GC_ij)
 
     e_i  = e_ij.sum (axis=0)
     GC_i = GC_ij.sum (axis=0)
 
     eps_i = e_i / N.where (GC_i <= 0., 1., GC_i)
+    # default value when there are no counts
+    eps_i = N.where (e_i == 0., 1., eps_i)
     del e_ij, e_i
 
     bkg_norm = float (extr_height) / (2. * float (bkg_extr_height))
     if backcorr == "PERFORM":
-        BK1_ij = N.zeros ((bkg_extr_height, axis_length),
-                        dtype=N.float32)
-        BK2_ij = N.zeros ((bkg_extr_height, axis_length),
-                        dtype=N.float32)
-        ccos.extractband (c_data, axis, slope, b_bkg1, BK1_ij)
-        ccos.extractband (c_data, axis, slope, b_bkg2, BK2_ij)
+        BK1_ij = N.zeros ((bkg_extr_height, axis_length), dtype=N.float32)
+        BK2_ij = N.zeros ((bkg_extr_height, axis_length), dtype=N.float32)
+        ccos.extractband (c_data, axis, slope, b_bkg1, x_offset, BK1_ij)
+        ccos.extractband (c_data, axis, slope, b_bkg2, x_offset, BK2_ij)
         BK_i = BK1_ij.sum (axis=0) + BK2_ij.sum (axis=0)
         BK_i = BK_i * bkg_norm
         boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
@@ -604,7 +600,7 @@ def extractSegment (e_data, c_data, e_dq_data, wavelength_dq,
 
     return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn)
 
-def extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
+def extractCorrtag (xi, eta, dq, epsilon, sdqflags,
                     axis_length, snr_ff, exptime, backcorr,
                     xtract_info, shift2, xdisp_locn=None):
     """Extract a 1-D spectrum for one segment or stripe.
@@ -631,9 +627,6 @@ def extractCorrtag (xi, eta, dq, epsilon, wavelength_dq,
         # with the left edge of the array
         b_spec = xdisp_locn - slope * (axis_length // 2)
         xd_locn = xdisp_locn
-
-    sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME +
-                DQ_HOT + DQ_DEAD)
 
     e_ij = N.zeros ((extr_height, axis_length), dtype=N.float64)
     ccos.xy_extract (xi, eta, e_ij, slope, b_spec,
@@ -910,8 +903,6 @@ def updateArchiveSearch (ofd):
         maxwave_row = N.maximum.reduce (wavelength[row])
         maxwave = max (maxwave, maxwave_row)
 
-    minwave = max (minwave, MIN_WAVELENGTH)
-    maxwave = max (maxwave, MIN_WAVELENGTH)
     phdr.update ("MINWAVE", minwave)
     phdr.update ("MAXWAVE", maxwave)
     phdr.update ("BANDWID", maxwave - minwave)
@@ -994,7 +985,7 @@ def concatenateFUVSegments (infiles, output):
                 "stimbslx", "stimbsly", "stimbsrx", "stimbsry",
                 "pha_badb", "phalowrb", "phaupprb",
                 "sp_loc_b", "sp_slp_b",
-                "shift1b", "shift2b", "dshift1b"]:
+                "shift1b", "shift2b", "dpixel1b"]:
         if seg_b[1].header.has_key (key):
             hdu.header.update (key, seg_b[1].header.get (key, -1.0))
 
@@ -1062,10 +1053,9 @@ def copyKeywordsToInput (output, input, incounts):
                 "sp_slp_a", "sp_slp_b", "sp_slp_c",
                 "sp_width"]:
         value = ofd[1].header.get (key, -999.)
-        if ifd_e[1].header.has_key (key):
-            ifd_e[1].header[key] = value
-        if incounts is not None and ifd_c[1].header.has_key (key):
-            ifd_c[1].header[key] = value
+        ifd_e[1].header.update (key, value)
+        if incounts is not None:
+            ifd_c[1].header.update (key, value)
 
     ofd.close()
     ifd_e.close()

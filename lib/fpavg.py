@@ -166,7 +166,11 @@ class OutputX1D (object):
             asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
             if asn_mtyp != "missing":
                 self.ofd[1].header["asn_mtyp"] = asn_mtyp
+        self.updateArchiveSearch (self.ofd)     # minwave & maxwave
         self.ofd.writeto (self.output)
+
+        if self.keywords["statflag"]:
+            cosutil.doSpecStat (self.output)
 
     def getInputInfo (self):
         """Get info and data from input files.
@@ -236,7 +240,8 @@ class OutputX1D (object):
              "expstrtj": expstart + MJD_TO_JD,
              "expendj":  expend + MJD_TO_JD,
              "plantime": sum_plantime,
-             "globrate": globrate}
+             "globrate": globrate,
+             "statflag": statflag}
 
     def compareX1d (self):
         """Check that the rows of two x1d tables contain comparable info.
@@ -310,6 +315,7 @@ class OutputX1D (object):
         col.append (pyfits.Column (name="GROSS", format=rpt+"E"))
         col.append (pyfits.Column (name="NET", format=rpt+"E"))
         col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E"))
+        col.append (pyfits.Column (name="DQ", format=rpt+"I"))
         col.append (pyfits.Column (name="DQ_WGT", format=rpt+"E"))
         cd = pyfits.ColDefs (col)
 
@@ -326,7 +332,7 @@ class OutputX1D (object):
         # to the entire association.
         for key in ["shift1a", "shift1b", "shift1c",
                     "shift2a", "shift2b", "shift2c",
-                    "dshift1a", "dshift1b", "dshift1c"]:
+                    "dpixel1a", "dpixel1b", "dpixel1c"]:
             if hdu.header.has_key (key):
                 del (hdu.header[key])
 
@@ -355,7 +361,34 @@ class OutputX1D (object):
         ofd[1].data.field ("gross")[:] = 0.
         ofd[1].data.field ("net")[:] = 0.
         ofd[1].data.field ("background")[:] = 0.
+        ofd[1].data.field ("dq")[:] = 0
         ofd[1].data.field ("dq_wgt")[:] = 0.
+
+    def updateArchiveSearch (self, ofd):
+        """Update the keywords giving min & max wavelengths.
+
+        @param ofd: output, table header modified in-place
+        @type ofd: FITS HDUList object
+        """
+
+        phdr = ofd[0].header
+        outdata = ofd[1].data
+        nrows = outdata.shape[0]
+        wavelength = outdata.field ("WAVELENGTH")
+
+        if nrows <= 0 or len (wavelength[0]) < 1:
+            return
+
+        minwave = wavelength[0][0]
+        maxwave = wavelength[0][0]
+        for row in range (nrows):
+            minwave_row = N.minimum.reduce (wavelength[row])
+            minwave = min (minwave, minwave_row)
+            maxwave_row = N.maximum.reduce (wavelength[row])
+            maxwave = max (maxwave, maxwave_row)
+
+        phdr.update ("MINWAVE", minwave)
+        phdr.update ("MAXWAVE", maxwave)
 
 class Spectrum (object):
 
@@ -372,6 +405,7 @@ class Spectrum (object):
             gross            array of gross values
             net              array of net values
             background       array of background values
+            dq               array of data quality flags
             dq_wgt           array of weights to account for pixels excluded
                                  due to data quality
             fpoffset         OSM offset in motor steps from nominal
@@ -386,6 +420,7 @@ class Spectrum (object):
         self.gross = ifd[1].data.field ("gross")[row]
         self.net = ifd[1].data.field ("net")[row]
         self.background = ifd[1].data.field ("background")[row]
+        self.dq = ifd[1].data.field ("dq")[row]
         self.dq_wgt = ifd[1].data.field ("dq_wgt")[row]
         self.fpoffset = fpoffset
 
@@ -505,6 +540,7 @@ class OutputSpectrum (object):
         gross = data.field ("gross")
         net = data.field ("net")
         background = data.field ("background")
+        dq = data.field ("dq")
         dq_wgt = data.field ("dq_wgt")
 
         weight1 = sp.dq_wgt[i] * sp.exptime
@@ -522,6 +558,7 @@ class OutputSpectrum (object):
                              sp.net[i+1] * q * weight2)
         background[min_k:max_k] += (sp.background[i]   * p * weight1 +
                                     sp.background[i+1] * q * weight2)
+        dq[min_k:max_k] = N.bitwise_and (sp.dq[i], sp.dq[i+1])
         dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i+1] * q)
         error[min_k:max_k] += (sp.error[i]   * p * weight1 +
                                sp.error[i+1] * q * weight2)**2

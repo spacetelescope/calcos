@@ -357,6 +357,17 @@ class ConcurrentWavecal (object):
         if cosutil.findColumn (lamptab, "fpoffset"):
             filter_lamp["fpoffset"] = self.info["fpoffset"]
 
+        if cosutil.findColumn (self.reffiles["wcptab"], "xd_range"):
+            xd_range = self.wcp_info.field ("xd_range")
+            box = self.wcp_info.field ("box")
+        else:
+            if self.info["detector"] == "FUV":
+                xd_range = 50
+                box = 7
+            else:
+                xd_range = 40
+                box = 13
+
         # Find the offsets in both axes, for each wavecal exposure.
         row = 0         # incremented in the second loop over segments
         cosutil.printMsg ("  segment    cross-disp      dispersion direction",
@@ -372,16 +383,15 @@ class ConcurrentWavecal (object):
             (shift2, xd_shifts, xd_locn) = \
                 wavecal.ttFindWavecalSpectrum (
                         self.xi[i0:i1], self.eta[i0:i1], self.dq[i0:i1],
-                        self.info, xtractab)
+                        self.info, xd_range, box, xtractab)
             if shift2 is None:
                 shift2 = 0.
             self.shift2.append (shift2)
 
             # Extract wavecal spectra from events table, and determine offset
             # in dispersion direction.
-            zero_pixel = 0      # offset into output spectrum
-            sdqflags = (DQ_BURST + DQ_PH_LOW + DQ_PH_HIGH + DQ_BAD_TIME +
-                        DQ_DEAD + DQ_HOT)
+            x_offset = self.info["x_offset"]    # offset of lamptab in template
+            sdqflags = self.info["sdqflags"]
             shift1 = {}
             save_spectra = {}   # save just for second loop over segments
             lamp_found = {}     # for second loop over segments
@@ -404,7 +414,7 @@ class ConcurrentWavecal (object):
                                          dtype=N.float64)
                 ccos.xy_extract (self.xi[i0:i1], self.eta[i0:i1],
                         spectrum_band, slope, intercept+shift2,
-                        zero_pixel, self.dq[i0:i1], sdqflags)
+                        x_offset, self.dq[i0:i1], sdqflags)
                 self.spectrum = N.sum (spectrum_band, 0)
                 save_spectra[segment] = self.spectrum.copy()
                 lamp_found[segment] = True      # default
@@ -413,13 +423,16 @@ class ConcurrentWavecal (object):
                     if lamp_info is None:       # no row matched the filter
                         lamp_found[segment] = False
                         continue
+                    raw_template = lamp_info.field ("intensity")[0]
                     if first:
                         sum_spectra = self.spectrum.copy()
-                        template = lamp_info.field ("intensity")[0].copy()
+                        template = cosutil.getTemplate (raw_template,
+                                   x_offset, len (self.spectrum))
                         first = False
                     else:
                         sum_spectra += self.spectrum
-                        template += lamp_info.field ("intensity")[0]
+                        template += cosutil.getTemplate (raw_template,
+                                    x_offset, len (self.spectrum))
 
             # If first is still True, no spectrum was found.
             if first:
@@ -609,9 +622,16 @@ class ConcurrentWavecal (object):
             shift_flags = N.zeros (i1 - i0, dtype=N.bool8)
             locn_list = self.regions[segment]
             for region in locn_list:
-                shift_flags |= N.logical_and (
-                               self.eta_corr[i0:i1] >= region[0],
-                               self.eta_corr[i0:i1] < region[1])
+                if region[0] is None:
+                    shift_flags |= N.where (
+                                   self.eta_corr[i0:i1] < region[1], 1, 0)
+                elif region[1] is None:
+                    shift_flags |= N.where (
+                                   self.eta_corr[i0:i1] >= region[0], 1, 0)
+                else:
+                    shift_flags |= N.logical_and (
+                                   self.eta_corr[i0:i1] >= region[0],
+                                   self.eta_corr[i0:i1] < region[1])
 
             shift1_zero = self.shift1[n][segment]
             if extrapolate:
@@ -968,7 +988,7 @@ class ConcurrentWavecal (object):
 
         Keywords SHIFT1[ABC] will be set to the average offset in the
         dispersion direction, SHIFT2[ABC] to the average offset in the
-        cross-dispersion direction, and DSHIFT1[ABC] to:
+        cross-dispersion direction, and DPIXEL1[ABC] to:
             XFULL - (XFULL rounded to an integer)
 
         @param avg_dx: the average shift in the dispersion direction
@@ -978,15 +998,15 @@ class ConcurrentWavecal (object):
         """
 
         xi_diff = self.xi_corr - N.around (self.xi_corr)
-        dshift1 = -xi_diff.mean()
+        dpixel1 = xi_diff.mean()
 
         for segment in self.segment_list:
             key = "SHIFT1" + segment[-1]
             self.hdr.update (key, avg_dx)
             key = "SHIFT2" + segment[-1]
             self.hdr.update (key, avg_dy)
-            key = "DSHIFT1" + segment[-1]
-            self.hdr.update (key, dshift1)
+            key = "DPIXEL1" + segment[-1]
+            self.hdr.update (key, dpixel1)
 
     def shift1VsTime (self):
         """Interpolate shift1 at one-second intervals.
@@ -1048,7 +1068,7 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
         self.dq  = events.field ("DQ")
         self.xi_corr  = events.field ("XFULL")
         self.eta_corr = events.field ("YFULL")
-        self.spectrum = N.zeros (FUV_X, dtype=N.float64)
+        self.spectrum = N.zeros (FUV_EXTENDED_X, dtype=N.float64)
         self.segment_list = [info["segment"]]
 
         # Copy xi and eta to the columns for corrected values.
@@ -1116,7 +1136,7 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
         self.dq  = events.field ("DQ")
         self.xi_corr  = events.field ("XFULL")
         self.eta_corr = events.field ("YFULL")
-        self.spectrum = N.zeros (NUV_X, dtype=N.float64)
+        self.spectrum = N.zeros (NUV_EXTENDED_X, dtype=N.float64)
         if phdr.get ("OPT_ELEM", "missing") == "G230L" and \
            phdr.get ("cenwave", 0) == 3360:
             self.segment_list = ["NUVA", "NUVB"]
@@ -1175,13 +1195,15 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
         # [first,last] is the slice over which shift1[a-c] should be
         # applied.  There should be six such intervals, one for each
         # stripe, and for apertures PSA and WCA.
+        # Use None for the lower and upper cutoffs so every event will be
+        # included.
         intervals = []
-        first = 0                       # left edge of the detector
+        first = None                    # no lower cutoff
         for i in range (len_locn):
             segment = locations[i][0]
             locn = locations[i][1]
             if i == len_locn - 1:
-                last = NUV_X            # right edge of the detector
+                last = None             # no upper cutoff
             else:
                 next_locn = locations[i+1][1]
                 # midpoint between adjacent b_spec values
