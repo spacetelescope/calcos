@@ -375,6 +375,7 @@ class OutputX1D (object):
         outdata = ofd[1].data
         nrows = outdata.shape[0]
         wavelength = outdata.field ("WAVELENGTH")
+        dq_wgt = outdata.field ("DQ_WGT")
 
         if nrows <= 0 or len (wavelength[0]) < 1:
             return
@@ -382,13 +383,16 @@ class OutputX1D (object):
         minwave = wavelength[0][0]
         maxwave = wavelength[0][0]
         for row in range (nrows):
-            minwave_row = N.minimum.reduce (wavelength[row])
+            good_wl = wavelength[row][dq_wgt[row] > 0.]
+            minwave_row = good_wl.min()
             minwave = min (minwave, minwave_row)
-            maxwave_row = N.maximum.reduce (wavelength[row])
+            maxwave_row = good_wl.max()
             maxwave = max (maxwave, maxwave_row)
 
         phdr.update ("MINWAVE", minwave)
         phdr.update ("MAXWAVE", maxwave)
+        phdr.update ("BANDWID", maxwave - minwave)
+        phdr.update ("CENTRWV", (maxwave + minwave) / 2.)
 
 class Spectrum (object):
 
@@ -542,6 +546,7 @@ class OutputSpectrum (object):
         background = data.field ("background")
         dq = data.field ("dq")
         dq_wgt = data.field ("dq_wgt")
+        first = (data.field ("exptime") == 0.)          # used for DQ
 
         weight1 = sp.dq_wgt[i] * sp.exptime
         weight2 = sp.dq_wgt[i+1] * sp.exptime
@@ -558,7 +563,11 @@ class OutputSpectrum (object):
                              sp.net[i+1] * q * weight2)
         background[min_k:max_k] += (sp.background[i]   * p * weight1 +
                                     sp.background[i+1] * q * weight2)
-        dq[min_k:max_k] = N.bitwise_and (sp.dq[i], sp.dq[i+1])
+        temp_dq = sp.dq[i] | sp.dq[i+1]
+        if first:
+            dq[min_k:max_k] = temp_dq.copy()
+        else:
+            dq[min_k:max_k] &= temp_dq
         dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i+1] * q)
         error[min_k:max_k] += (sp.error[i]   * p * weight1 +
                                sp.error[i+1] * q * weight2)**2

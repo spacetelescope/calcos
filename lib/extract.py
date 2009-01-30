@@ -885,6 +885,10 @@ def updateArchiveSearch (ofd):
     outdata = ofd[1].data
     nrows = outdata.shape[0]
     wavelength = outdata.field ("WAVELENGTH")
+    try:
+        dq_wgt = outdata.field ("DQ_WGT")
+    except KeyError:
+        dq_wgt = None
 
     #phdr.update ("SPECRES", 20000.)
     #if detector == "FUV":
@@ -898,9 +902,13 @@ def updateArchiveSearch (ofd):
     minwave = wavelength[0][0]
     maxwave = wavelength[0][0]
     for row in range (nrows):
-        minwave_row = N.minimum.reduce (wavelength[row])
+        if dq_wgt is None:
+            good_wl = wavelength[row]
+        else:
+            good_wl = wavelength[row][dq_wgt[row] > 0.]
+        minwave_row = good_wl.min()
         minwave = min (minwave, minwave_row)
-        maxwave_row = N.maximum.reduce (wavelength[row])
+        maxwave_row = good_wl.max()
         maxwave = max (maxwave, maxwave_row)
 
     phdr.update ("MINWAVE", minwave)
@@ -1097,6 +1105,9 @@ def recomputeWavelengths (input):
     nelem_col = data.field ("NELEM")
     wl_col = data.field ("WAVELENGTH")
 
+    # To correct for the extra pixels (if any) in the dispersion direction.
+    x_offset = hdr.get ("x_offset", 0)
+
     for row in range (len (data)):
 
         segment = segment_col[row]
@@ -1124,6 +1135,7 @@ def recomputeWavelengths (input):
             delta = 0.
 
         pixel -= shift1
+        pixel -= x_offset
         wl_col[row][0:nelem] = cosutil.evalDisp (pixel, coeff, delta)
         del disp_info
 

@@ -125,6 +125,9 @@ def timetagBasicCalibration (input, inpha, outtag,
 
     doGeocorr (events, info, switches, reffiles, phdr)
 
+    # Set this array of flags again, after geometric correction.
+    setActiveArea (events, info, reffiles["brftab"])
+
     # Copy columns to xdopp, xfull, yfull so we'll have default values.
     copyColumns (events)
 
@@ -226,10 +229,14 @@ def setActiveArea (events, info, brftab):
     if info["detector"] == "FUV":
         (b_low, b_high, b_left, b_right) = \
                 cosutil.activeArea (info["segment"], brftab)
-        active_area = N.where (xi > b_right, 0, active_area)
-        active_area = N.where (xi < b_left,  0, active_area)
-        active_area = N.where (eta > b_high, 0, active_area)
-        active_area = N.where (eta < b_low,  0, active_area)
+        (b_low, b_high, b_left, b_right) = \
+                       (b_low+2, b_high-2, b_left+2, b_right-2)
+        active_area = N.where (xi > b_right, False, active_area)
+        active_area = N.where (xi < b_left,  False, active_area)
+        active_area = N.where (eta > b_high, False, active_area)
+        active_area = N.where (eta < b_low,  False, active_area)
+        # Make sure the data type is still boolean.
+        active_area = active_area.astype (N.bool8)
 
 def updateGlobrate (info, hdr):
     """Update the GLOBRATE keyword in the extension header.
@@ -1198,7 +1205,7 @@ def doGeocorr (events, info, switches, reffiles, phdr):
 
 def doDqicorr (events, input, info, switches, reffiles,
                stim_param,
-               phdr, hdr, minmax_shifts=None):
+               phdr, hdr, minmax_shifts):
     """Create a data quality array, initialized from the DQI table.
 
     arguments:
@@ -1252,23 +1259,26 @@ def doDqicorr (events, input, info, switches, reffiles,
                           events.field ("dq"))
             del dq_info
 
-        # Copy values from the bpixtab to the dq_array, applying an offset
-        # depending on the Doppler shift.
+        # Copy values from the bpixtab to the dq_array, applying offsets
+        # depending on the wavecal shift and the Doppler shift.
         (doppmag, doppzero, orbitper) = dopplerParam (info,
                                 reffiles["disptab"], switches["doppcorr"])
-        cosutil.updateDQArray (reffiles["bpixtab"], info, switches["doppcorr"],
-                      doppmag, doppzero, orbitper, dq_array, minmax_shifts)
+        minmax_doppler = cosutil.minmaxDoppler (info, switches["doppcorr"],
+                               doppmag, doppzero, orbitper)
+        cosutil.updateDQArray (reffiles["bpixtab"], info, dq_array,
+                               minmax_shifts, minmax_doppler)
 
         # Flag regions that are outside any subarray as out of bounds.
         cosutil.flagOutOfBounds (phdr, hdr, dq_array, stim_param,
                                  info, switches,
                                  reffiles["brftab"], reffiles["geofile"],
-                                 minmax_shifts)
+                                 minmax_shifts, minmax_doppler)
 
         # Flag the region that is outside the active area.
         if info["detector"] == "FUV":
             cosutil.flagOutsideActiveArea (dq_array,
-                        info["segment"], reffiles["brftab"])
+                        info["segment"], reffiles["brftab"],
+                        minmax_shifts, minmax_doppler)
 
         phdr["dqicorr"] = "COMPLETE"
 
@@ -2218,6 +2228,17 @@ def writeImages (x, y, epsilon, dq,
     # First make an image array in which each input event counts as one,
     # i.e. ignoring flat field and deadtime corrections.
     C_rate = N.zeros (npix, dtype=N.float32)
+
+    if exptime <= 0:
+        cosutil.printWarning ("Exposure time is zero, so output files are dummy.")
+        E_rate = C_rate.copy()
+        errE_rate = C_rate.copy()
+        if outcounts is not None:
+            makeImage (outcounts, phdr, hdr, E_rate, errE_rate, dq_array)
+        if output is not None:
+            makeImage (output, phdr, hdr, E_rate, errE_rate, dq_array)
+        return
+
     ccos.binevents (x, y, C_rate, x_offset, dq, serious_dq_flags)
 
     errC_rate = N.sqrt (C_rate) / exptime
@@ -2323,6 +2344,18 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector,
     fd[0].header.update ("nextend", 1)
     fd[0].header.update ("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename (fd[0].header, outcsum)
+
+    # Copy the subarray keywords to the primary header.
+    fd[0].header.update ("nsubarry", hdr.get ("nsubarry", 0))
+    for i in range (8):
+        x_corner_kwd = "corner%1dx" % i
+        y_corner_kwd = "corner%1dy" % i
+        x_size_kwd = "size%1dx" % i
+        y_size_kwd = "size%1dy" % i
+        fd[0].header.update (x_corner_kwd, hdr.get (x_corner_kwd, -1))
+        fd[0].header.update (y_corner_kwd, hdr.get (y_corner_kwd, -1))
+        fd[0].header.update (x_size_kwd, hdr.get (x_size_kwd, -1))
+        fd[0].header.update (y_size_kwd, hdr.get (y_size_kwd, -1))
 
     if detector == "FUV":
         if pha is None:

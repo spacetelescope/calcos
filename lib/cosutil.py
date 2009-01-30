@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-import math                     # for floor and ceil
 import os
 import shutil
 import sys
@@ -577,9 +576,48 @@ def getInputDQ (input):
 
     return dq_array
 
-def updateDQArray (bpixtab, info, doppcorr,
-                   doppmag, doppzero, orbitper,
-                   dq_array, minmax_shifts=None):
+def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
+    """Compute the range of Doppler shifts.
+
+    @param info: keywords and values
+    @type info: dictionary
+    @param doppcorr: if doppcorr = "PERFORM", shift DQ positions to track
+        Doppler shift during exposure
+    @type doppcorr: string
+    @param doppmag: magnitude (pixels) of Doppler shift
+    @type doppmag: int or float
+    @param doppzero: time (MJD) when Doppler shift is zero and increasing
+    @type doppzero: float
+    @param orbitper: orbital period (s) of HST
+    @type orbitper: float
+
+    @return: minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
+    @rtype: tuple
+    """
+
+    if doppcorr == "PERFORM":
+        expstart = info["expstart"]
+        exptime  = info["exptime"]
+        axis = 2 - info["dispaxis"]     # 1 --> 1,  2 --> 0
+
+        # time is the time in seconds since doppzero.
+        nelem = int (round (exptime))           # one element per sec
+        nelem = max (nelem, 1)
+        time = N.arange (nelem, dtype=N.float64) + \
+                   (expstart - doppzero) * SEC_PER_DAY
+
+        # shift is in pixels (wavelengths increase toward larger pixel number).
+        shift = -doppmag * N.sin (2. * N.pi * time / orbitper)
+        mindopp = shift.min()
+        maxdopp = shift.max()
+    else:
+        mindopp = 0.
+        maxdopp = 0.
+
+    return (mindopp, maxdopp)
+
+def updateDQArray (bpixtab, info, dq_array,
+                   minmax_shifts, minmax_doppler):
     """Apply the data quality initialization table to DQ array.
 
     dq_array is a 2-D array, to be written as the DQ extension in an
@@ -593,49 +631,23 @@ def updateDQArray (bpixtab, info, doppcorr,
     @type bpixtab: string
     @param info: keywords and values
     @type info: dictionary
-    @param doppcorr: if doppcorr = "PERFORM", shift DQ positions to track
-        Doppler shift during exposure
-    @type doppcorr: string
-    @param doppmag: magnitude (pixels) of Doppler shift
-    @type doppmag: int or float
-    @param doppzero: time (MJD) when Doppler shift is zero and increasing
-    @type doppzero: float
-    @param orbitper: orbital period (s) of HST
-    @type orbitper: float
     @param dq_array: data quality image array (modified in-place)
     @type dq_array: numpy array
     @param minmax_shifts: the min and max offsets in the dispersion direction
         and the min and max offsets in the cross-dispersion direction during
         the exposure
     @type minmax_shifts: tuple
+    @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
+        doppcorr is omit)
+    @type minmax_doppler: tuple
     """
 
     dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
     if dq_info is None:
         return
 
-    if doppcorr == "PERFORM":
-        expstart = info["expstart"]
-        exptime  = info["exptime"]
-        axis = 2 - info["dispaxis"]     # 1 --> 1,  2 --> 0
-
-        # time is the time in seconds since doppzero.
-        nelem = int (round (exptime))           # one element per sec
-        nelem = max (nelem, 1)
-        time = N.arange (nelem, dtype=N.float32) + \
-                   (expstart - doppzero) * SEC_PER_DAY
-
-        # shift is in pixels (wavelengths increase toward larger pixel number).
-        shift = -doppmag * N.sin (2. * N.pi * time / orbitper)
-        mindopp = N.minimum.reduce (shift)
-        maxdopp = N.maximum.reduce (shift)
-        mindopp = int (round (mindopp))
-        maxdopp = int (round (maxdopp))
-        printMsg ("DOPPCORR was applied to BPIXTAB positions", VERBOSE)
-    else:
-        axis = -1                       # disable Doppler correction
-        mindopp = 0
-        maxdopp = 0
+    (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
+    (mindopp, maxdopp) = minmax_doppler
 
     # Update the 2-D data quality extension array from the DQI table info.
     lx = dq_info.field ("lx")
@@ -644,29 +656,27 @@ def updateDQArray (bpixtab, info, doppcorr,
     dy = dq_info.field ("dy")
     ux = lx + dx - 1
     uy = ly + dy - 1
-    if minmax_shifts is not None:
-        (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
-        if max_shift1 >= 0:
-            lx -= int (math.floor (max_shift1))
-            ux -= int (math.floor (min_shift1))
-        else:
-            lx -= int (math.floor (min_shift1))
-            ux -= int (math.floor (max_shift1))
-        if max_shift2 >= 0:
-            ly -= int (math.floor (max_shift2))
-            uy -= int (math.floor (min_shift2))
-        else:
-            ly -= int (math.floor (min_shift2))
-            uy -= int (math.floor (max_shift2))
+    if max_shift1 >= 0:
+        lx -= int (round (max_shift1))
+        ux -= int (round (min_shift1))
+    else:
+        lx -= int (round (min_shift1))
+        ux -= int (round (max_shift1))
+    if max_shift2 >= 0:
+        ly -= int (round (max_shift2))
+        uy -= int (round (min_shift2))
+    else:
+        ly -= int (round (min_shift2))
+        uy -= int (round (max_shift2))
 
-    lx += mindopp
-    ux += maxdopp
+    lx += int (round (mindopp))
+    ux += int (round (maxdopp))
 
     ccos.bindq (lx, ly, ux, uy, dq_info.field ("dq"),
                 dq_array, info["x_offset"])
 
 def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
-                     brftab, geofile, minmax_shifts=None):
+                     brftab, geofile, minmax_shifts, minmax_doppler):
     """Flag regions that are outside all subarrays (done in-place).
 
     @param phdr: the primary header
@@ -688,6 +698,9 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
         and the min and max offsets in the cross-dispersion direction during
         the exposure
     @type minmax_shifts: tuple
+    @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
+        doppcorr is omit)
+    @type minmax_doppler: tuple
     """
 
     if not phdr.has_key ("subarray"):
@@ -714,20 +727,19 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
     temp = dq_array.copy()
     (ny, nx) = dq_array.shape
 
+    # These are for shifting and smearing the out-of-bounds region into
+    # the subarray due to the wavecal offset and Doppler shift and their
+    # variation during the exposure.
     (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
-    # These are for shifting and smearing the out-of-bound region into
-    # the subarray due to the wavecal offset and its variation during
-    # the exposure.
-    if min_shift1 >= 0:
-        dx = int (math.floor (min_shift1))
-    else:
-        dx = int (math.ceil (max_shift1))
-    if min_shift2 >= 0:
-        dy = int (math.floor (min_shift2))
-    else:
-        dy = int (math.ceil (max_shift2))
-    xwidth = int (math.ceil (max_shift1 - min_shift1))
-    ywidth = int (math.ceil (max_shift2 - min_shift2))
+    (mindopp, maxdopp) = minmax_doppler
+
+    dx = min_shift1
+    dy = min_shift2
+    dx -= maxdopp
+    dx = int (round (dx))
+    dy = int (round (dy))
+    xwidth = int (round (max_shift1 - min_shift1 + maxdopp - mindopp))
+    ywidth = int (round (max_shift2 - min_shift2))
 
     # get a list of subarray locations
     subarrays = []
@@ -907,6 +919,54 @@ def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
     y1 = min (y1, ny)
     temp[y0:y1,x0:x1] = DQ_OK
 
+def flagOutsideActiveArea (dq_array, segment, brftab,
+                           minmax_shifts, minmax_doppler):
+    """Flag the region that is outside the active area.
+
+    This is only relevant for FUV data.
+
+    @param dq_array: 2-D data quality array, modified in-place
+    @type dq_array: numpy array
+    @param segment: segment name (FUVA or FUVB)
+    @type segment: string
+    @param brftab: name of baseline reference table
+    @type brftab: string
+    @param minmax_shifts: the min and max offsets in the dispersion direction
+        and the min and max offsets in the cross-dispersion direction during
+        the exposure
+    @type minmax_shifts: tuple
+    """
+
+    if segment[0:3] != "FUV":
+        return
+
+    (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
+
+    # These are for shifting and smearing the out-of-bounds region into
+    # the active region due to the wavecal offset and Doppler shift and
+    # their variation during the exposure.
+    (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
+    (mindopp, maxdopp) = minmax_doppler
+
+    b_left -= int (round (min_shift1))
+    b_right -= int (round (max_shift1))
+    b_low -= int (round (min_shift2))
+    b_high -= int (round (max_shift2))
+
+    b_left += int (round (maxdopp))
+    b_right += int (round (mindopp))
+
+    (ny, nx) = dq_array.shape
+
+    if b_low >= 0:
+        dq_array[0:b_low,:]    |= DQ_OUT_OF_BOUNDS
+    if b_high < ny-1:
+        dq_array[b_high+1:,:]  |= DQ_OUT_OF_BOUNDS
+    if b_left >= 0:
+        dq_array[:,0:b_left]   |= DQ_OUT_OF_BOUNDS
+    if b_right < nx-1:
+        dq_array[:,b_right+1:] |= DQ_OUT_OF_BOUNDS
+
 def getGeoData (geofile, segment):
     """Open and read the geofile.
 
@@ -952,32 +1012,6 @@ def getGeoData (geofile, segment):
     fd.close()
 
     return (x_data, origin_x, xbin, y_data, origin_y, ybin)
-
-def flagOutsideActiveArea (dq_array, segment, brftab):
-    """Flag the region that is outside the active area.
-
-    This is only relevant for FUV data.
-
-    @param dq_array: 2-D data quality array, modified in-place
-    @type dq_array: numpy array
-    @param segment: segment name (FUVA or FUVB)
-    @type segment: string
-    @param brftab: name of baseline reference table
-    @type brftab: string
-    """
-
-    if segment[0:3] != "FUV":
-        return
-
-    (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
-    dq_array[0:b_low,:]    = N.bitwise_or (dq_array[0:b_low,:],
-                                           DQ_OUT_OF_BOUNDS)
-    dq_array[b_high+1:,:]  = N.bitwise_or (dq_array[b_high+1:,:],
-                                           DQ_OUT_OF_BOUNDS)
-    dq_array[:,0:b_left]   = N.bitwise_or (dq_array[:,0:b_left],
-                                           DQ_OUT_OF_BOUNDS)
-    dq_array[:,b_right+1:] = N.bitwise_or (dq_array[:,b_right+1:],
-                                           DQ_OUT_OF_BOUNDS)
 
 def tableHeaderToImage (thdr):
     """Rename table WCS keywords to image WCS keywords.

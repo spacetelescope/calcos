@@ -178,9 +178,10 @@ def getNcounts (sci):
     @rtype: integer
     """
 
-    ncounts = N.sum (sci.ravel())
-    if type (ncounts) is types.FloatType:
-        ncounts = int (round (ncounts))
+    ncounts = sci.sum (dtype=N.float64)
+    # The value returned by sum() is an "array scalar," so convert it.
+    ncounts = float (ncounts)
+    ncounts = int (round (ncounts))
 
     return ncounts
 

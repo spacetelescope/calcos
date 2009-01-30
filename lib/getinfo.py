@@ -178,6 +178,23 @@ def getGeneralInfo (phdr, hdr):
     if info["tagflash"] and info["numflash"] < 1:
         info["tagflash"] = False
 
+    # Reset the subarray flag if the "subarray" is the entire detector.
+    if info["subarray"]:
+        if info["detector"] == "FUV":
+            # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
+            if info["segment"] == "FUVA":
+                sub_number = "0"
+            else:
+                sub_number = "4"
+        else:
+            sub_number = "0"
+        xsize = hdr.get (["size"+sub_number+"x"], default=0)
+        ysize = hdr.get (["size"+sub_number+"y"], default=0)
+        if info["detector"] == "FUV" and xsize == FUV_X and ysize == FUV_Y:
+            info["subarray"] = False
+        elif xsize == NUV_X and ysize == NUV_Y:
+            info["subarray"] = False
+
     return info
 
 def getSwitchValues (phdr):

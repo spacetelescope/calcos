@@ -78,6 +78,11 @@ xy_collapse collapses events along the dispersion direction.
 		extractband, and xy_extract.  Add clear_rows.
 		Remove axis, mindopp, maxdopp from bindq, and replace
 		dx, dy with ux, uy (upper limits, inclusive).
+2009 Jan 23	In csum_2d, change the data type of the input x and y from
+		int16 to float32 (because the xcorr & ycorr columns are now
+		float32 for both FUV and NUV), and change both bin3DtoCsum
+		and bin2DtoCsum to use nearest integer to convert the input
+		x and y pixel coordinates to integer indices.
 */
 
 # include <Python.h>
@@ -187,7 +192,7 @@ static void bin3DtoCsum (float [], int, int, int,
 		float [], float [],
 		float [], short [], int);
 static void bin2DtoCsum (float [], int, int,
-		short [], short [], float [], int);
+		float [], float [], float [], int);
 
 /* This function returns the documentation string to be assigned to
    __doc__.
@@ -3445,8 +3450,8 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = x[n];
-	    j = y[n];
+	    i = NINT (x[n]);
+	    j = NINT (y[n]);
 	    k = pha[n];
 
 	    /* truncate at borders of image */
@@ -3463,7 +3468,7 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
    csum_2d (array, x, y, epsilon)
 
     array     io: the output 2-D array (float32)
-    x, y       i: arrays of pixel coordinates of the events (int16)
+    x, y       i: arrays of pixel coordinates of the events (float32)
     epsilon    i: array of weights for the events (float32)
 
    ccos_csum_2d calls bin2DtoCsum, which converts arrays of pixel
@@ -3489,8 +3494,8 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 	if (array == NULL)
 	    return NULL;
 
-	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_INT16, NPY_IN_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_INT16, NPY_IN_ARRAY);
+	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32, NPY_IN_ARRAY);
+	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32, NPY_IN_ARRAY);
 
 	epsilon = (PyArrayObject *)PyArray_FROM_OTF (oepsilon, NPY_FLOAT32,
 			NPY_IN_ARRAY);
@@ -3503,7 +3508,7 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 	ny = PyArray_DIM (array, 0);
 
 	bin2DtoCsum ((float *)PyArray_DATA (array), nx, ny,
-		(short *)PyArray_DATA (x), (short *)PyArray_DATA (y),
+		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
 		(float *)PyArray_DATA (epsilon), n_events);
 
 	Py_DECREF (array);
@@ -3518,7 +3523,8 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 /* This is called by ccos_csum_2d. */
 
 static void bin2DtoCsum (float array[], int nx, int ny,
-		short x[], short y[], float epsilon[], int n_events) {
+		float x[], float y[],
+		float epsilon[], int n_events) {
 
 	int n;		/* loop index for events */
 	int i, j;	/* pixel coordinates of event, indices in 2-D array */
@@ -3526,8 +3532,8 @@ static void bin2DtoCsum (float array[], int nx, int ny,
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = x[n];
-	    j = y[n];
+	    i = NINT (x[n]);
+	    j = NINT (y[n]);
 
 	    /* truncate at borders of image */
 	    if (i < 0 || i >= nx || j < 0 || j >= ny)

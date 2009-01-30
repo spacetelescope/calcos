@@ -535,6 +535,8 @@ class ConcurrentWavecal (object):
             else:
                 delta = 0.
             pixel -= shift1         # correct the wavelengths for the shift
+            # Correct for any extra pixels in the dispersion direction.
+            pixel -= self.info["x_offset"]
             wavelength = cosutil.evalDisp (pixel, coeff, delta)
 
         self.ofd[1].data.field ("segment")[row] = filter["segment"]
