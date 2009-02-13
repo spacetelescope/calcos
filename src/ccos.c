@@ -203,9 +203,8 @@ static char *DocString (void) {
 	return (
 "This module contains the following functions:\n\n\
     binevents (x, y, array, x_offset,\n\
-                <optional:  dq, epsilon>)\n\
-    bindq (lx, ly, dx, dy, flag, dq_array, x_offset\n\
-                <optional:  axis, mindopp, maxdopp>)\n\
+                <optional:  dq, sdqflags, epsilon>)\n\
+    bindq (lx, ly, ux, uy, flag, dq_array, x_offset)\n\
     applydq (lx, ly, dx, dy, flag, x, y, dq)\n\
     applyflat (x, y, epsilon, flat,\n\
                 <optional:  origin_x, origin_y>)\n\
@@ -232,7 +231,7 @@ static char *DocString (void) {
                 half_block, max_iter,\n\
                 large_burst, small_burst, dq_burst, verbose)\n\
     getbadtime (time, dq)\n\n\
-    xy_extract (xi, eta, outdata, slope, intercept, x_offset\n\
+    xy_extract (xi, eta, outdata, slope, intercept, x_offset,\n\
                 <optional:  dq, sdqflags, epsilon>)\n\
     xy_collapse (xi, eta, dq, slope, xdisp)\n\
     csum_3d (array, x, y, epsilon, pha)\n\

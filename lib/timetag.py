@@ -78,7 +78,10 @@ def timetagBasicCalibration (input, inpha, outtag,
     if info["obsmode"] == "TIME-TAG":
         nrows = cosutil.writeOutputEvents (input, outtag)
     ofd = pyfits.open (outtag, mode="update")
-    nrows = len (ofd["EVENTS"].data)
+    if ofd["EVENTS"].data is None:
+        nrows = 0
+    else:
+        nrows = len (ofd["EVENTS"].data)
 
     # Get a copy of the primary header.  This copy will be modified and
     # written to the output image files.
@@ -1275,8 +1278,7 @@ def doDqicorr (events, input, info, switches, reffiles,
                                  minmax_shifts, minmax_doppler)
 
         # Flag the region that is outside the active area.
-        if info["detector"] == "FUV":
-            cosutil.flagOutsideActiveArea (dq_array,
+        cosutil.flagOutsideActiveArea (dq_array,
                         info["segment"], reffiles["brftab"],
                         minmax_shifts, minmax_doppler)
 
@@ -2605,20 +2607,27 @@ def getWavecalOffsets (events):
 
     global active_area
 
-    xi  = events.field (xdopp)
-    eta = events.field (ycorr)
-    xi_full  = events.field (xfull)
-    eta_full = events.field (yfull)
+    if active_area.any():
+        xi  = events.field (xdopp)
+        eta = events.field (ycorr)
+        xi_full  = events.field (xfull)
+        eta_full = events.field (yfull)
 
-    xdiff = xi - xi_full
-    ydiff = eta - eta_full
-    xdiff = xdiff[active_area]
-    ydiff = ydiff[active_area]
+        xdiff = xi - xi_full
+        ydiff = eta - eta_full
+        xdiff = xdiff[active_area]
+        ydiff = ydiff[active_area]
 
-    min_shift1 = xdiff.min()
-    max_shift1 = xdiff.max()
-    min_shift2 = ydiff.min()
-    max_shift2 = ydiff.max()
+        min_shift1 = xdiff.min()
+        max_shift1 = xdiff.max()
+        min_shift2 = ydiff.min()
+        max_shift2 = ydiff.max()
+    else:
+        # active_area is all False.
+        min_shift1 = 0.
+        max_shift1 = 0.
+        min_shift2 = 0.
+        max_shift2 = 0.
 
     return (min_shift1, max_shift1, min_shift2, max_shift2)
 

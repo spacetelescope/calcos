@@ -101,7 +101,7 @@ def getGeneralInfo (phdr, hdr):
         info["npix"] = (FUV_Y, FUV_EXTENDED_X)
         info["x_offset"] = FUV_X_OFFSET
     else:
-        if info["obsmode"] == "IMAGING":
+        if info["obstype"] == "IMAGING":
             info["npix"] = (NUV_Y, NUV_X)
             info["x_offset"] = 0
         else:
@@ -188,8 +188,8 @@ def getGeneralInfo (phdr, hdr):
                 sub_number = "4"
         else:
             sub_number = "0"
-        xsize = hdr.get (["size"+sub_number+"x"], default=0)
-        ysize = hdr.get (["size"+sub_number+"y"], default=0)
+        xsize = hdr.get ("size"+sub_number+"x", default=0)
+        ysize = hdr.get ("size"+sub_number+"y", default=0)
         if info["detector"] == "FUV" and xsize == FUV_X and ysize == FUV_Y:
             info["subarray"] = False
         elif xsize == NUV_X and ysize == NUV_Y:

@@ -885,9 +885,9 @@ def updateArchiveSearch (ofd):
     outdata = ofd[1].data
     nrows = outdata.shape[0]
     wavelength = outdata.field ("WAVELENGTH")
-    try:
+    if cosutil.findColumn (outdata, "dq_wgt"):
         dq_wgt = outdata.field ("DQ_WGT")
-    except KeyError:
+    else:
         dq_wgt = None
 
     #phdr.update ("SPECRES", 20000.)

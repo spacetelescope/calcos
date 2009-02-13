@@ -542,14 +542,14 @@ def getInputDQ (input):
 
     hdr = fd[("DQ",1)].header
     detector = fd[0].header["detector"]
-    obsmode = fd[0].header["obsmode"]
+    obstype = fd[0].header["obstype"]
 
     # this section for npix and x_offset is based on getinfo.getGeneralInfo
     if detector == "FUV":
         npix = (FUV_Y, FUV_EXTENDED_X)
         x_offset = FUV_X_OFFSET
     else:
-        if obsmode == "IMAGING":
+        if obstype == "IMAGING":
             npix = (NUV_Y, NUV_X)
             x_offset = 0
         else:
@@ -656,18 +656,10 @@ def updateDQArray (bpixtab, info, dq_array,
     dy = dq_info.field ("dy")
     ux = lx + dx - 1
     uy = ly + dy - 1
-    if max_shift1 >= 0:
-        lx -= int (round (max_shift1))
-        ux -= int (round (min_shift1))
-    else:
-        lx -= int (round (min_shift1))
-        ux -= int (round (max_shift1))
-    if max_shift2 >= 0:
-        ly -= int (round (max_shift2))
-        uy -= int (round (min_shift2))
-    else:
-        ly -= int (round (min_shift2))
-        uy -= int (round (max_shift2))
+    lx -= int (round (max_shift1))
+    ux -= int (round (min_shift1))
+    ly -= int (round (max_shift2))
+    uy -= int (round (min_shift2))
 
     lx += int (round (mindopp))
     ux += int (round (maxdopp))
@@ -703,9 +695,7 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
     @type minmax_doppler: tuple
     """
 
-    if not phdr.has_key ("subarray"):
-        return
-    if not phdr["subarray"]:
+    if not info["subarray"]:
         return
 
     nsubarrays = hdr.get ("nsubarry", 0)
@@ -936,9 +926,6 @@ def flagOutsideActiveArea (dq_array, segment, brftab,
         the exposure
     @type minmax_shifts: tuple
     """
-
-    if segment[0:3] != "FUV":
-        return
 
     (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
 
