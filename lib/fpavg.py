@@ -9,9 +9,10 @@ from calcosparam import *       # parameter definitions
 def fpAvgSpec (input, output):
     """Average 1-D extracted FP-POS spectra.
 
-    arguments:
-        input         a list of one or more input x1d file names
-        output        name of a file for the averaged spectra
+    @param input: name(s) of the input x1d files
+    @type input: list of strings
+    @param output: name of a file for the averaged spectra
+    @type output: string
 
     It is assumed that the arrays in all the input tables have the same
     length, but the output spectra will in general be longer than the
@@ -47,9 +48,60 @@ def fpAvgSpec (input, output):
     cosutil.printFilenames (names)
 
     if nfiles == 1:
-        cosutil.copyFile (input[0], output)
+        oneInputFile (input[0], output)
     else:
         outspec = OutputX1D (input, output)
+
+def oneInputFile (input, output):
+    """Copy input to output, setting values to zero if dq_wgt is zero.
+
+    @param input: name of the (one) input x1d file
+    @type input: string
+    @param output: name of a file for the modified copy of input
+    @type output: string
+    """
+
+    fd = pyfits.open (input, mode="readonly")
+    data = fd[1].data
+    if data is None:
+        fd.close()
+        cosutil.copyFile (input, output)
+        return
+
+    flux = data.field ("flux")
+    error = data.field ("error")
+    gross = data.field ("gross")
+    net = data.field ("net")
+    background = data.field ("background")
+    dq_wgt = data.field ("dq_wgt")
+
+    for row in range (len (data)):
+        flux[row,:] = N.where (dq_wgt[row] <= 0., 0., flux[row])
+        error[row,:] = N.where (dq_wgt[row] <= 0., 0., error[row])
+        gross[row,:] = N.where (dq_wgt[row] <= 0., 0., gross[row])
+        net[row,:] = N.where (dq_wgt[row] <= 0., 0., net[row])
+        background[row,:] = N.where (dq_wgt[row] <= 0., 0., background[row])
+
+    cosutil.updateFilename (fd[0].header, output)
+    delSomeKeywords (fd[1].header)
+
+    fd.writeto (output)
+    fd.close()
+
+def delSomeKeywords (hdr):
+    """Delete exposure-specific keywords.
+
+    @param hdr: 
+    @type hdr: pyfits Header object
+    """
+
+    # These keywords are exposure-specific and are not relevant
+    # to the entire association.
+    for key in ["shift1a", "shift1b", "shift1c",
+                "shift2a", "shift2b", "shift2c",
+                "dpixel1a", "dpixel1b", "dpixel1c"]:
+        if hdr.has_key (key):
+            del (hdr[key])
 
 def pixelsFromWl (input_wavelength, output_wavelength):
     """Find pixel numbers in input corresponding to wavelengths in output.
@@ -328,13 +380,8 @@ class OutputX1D (object):
         hdu.header.update ("plantime", self.keywords["plantime"])
         hdu.header.update ("globrate", self.keywords["globrate"])
 
-        # These keywords are exposure-specific and are not relevant
-        # to the entire association.
-        for key in ["shift1a", "shift1b", "shift1c",
-                    "shift2a", "shift2b", "shift2c",
-                    "dpixel1a", "dpixel1b", "dpixel1c"]:
-            if hdu.header.has_key (key):
-                del (hdu.header[key])
+        # Delete some keywords because they are specific to one exposure.
+        delSomeKeywords (hdu.header)
 
         ofd.append (hdu)
         self.fpInitData (ofd)           # initialize data in output hdu
@@ -380,7 +427,9 @@ class OutputX1D (object):
         if nrows <= 0 or len (wavelength[0]) < 1:
             return
 
-        minwave = wavelength[0][0]
+        nelem = len (wavelength[0])
+        # This initial value assumes wavelengths increase with pixel number.
+        minwave = wavelength[0][nelem-1]
         maxwave = wavelength[0][0]
         for row in range (nrows):
             good_wl = wavelength[row][dq_wgt[row] > 0.]

@@ -8,6 +8,7 @@ import getopt
 import glob
 import copy
 
+import numpy
 import pyfits
 import accum
 import average
@@ -212,6 +213,8 @@ def calcos (asntable, outdir=None, verbosity=None,
 
     t0 = time.time()
     cosutil.printMsg ("CALCOS version " + CALCOS_VERSION)
+    cosutil.printMsg ("numpy version " + numpy.__version__)
+    cosutil.printMsg ("pyfits version " + pyfits.__version__)
     cosutil.printMsg ("Begin " + cosutil.returnTime(), VERBOSE)
 
     # Check that NUMERIX is set to numpy (or is not set at all).
@@ -334,7 +337,7 @@ class Association (object):
                              prefix to the memnames in asn_info
         outdir             name of output directory, or an empty string
         combine            a dictionary of lists of file names to be
-                             averaged (i.e. individual repeatobs or fp-split
+                             averaged (i.e. individual repeatobs or fp-pos
                              exposures)
         concat             pairs of files of 1-D extracted FUV spectra for
                              segments A and B that need to be concatenated;
@@ -479,10 +482,10 @@ class Association (object):
                         concat_info["output"] = obs.filenames["x1d"]
                         if obs.info["tagflash"]:
                             concat_info_flash["output"] = obs.filenames["flash"]
-                    if obs.exp_type == EXP_SCIENCE and \
-                       self.product is not None:        # only for imaging data
+                    if obs.exp_type == EXP_SCIENCE and self.product is not None:
+                        # only for imaging data
                         self.updateCombineFlt (obs.filenames,
-                                  obs.info["obstype"])
+                                               obs.info["obstype"])
                         if first:
                             self.updateCombineX1d (obs.filenames,
                                   obs.info["fppos"], obs.info["obstype"])
@@ -984,7 +987,8 @@ class Association (object):
             "wcptab":   ["2.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
             "xtractab": ["2.0", "1-D EXTRACTION PARAMETERS TABLE"],
             "disptab":  ["2.0", "DISPERSION RELATION REFERENCE TABLE"],
-            "phottab":  ["2.0", "PHOTOMETRIC SENSITIVITY REFERENCE TABLE"],
+            "fluxtab":  ["2.0", "PHOTOMETRIC SENSITIVITY REFERENCE TABLE"],
+            "imphttab": ["2.0", "IMAGING PHOTOMETRIC TABLE"],
             "tdstab":   ["2.0", "TIME DEPENDENT SENSITIVITY TABLE"],
             "brsttab":  ["2.0", "BURST PARAMETERS TABLE"]
         }
@@ -1043,11 +1047,17 @@ class Association (object):
                     missing, wrong_filetype, bad_version)
 
         if switches["fluxcorr"] == "PERFORM":
-            cosutil.findRefFile (ref["phottab"],
+            cosutil.findRefFile (ref["fluxtab"],
                     missing, wrong_filetype, bad_version)
             if switches["tdscorr"] == "PERFORM":
                 cosutil.findRefFile (ref["tdstab"],
                         missing, wrong_filetype, bad_version)
+
+        if switches["photcorr"] == "PERFORM":
+            # xxx commented out because we don't have this table yet
+            # cosutil.findRefFile (ref["imphttab"],
+            #         missing, wrong_filetype, bad_version)
+            pass
 
         if len (missing) > 0:
             msg = "The following reference file"
@@ -1182,6 +1192,8 @@ class Association (object):
                 self.checkExists (obs.filenames["x1d_x"], wavecal_exists)
                 if obs.filenames["x1d"] != obs.filenames["x1d_x"]:
                     self.checkExists (obs.filenames["x1d"], wavecal_exists)
+                if self.create_csum_image:
+                    self.checkExists (obs.filenames["csum"], wavecal_exists)
             else:
                 if obs.info["obsmode"] == "TIME-TAG":
                     self.checkExists (obs.filenames["corrtag"], already_exists)
@@ -1588,9 +1600,11 @@ class Observation (object):
                              % info["dispaxis"])
                 info["dispaxis"] = 0
             if info["exptype"] == "WAVECAL":
-                bad = 1
-                cosutil.printError (
-                "OBSTYPE = IMAGING and EXPTYPE = WAVECAL is invalid")
+                warn = 1
+                cosutil.printWarning (
+                "OBSTYPE = IMAGING and EXPTYPE = WAVECAL;"
+                " EXPTYPE will be reset to EXTERNAL/CAL")
+                info["exptype"] = "EXTERNAL/CAL"
         elif info["obstype"] == "SPECTROSCOPIC":
             if info["dispaxis"] == 2:
                 warn = 1
@@ -2346,6 +2360,8 @@ class Calibration (object):
 
         shift_dict = wavecal.returnExactMatch (self.wavecal_info,
                              filenames["root"])
+        if shift_dict is None:
+            return
 
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
@@ -2377,6 +2393,8 @@ class Calibration (object):
                 "stimXslx", "stimXsly", "stimXsrx", "stimXsry",
                 "pha_badX", "phalowrX", "phaupprX",
                 "sp_loc_X", "sp_slp_X",
+                "b_bkg1_X", "b_bkg2_X",
+                "b_hgt1_X", "b_hgt2_X",
                 "shift1X", "shift2X", "dpixel1X"]
         a_kwds = []
         b_kwds = []
@@ -2423,8 +2441,10 @@ class Calibration (object):
                     continue
 
                 if len (infiles) == 1:
-                    if infiles[0] != output:
+                    if os.access (infiles[0], os.R_OK) and infiles[0] != output:
                         cosutil.renameFile (infiles[0], output)
+                    else:
+                        continue
                 else:
                     extract.concatenateFUVSegments (infiles, output)
                     if not self.assoc.save_temp_files:

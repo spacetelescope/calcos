@@ -74,7 +74,7 @@ def writeOutputEvents (infile, outfile):
     if detector == "FUV":
         outdata.field ("PHA")[:] = indata.field ("PHA")
     else:
-        outdata.field ("PHA")[:] = 255
+        outdata.field ("PHA")[:] = 0
 
     primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
     ofd = pyfits.HDUList (primary_hdu)
@@ -121,6 +121,77 @@ def createCorrtagHDU (nrows, detector, header):
     hdu = pyfits.new_table (cd, header=header, nrows=nrows)
 
     return hdu
+
+def copyExptimeKeywords (inhdr, outhdr):
+    """Copy the exposure time keywords from one header to another.
+
+    This is for copying the exposure time keywords from the input extension
+    header to the primary header of the csum file.
+
+    @param inhdr: input header
+    @type inhdr: pyfits Header object
+    @param outhdr: output header
+    @type outhdr: pyfits Header object
+    """
+
+    outhdr.update ("expstart", inhdr.get ("expstart", -999.))
+    outhdr.update ("expend", inhdr.get ("expend", -999.))
+    exptime = inhdr.get ("exptime", -999.)
+    outhdr.update ("exptime", exptime)
+    outhdr.update ("rawtime", inhdr.get ("rawtime", exptime))
+
+def copyVoltageKeywords (inhdr, outhdr, detector):
+    """Copy keywords for high voltages from one header to another.
+
+    This is for copying the high voltage keywords from the input extension
+    header to the primary header of the csum file.
+
+    @param inhdr: input header
+    @type inhdr: pyfits Header object
+    @param outhdr: output header
+    @type outhdr: pyfits Header object
+    @param detector: FUV or NUV
+    @type detector: string
+    """
+
+    if detector == "FUV":
+        outhdr.update ("dethvla", inhdr.get ("dethvla", -999.))
+        outhdr.update ("dethvlb", inhdr.get ("dethvlb", -999.))
+        outhdr.update ("dethvca", inhdr.get ("dethvca", -999.))
+        outhdr.update ("dethvcb", inhdr.get ("dethvcb", -999.))
+        outhdr.update ("dethvna", inhdr.get ("dethvna", -999.))
+        outhdr.update ("dethvnb", inhdr.get ("dethvnb", -999.))
+    elif detector == "NUV":
+        outhdr.update ("dethvl", inhdr.get ("dethvl", -999.))
+        outhdr.update ("dethvc", inhdr.get ("dethvc", -999.))
+
+def copySubKeywords (inhdr, outhdr, subarray):
+    """Copy the subarray keywords from one header to another.
+
+    This is for copying the subarray keywords from the input extension
+    header to the primary header of the csum file.
+
+    @param inhdr: input header
+    @type inhdr: pyfits Header object
+    @param outhdr: output header
+    @type outhdr: pyfits Header object
+    @param subarray: True if the exposure used one or more subarrays
+    @type subarray: boolean
+    """
+
+    if subarray:
+        outhdr.update ("nsubarry", inhdr.get ("nsubarry", 0))
+    else:
+        outhdr.update ("nsubarry", 0)
+    for i in range (8):
+        x_corner_kwd = "corner%1dx" % i
+        y_corner_kwd = "corner%1dy" % i
+        x_size_kwd = "size%1dx" % i
+        y_size_kwd = "size%1dy" % i
+        outhdr.update (x_corner_kwd, inhdr.get (x_corner_kwd, -1))
+        outhdr.update (y_corner_kwd, inhdr.get (y_corner_kwd, -1))
+        outhdr.update (x_size_kwd, inhdr.get (x_size_kwd, -1))
+        outhdr.update (y_size_kwd, inhdr.get (y_size_kwd, -1))
 
 def dummyGTI (exptime):
     """Return a GTI table.
@@ -546,9 +617,11 @@ def getInputDQ (input):
 
     # this section for npix and x_offset is based on getinfo.getGeneralInfo
     if detector == "FUV":
+        len_raw = FUV_X
         npix = (FUV_Y, FUV_EXTENDED_X)
         x_offset = FUV_X_OFFSET
     else:
+        len_raw = NUV_X
         if obstype == "IMAGING":
             npix = (NUV_Y, NUV_X)
             x_offset = 0
@@ -1493,10 +1566,13 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
         if key.find ("_hdr") < 0 and phdr.has_key (key):
             phdr[key] = reffiles[key+"_hdr"]
 
-    for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", \
-                "obstype", "exptype"]:
+    for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype"]:
         if phdr.has_key (key):
             phdr[key] = info[key]
+    if phdr.has_key ("exptype"):
+        # Override exptype, except for the case of an imaging wavecal.
+        if info["obstype"] != "IMAGING" or info["targname"] != "WAVE":
+            phdr["exptype"] = info["exptype"]
 
     if hdr.has_key ("dispaxis"):
         hdr["dispaxis"] = info["dispaxis"]

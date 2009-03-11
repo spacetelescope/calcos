@@ -1,3 +1,4 @@
+import os
 import numpy as N
 from convolve import boxcar
 import pyfits
@@ -77,7 +78,7 @@ def extract1D (input, incounts=None, output=None,
     cosutil.printSwitch ("STATFLAG", switches)
     cosutil.printSwitch ("FLUXCORR", switches)
     if switches["fluxcorr"] == "PERFORM":
-        cosutil.printRef ("phottab", reffiles)
+        cosutil.printRef ("fluxtab", reffiles)
         cosutil.printSwitch ("TDSCORR", switches)
         if switches["tdscorr"] == "PERFORM":
             cosutil.printRef ("tdstab", reffiles)
@@ -87,9 +88,9 @@ def extract1D (input, incounts=None, output=None,
 
     # Set the default length of the dispersion axis.
     if info["detector"] == "FUV":
-        nelem = FUV_EXTENDED_X 
+        nelem = FUV_EXTENDED_X
     else:
-        nelem = NUV_EXTENDED_X 
+        nelem = NUV_EXTENDED_X
 
     if info["npix"] == (0,):
         nrows = 0
@@ -248,7 +249,6 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         if disp_info is None or xtract_info is None:
             continue
         slope = xtract_info.field ("slope")[0]
-        height = xtract_info.field ("height")[0]
 
         if is_wavecal:
             dpixel1 = 0.
@@ -295,13 +295,15 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
 
         if corrtag:
             if info["detector"] == "FUV":
-                axis_length = FUV_EXTENDED_X 
+                axis_length = FUV_EXTENDED_X
             else:
-                axis_length = NUV_EXTENDED_X 
-            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn) = \
-                extractCorrtag (xi, eta, dq, epsilon, hdr["sdqflags"],
-                    axis_length, snr_ff, hdr["exptime"], switches["backcorr"],
-                    xtract_info, shift2, xdisp_locn)
+                axis_length = NUV_EXTENDED_X
+            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i) = \
+                extractCorrtag (xi, eta, dq, epsilon,
+                                ofd[1].header, segment,
+                                hdr["sdqflags"], axis_length, snr_ff,
+                                hdr["exptime"], switches["backcorr"],
+                                xtract_info, shift2, xdisp_locn)
         else:
             if xdisp_locn is None and find_target:
                 y_nominal = xtract_info.field ("b_spec")[0] + shift2
@@ -313,13 +315,12 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                 #                x_offset, info["detector"], info["opt_elem"])
             else:
                 xd_locn = xdisp_locn    # updated by extractSegment()
-            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn) = \
+            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i) = \
              extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
-                    ifd_e["DQ"].data, x_offset, hdr["sdqflags"],
-                    snr_ff, hdr["exptime"], switches["backcorr"], axis,
-                    xtract_info, shift2, xd_locn, find_target)
-        updateExtractionKeywords (ofd[1].header, segment,
-                                  slope, height, xd_locn)
+                             ifd_e["DQ"].data, ofd[1].header, segment,
+                             x_offset, hdr["sdqflags"], snr_ff,
+                             hdr["exptime"], switches["backcorr"], axis,
+                             xtract_info, shift2, xd_locn, find_target)
         del xtract_info
 
         outdata.field ("SEGMENT")[row] = segment
@@ -453,9 +454,10 @@ def getSnrFf (switches, reffiles, segment):
 
     return snr_ff
 
-def extractSegment (e_data, c_data, e_dq_data, x_offset, sdqflags,
-                snr_ff, exptime, backcorr, axis,
-                xtract_info, shift2, xdisp_locn=None, find_target=False):
+def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
+                    x_offset, sdqflags, snr_ff,
+                    exptime, backcorr, axis,
+                    xtract_info, shift2, xdisp_locn=None, find_target=False):
 
     """Extract a 1-D spectrum for one segment or stripe.
 
@@ -467,6 +469,10 @@ def extractSegment (e_data, c_data, e_dq_data, x_offset, sdqflags,
     @type c_data: 2-D numpy array
     @param e_dq_data: DQ data from the flt file
     @type e_dq_data: 2-D numpy array
+    @param ofd_header: header of the output table (for updating keywords)
+    @type ofd_header: pyfits Header object
+    @param segment: FUVA or FUVB, etc. (only used for updating keywords)
+    @type segment: string
     @param x_offset: offset of the detector in the output array
     @type x_offset: int
     @param sdqflags: "serious" data quality flags
@@ -490,13 +496,8 @@ def extractSegment (e_data, c_data, e_dq_data, x_offset, sdqflags,
     @type find_target: boolean
 
     @return: net count rate, error estimate, gross count rate, background
-        count rate, data quality array, data quality weight array, xd_locn
-    @rtype: tuple of seven 1-D arrays
-
-    The xd_locn that is returned is either the user-specified value (if
-    it was specified) or the location based on the wavecal; in either case,
-    it's where the spectrum crosses the middle of the array, not the left
-    edge of the array.
+        count rate, data quality array, data quality weight array
+    @rtype: tuple of six 1-D arrays
 
     An "_ij" suffix indicates a 2-D array; here they will all be sections
     extracted from full images.  An "_i" suffix indicates a 1-D array
@@ -519,18 +520,26 @@ def extractSegment (e_data, c_data, e_dq_data, x_offset, sdqflags,
     extr_height     = xtract_info.field ("height")[0]
     b_bkg1          = xtract_info.field ("b_bkg1")[0]
     b_bkg2          = xtract_info.field ("b_bkg2")[0]
-    bkg_extr_height = xtract_info.field ("bheight")[0]
+    if cosutil.findColumn (xtract_info, "b_hgt1"):
+        bkg_height1  = xtract_info.field ("b_hgt1")[0]
+        bkg_height2  = xtract_info.field ("b_hgt2")[0]
+    else:
+        bkg_height1  = xtract_info.field ("bheight")[0]
+        bkg_height2  = bkg_height1
     bkg_smooth      = xtract_info.field ("bwidth")[0]
 
     axis_length = e_data.shape[axis]
 
+    # xd_locn is either the user-specified value (if it was specified) or the
+    # location based on the wavecal; in either case, it's where the spectrum
+    # crosses the middle of the array, not the left edge of the array.
     if xdisp_locn is None:
         if find_target:
             # (shift2, xd_locn) = xxx not implemented yet xxx
             b_spec = xd_locn - slope * (axis_length // 2)
         else:
             # add the shift to the nominal location; assign a value to xd_locn
-            # (which will be returned but not otherwise used)
+            # (which will be used to update a header keyword)
             b_spec += shift2
             xd_locn = b_spec + slope * (axis_length // 2 - x_offset)
     else:
@@ -576,14 +585,42 @@ def extractSegment (e_data, c_data, e_dq_data, x_offset, sdqflags,
     eps_i = N.where (e_i == 0., 1., eps_i)
     del e_ij, e_i
 
-    bkg_norm = float (extr_height) / (2. * float (bkg_extr_height))
+    bkg_norm = float (extr_height) / (float (bkg_height1 + bkg_height2))
     if backcorr == "PERFORM":
-        BK1_ij = N.zeros ((bkg_extr_height, axis_length), dtype=N.float32)
-        BK2_ij = N.zeros ((bkg_extr_height, axis_length), dtype=N.float32)
+        BK1_ij = N.zeros ((bkg_height1, axis_length), dtype=N.float32)
+        dq1_ij = N.zeros ((bkg_height1, axis_length), dtype=N.int16)
+        BK2_ij = N.zeros ((bkg_height2, axis_length), dtype=N.float32)
+        dq2_ij = N.zeros ((bkg_height2, axis_length), dtype=N.int16)
+        # Get the background data from the counts image.
         ccos.extractband (c_data, axis, slope, b_bkg1, x_offset, BK1_ij)
         ccos.extractband (c_data, axis, slope, b_bkg2, x_offset, BK2_ij)
+        # Get the data quality array from the flt file.
+        ccos.extractband (e_dq_data, axis, slope, b_bkg1, x_offset, dq1_ij)
+        ccos.extractband (e_dq_data, axis, slope, b_bkg2, x_offset, dq2_ij)
+        good1_ij = dq1_ij.copy()
+        good2_ij = dq2_ij.copy()
+        # In good[12]_ij, 1 means OK and 0 means bad.
+        good1_ij[:,:] = N.where (N.bitwise_and (dq1_ij, sdqflags), 0, 1)
+        good2_ij[:,:] = N.where (N.bitwise_and (dq2_ij, sdqflags), 0, 1)
+        # Use the good[12]_ij arrays as a mask to exclude bad data in the
+        # background regions.
+        BK1_ij *= good1_ij
+        BK2_ij *= good2_ij
         BK_i = BK1_ij.sum (axis=0) + BK2_ij.sum (axis=0)
-        BK_i = BK_i * bkg_norm
+
+        # The sum along axis=0 gives the number of good pixels in each column.
+        # Use this sum to correct (rescale) the background to account for
+        # pixels that are flagged as bad.
+        good_i = good1_ij.sum (axis=0, dtype=N.float32) + \
+                 good2_ij.sum (axis=0, dtype=N.float32)
+        # If good_i is zero, the background will also be zero, so it doesn't
+        # matter what we set good_i to as long as it's not zero (we're going
+        # to divide by it).
+        good_i = N.where (good_i > 0., good_i, 1.)
+        # Correct for regions excluded because they're flagged as bad.
+        BK_i *= (float (bkg_height1 + bkg_height2)) / good_i
+        # Scale the background to the spectral extraction height.
+        BK_i *= bkg_norm
         boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
     else:
         BK_i = N.zeros (axis_length, dtype=N.float32)
@@ -596,12 +633,21 @@ def extractSegment (e_data, c_data, e_dq_data, x_offset, sdqflags,
         term1_i = 0.
     term2_i = eps_i**2 * exptime * \
                 (GC_i + BK_i * (bkg_norm / float (bkg_smooth)))
-    ERR_i = N.sqrt (term1_i + term2_i) / exptime
+    if exptime > 0.:
+        ERR_i = N.sqrt (term1_i + term2_i) / exptime
+    else:
+        ERR_i = N_i * 0.
 
-    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn)
+    updateExtractionKeywords (ofd_header, segment,
+                              slope, extr_height, xd_locn,
+                              b_bkg1, b_bkg2, bkg_height1, bkg_height2)
 
-def extractCorrtag (xi, eta, dq, epsilon, sdqflags,
-                    axis_length, snr_ff, exptime, backcorr,
+    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i)
+
+def extractCorrtag (xi, eta, dq, epsilon,
+                    ofd_header, segment,
+                    sdqflags, axis_length, snr_ff,
+                    exptime, backcorr,
                     xtract_info, shift2, xdisp_locn=None):
     """Extract a 1-D spectrum for one segment or stripe.
 
@@ -613,7 +659,12 @@ def extractCorrtag (xi, eta, dq, epsilon, sdqflags,
     extr_height     = xtract_info.field ("height")[0]
     b_bkg1          = xtract_info.field ("b_bkg1")[0]
     b_bkg2          = xtract_info.field ("b_bkg2")[0]
-    bkg_extr_height = xtract_info.field ("bheight")[0]
+    if cosutil.findColumn (xtract_info, "b_hgt1"):
+        bkg_height1  = xtract_info.field ("b_hgt1")[0]
+        bkg_height2  = xtract_info.field ("b_hgt2")[0]
+    else:
+        bkg_height1  = xtract_info.field ("bheight")[0]
+        bkg_height2  = bkg_height1
     bkg_smooth      = xtract_info.field ("bwidth")[0]
 
     zero_pixel = 0              # offset into output spectrum
@@ -643,16 +694,15 @@ def extractCorrtag (xi, eta, dq, epsilon, sdqflags,
     eps_i = e_i / N.where (GC_i <= 0., 1., GC_i)
     del e_ij, e_i
 
-    bkg_norm = float (extr_height) / (2. * float (bkg_extr_height))
+    bkg_norm = float (extr_height) / (float (bkg_height1 + bkg_height2))
     if backcorr == "PERFORM":
-        BK1_ij = N.zeros ((bkg_extr_height, axis_length),
-                           dtype=N.float64)
-        BK2_ij = N.zeros ((bkg_extr_height, axis_length),
-                           dtype=N.float64)
+        BK1_ij = N.zeros ((bkg_height1, axis_length), dtype=N.float64)
+        BK2_ij = N.zeros ((bkg_height2, axis_length), dtype=N.float64)
         ccos.xy_extract (xi, eta, BK1_ij, slope, b_bkg1,
                          zero_pixel, dq, sdqflags)
         ccos.xy_extract (xi, eta, BK2_ij, slope, b_bkg2,
                          zero_pixel, dq, sdqflags)
+        # xxx need to correct for data excluded by sdqflags
         BK_i = BK1_ij.sum (axis=0) + BK2_ij.sum (axis=0)
         BK_i /= exptime
         BK_i *= bkg_norm
@@ -676,13 +726,17 @@ def extractCorrtag (xi, eta, dq, epsilon, sdqflags,
     # dummy weight array
     DQ_WGT_i = N.ones (axis_length, dtype=N.float32)
 
-    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i, xd_locn)
+    updateExtractionKeywords (ofd_header, segment,
+                              slope, extr_height, xd_locn,
+                              b_bkg1, b_bkg2, bkg_height1, bkg_height2)
+
+    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i)
 
 def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
     """Convert net counts to flux, updating flux and error columns.
 
     The correction to flux is made by dividing by the appropriate row
-    in the phottab.  If a time-dependent sensitivity table (tdstab) has
+    in the fluxtab.  If a time-dependent sensitivity table (tdstab) has
     been specified, the flux and error will be corrected to the time of
     observation.
 
@@ -715,17 +769,17 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
               "cenwave": cenwave,
               "aperture": aperture}
 
-    phottab = reffiles["phottab"]
+    fluxtab = reffiles["fluxtab"]
     for row in range (nrows):
         factor = N.zeros (len (flux[row]), dtype=N.float32)
         filter["segment"] = segment[row]
-        phot_info = cosutil.getTable (phottab, filter)
-        if phot_info is None:
+        flux_info = cosutil.getTable (fluxtab, filter)
+        if flux_info is None:
             flux[row][:] = 0.
         else:
             # Interpolate sensitivity at each wavelength.
-            wl_phot = phot_info.field ("wavelength")[0]
-            sens_phot = phot_info.field ("sensitivity")[0]
+            wl_phot = flux_info.field ("wavelength")[0]
+            sens_phot = flux_info.field ("sensitivity")[0]
             ccos.interp1d (wl_phot, sens_phot, wavelength[row], factor)
             factor = N.where (factor <= 0., 1., factor)
             flux[row][:] = net[row] / factor
@@ -855,23 +909,56 @@ def getTdsFactors (tdstab, filter, t_obs):
 
     return (wl_tds, factor_tds)
 
-def updateExtractionKeywords (hdr, segment, slope, height, xdisp_locn):
+def updateExtractionKeywords (hdr, segment, slope, height, xd__locn,
+                              b_bkg1, b_bkg2, bkg_height1, bkg_height2):
     """Update keywords giving the locations of extraction regions.
 
-    arguments:
-    hdr          output bintable hdu header
-    segment      FUVA or FUVB; NUVA, NUVB, or NUVC
-    slope        slope of spectrum
-    height       height of extraction box
-    xdisp_locn   location of the spectrum in the cross-dispersion direction
-                 (where it crosses the middle of the detector)
+    @param ofd_header: header of the output table
+    @type ofd_header: pyfits Header object
+    @param segment: FUVA or FUVB; NUVA, NUVB, or NUVC
+    @type segment: string
+    @param slope: slope of spectrum
+    @type slope: float
+    @param height: height of extraction box
+    @type height: int
+    @param xd__locn: location of the spectrum in the cross-dispersion
+        direction (where it crosses the middle of the detector)
+    @type xd__locn: float
+    @param b_bkg1: location of first background region (at left edge, as
+        read from the reference table)
+    @type b_bkg1: float
+    @param b_bkg2: location of second background region (at left edge, as
+        read from the reference table)
+    @type b_bkg2: float
+    @param bkg_height1: height of first background region
+    @type bkg_height1: int
+    @param bkg_height2: height of second background region
+    @type bkg_height2: int
     """
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
-    hdr.update (key, xdisp_locn)
+    hdr.update (key, xd__locn)
     key = "SP_SLP_" + segment[-1]           # SP_SLP_A, SP_SLP_B, SP_SLP_C
     hdr.update (key, slope)
-    hdr.update ("SP_WIDTH", height)
+    hdr.update ("SP_HGT", height)
+
+    # Adjust the values of the background locations to be where the regions
+    # cross the middle of the detector.
+    if segment[0] == "F":
+        tilt_offset = slope * FUV_X / 2.
+    else:
+        tilt_offset = slope * NUV_X / 2.
+    b_bkg1 += tilt_offset
+    b_bkg2 += tilt_offset
+
+    key = "B_BKG1_" + segment[-1]
+    hdr.update (key, b_bkg1)
+    key = "B_BKG2_" + segment[-1]
+    hdr.update (key, b_bkg2)
+    key = "B_HGT1_" + segment[-1]
+    hdr.update (key, bkg_height1)
+    key = "B_HGT2_" + segment[-1]
+    hdr.update (key, bkg_height2)
 
 def updateArchiveSearch (ofd):
     """Update the keywords giving min & max wavelengths, etc.
@@ -884,6 +971,7 @@ def updateArchiveSearch (ofd):
     detector = phdr["detector"]
     outdata = ofd[1].data
     nrows = outdata.shape[0]
+    segment = outdata.field ("SEGMENT")
     wavelength = outdata.field ("WAVELENGTH")
     if cosutil.findColumn (outdata, "dq_wgt"):
         dq_wgt = outdata.field ("DQ_WGT")
@@ -899,10 +987,15 @@ def updateArchiveSearch (ofd):
     if nrows <= 0 or len (wavelength[0]) < 1:
         return
 
-    minwave = wavelength[0][0]
+    nelem = len (wavelength[0])
+    # This initial value assumes wavelengths increase with pixel number.
+    minwave = wavelength[0][nelem-1]
     maxwave = wavelength[0][0]
     for row in range (nrows):
         if dq_wgt is None:
+            good_wl = wavelength[row]
+        elif dq_wgt[row].sum (dtype=N.float64) <= 0:
+            cosutil.printWarning ("DQ_WGT is all 0 for '%s'" % segment[row])
             good_wl = wavelength[row]
         else:
             good_wl = wavelength[row][dq_wgt[row] > 0.]
@@ -940,13 +1033,27 @@ def concatenateFUVSegments (infiles, output):
     output        output file name
     """
 
-    if len (infiles) != 2:
-        cosutil.printMsg ("Internal error")
-        raise RuntimeError, \
-            "There should have been exactly two file names in " + infiles
-
     cosutil.printMsg ("Concatenate " + repr (infiles) + " --> " + output, \
                 VERY_VERBOSE)
+
+    a_exists = os.access (infiles[0], os.R_OK)
+    b_exists = os.access (infiles[1], os.R_OK)
+    if not (a_exists or b_exists):
+        cosutil.printWarning ("Neither %s nor %s exists." %
+                              (infiles[0], infiles[1]), VERY_VERBOSE)
+        return
+
+    rename_file = ""
+    if a_exists and not b_exists:
+        rename_file = infiles[0]
+        missing = infiles[1]
+    if b_exists and not a_exists:
+        rename_file = infiles[1]
+        missing = infiles[0]
+    if rename_file:
+        cosutil.printWarning ("%s is missing.", VERY_VERBOSE)
+        cosutil.renameFile (rename_file, output)
+        return
 
     ifd_0 = pyfits.open (infiles[0], mode="readonly")
     ifd_1 = pyfits.open (infiles[1], mode="readonly")
@@ -993,6 +1100,8 @@ def concatenateFUVSegments (infiles, output):
                 "stimbslx", "stimbsly", "stimbsrx", "stimbsry",
                 "pha_badb", "phalowrb", "phaupprb",
                 "sp_loc_b", "sp_slp_b",
+                "b_bkg1_b", "b_bkg2_b",
+                "b_hgt1_b", "b_hgt2_b",
                 "shift1b", "shift2b", "dpixel1b"]:
         if seg_b[1].header.has_key (key):
             hdu.header.update (key, seg_b[1].header.get (key, -1.0))
@@ -1059,7 +1168,11 @@ def copyKeywordsToInput (output, input, incounts):
 
     for key in ["sp_loc_a", "sp_loc_b", "sp_loc_c",
                 "sp_slp_a", "sp_slp_b", "sp_slp_c",
-                "sp_width"]:
+                "sp_hgt",
+                "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",
+                "b_bkg2_a", "b_bkg2_b", "b_bkg2_c",
+                "b_hgt1_a", "b_hgt1_b", "b_hgt1_c",
+                "b_hgt2_a", "b_hgt2_b", "b_hgt2_c"]:
         value = ofd[1].header.get (key, -999.)
         ifd_e[1].header.update (key, value)
         if incounts is not None:

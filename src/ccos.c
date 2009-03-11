@@ -83,6 +83,11 @@ xy_collapse collapses events along the dispersion direction.
 		float32 for both FUV and NUV), and change both bin3DtoCsum
 		and bin2DtoCsum to use nearest integer to convert the input
 		x and y pixel coordinates to integer indices.
+2009 Feb 23	Change ccos_range to convert time to float64, instead of
+		accepting either float32 or float64.  Change timeRange to
+		cast time to a float or double array (still allows either)
+		when calling search or search_d, and change those functions
+		to accept a float or double array rather than a PyArrayObject.
 */
 
 # include <Python.h>
@@ -145,8 +150,8 @@ static int applyDQToEvents (int [], int [],
 static void applyFlatField (PyArrayObject *, PyArrayObject *,
 	PyArrayObject *, PyArrayObject *, int, int);
 static PyObject *timeRange (PyArrayObject *, double, double);
-static int search (PyArrayObject *, int, float);
-static int search_d (PyArrayObject *, int, double);
+static int search (float [], int, float);
+static int search_d (double [], int, double);
 static int unbinImage (PyArrayObject *, int, float [], float[], int);
 static int addRN (float [], int, int, int);
 static int convolveWithDopp (PyArrayObject *, int, int, float [], int, int);
@@ -859,7 +864,7 @@ static void applyFlatField (PyArrayObject *x, PyArrayObject *y,
 
    indices = range (time, t0, t1)
 
-    time       i: array of times of the events (either float32 or float64)
+    time       i: array of times of the events (read as float64)
     t0, t1     i: the times for which the indices are needed (double)
 
     indices    o: a two-element tuple of the indices in the time array
@@ -884,13 +889,8 @@ static PyObject *ccos_range (PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (otime) == NPY_FLOAT32) {
-	    time = (PyArrayObject *)PyArray_FROM_OTF (otime, NPY_FLOAT32,
+	time = (PyArrayObject *)PyArray_FROM_OTF (otime, NPY_FLOAT64,
 		NPY_IN_ARRAY);
-	} else {
-	    time = (PyArrayObject *)PyArray_FROM_OTF (otime, NPY_FLOAT64,
-		NPY_IN_ARRAY);
-	}
 	if (time == NULL)
 	    return NULL;
 
@@ -941,11 +941,11 @@ static PyObject *timeRange (PyArrayObject *time, double t0, double t1) {
 	}
 
 	if (time_type == NPY_FLOAT32) {
-	    i0 = search (time, n_events, (float)t0);
-	    i1 = search (time, n_events, (float)t1);
+	    i0 = search ((float *)PyArray_DATA (time), n_events, (float)t0);
+	    i1 = search ((float *)PyArray_DATA (time), n_events, (float)t1);
 	} else {
-	    i0 = search_d (time, n_events, t0);
-	    i1 = search_d (time, n_events, t1);
+	    i0 = search_d ((double *)PyArray_DATA (time), n_events, (float)t0);
+	    i1 = search_d ((double *)PyArray_DATA (time), n_events, (float)t1);
 	}
 
 	indices = Py_BuildValue ("(i,i)", i0, i1);
@@ -968,7 +968,7 @@ static PyObject *timeRange (PyArrayObject *time, double t0, double t1) {
    intuitive.
 */
 
-static int search (PyArrayObject *time, int n_events, float t) {
+static int search (float time[], int n_events, float t) {
 
 	int low, high;		/* current limits of search range */
 	int mid;		/* middle of search range */
@@ -977,16 +977,16 @@ static int search (PyArrayObject *time, int n_events, float t) {
 	low = 0;
 	high = n_events - 1;
 
-	if (t <= *(float *)PyArray_GETPTR1 (time, 0))
+	if (t <= time[0])
 	    return (0);
 
-	if (t >= *(float *)PyArray_GETPTR1 (time, high))
+	if (t >= time[high])
 	    return (high + 1);
 
 	while (high - low > 1) {
 
 	    mid = (low + high) / 2;
-	    t_mid = *(float *)PyArray_GETPTR1 (time, mid);
+	    t_mid = time[mid];
 
 	    if (t <= t_mid)
 		high = mid;
@@ -999,7 +999,7 @@ static int search (PyArrayObject *time, int n_events, float t) {
 
 /* This is a double precision version of search. */
 
-static int search_d (PyArrayObject *time, int n_events, double t) {
+static int search_d (double time[], int n_events, double t) {
 
 	int low, high;
 	int mid;
@@ -1008,16 +1008,16 @@ static int search_d (PyArrayObject *time, int n_events, double t) {
 	low = 0;
 	high = n_events - 1;
 
-	if (t <= *(double *)PyArray_GETPTR1 (time, 0))
+	if (t <= time[0])
 	    return (0);
 
-	if (t >= *(double *)PyArray_GETPTR1 (time, high))
+	if (t >= time[high])
 	    return (high + 1);
 
 	while (high - low > 1) {
 
 	    mid = (low + high) / 2;
-	    t_mid = *(double *)PyArray_GETPTR1 (time, mid);
+	    t_mid = time[mid];
 
 	    if (t <= t_mid)
 		high = mid;

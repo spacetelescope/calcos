@@ -129,20 +129,18 @@ def getGeneralInfo (phdr, hdr):
         info["tagflash"] = False
         info["tagflash_type"] = TAGFLASH_TYPE_NONE
 
-    #if info["obstype"] == "SPECTROSCOPY":
-    #    info["obstype"] = "SPECTROSCOPIC"
-    #    cosutil.printWarning ("OBSTYPE = SPECTROSCOPY" \
-    #                          " has been changed to SPECTROSCOPIC")
-
     # Engineering keywords relevant to deadtime correction.
 
     if info["detector"] == "FUV":
         if info["segment"] == "FUVA":
-            info["countrate"] = phdr.get ("DEVENTA", default=0.)
+            countrate = phdr.get ("DEVENTA", default=0.)
+            info["countrate"] = hdr.get ("DEVENTA", default=countrate)
         else:
-            info["countrate"] = phdr.get ("DEVENTB", default=0.)
+            countrate = phdr.get ("DEVENTB", default=0.)
+            info["countrate"] = hdr.get ("DEVENTB", default=countrate)
     else:
-        info["countrate"] = phdr.get ("MEVENTS", default=0.)
+        countrate = phdr.get ("MEVENTS", default=0.)
+        info["countrate"] = hdr.get ("MEVENTS", default=countrate)
 
     # Now get keywords from the extension header.
 
@@ -157,7 +155,7 @@ def getGeneralInfo (phdr, hdr):
     keylist = {
         "dispaxis":  0,
         "tc2_2":     1.,        # dispersion for spectroscopic data
-        "sdqflags":  3832,      # 8 + 16 + 32 + 64 + 128 + 512 + 1024 + 2048
+        "sdqflags":  184,       # 8 + 16 + 32 + 128
         "nsubarry":  0,
         "numflash":  0,
         "exptime":  -1.,
@@ -215,7 +213,7 @@ def getSwitchValues (phdr):
     for key in ["dqicorr", "randcorr", "tempcorr", "geocorr", "igeocorr",
                 "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
                 "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
-                "fluxcorr", "tdscorr", "statflag"]:
+                "fluxcorr", "photcorr", "tdscorr", "statflag"]:
         switches[key]  = cosutil.getSwitch (phdr, key)
 
     return switches
@@ -241,10 +239,20 @@ def getRefFileNames (phdr):
 
     for key in ["flatfile", "bpixtab", "brftab", "geofile",
                 "deadtab", "phatab", "brsttab", "badttab",
-                "xtractab", "lamptab", "disptab", "phottab",
+                "xtractab", "lamptab", "disptab",
+                "fluxtab", "imphttab", "phottab",
                 "wcptab", "tdstab"]:
         reffiles[key+"_hdr"] = phdr.get (key, default=NOT_APPLICABLE)
         reffiles[key] = cosutil.expandFileName (reffiles[key+"_hdr"])
+
+    if phdr["obstype"] == "SPECTROSCOPIC":
+        if phdr.get ("fluxtab", "missing") == "missing":
+            reffiles["fluxtab"] = reffiles["phottab"]
+            reffiles["fluxtab_hdr"] = reffiles["phottab_hdr"]
+    else:
+        if phdr.get ("imphttab", "missing") == "missing":
+            reffiles["imphttab"] = reffiles["phottab"]
+            reffiles["imphttab_hdr"] = reffiles["phottab_hdr"]
 
     return reffiles
 
@@ -271,7 +279,8 @@ def resetSwitches (switches, reffiles):
     #               "deadcorr": ["deadtab"],
     #               "geocorr": ["geofile"],
     #               "x1dcorr": ["xtractab", "disptab"],
-    #               "fluxcorr": ["phottab"]}
+    #               "fluxcorr": ["fluxtab"],
+    #               "photcorr": ["imphttab"]}
 
     for switch_key in check_these.keys():
         not_specified = []

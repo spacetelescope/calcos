@@ -8,6 +8,7 @@ import cosutil
 import burst
 import ccos
 import concurrent
+import phot
 import wavecal
 from calcosparam import *       # parameter definitions
 
@@ -96,7 +97,7 @@ def timetagBasicCalibration (input, inpha, outtag,
     events_hdu = ofd["EVENTS"]
 
     if nrows == 0:
-        writeNull (input, output, outcounts, phdr, events_hdu)
+        writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu)
         ofd.close()
         return 1
 
@@ -105,6 +106,8 @@ def timetagBasicCalibration (input, inpha, outtag,
     events = events_hdu.data
 
     setActiveArea (events, info, reffiles["brftab"])
+
+    doPhotcorr (info, switches, reffiles["imphttab"], phdr, ofd[1].header)
 
     updateGlobrate (info, events_hdu.header)
 
@@ -147,7 +150,8 @@ def timetagBasicCalibration (input, inpha, outtag,
         else:
             pha = None
         writeCsum (events.field (xcorr), events.field (ycorr),
-                   events.field ("epsilon"), pha, info["detector"],
+                   events.field ("epsilon"), pha,
+                   info["detector"], info["subarray"],
                    phdr, events_hdu.header,
                    outcsum)
 
@@ -240,6 +244,29 @@ def setActiveArea (events, info, brftab):
         active_area = N.where (eta < b_low,  False, active_area)
         # Make sure the data type is still boolean.
         active_area = active_area.astype (N.bool8)
+
+def doPhotcorr (info, switches, imphttab, phdr, hdr):
+    """Update photometry parameter keywords for imaging data.
+
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param imphttab: the name of the imaging photometric parameters table
+    @type imphttab: string
+    @param phdr: the primary header, photcorr keyword updated in-place
+    @type phdr: pyfits Header object
+    @param hdr: the first extension header, updated in-place
+    @type hdr: pyfits Header object
+    """
+
+    if info["obstype"] == "IMAGING" and info["detector"] == "NUV":
+        cosutil.printSwitch ("PHOTCORR", switches)
+        if switches["photcorr"] == "PERFORM":
+            obsmode = "cos,nuv," + info["opt_elem"] + "," + info["aperture"]
+            obsmode = obsmode.lower()
+            phot.doPhot (imphttab, obsmode, hdr)
+            phdr.update ("photcorr", "COMPLETE")
 
 def updateGlobrate (info, hdr):
     """Update the GLOBRATE keyword in the extension header.
@@ -820,6 +847,10 @@ def computeThermalParam (time, x, y, dq,
         try:
             (i, j) = ccos.range (time, t0, t1)
         except:
+            t0 = t1
+            t1 = t0 + dt_thermal
+            continue
+        if i >= j:              # i and j can be equal due to roundoff
             t0 = t1
             t1 = t0 + dt_thermal
             continue
@@ -1894,12 +1925,14 @@ def deadtimeCorrection (events, deadtab, info,
         dead_rate = actual_countrate
         dead_method = "DATA"
     else:
-        livetime_source = "digital event counter"
         dead_rate = dec_countrate
         if info["detector"] == "FUV":
             dead_method = "DEVENT"
+            keyword = "DEVENT" + info["segment"][-1]
         else:
             dead_method = "MEVENTS"
+            keyword = "MEVENTS"
+        livetime_source = "digital event counter (%s)" % keyword
 
     if print_details:
         printLiveInfo (segment, stim_countrate, stim_livetime,
@@ -1926,6 +1959,10 @@ def deadtimeCorrection (events, deadtab, info,
         t0 = time[0]
         t1 = t0 + dt_deadtime
         last_time = time[nevents-1]
+        cosutil.printMsg ("  time range    rate   livetime", VERY_VERBOSE)
+        last_livetime = 1.      # use this for saving previous value
+        countrate = 0.
+        first = True
         while t0 < last_time:
 
             # time[i:j] matches t0 to t1.
@@ -1935,20 +1972,40 @@ def deadtimeCorrection (events, deadtab, info,
                 t0 = t1
                 t1 = t0 + dt_deadtime
                 continue
+            t1_for_printing = t1        # may be changed below
+            if i >= j:          # i and j can be equal due to roundoff
+                t0 = t1
+                t1 = t0 + dt_deadtime
+                continue
 
             if t1 < last_time:
-                countrate = (j - i + 1.) / dt_deadtime
+                countrate = (j - i) / dt_deadtime
+                livetime = determineLivetime (countrate, obs_rate, live_factor)
             elif t0 < last_time:
-                countrate = (j - i + 1.) / (last_time - t0)
+                t1_for_printing = last_time
+                if (last_time - t0) < 0.5 * dt_deadtime and not first:
+                    livetime = last_livetime
+                    cosutil.printMsg ("Last time interval is short (%.6g s),"
+                                      " so previous livetime will be used." %
+                                      (last_time - t0,))
+                else:
+                    countrate = (j - i) / (last_time - t0)
+                    livetime = determineLivetime (countrate,
+                                                  obs_rate, live_factor)
             else:
                 countrate = 0.
-            livetime = determineLivetime (countrate, obs_rate, live_factor)
+                livetime = 1.
             if livetime > 0.:
                 epsilon[i:j] = epsilon[i:j] / livetime
+                last_livetime = livetime
+            first = False
 
             if fd is not None:
                 fd.write ("%.0f %.0f %.6g %.6g\n" %
-                          (t0, t1, countrate, livetime))
+                          (t0, t1_for_printing, countrate, livetime))
+            cosutil.printMsg ("%6.1f %6.1f   %.6g %.6g" %
+                              (t0, t1_for_printing, countrate, livetime),
+                              VERY_VERBOSE)
 
             t0 = t1
             t1 = t0 + dt_deadtime
@@ -2051,10 +2108,10 @@ def deadtimeCorrectionAccum (events, deadtab, info,
         print_details = True
 
     if print_details:
-        cosutil.printMsg ("  countrate and livetime from %s:  %.6g, %6.4f" % \
-                          (keyword, dec_countrate, dec_livetime))
         cosutil.printMsg ("  actual countrate and livetime:  %.6g, %6.4f" % \
                           (actual_countrate, actual_rate_livetime))
+        cosutil.printMsg ("  countrate and livetime from %s:  %.6g, %6.4f" % \
+                          (keyword, dec_countrate, dec_livetime))
         cosutil.printMsg ("Livetime %6.4f is based on %s." % \
                           (livetime, livetime_source))
         if info["detector"] == "FUV":
@@ -2067,10 +2124,10 @@ def deadtimeCorrectionAccum (events, deadtab, info,
                                   (stim_countrate, stim_livetime))
 
     if fd is not None:
-        fd.write ("countrate and livetime from %s:  %.6g, %6.4f\n" %
-                  (keyword, dec_countrate, dec_livetime))
         fd.write ("actual countrate and livetime:  %.6g, %6.4f\n" %
                   (actual_countrate, actual_rate_livetime))
+        fd.write ("countrate and livetime from %s:  %.6g, %6.4f\n" %
+                  (keyword, dec_countrate, dec_livetime))
         fd.write ("livetime %6.4f is based on %s.\n" % \
                   (livetime, livetime_source))
         if info["detector"] == "FUV":
@@ -2112,7 +2169,6 @@ def printLiveInfo (segment, stim_countrate, stim_livetime,
         keyword = "DEVENTB"
     else:
         keyword = "MEVENTS"
-    livetime_source = livetime_source + " (%s)" % keyword
 
     messages = []
     if segment == "FUVA" or segment == "FUVB":
@@ -2171,7 +2227,7 @@ def determineLivetime (countrate, obs_rate, live_factor):
 
     return livetime
 
-def writeNull (input, output, outcounts, phdr, events_hdu):
+def writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu):
     """Write output files; images will have null data portions.
 
     The outtag file has already been written, so we only need to write
@@ -2181,6 +2237,9 @@ def writeNull (input, output, outcounts, phdr, events_hdu):
     input         name of input file
     output        name of the output file for flat-fielded count-rate image
     outcounts     name of the output file for count-rate image
+    outcsum       name of the output image for OPUS to add to cumulative
+                      image (or None)
+    info          dictionary of header keywords and values
     phdr          primary header
     events_hdu    hdu for events extension
     """
@@ -2188,6 +2247,11 @@ def writeNull (input, output, outcounts, phdr, events_hdu):
     cosutil.printWarning ("No data in " + input)
     makeImage (outcounts, phdr, events_hdu.header, None, None, None)
     makeImage (output, phdr, events_hdu.header, None, None, None)
+    if outcsum is not None:
+        # pha has to be not None to get the correct dimensions for FUV.
+        writeCsum (None, None, None, N.zeros (1, dtype=N.int8),
+                   info["detector"], info["subarray"],
+                   phdr, events_hdu.header, outcsum)
 
 def writeImages (x, y, epsilon, dq,
                  phdr, hdr, dq_array, npix, x_offset, exptime,
@@ -2313,7 +2377,7 @@ def makeImageHDU (fd, table_hdr, data_array, name="SCI"):
     hdu = pyfits.ImageHDU (data=data_array, header=imhdr, name=name)
     fd.append (hdu)
 
-def writeCsum (xcorr, ycorr, epsilon, pha, detector,
+def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
                phdr, hdr, outcsum):
     """Write the "calcos sum" (csum) image.
 
@@ -2327,6 +2391,8 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector,
     @type pha: numpy array
     @param detector: "FUV" or "NUV"
     @type detector: string
+    @param subarray: True if the exposure used one or more subarrays
+    @type subarray: boolean
     @param phdr: primary header from input file
     @type phdr: pyfits Header object
     @param hdr: first extension (EVENTS) header from input file
@@ -2347,36 +2413,36 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector,
     fd[0].header.update ("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename (fd[0].header, outcsum)
 
-    # Copy the subarray keywords to the primary header.
-    fd[0].header.update ("nsubarry", hdr.get ("nsubarry", 0))
-    for i in range (8):
-        x_corner_kwd = "corner%1dx" % i
-        y_corner_kwd = "corner%1dy" % i
-        x_size_kwd = "size%1dx" % i
-        y_size_kwd = "size%1dy" % i
-        fd[0].header.update (x_corner_kwd, hdr.get (x_corner_kwd, -1))
-        fd[0].header.update (y_corner_kwd, hdr.get (y_corner_kwd, -1))
-        fd[0].header.update (x_size_kwd, hdr.get (x_size_kwd, -1))
-        fd[0].header.update (y_size_kwd, hdr.get (y_size_kwd, -1))
+    # Copy the exposure time keywords to the output primary header.
+    cosutil.copyExptimeKeywords (hdr, fd[0].header)
+
+    # Copy the high-voltage keywords to the output primary header.
+    cosutil.copyVoltageKeywords (hdr, fd[0].header, detector)
+
+    # Copy the subarray keywords to the output primary header.
+    cosutil.copySubKeywords (hdr, fd[0].header, subarray)
 
     if detector == "FUV":
         if pha is None:
             fd.append (pyfits.ImageHDU (data=N.zeros ((FUV_Y, FUV_X),
                                                       dtype=N.float32),
                                         header=hdr, name="SCI"))
-            ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
+            if xcorr is not None:
+                ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
         else:
             fd.append (pyfits.ImageHDU (data=N.zeros ((PULSE_HEIGHT_RANGE,
                                                              FUV_Y, FUV_X),
                                                       dtype=N.float32),
                                         header=hdr, name="SCI"))
-            ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
-                          pha.astype(N.int16))
+            if xcorr is not None:
+                ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
+                              pha.astype(N.int16))
     else:
         fd.append (pyfits.ImageHDU (data=N.zeros ((NUV_Y, NUV_X),
                                                   dtype=N.float32),
                                     header=hdr, name="SCI"))
-        ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
+        if xcorr is not None:
+            ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
 
     fd[0].header.update ("counts", fd[1].data.sum())
     fd[1].header.update ("BUNIT", "count")
@@ -2534,6 +2600,9 @@ def updateFromWavecal (events, wavecal_info,
     t0 = time[0]
 
     key = "shift1" + segment[-1].lower()
+    if not (shift_dict.has_key (key) and slope_dict.has_key (key)):
+        cosutil.printError ("There is no wavecal for segment %s." % segment)
+        return (0., 0., None)
     shift1_zero = shift_dict[key]
     shift1_slope = slope_dict[key]
     if info["detector"] == "FUV":

@@ -749,12 +749,27 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
     # y0 nor y1 will be less than zero or greater than 1023.
     y0 = int (round (y_nominal - xd_range))
     y1 = int (round (y_nominal + xd_range)) + 1
+    if y0 < 0 or y1 >= len (xdisp):
+        cosutil.printWarning ("XD_RANGE in WCPTAB is too large.")
+        y0 = max (y0, 0)
+        y1 = min (y1, len (xdisp) - 1)
 
     xdisp_sm = boxcar (xdisp, (box,), mode="nearest")
 
     index = N.argsort (xdisp_sm[y0:y1])
     y = y0 + index[-1]
-    signal = xdisp[y]                   # actual value, not smoothed
+    signal = xdisp_sm[y]                # value in smoothed array
+    # Check for duplicate values.
+    y_min = y
+    y_max = y
+    while y_min > 0 and xdisp_sm[y_min] == signal:
+        y_min -= 1
+    while y_max < len (xdisp_sm) and xdisp_sm[y_max] == signal:
+        y_max += 1
+    y_float = float (y_min + y_max) / 2.
+    y = int (round (y_float))
+
+    # Find the background level.
     i = index[(y1-y0)//2]
     background = xdisp_sm[y0+i]         # median of smoothed array
 
