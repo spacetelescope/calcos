@@ -1309,8 +1309,9 @@ def doDqicorr (events, input, info, switches, reffiles,
                                  minmax_shifts, minmax_doppler)
 
         # Flag the region that is outside the active area.
-        cosutil.flagOutsideActiveArea (dq_array,
-                        info["segment"], reffiles["brftab"],
+        if info["detector"] == "FUV":
+            cosutil.flagOutsideActiveArea (dq_array,
+                        info["segment"], reffiles["brftab"], info["x_offset"],
                         minmax_shifts, minmax_doppler)
 
         phdr["dqicorr"] = "COMPLETE"

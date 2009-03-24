@@ -768,13 +768,7 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
     @type minmax_doppler: tuple
     """
 
-    if not info["subarray"]:
-        return
-
-    nsubarrays = hdr.get ("nsubarry", 0)
-    if nsubarrays < 1:
-        return
-
+    nsubarrays = info["nsubarry"]
     x_offset = info["x_offset"]
     detector = info["detector"]
     segment = info["segment"]
@@ -830,14 +824,21 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
     if not subarrays:
         # Create one full-size "subarray" in order to account for the NUV
         # image being larger than the detector and because of fpoffset.
-        sub["x0"] = 0
-        sub["y0"] = 0
+        sub = {}
+        x0 = 0
+        y0 = 0
         if detector == "FUV":
-            sub["x1"] = FUV_X
-            sub["y1"] = FUV_Y
+            xsize = FUV_X
+            ysize = FUV_Y
         else:
-            sub["x1"] = NUV_X
-            sub["y1"] = NUV_Y
+            xsize = NUV_X
+            ysize = NUV_Y
+        x1 = x0 + xsize - xwidth
+        y1 = y0 + ysize - ywidth
+        sub["x0"] = x0
+        sub["y0"] = x0
+        sub["x1"] = x1
+        sub["y1"] = y1
         subarrays.append (sub)
 
     # Initially flag the entire image as out of bounds, then remove the
@@ -982,7 +983,7 @@ def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
     y1 = min (y1, ny)
     temp[y0:y1,x0:x1] = DQ_OK
 
-def flagOutsideActiveArea (dq_array, segment, brftab,
+def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
                            minmax_shifts, minmax_doppler):
     """Flag the region that is outside the active area.
 
@@ -994,6 +995,8 @@ def flagOutsideActiveArea (dq_array, segment, brftab,
     @type segment: string
     @param brftab: name of baseline reference table
     @type brftab: string
+    @param x_offset: offset of raw_template in the extended template
+    @type x_offset: int
     @param minmax_shifts: the min and max offsets in the dispersion direction
         and the min and max offsets in the cross-dispersion direction during
         the exposure
@@ -1015,6 +1018,9 @@ def flagOutsideActiveArea (dq_array, segment, brftab,
 
     b_left += int (round (maxdopp))
     b_right += int (round (mindopp))
+
+    b_left += x_offset
+    b_right += x_offset
 
     (ny, nx) = dq_array.shape
 
