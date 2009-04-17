@@ -1,5 +1,6 @@
-import distutils.core
 import distutils
+import distutils.core
+import distutils.sysconfig
 
 try:
     import numpy
