@@ -1,4 +1,5 @@
 import math
+import os
 import time
 import numpy as N
 from numpy import random
@@ -157,11 +158,13 @@ def timetagBasicCalibration (input, inpha, outtag,
 
     doFlatcorr (events, info, switches, reffiles, phdr)
 
-    if info["obstype"] == "SPECTROSCOPIC":
+    if info["obstype"] == "SPECTROSCOPIC" and \
+       switches["wavecorr"] == "PERFORM":
         if info["tagflash"]:
             (avg_dx, avg_dy, shift1_vs_time) = \
                     concurrent.processConcurrentWavecal (events, outflash,
                         info, switches, reffiles, phdr, events_hdu.header)
+            phdr.update ("wavecals", os.path.basename (input))
         else:
             (avg_dx, avg_dy, shift1_vs_time) = \
                     updateFromWavecal (events, wavecal_info,
@@ -1354,9 +1357,9 @@ def dopplerParam (info, disptab, doppcorr):
             else:
                 filter["segment"] = "NUVB"
                 middle = float (NUV_X) / 2.
-            if cosutil.findColumn (disptab, "fpoffset"):
-                filter["fpoffset"] = info["fpoffset"]
-            disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
+            # Use at_least_one instead of exactly_one in case there is an
+            # fpoffset column in the disptab.
+            disp_info = cosutil.getTable (disptab, filter, at_least_one=True)
             ncoeff = disp_info.field ("nelem")[0]
             coeff = disp_info.field ("coeff")[0][0:ncoeff]
             # get the dispersion (disp) at the middle of the detector
@@ -1412,17 +1415,17 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
         wcptab = reffiles["wcptab"]
         if info["detector"] == "FUV":
             # This array of flags indicates which events should be corrected.
-            shift_flags = fuvDopplerRegions (eta, info, xtractab)
+            region_flags = fuvDopplerRegions (eta, info, xtractab)
             # Apply the orbital Doppler correction to the flagged events.
-            dopp[:] = N.where (shift_flags, \
+            dopp[:] = N.where (region_flags, \
                                dopplerCorrection (events.field ("time"),
                                            xi, info, reffiles),
                                xi)
         else:
-            shift_flags_dict = nuvDopplerRegions (eta, info, xtractab)
+            region_flags_dict = nuvPsaRegions (eta, info, xtractab)
             dopp[:] = xi
             for stripe in ["NUVA", "NUVB", "NUVC"]:
-                dopp[:] = N.where (shift_flags_dict[stripe], \
+                dopp[:] = N.where (region_flags_dict[stripe], \
                                    dopplerCorrection (events.field ("time"),
                                            xi, info, reffiles, stripe=stripe),
                                    dopp)
@@ -1451,7 +1454,7 @@ def fuvDopplerRegions (eta, info, xtractab):
 
     global active_area
 
-    shift_flags = active_area.copy()
+    region_flags = active_area.copy()
 
     # Protect against the possibility that the aperture keyword is "WCA".
     if info["aperture"] == "BOA":
@@ -1477,73 +1480,9 @@ def fuvDopplerRegions (eta, info, xtractab):
 
     boundary = int (round ((b_spec_psa + b_spec_wca) / 2.))
 
-    shift_flags &= (eta < boundary)
+    region_flags &= (eta < boundary)
 
-    return shift_flags
-
-def nuvDopplerRegions (eta, info, xtractab):
-    """Determine the regions over which Doppler shift should be applied.
-
-    This version is for NUV data.
-
-    @param eta: pixel coordinates in cross-dispersion direction
-    @type eta: array
-    @param info: keywords and values
-    @type info: dictionary
-    @param xtractab: name of spectral extraction parameters reference table
-    @type xtractab: string
-
-    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
-        and an array of Boolean flags as the value, true for events for which
-        it would be appropriate to apply Doppler correction
-    @rtype: dictionary of Boolean arrays
-    """
-
-    if info["aperture"] == "BOA":
-        aperture = "BOA"
-    else:
-        aperture = "PSA"
-    # segment will be added to the filter below.
-    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"],
-              "aperture": aperture}
-    middle = float (NUV_X) / 2.
-
-    # b_spec_a, b_spec_b, b_spec_c, are the locations (at the middle of the
-    # detector) of stripes A, B, C for the PSA, and b_spec_wca is the location
-    # of stripe A for the WCA.
-
-    filter["segment"] = "NUVA"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_a = xtract_info.field ("b_spec")[0] + \
-               xtract_info.field ("slope")[0] * middle
-
-    filter["segment"] = "NUVB"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_b = xtract_info.field ("b_spec")[0] + \
-               xtract_info.field ("slope")[0] * middle
-
-    filter["segment"] = "NUVC"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_c = xtract_info.field ("b_spec")[0] + \
-               xtract_info.field ("slope")[0] * middle
-
-    filter["segment"] = "NUVA"
-    filter["aperture"] = "WCA"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_wca = xtract_info.field ("b_spec")[0] + \
-                 xtract_info.field ("slope")[0] * middle
-
-    # Set boundaries midway between adjacent stripes.
-    boundary_a_b = int (round ((b_spec_a + b_spec_b) / 2.))
-    boundary_b_c = int (round ((b_spec_b + b_spec_c) / 2.))
-    boundary_c_wca = int (round ((b_spec_c + b_spec_wca) / 2.))
-
-    shift_flags_dict = {}
-    shift_flags_dict["NUVA"] = (eta < boundary_a_b)
-    shift_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
-    shift_flags_dict["NUVC"] = (eta >= boundary_b_c) & (eta < boundary_c_wca)
-
-    return shift_flags_dict
+    return region_flags
 
 def dopplerCorrection (time, xi, info, reffiles, stripe=None):
     """Apply orbital and heliocentric Doppler correction.
@@ -1659,31 +1598,42 @@ def initHelcorr (events, info, switches, hdr):
     if info["obstype"] != "SPECTROSCOPIC":
         return
 
-    if switches["helcorr"] == "PERFORM":
+    # get midpoint of exposure, MJD
+    expstart = info["expstart"]
+    time = events.field ("time")
+    t_mid = expstart + (time[0] + time[len(time)-1]) / 2. / SEC_PER_DAY
 
-        # get midpoint of exposure, MJD
-        expstart = info["expstart"]
-        time = events.field ("time")
-        t_mid = expstart + (time[0] + time[len(time)-1]) / 2. / SEC_PER_DAY
+    # Compute radial velocity and heliocentric correction factor.
+    radvel = heliocentricVelocity (t_mid, info["ra_targ"], info["dec_targ"])
+    helio_factor = -radvel  / SPEED_OF_LIGHT
+    hdr.update ("v_helio", radvel)
+    info["v_helio"] = radvel
 
-        # Compute radial velocity and heliocentric correction factor.
-        radvel = heliocentricVelocity (t_mid, info["ra_targ"], info["dec_targ"])
-        helio_factor = -radvel  / SPEED_OF_LIGHT
-        hdr.update ("v_helio", radvel)
-        info["v_helio"] = radvel
-
-    else:
-        hdr.update ("v_helio", 0.)
-
-def heliocentricVelocity (t_mid, ra_targ, dec_targ):
+def heliocentricVelocity (t, ra_targ, dec_targ):
     """Compute heliocentric radial velocity.
 
-    arguments:
-    t_mid         time (MJD) at the middle of the exposure
-    ra_targ       right ascension of the target
-    dec_targ      declination of the target
+    This is copied from the code for calstis, except that the target
+    coordinates will not be precessed to the time of observation.
+
+    @param t: time (MJD)
+    @type t: float
+    @param ra_targ: right ascension of the target (J2000)
+    @type ra_targ: float
+    @param dec_targ: declination of the target (J2000)
+    @type dec_targ: float
+
+    @return: the contribution of the Earth's velocity around the Sun to the
+        radial velocity of the target, in km/s; if the Earth is approaching
+        the target, this will be negative (i.e. the sign convention is that
+        radial velocity is positive if the distance between the Earth and
+        the target is increasing)
+    @rtype: float
     """
 
+    REFDATE = 51544.5           # MJD for 2000 Jan 1.5 UT, or JD 2451545.0
+    KM_AU   = 1.4959787e8       # astronomical unit in kilometers
+    SEC_DAY = 86400.            # seconds per day
+    
     deg_to_rad = math.pi / 180.
     eps = 23.439 * deg_to_rad           # obliquity of Earth's axis
     orb_v = 29.786                      # speed of Earth around Sun, km/s
@@ -1693,23 +1643,63 @@ def heliocentricVelocity (t_mid, ra_targ, dec_targ):
 
     # target will be a unit vector toward the target;
     # velocity will be Earth's orbital velocity in km/s.
-    target = N.zeros (3, dtype=N.float64)
-    velocity = N.zeros (3, dtype=N.float64)
+    target = [0., 0., 0.]
+    velocity = [0., 0., 0.]
 
     target[0] = math.cos (dec) * math.cos (ra)
     target[1] = math.cos (dec) * math.sin (ra)
     target[2] = math.sin (dec)
 
-    # Earth's ecliptic longitude
-    ecl_long = (100.461 + 0.9856474 * (t_mid - 51544.5)) * deg_to_rad
+    # Precess the target coordinates to time t.
+    # target = cosutil.precess (t, target)        # note, commented out
 
-    velocity[0] = -orb_v * math.sin (ecl_long)
-    velocity[1] = orb_v * math.cos (ecl_long) * math.cos (eps)
-    velocity[2] = orb_v * math.cos (ecl_long) * math.sin (eps)
+    dt = t - REFDATE                    # days since 2000 Jan 1, 12h UT
 
-    radvel = -N.dot (velocity, target)
+    g_dot = 0.9856003 * deg_to_rad
+    l_dot = 0.9856474 * deg_to_rad
+
+    eps = (23.439 - 0.0000004 * dt) * deg_to_rad
+
+    g = mod2pi ((357.528 + 0.9856003 * dt) * deg_to_rad)
+    l = mod2pi ((280.461 + 0.9856474 * dt) * deg_to_rad)
+
+    #       L   1.915 deg                 0.02 deg
+    elong = l + 0.033423 * math.sin (g) + 0.000349 * math.sin (2.*g)
+    elong_dot = l_dot + \
+                0.033423 * math.cos (g) * g_dot + \
+                0.000349 * math.cos (2.*g) * 2.*g_dot
+
+    radius = 1.00014 - 0.01671 * math.cos (g) - 0.00014 * math.cos (2.*g)
+    radius_dot =       0.01671 * math.sin (g) * g_dot + \
+                       0.00014 * math.sin (2.*g) * 2.*g_dot
+
+    x_dot = radius_dot * math.cos (elong) - \
+                radius * math.sin (elong) * elong_dot
+
+    y_dot = radius_dot * math.cos (eps) * math.sin (elong) + \
+                radius * math.cos (eps) * math.cos (elong) * elong_dot
+
+    z_dot = radius_dot * math.sin (eps) * math.sin (elong) + \
+                radius * math.sin (eps) * math.cos (elong) * elong_dot
+
+    velocity[0] = -x_dot * KM_AU / SEC_DAY
+    velocity[1] = -y_dot * KM_AU / SEC_DAY
+    velocity[2] = -z_dot * KM_AU / SEC_DAY
+
+    dot_product = velocity[0] * target[0] + \
+                  velocity[1] * target[1] + \
+                  velocity[2] * target[2]
+    radvel = -dot_product
 
     return radvel
+
+def mod2pi (x):
+    """Return the argument modulo two pi."""
+
+    (f, i) = math.modf (x / (2.*math.pi))
+    if f < 0.:
+        f += 1.
+    return f * 2. * math.pi
 
 def doFlatcorr (events, info, switches, reffiles, phdr):
     """Apply flat field correction.
@@ -2404,7 +2394,7 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
 
     # This is the number of possible values for the pulse height amplitude,
     # pha = 0..31.
-    PULSE_HEIGHT_RANGE = 32
+    PHA_RANGE = 32
 
     cosutil.printMsg ("writing file %s ..." % outcsum, VERY_VERBOSE)
 
@@ -2423,6 +2413,33 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
     # Copy the subarray keywords to the output primary header.
     cosutil.copySubKeywords (hdr, fd[0].header, subarray)
 
+    ### This is an example for future reference.
+    #if detector == "FUV":
+    #    if pha is None:
+    #        data = N.zeros ((FUV_Y, FUV_X), dtype=N.float32)
+    #        if xcorr is not None:
+    #            ccos.csum_2d (data, xcorr, ycorr, epsilon)
+    #    else:
+    #        data = N.zeros ((PHA_RANGE, FUV_Y, FUV_X), dtype=N.float32)
+    #        if xcorr is not None:
+    #            ccos.csum_3d (data, xcorr, ycorr, epsilon, pha.astype(N.int16))
+    #else:
+    #    data = N.zeros ((NUV_Y, NUV_X), dtype=N.float32)
+    #    if xcorr is not None:
+    #        ccos.csum_2d (data, xcorr, ycorr, epsilon)
+    #fd[0].header.update ("counts", data.sum())
+    #fd.append (pyfits.CompImageHDU (data, header=hdr, name="SCI",
+    #                                compressionType="RICE_1",
+    #                                quantizeLevel=-0.001))
+    #  the arguments and their defaults are:
+    # compressionType='RICE_1', # 'RICE_1', 'PLIO_1', 'GZIP_1', 'HCOMPRESS_1'
+    # tileSize=None,                    # shape of tile, default is one row
+    # hcompScale=0.,                    # unit is RMS of image
+    # hcompSmooth=0,
+    # quantizeLevel=16.                 # perhaps use quantizeLevel = -0.001
+    #del data
+    ###
+
     if detector == "FUV":
         if pha is None:
             fd.append (pyfits.ImageHDU (data=N.zeros ((FUV_Y, FUV_X),
@@ -2431,7 +2448,7 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
             if xcorr is not None:
                 ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
         else:
-            fd.append (pyfits.ImageHDU (data=N.zeros ((PULSE_HEIGHT_RANGE,
+            fd.append (pyfits.ImageHDU (data=N.zeros ((PHA_RANGE,
                                                              FUV_Y, FUV_X),
                                                       dtype=N.float32),
                                         header=hdr, name="SCI"))
@@ -2550,7 +2567,7 @@ def updateFromWavecal (events, wavecal_info,
     @type switches: dictionary
     @param reffiles: reference file names
     @type reffiles: dictionary
-    @param phdr: the primary header (WAVECORR keyword can be updated)
+    @param phdr: the primary header (WAVECORR and WAVECALS can be updated)
     @type phdr: PyFITS Header object
     @param hdr: the events extension header (modified in-place)
     @type hdr: PyFITS Header object
@@ -2590,28 +2607,46 @@ def updateFromWavecal (events, wavecal_info,
     if shift_info is None:
         return (0., 0., None)
 
-    (shift_dict, slope_dict) = shift_info
+    (shift_dict, slope_dict, filename) = shift_info
 
     if info["detector"] == "FUV":
-        segment = info["segment"]
+        segment_list = [info["segment"]]
     else:
-        segment = "NUVB"
+        segment_list = ["NUVA", "NUVB", "NUVC"]
+        psa_region_flags_dict = nuvPsaRegions (eta, info, reffiles["xtractab"])
+        wca_region_flags_dict = nuvWcaRegions (eta, info, reffiles["xtractab"])
 
     time = events.field ("TIME")
     t0 = time[0]
+    t_mid = (t0 + time[-1]) / 2.
 
-    key = "shift1" + segment[-1].lower()
-    if not (shift_dict.has_key (key) and slope_dict.has_key (key)):
-        cosutil.printError ("There is no wavecal for segment %s." % segment)
-        return (0., 0., None)
-    shift1_zero = shift_dict[key]
-    shift1_slope = slope_dict[key]
-    if info["detector"] == "FUV":
-        xi_full[:] = N.where (active_area,
-                       xi - ((time - t0) * shift1_slope + shift1_zero),
-                       xi)
-    else:
-        xi_full[:] = xi - ((time - t0) * shift1_slope + shift1_zero)
+    xi_full[:] = xi.copy()
+
+    for segment in segment_list:
+
+        key = "shift1" + segment[-1].lower()
+        if not (shift_dict.has_key (key) and slope_dict.has_key (key)):
+            cosutil.printError ("There is no wavecal for segment %s." % segment)
+            return (0., 0., None)
+        shift1_zero = shift_dict[key]
+        shift1_slope = slope_dict[key]
+        if info["detector"] == "FUV":
+            xi_full[:] = N.where (active_area,
+                           xi - ((time - t0) * shift1_slope + shift1_zero),
+                           xi_full)
+        else:
+            xi_full[:] = N.where (psa_region_flags_dict[segment],
+                           xi - ((time - t0) * shift1_slope + shift1_zero),
+                           xi_full)
+            xi_full[:] = N.where (wca_region_flags_dict[segment],
+                           xi - ((time - t0) * shift1_slope + shift1_zero),
+                           xi_full)
+        avg_shift1 = shift1_slope * t_mid + shift1_zero
+        key = "SHIFT1" + segment[-1]
+        hdr.update (key, avg_shift1)
+
+    if info["detector"] == "NUV":
+        segment = "NUVB"
 
     key = "shift2" + segment[-1].lower()
     shift2_zero = shift_dict[key]
@@ -2621,9 +2656,12 @@ def updateFromWavecal (events, wavecal_info,
                         eta - ((time - t0) * shift2_slope + shift2_zero),
                         eta)
     else:
+        # Use the same shift2 for every stripe.
         eta_full[:] = eta - ((time - t0) * shift2_slope + shift2_zero)
 
-    t_mid = (t0 + time[-1]) / 2.
+    key = "shift1" + segment[-1].lower()        # stripe B if NUV
+    shift1_zero = shift_dict[key]
+    shift1_slope = slope_dict[key]
     avg_dx = shift1_slope * t_mid + shift1_zero
     avg_dy = shift2_slope * t_mid + shift2_zero
 
@@ -2633,20 +2671,15 @@ def updateFromWavecal (events, wavecal_info,
     t = N.arange (nbins, dtype=N.float64) + t0 + 0.5
     shift1_vs_time = shift1_slope * t + shift1_zero
 
-    # Set the SHIFT1[A-C] and SHIFT2[A-C] keywords to the average offsets
-    # in the dispersion and cross-dispersion directions respectively.
+    # Set the SHIFT2[A-C] keywords to the average offset in the
+    # cross-dispersion direction.
     # Set DPIXEL1[A-C] to the average of the difference xfull minus the
     # nearest integer to xfull, where xfull is the column of that name;
     # this will be used when assigning wavelengths in extract.py.
     xi_diff = xi_full - N.around (xi_full)
     dpixel1 = xi_diff.mean()
-    if info["detector"] == "FUV":
-        segment_list = [info["segment"]]
-    else:
-        segment_list = ["NUVA", "NUVB", "NUVC"]
+
     for segment in segment_list:
-        key = "SHIFT1" + segment[-1]
-        hdr.update (key, avg_dx)
         key = "SHIFT2" + segment[-1]
         hdr.update (key, avg_dy)
         key = "DPIXEL1" + segment[-1]
@@ -2657,8 +2690,133 @@ def updateFromWavecal (events, wavecal_info,
         hdr.update ("DPIXEL1C", 0.)
 
     phdr["wavecorr"] = "COMPLETE"
+    filename = cosutil.changeSegment (filename, info["detector"],
+                                      info["segment"])
+    phdr.update ("wavecals", filename)
+    cosutil.printMsg ("Wavecal file(s) '%s'" % filename, VERBOSE)
 
     return (avg_dx, avg_dy, shift1_vs_time)
+
+def nuvPsaRegions (eta, info, xtractab):
+    """Determine the set of events within the NUV regions for the PSA.
+
+    This is only needed for NUV data.
+
+    @param eta: pixel coordinates in cross-dispersion direction
+    @type eta: array
+    @param info: keywords and values
+    @type info: dictionary
+    @param xtractab: name of spectral extraction parameters reference table
+    @type xtractab: string
+
+    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
+        and an array of Boolean flags as the value, true for events for which
+        the Y coordinate is within the regions for the PSA.
+    @rtype: dictionary of Boolean arrays
+    """
+
+    # segment will be added to the filter below.
+    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"],
+              "aperture": "PSA"}
+    middle = float (NUV_X) / 2.
+
+    # b_spec_a, b_spec_b, b_spec_c, are the locations (at the middle of the
+    # detector) of stripes A, B, C for the PSA, and b_spec_wca is the location
+    # of stripe A for the WCA.
+
+    filter["segment"] = "NUVA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_a = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVB"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_b = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVC"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_c = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVA"
+    filter["aperture"] = "WCA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca = xtract_info.field ("b_spec")[0] + \
+                 xtract_info.field ("slope")[0] * middle
+
+    # Set boundaries midway between adjacent stripes.
+    boundary_a_b = round ((b_spec_a + b_spec_b) / 2.)
+    boundary_b_c = round ((b_spec_b + b_spec_c) / 2.)
+    boundary_c_wca = round ((b_spec_c + b_spec_wca) / 2.)
+
+    region_flags_dict = {}
+    region_flags_dict["NUVA"] = (eta < boundary_a_b)
+    region_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
+    region_flags_dict["NUVC"] = (eta >= boundary_b_c) & (eta < boundary_c_wca)
+
+    return region_flags_dict
+
+def nuvWcaRegions (eta, info, xtractab):
+    """Determine the set of events within the NUV regions for the WCA.
+
+    This is only needed for NUV data.
+
+    @param eta: pixel coordinates in cross-dispersion direction
+    @type eta: array
+    @param info: keywords and values
+    @type info: dictionary
+    @param xtractab: name of spectral extraction parameters reference table
+    @type xtractab: string
+
+    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
+        and an array of Boolean flags as the value, true for events for which
+        the Y coordinate is within the regions for the WCA.
+    @rtype: dictionary of Boolean arrays
+    """
+
+    # aperture and segment will be added to the filter below.
+    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"]}
+    middle = float (NUV_X) / 2.
+
+    # b_spec_c is the location (at the middle of the detector) of stripe C
+    # for the PSA, and b_spec_wca is the location
+    # of stripe A for the WCA.
+
+    filter["segment"] = "NUVC"
+    filter["aperture"] = "PSA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_c = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["aperture"] = "WCA"
+
+    filter["segment"] = "NUVA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca_a = xtract_info.field ("b_spec")[0] + \
+                   xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVB"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca_b = xtract_info.field ("b_spec")[0] + \
+                   xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVC"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca_c = xtract_info.field ("b_spec")[0] + \
+                   xtract_info.field ("slope")[0] * middle
+
+    # Set boundaries midway between adjacent stripes.
+    boundary_c_wca = round ((b_spec_c + b_spec_wca_a) / 2.)
+    boundary_a_b = round ((b_spec_wca_a + b_spec_wca_b) / 2.)
+    boundary_b_c = round ((b_spec_wca_b + b_spec_wca_c) / 2.)
+
+    region_flags_dict = {}
+    region_flags_dict["NUVA"] = (eta >= boundary_c_wca) & (eta < boundary_a_b)
+    region_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
+    region_flags_dict["NUVC"] = (eta >= boundary_b_c)
+
+    return region_flags_dict
 
 def getWavecalOffsets (events):
     """Get min and max values of shift1 and shift2.

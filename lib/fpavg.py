@@ -83,11 +83,6 @@ def oneInputFile (input, output):
         background[row,:] = N.where (dq_wgt[row] <= 0., 0., background[row])
 
     cosutil.updateFilename (fd[0].header, output)
-    if cosutil.isProduct (output):
-        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
-        asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
-        if asn_mtyp != "missing":
-            fd[1].header["asn_mtyp"] = asn_mtyp
     delSomeKeywords (fd[1].header)
 
     fd.writeto (output)
@@ -353,6 +348,10 @@ class OutputX1D (object):
 
         primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
         cosutil.updateFilename (primary_hdu.header, self.output)
+        if primary_hdu.header.has_key ("segment"):
+            del (primary_hdu.header["segment"])
+        if primary_hdu.header.has_key ("wavecals"):
+            del (primary_hdu.header["wavecals"])
         ofd = pyfits.HDUList (primary_hdu)
 
         rpt = str (self.output_nelem)           # used for column definitions

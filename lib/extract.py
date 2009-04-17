@@ -1102,7 +1102,8 @@ def concatenateFUVSegments (infiles, output):
                 "sp_loc_b", "sp_slp_b",
                 "b_bkg1_b", "b_bkg2_b",
                 "b_hgt1_b", "b_hgt2_b",
-                "shift1b", "shift2b", "dpixel1b"]:
+                "shift1b", "shift2b", "dpixel1b",
+                "chi_sq_b", "ndf_b"]:
         if seg_b[1].header.has_key (key):
             hdu.header.update (key, seg_b[1].header.get (key, -1.0))
 
@@ -1115,8 +1116,9 @@ def concatenateFUVSegments (infiles, output):
         phdu = seg_b[0]
     ofd = pyfits.HDUList (phdu)
     cosutil.updateFilename (ofd[0].header, output)
-    if ofd[0].header.has_key ("segment"):
-        ofd[0].header["segment"] = NOT_APPLICABLE   # we now have both segments
+    if a_exists and b_exists and nrows_a > 0 and nrows_b > 0:
+        # we now have both segments
+        ofd[0].header.update ("segment", "BOTH")
     ofd.append (hdu)
 
     # Update the "archive search" keywords.
@@ -1166,13 +1168,24 @@ def copyKeywordsToInput (output, input, incounts):
     if incounts is not None:
         ifd_c = pyfits.open (incounts, mode="update")
 
-    for key in ["sp_loc_a", "sp_loc_b", "sp_loc_c",
-                "sp_slp_a", "sp_slp_b", "sp_slp_c",
-                "sp_hgt",
-                "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",
-                "b_bkg2_a", "b_bkg2_b", "b_bkg2_c",
-                "b_hgt1_a", "b_hgt1_b", "b_hgt1_c",
-                "b_hgt2_a", "b_hgt2_b", "b_hgt2_c"]:
+    if ofd[0].header["detector"] == "FUV":
+        keywords = ["sp_loc_a", "sp_loc_b",
+                    "sp_slp_a", "sp_slp_b",
+                    "sp_hgt",
+                    "b_bkg1_a", "b_bkg1_b",
+                    "b_bkg2_a", "b_bkg2_b",
+                    "b_hgt1_a", "b_hgt1_b",
+                    "b_hgt2_a", "b_hgt2_b"]
+    else:
+        keywords = ["sp_loc_a", "sp_loc_b", "sp_loc_c",
+                    "sp_slp_a", "sp_slp_b", "sp_slp_c",
+                    "sp_hgt",
+                    "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",
+                    "b_bkg2_a", "b_bkg2_b", "b_bkg2_c",
+                    "b_hgt1_a", "b_hgt1_b", "b_hgt1_c",
+                    "b_hgt2_a", "b_hgt2_b", "b_hgt2_c"]
+
+    for key in keywords:
         value = ofd[1].header.get (key, -999.)
         ifd_e[1].header.update (key, value)
         if incounts is not None:

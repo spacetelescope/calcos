@@ -852,13 +852,21 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
         xslope = stim_param["xslope"]
         yintercept = stim_param["y0"]
         yslope = stim_param["yslope"]
-        # check the length; we expect (for accum mode) only one element
-        if len (xintercept) != 1:
-            printWarning ("in flagOutOfBounds, more stim_param than expected")
-        xintercept = xintercept[0]
-        xslope = xslope[0]
-        yintercept = yintercept[0]
-        yslope = yslope[0]
+        # get the average values
+        n_values = len (xintercept)
+        sum_xintercept = 0.
+        sum_yintercept = 0.
+        sum_xslope = 0.
+        sum_yslope = 0.
+        for i in range (n_values):
+            sum_xintercept += xintercept[i]
+            sum_yintercept += yintercept[i]
+            sum_xslope += xslope[i]
+            sum_yslope += yslope[i]
+        xintercept = sum_xintercept / n_values
+        xslope = sum_xslope / n_values
+        yintercept = sum_yintercept / n_values
+        yslope = sum_yslope / n_values
 
         # subarrays is a list of dictionaries, each with keys:
         #     "x0", "x1", "y0", "y1"
@@ -1749,7 +1757,8 @@ def printMode (info):
     printMsg ("EXPTYPE   " + info["exptype"], VERBOSE)
     if info["obstype"] == "SPECTROSCOPIC":
         printMsg ("OPT_ELEM  " + info["opt_elem"] + \
-              ", CENWAVE " + str (info["cenwave"]), VERBOSE)
+              ", CENWAVE " + str (info["cenwave"]) + \
+              ", FPOFFSET " + str (info["fpoffset"]), VERBOSE)
     else:
         printMsg ("OPT_ELEM  " + info["opt_elem"], VERBOSE)
     printMsg ("APERTURE  " + info["aperture"], VERBOSE)
@@ -1903,6 +1912,51 @@ def expandFileName (filename):
 
     return filename
 
+def changeSegment (filename, detector, segment):
+    """Replace '_a' with '_b' or vice versa, if appropriate.
+
+    This was written for auto/GO wavecal file names for FUV data.  Wavecals
+    are processed from the x1d file, and the name of the raw file is for
+    the first segment in the input list (which will be FUVA if both segments
+    are present).  When calibrating segment B data, the name or names of
+    the wavecal files need to be changed to end in "_b.fits" instead of
+    "_a.fits".
+
+    @param filename: one or more file names, separated by spaces
+    @type filename: string
+    @param detector: FUV or NUV
+    @type filename: string
+    @param segment: FUVA or FUVB, if detector is FUV
+    @type segment: string
+
+    @return: name(s) with '_a' replaced with '_b', or vice versa, or no change
+    @rtype: string
+    """
+
+    if detector != "FUV":
+        return filename
+
+    if segment == "FUVB":
+        names = filename.split()
+        new_names = []
+        for name in names:
+            if name.endswith ("_a.fits"):
+                n = len (name) - 7
+                name = name[:n] + "_b.fits"
+            new_names.append (name)
+        filename = " ".join(new_names)
+    elif segment == "FUVA":
+        names = filename.split()
+        new_names = []
+        for name in names:
+            if name.endswith ("_b.fits"):
+                n = len (name) - 7
+                name = name[:n] + "_a.fits"
+            new_names.append (name)
+        filename = " ".join(new_names)
+
+    return filename
+
 def findRefFile (ref, missing, wrong_filetype, bad_version):
     """Check for the existence of a reference file.
 
@@ -1963,6 +2017,66 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
     else:
 
         missing[keyword] = filename
+
+def precess (t, target):
+    """Precess target to the time of observation.
+
+    This function is currently not used.
+    It could be called by timetag.heliocentricVelocity.
+
+    @param t: time (MJD)
+    @type t: float
+    @param target: unit vector pointing toward the target, J2000 coordinates
+    @type target: sequence type
+
+    @return: target coordinates precessed to time t
+    @rtype: list
+    """
+
+    # 51544.5 is MJD for 2000 Jan 1.5 UT, or JD 2451545.0
+    dt = (t - 51544.5) / 36525.
+    dt2 = dt * dt
+    dt3 = dt * dt * dt
+
+    zeta = 2306.2181 * dt + 0.30188 * dt2 + 0.017998 * dt3
+
+    z = 2306.2181 * dt + 1.09468 * dt2 + 0.018203 * dt3
+
+    theta = 2004.3109 * dt - 0.42665 * dt2 - 0.041833 * dt3
+
+    # convert from arc seconds to radians
+    zeta = math.radians (zeta / 3600.)
+    z = math.radians (z / 3600.)
+    theta = math.radians (theta / 3600.)
+
+    # convert zeta, z, theta to a rotation matrix
+    a = [0., 0., 0., 0., 0., 0., 0., 0., 0.]
+    # first row
+    a[0] =  math.cos (z) * math.cos (theta) * math.cos (zeta) - \
+            math.sin (z) *                    math.sin (zeta)
+    a[1] = -math.cos (z) * math.cos (theta) * math.sin (zeta) - \
+            math.sin (z) *                    math.cos (zeta)
+    a[2] = -math.cos (z) * math.sin (theta)
+
+    # second row
+    a[3] =  math.sin (z) * math.cos (theta) * math.cos (zeta) + \
+            math.cos (z) *                    math.sin (zeta)
+    a[4] = -math.sin (z) * math.cos (theta) * math.sin (zeta) + \
+            math.cos (z) *                    math.cos (zeta)
+    a[5] = -math.sin (z) * math.sin (theta)
+
+    # third row
+    a[6] =                 math.sin (theta) * math.cos (zeta)
+    a[7] =                -math.sin (theta) * math.sin (zeta)
+    a[8] =                 math.cos (theta)
+
+    # Multiply:  a * target
+    targ = [0., 0., 0.]
+    targ[0] = a[0] * target[0] + a[1] * target[1] + a[2] * target[2]
+    targ[1] = a[3] * target[0] + a[4] * target[1] + a[5] * target[2]
+    targ[2] = a[6] * target[0] + a[7] * target[1] + a[8] * target[2]
+
+    return targ
 
 def cmpVersion (min_ver, phdr_ver, calcos_ver):
     """Compare version strings.

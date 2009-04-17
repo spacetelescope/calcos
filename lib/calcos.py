@@ -28,6 +28,10 @@ EXP_TARGET_ACQ  = 3
 EXP_ACQ_IMAGE   = 4
 EXP_ENGINEERING = 5
 
+# calcos returns this if there are no files to calibrate (e.g. rawacq but
+# not acq/image).
+NO_DATA_TO_CALIBRATE = 5
+
 def main (args):
     """Check arguments and call calcos.
 
@@ -107,12 +111,15 @@ def main (args):
 
     infiles = uniqueInput (pargs)       # remove duplicate names from list
 
+    status = 0
     for i in range (len (infiles)):
-        calcos (infiles[i], outdir=outdir,
-                create_csum_image=create_csum_image,
-                save_temp_files=save_temp_files,
-                stimfile=stimfile, livetimefile=livetimefile,
-                burstfile=burstfile)
+        status = calcos (infiles[i], outdir=outdir,
+                         create_csum_image=create_csum_image,
+                         save_temp_files=save_temp_files,
+                         stimfile=stimfile, livetimefile=livetimefile,
+                         burstfile=burstfile)
+    if status != 0:
+        sys.exit (status)
 
 def prtOptions():
     """Print a list of command-line options and arguments."""
@@ -227,10 +234,10 @@ def calcos (asntable, outdir=None, verbosity=None,
                          create_csum_image, save_temp_files,
                          stimfile, livetimefile, burstfile)
     if len (assoc.obs) == 0:
-        return
+        return NO_DATA_TO_CALIBRATE
     if not assoc.isAnySwitchSet():
         cosutil.printMsg ("Nothing to do; all calibration switches are OMIT.")
-        return
+        return 0
 
     cal = Calibration (assoc)
 
@@ -249,6 +256,7 @@ def calcos (asntable, outdir=None, verbosity=None,
     t1 = time.time()
     cosutil.printMsg ("elapsed time = %.1f sec. = %.2f min." % \
                                 (t1-t0, (t1-t0)/60.), VERY_VERBOSE)
+    return 0
 
 def replaceSuffix (rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
@@ -449,7 +457,9 @@ class Association (object):
 
                 basic_info = self.initialInfo (memname[i])
                 if basic_info is None:
-                    continue
+                    # Missing raw data, or error in association table.
+                    self.obs = []       # don't process this association
+                    return
                 self.rawfiles.extend (basic_info["rawfiles"])
                 concat_info = {}                # will be one element of concat
                 concat_these = []               # x1d_a and x1d_b names
@@ -610,7 +620,7 @@ class Association (object):
         @return: dictionary of keywords and values; the value will be None
             if there are no files that match the template, or if the input
             is an ACQ other than ACQ/IMAGE.
-        @rtype: dictionary
+        @rtype: dictionary, or None
         """
 
         # First find out whether we've got time-tag or accum, FUV or NUV.
@@ -637,7 +647,7 @@ class Association (object):
             "File %s will be skipped because it is not an ACQ/IMAGE" % raw[0])
         if len (all_rawfiles) == 0:
             cosutil.printWarning (
-                "There are no raw files for rootname `%s'" % memname)
+                "There are no files to calibrate for rootname '%s'" % memname)
             return None
         # Get info from the first raw file with the specified rootname.
         initial_basic_info = getinfo.initialInfo (all_rawfiles[0])
@@ -2231,7 +2241,8 @@ class Calibration (object):
                     time = cosutil.timeAtMidpoint (obs.info)
                     wavecal.storeWavecalInfo (self.wavecal_info,
                             time, obs.info["fpoffset"],
-                            shift_dict, obs.filenames["root"])
+                            shift_dict, obs.filenames["root"],
+                            obs.filenames["raw"])
                 obs.closeTrailer()
 
     def updateShift (self, filenames, wavecorr, info):
@@ -2266,8 +2277,8 @@ class Calibration (object):
                          self.wcp_info, info["fpoffset"], time)
             if wavecorr == "PERFORM" and len (self.wavecal_info) > 0 and \
                shift_info is not None:
-                # only the shift will be used, not the slope
-                (shift_dict, slope_dict) = shift_info
+                # only the shift will be used, not the slope or the file name
+                (shift_dict, slope_dict, wavecal_filename) = shift_info
                 cosutil.printSwitch ("WAVECORR", {"wavecorr": "PERFORM"})
                 if cosutil.checkVerbosity (VERY_VERBOSE):
                     keywords = shift_dict.keys()
@@ -2395,7 +2406,8 @@ class Calibration (object):
                 "sp_loc_X", "sp_slp_X",
                 "b_bkg1_X", "b_bkg2_X",
                 "b_hgt1_X", "b_hgt2_X",
-                "shift1X", "shift2X", "dpixel1X"]
+                "shift1X", "shift2X", "dpixel1X",
+                "chi_sq_X", "ndf_X"]
         a_kwds = []
         b_kwds = []
         for keyword in incl_wildcard:
