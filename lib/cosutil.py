@@ -425,119 +425,6 @@ def timeAtMidpoint (info):
     """
     return (info["expstart"] + info["expend"]) / 2.
 
-def evalDisp (x, coeff, delta=0.):
-    """Evaluate the dispersion relation at x.
-
-    The function value will be the wavelength (or array of wavelengths) at x,
-    in Angstroms.
-
-    @param x: pixel coordinate (or array of coordinates)
-    @type x: numpy array or float
-    @param coeff: array of polynomial coefficients which convert pixel number
-        to wavelength in Angstroms
-    @type coeff: sequence object (e.g. numpy array)
-    @param delta: offset to subtract from pixel coordinate
-    @type delta: float
-
-    @return: wavelength (or array of wavelengths) at x
-    @rtype: numpy array or float
-    """
-
-    ncoeff = len (coeff)
-    if ncoeff < 2:
-        raise ValueError, "Dispersion relation has too few coefficients"
-
-    x_prime = x - delta
-
-    sum = coeff[ncoeff-1]
-    for i in range (ncoeff-2, -1, -1):
-        sum = sum * x_prime + coeff[i]
-
-    return sum
-
-def evalDerivDisp (x, coeff, delta=0.):
-    """Evaluate the derivative of the dispersion relation at x.
-
-    The function value will be the slope (or array of slopes) at x,
-    in Angstroms per pixel.
-
-    @param x: pixel coordinate (or array of coordinates)
-    @type x: numpy array or float
-    @param coeff: array of polynomial coefficients which convert pixel number
-        to wavelength in Angstroms
-    @type coeff: sequence object (e.g. numpy array)
-    @param delta: offset to subtract from pixel coordinate
-    @type delta: float
-
-    @return: slope at x, in Angstroms per pixel
-    @rtype: numpy array or float
-    """
-
-    ncoeff = len (coeff)
-    if ncoeff < 2:
-        raise ValueError, "Dispersion relation has too few coefficients"
-
-    x_prime = x - delta
-
-    sum = (ncoeff-1.) * coeff[ncoeff-1]
-    for n in range (ncoeff-2, 0, -1):
-        sum = sum * x_prime + n * coeff[n]
-
-    return sum
-
-def evalInvDisp (wavelength, coeff, delta=0., tiny=1.e-8):
-    """Evaluate the inverse of the dispersion relation at wavelength.
-
-    The function value will be the pixel number (or array of pixel numbers)
-    at the specified wavelength(s).  Newton's method is used for finding
-    the pixel numbers, and the iterations are stopped when the largest
-    difference between the specified wavelengths and computed wavelengths
-    is less than tiny.
-
-    @param wavelength: wavelength (or array of wavelengths)
-    @type wavelength: numpy array or float
-    @param coeff: array of polynomial coefficients which convert pixel number
-        to wavelength in Angstroms
-    @type coeff: sequence object (e.g. numpy array)
-    @param delta: offset to subtract from pixel coordinate
-    @type delta: float
-    @param tiny: maximum allowed difference between the final pixel number(s)
-        and the value from the previous iteration
-    @type tiny: float
-
-    @return: pixel number (or array of pixel numbers) at wavelength
-    @rtype: numpy array or float
-    """
-
-    tiny = abs (tiny)
-
-    # initial value
-    try:
-        nelem = len (wavelength)
-        x = N.arange (nelem, dtype=N.float64)
-    except TypeError:
-        nelem = 0
-        x = 0.
-
-    # Iterate to find the pixel number(s) x such that evaluating the
-    # dispersion relation at that point gives the actual wavelength
-    # at the first pixel.
-    done = 0
-    while not done:
-        if nelem > 0:
-            x_prev = x.copy()
-        else:
-            x_prev = x
-        wl = evalDisp (x, coeff, delta)
-        slope = evalDerivDisp (x, coeff, delta)
-        wl_diff = wavelength - wl
-        x += wl_diff / slope
-        diff = N.abs (x - x_prev)
-        if diff.max() < tiny:
-            done = 1
-
-    return x
-
 def geometricDistortion (x, y, geofile, segment, igeocorr):
     """Apply geometric (INL) correction.
 
@@ -1715,11 +1602,12 @@ def printIntro (str):
     printMsg ("", VERBOSE)
     printMsg (str + " -- " + returnTime(), VERBOSE)
 
-def printFilenames (names, stimfile=None, livetimefile=None):
+def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
     """Print input and output filenames.
 
     arguments:
     names         a list of (label, filename) tuples
+    shift_file    name of input text file to specify shift1 and shift2
     stimfile      name of output text file for stim positions (or None)
     livetimefile  name of output text file for livetime factors (or None)
 
@@ -1738,6 +1626,8 @@ def printFilenames (names, stimfile=None, livetimefile=None):
     for (label, filename) in names:
         printMsg ("%-10s%s" % (label, filename), VERBOSE)
 
+    if shift_file is not None:
+        printMsg ("wavecal shifts overridden by file " + shift_file, VERBOSE)
     if stimfile is not None:
         printMsg ("stim locations log file   " + stimfile, VERBOSE)
     if livetimefile is not None:

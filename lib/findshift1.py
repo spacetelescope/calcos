@@ -16,21 +16,37 @@ XC_NOT_FOUND = 2                # denominator >= 0
 MIN_NUMBER_OF_COUNTS = 50
 
 # For chi square.
-N_SIGMA = 5.
+N_SIGMA = 6.
 
 # For comparison of individual shifts with the global shift (NUV only).
 SLOP = 15.      # pixels
 
 # The number of pixels to set to zero at the ends of the template spectra.
-TRIM = 20
+TRIM = 20       # this is currently not used
 
 class Shift1 (object):
     """Find the shift in the dispersion direction.
 
+    fs1 = findshift1.Shift1 (spectra, templates, info, reffiles,
+                             xc_range, stepsize, fp=0, spec_found={})
+    The public methods are:
+        fs1.findShifts()
+        shift1 = fs1.getShift1 (key)
+        fs1.setShift1 (key, shift1)
+        user_specified = fs1.getUserSpecified (key)
+        orig_shift1 = fs1.getOrigShift1 (key)
+        flag = fs1.getSpecFound (key)
+        chi_square = fs1.getChiSq (key)
+        number_of_degrees_of_freedom = fs1.getNdf (key)
+    The following may be used for testing/debugging:
+        spectrum = fs1.getSpec (key)
+        template = fs1.getTmpl (key)
+        xc_array = fs1.getXc()
+
     @ivar spectra: the 1-D extracted spectra; these should be in counts,
         not counts/s, because Poisson statistics will be assumed
     @type spectra: dictionary of arrays
-    @ivar templates: template spectra
+    @ivar templates: template spectra (same keys as for spectra)
     @type templates: dictionary of arrays
     @ivar info: keywords and values
     @type info: dictionary
@@ -46,7 +62,8 @@ class Shift1 (object):
     @ivar fp: value of keyword FPOFFSET, or 0 if no initial offset
         should be applied
     @type fp: int
-    @ivar spec_found: True for each spectrum that was found
+    @ivar spec_found: True for each spectrum that was found (same keys as
+        for spectra)
     @type spec_found: dictionary of boolean flags
     """
 
@@ -66,17 +83,22 @@ class Shift1 (object):
         # These are the results.
         # self.spec_found               # copied from input and updated
         self.shift1_dict = {}
+        self.orig_shift1_dict = {}      # shift1 even if poorly found
+        self.user_specified_dict = {}
         self.n50_dict = {}
         self.chisq_dict = {}
-        self.nelem_dict = {}
+        self.ndf_dict = {}              # number of degrees of freedom
         # for testing; these are aligned slices
         self.spec_dict = {}
         self.tmpl_dict = {}
+
+        self.NFILES = 0                 # for debugging
 
         # working parameters
         keys = self.spectra.keys()
         keys.sort()
         self.keys = keys
+        self.current_key = ""
         # buffer for cross correlation
         self.xc = N.zeros (2*xc_range + 1, dtype=N.float64)
 
@@ -88,6 +110,10 @@ class Shift1 (object):
         if not self.spec_found:
             for key in keys:
                 self.spec_found[key] = True
+
+        for key in keys:
+            self.orig_shift1_dict[key] = 0.
+            self.user_specified_dict[key] = False
 
     def trimTemplates (self, x_offset, detector):
         """Trim the ends of the template spectra."""
@@ -110,6 +136,48 @@ class Shift1 (object):
 
         if self.shift1_dict.has_key (key):
             return self.shift1_dict[key]
+        else:
+            return 0.
+
+    def setShift1 (self, key, shift1):
+        """Set shift1 to the value supplied by the user."""
+
+        spectrum = self.spectra[key]
+        template = self.templates[key]
+        (factor, spec_slice, tmpl_slice) = \
+                    self.computeNormalization (spectrum, template, shift1)
+        if factor is None:
+            self.n50_dict[key] = None
+            self.chisq_dict[key] = 0.
+            self.ndf_dict[key] = 0
+            self.spec_dict[key] = []
+            self.tmpl_dict[key] = []
+        else:
+            (chisq, ndf, spec, tmpl) = \
+            self.computeChiSquare (spectrum, template,
+                                   factor, spec_slice, tmpl_slice)
+            self.chisq_dict[key] = chisq
+            self.ndf_dict[key] = ndf
+            self.spec_dict[key] = spec.copy()
+            self.tmpl_dict[key] = tmpl.copy()
+
+        self.shift1_dict[key] = shift1
+        self.spec_found[key] = True
+        self.user_specified_dict[key] = True
+
+    def getUserSpecified (self, key):
+        """Return True if shift1 was specified by the user."""
+
+        if self.user_specified_dict.has_key (key):
+            return self.user_specified_dict[key]
+        else:
+            return False
+
+    def getOrigShift1 (self, key):
+        """Return the shift1 value even if it was poorly found."""
+
+        if self.shift1_dict.has_key (key):
+            return self.orig_shift1_dict[key]
         else:
             return 0.
 
@@ -140,9 +208,8 @@ class Shift1 (object):
     def getNdf (self, key):
         """Return the number of number of degrees of freedom for Chi square."""
 
-        # the number of degrees of freedom is nelem - 1
-        if self.nelem_dict.has_key (key):
-            return (self.nelem_dict[key] - 1)
+        if self.ndf_dict.has_key (key):
+            return self.ndf_dict[key]
         else:
             return 0
 
@@ -175,7 +242,7 @@ class Shift1 (object):
             self.shift1_dict
             self.n50_dict
             self.chisq_dict
-            self.nelem_dict
+            self.ndf_dict
             self.spec_dict
             self.tmpl_dict
         """
@@ -198,10 +265,12 @@ class Shift1 (object):
             if key not in self.templates.keys():
                 self.notFound (key)
                 continue
+            self.current_key = key
             spectrum = self.spectra[key]
             template = self.templates[key]
-            (shift, n50) = self.findShift (spectrum, template)
-            if shift is None:
+            (shift, orig_shift1, n50) = self.findShift (spectrum, template)
+            self.orig_shift1_dict[key] = orig_shift1
+            if not self.spec_found[key]:
                 self.notFound (key)
                 continue
 
@@ -210,14 +279,17 @@ class Shift1 (object):
             if factor is None:
                 self.notFound (key)
                 continue
-            (chisq, spec, tmpl) = self.computeChiSquare (spectrum, template,
-                                  factor, spec_slice, tmpl_slice)
-            nelem = len (spec)
+            (chisq, ndf, spec, tmpl) = \
+            self.computeChiSquare (spectrum, template,
+                                   factor, spec_slice, tmpl_slice)
             self.chisq_dict[key] = chisq
-            self.nelem_dict[key] = nelem
+            self.ndf_dict[key] = ndf
             self.spec_dict[key] = spec.copy()
             self.tmpl_dict[key] = tmpl.copy()
-            ratio = chisq / nelem
+            if ndf > 0:
+                ratio = chisq / ndf
+            else:
+                ratio = chisq
             if shift is None or ratio > N_SIGMA or ratio < 1./N_SIGMA:
                 shift = 0.
                 self.spec_found[key] = False
@@ -236,10 +308,12 @@ class Shift1 (object):
             if key not in self.templates.keys():
                 self.notFound (key)
                 continue
+            self.current_key = key
             spectrum = self.spectra[key]
             template = self.templates[key]
-            (shift, n50) = self.findShift (spectrum, template)
-            if shift is None or abs (shift - global_shift) > SLOP:
+            (shift, orig_shift1, n50) = self.findShift (spectrum, template)
+            self.orig_shift1_dict[key] = orig_shift1
+            if abs (shift - global_shift) > SLOP:
                 self.spec_found[key] = False
             self.shift1_dict[key] = shift
             self.n50_dict[key] = n50
@@ -264,6 +338,7 @@ class Shift1 (object):
             median_factor = factors[n]
 
         for key in self.keys:
+            self.current_key = key
             shift = self.shift1_dict[key]
             spectrum = self.spectra[key]
             template = self.templates[key]
@@ -272,14 +347,17 @@ class Shift1 (object):
             if factor is None:
                 self.notFound (key)
                 continue
-            (chisq, spec, tmpl) = self.computeChiSquare (spectrum, template,
-                                  median_factor, spec_slice, tmpl_slice)
-            nelem = len (spec)
+            (chisq, ndf, spec, tmpl) = \
+            self.computeChiSquare (spectrum, template,
+                                   median_factor, spec_slice, tmpl_slice)
             self.chisq_dict[key] = chisq
-            self.nelem_dict[key] = nelem
+            self.ndf_dict[key] = ndf
             self.spec_dict[key] = spec.copy()
             self.tmpl_dict[key] = tmpl.copy()
-            ratio = chisq / nelem
+            if ndf > 0:
+                ratio = chisq / ndf
+            else:
+                ratio = chisq
             if shift is None or ratio > N_SIGMA or ratio < 1./N_SIGMA:
                 self.spec_found[key] = False
                 shift = 0.
@@ -291,7 +369,7 @@ class Shift1 (object):
         self.spec_found[key] = False
         self.n50_dict[key] = None
         self.chisq_dict[key] = 0.
-        self.nelem_dict[key] = 0
+        self.ndf_dict[key] = 0
         self.spec_dict[key] = []
         self.tmpl_dict[key] = []
 
@@ -303,6 +381,7 @@ class Shift1 (object):
         """
 
         for key in self.keys:
+            self.current_key = key
             if self.spectra[key].sum() < MIN_NUMBER_OF_COUNTS:
                 self.spec_found[key] = False
 
@@ -319,11 +398,21 @@ class Shift1 (object):
         nelem = len (self.spectra[key])
         sum_spectra = N.zeros (nelem, dtype=N.float64)
         sum_templates = N.zeros (nelem, dtype=N.float64)
+        nsum = 0
         for key in self.keys:
-            if self.templates.has_key (key):
+            self.current_key = key
+            # Skip spectra for which spec_found is already set to False,
+            # because they probably have negligible counts.
+            if self.templates.has_key (key) and self.spec_found[key]:
                 sum_spectra += self.spectra[key]
                 sum_templates += self.templates[key]
-        (global_shift, n50) = self.findShift (sum_spectra, sum_templates)
+                nsum += 1
+        if nsum < 1:
+            return 0
+
+        self.current_key = "all"
+        (global_shift, orig_shift1, n50) = \
+                self.findShift (sum_spectra, sum_templates)
 
         return global_shift
 
@@ -335,15 +424,55 @@ class Shift1 (object):
         @param template: template spectrum
         @type template: array
 
-        @return: the shift in the dispersion direction
-        @rtype: float
+        @return: (shift, orig_shift1, n50), where shift is the shift in the
+            dispersion direction, orig_shift1 is the shift even if it wasn't
+            well determined, and n50 is no longer used
+        @rtype: tuple
         """
 
-        initial_offset = -self.fp * self.stepsize
+        initial_offset = self.fp * self.stepsize
 
-        (shift, n50) = self.crosscor (spectrum, template, initial_offset)
+        lenxc = len (self.xc)
+        maxlag = lenxc // 2
+        for shift in range (-maxlag, maxlag+1):
+            shift_x = shift + initial_offset
+            (factor, spec_slice, tmpl_slice) = \
+                    self.computeNormalization (spectrum, template, shift_x)
+            if factor is None:
+                self.xc[maxlag+shift] = -1.     # shouldn't ever be the maximum
+                continue
+            (chisq, ndf, spec, tmpl) = \
+            self.computeChiSquare (spectrum, template,
+                                   factor, spec_slice, tmpl_slice)
+            # we want the minimum, but xcStat finds the maximum, so change sign
+            self.xc[maxlag+shift] = -chisq
 
-        return (shift, n50)
+        # imax is the index of the maximum.  n50 is for diagnostic purposes.
+        (imax, status, n50) = self.xcStat()
+
+        i1 = imax - 1
+        i1 = max (i1, 0)
+        i2 = i1 + 2
+        i2 = min (i2, lenxc-1)
+        # Unless we're at an endpoint of xc, index is equal to imax, the index
+        # of the peak.
+        index = i2 - 1
+        denominator = self.xc[index-1] - 2. * self.xc[index] + self.xc[index+1]
+        if denominator >= 0.:
+            status |= XC_NOT_FOUND
+        else:
+            location = (self.xc[index-1] - self.xc[index+1]) \
+                       / (2. * denominator)
+            # The peak in xc would be at maxlag (the middle element of xc)
+            # if x and template were identical.
+            shift = location + index + initial_offset - maxlag
+            orig_shift1 = shift
+        if status:
+            shift = 0.
+            orig_shift1 = index + initial_offset - maxlag
+            self.spec_found[self.current_key] = False
+
+        return (shift, orig_shift1, n50)
 
     def crosscor (self, spectrum, template, initial_offset):
         """Cross correlate two arrays to find the offset between them.
@@ -367,11 +496,11 @@ class Shift1 (object):
         maxlag = lenxc // 2
 
         for lag in range (-maxlag, maxlag+1):
-            x1 = lag - initial_offset
+            x1 = lag + initial_offset
             x2 = x1 + length
             x1 = max (x1, 0)
             x2 = min (x2, length)
-            t1 = -lag + initial_offset
+            t1 = -lag - initial_offset
             t2 = t1 + length
             t1 = max (t1, 0)
             t2 = min (t2, length)
@@ -397,7 +526,7 @@ class Shift1 (object):
                        / (2. * denominator)
             # The peak in xc would be at maxlag (the middle element of xc)
             # if x and template were identical.
-            shift = location + index - initial_offset - maxlag
+            shift = location + index + initial_offset - maxlag
 
         return (shift, n50)
 
@@ -531,6 +660,9 @@ class Shift1 (object):
         else:
             factor = factors[n]
 
+        if factor <= 0:
+            factor = None
+
         return (factor, (s0, s1), (t0, t1))
 
     def computeChiSquare (self, spectrum, template,
@@ -548,7 +680,8 @@ class Shift1 (object):
         @param tmpl_slice: the overlapping slice to use for the template
         @type tmpl_slice: int
 
-        @return: Chi square, the spectrum, and the normalized template
+        @return: Chi square, the number of degrees of freedom, the overlapping
+            slice of the spectrum and normalized template
         @rtype: tuple
         """
 
@@ -560,17 +693,26 @@ class Shift1 (object):
         # Normalize the template to match the spectrum.
         n_tmpl = tmpl * factor
 
-        # Use mean_0_1 for the variance where the value in the spectrum is 0.
-        ia = N.where (spec < 1.5)
-        mean_0_1 = spec[ia].mean()
-        if mean_0_1 <= 0.:
-            mean_0_1 = 1.
-        variance = N.where (spec <= 0., mean_0_1, spec)
+        # explanation:
+        # sigma for the template = sqrt (template);
+        # sigma for the normalized template = sqrt (template) * factor;
+        # variance for the normalized template = template * factor**2
+        #   = normalized template * factor = n_tmpl * factor.
+        variance = spec + n_tmpl * factor       # add sigmas in quadrature
 
-        chisq = (spec - n_tmpl)**2 / variance
-        chisq = float (chisq.sum())
+        # self.writeDebug (spec, n_tmpl, variance)
 
-        return (chisq, spec, n_tmpl)
+        # When computing chi square, include only those elements for which
+        # the variance is non-zero.
+        ia = N.where (variance > 0.)
+        nelem = len (ia[0])
+        ndf = max (0, nelem - 1)                # number of degrees of freedom
+        # v is scratch, just so we can divide by it
+        v = N.where (variance > 0., variance, 1.)
+        chisq = N.where (variance > 0., (spec - n_tmpl)**2 / v, 0.)
+        chisq = float (chisq.sum(dtype=N.float64))
+
+        return (chisq, ndf, spec, n_tmpl)
 
     def repairNUV (self):
         """Assign reasonable values for shifts that weren't found."""
@@ -581,6 +723,7 @@ class Shift1 (object):
         ngood = 0
         sum_shifts = 0.
         for key in self.keys:
+            self.current_key = key
             if self.spec_found[key]:
                 sum_shifts += self.shift1_dict[key] + offset[key] * self.fp
                 ngood += 1
@@ -589,5 +732,19 @@ class Shift1 (object):
 
         mean_shift = sum_shifts / ngood
         for key in self.keys:
+            self.current_key = key
             if not self.spec_found[key]:
                 self.shift1_dict[key] = mean_shift + offset[key] * self.fp
+
+    def writeDebug (self, spec, tmpl, variance):
+        """debug"""
+
+        filename = "debug_" + str (self.NFILES) + ".txt"
+
+        fd = open (filename, "w")
+        fd.write ("# key = %s\n" % self.current_key)
+        for i in range (len (spec)):
+            fd.write ("%.8g %.8g %.8g\n" % (spec[i], tmpl[i], variance[i]))
+        fd.close()
+
+        self.NFILES += 1

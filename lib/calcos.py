@@ -44,6 +44,10 @@ def main (args):
         -s (save temporary files)
         -o outdir (output directory name)
         --csum (create csum image)
+        --compress parameters (compress csum image)
+        --binx X_bin_factor (csum binning in X)
+        --biny Y_bin_factor (csum binning in Y)
+        --shift filename (file to specify shift values)
         --stim filename (append stim locations to filename)
         --live filename (append livetime factors to filename)
         --burst filename (append burst info to filename)
@@ -60,7 +64,8 @@ def main (args):
 
     try:
         (options, pargs) = getopt.getopt (args, "qvso:",
-                           ["csum", "stim=", "live=", "burst="])
+                           ["csum", "compress=", "binx=", "biny=",
+                            "shift=", "stim=", "live=", "burst="])
     except Exception, error:
         cosutil.printError (str (error))
         prtOptions()
@@ -76,9 +81,15 @@ def main (args):
 
     # default values
     cosutil.setVerbosity (VERBOSE)
+    # parameters pertaining to the "calcos sum" file
     create_csum_image = False
+    binx = 1
+    biny = 1
+    compress_csum = False
+    compression_parameters = "gzip,-0.01"
+    # user-supplied text file to specify shift1 and shift2
+    shift_file = None
     save_temp_files = False
-    csumfile = None
     stimfile = None
     livetimefile = None
     burstfile = None
@@ -95,6 +106,15 @@ def main (args):
             outdir = options[i][1]
         elif options[i][0] == "--csum":
             create_csum_image = True
+        elif options[i][0] == "--compress":
+            compress_csum = True
+            compression_parameters = options[i][1]
+        elif options[i][0] == "--binx":
+            binx = int (options[i][1])
+        elif options[i][0] == "--biny":
+            biny = int (options[i][1])
+        elif options[i][0] == "--shift":
+            shift_file = options[i][1]
         elif options[i][0] == "--stim":
             stimfile = options[i][1]
         elif options[i][0] == "--live":
@@ -113,8 +133,12 @@ def main (args):
 
     status = 0
     for i in range (len (infiles)):
-        status = calcos (infiles[i], outdir=outdir,
+        status = calcos (infiles[i], outdir=outdir, verbosity=None,
                          create_csum_image=create_csum_image,
+                         binx=binx, biny=biny,
+                         compress_csum=compress_csum,
+                         compression_parameters=compression_parameters,
+                         shift_file=shift_file,
                          save_temp_files=save_temp_files,
                          stimfile=stimfile, livetimefile=livetimefile,
                          burstfile=burstfile)
@@ -130,6 +154,10 @@ def prtOptions():
     cosutil.printMsg ("  -s (save temporary files)")
     cosutil.printMsg ("  -o outdir (output directory name)")
     cosutil.printMsg ("  --csum (create 'calcos sum' image)")
+    cosutil.printMsg ("  --compress parameters (compress csum image)")
+    cosutil.printMsg ("  --binx X_bin_factor (csum bin factor in X)")
+    cosutil.printMsg ("  --biny Y_bin_factor (csum bin factor in Y)")
+    cosutil.printMsg ("  --shift filename (file to specify shift values)")
     cosutil.printMsg ("  --stim filename (append stim locations to filename)")
     cosutil.printMsg ("  --live filename (append livetime factors to filename)")
     cosutil.printMsg ("  --burst filename (append burst info to filename)")
@@ -181,7 +209,11 @@ def checkNumerix():
                               os.environ["NUMERIX"])
 
 def calcos (asntable, outdir=None, verbosity=None,
-            create_csum_image=False, save_temp_files=False,
+            create_csum_image=False,
+            binx=None, biny=None,
+            compress_csum=False, compression_parameters="gzip,-0.01",
+            shift_file=None,
+            save_temp_files=False,
             stimfile=None, livetimefile=None, burstfile=None):
     """Calibrate COS data.
 
@@ -199,6 +231,27 @@ def calcos (asntable, outdir=None, verbosity=None,
         counts detected at each pixel (includes deadcorr but not flatcorr),
         for OPUS to add to cumulative image
     @type create_csum_image: boolean
+
+    @param binx: binning factor for the X axis (or None, which means that
+        the default binning should be used)
+    @type binx: int or None
+
+    @param biny: binning factor for the Y axis (or None, which means that
+        the default binning should be used)
+    @type biny: int or None
+
+    @param compress_csum: if True, compress the "calcos sum" image
+    @type compress_csum: boolean
+
+    @param compression_parameters: two values separated by a comma; the first
+        is the compression type (rice, gzip or hcompress), and the second is
+        the quantization level
+    @type compression_parameters: string
+
+    @param shift_file: if specified, this text file contains values of
+        shift1 (and possibly shift2) to override the values found via
+        wavecal processing
+    @type shift_file: string
 
     @param save_temp_files: By default, the _x1d_a.fits and _x1d_b.fits files
         (if FUV) will be deleted after concatenating to the _x1d.fits file.
@@ -230,9 +283,18 @@ def calcos (asntable, outdir=None, verbosity=None,
     if verbosity is not None:
         cosutil.setVerbosity (verbosity)
 
-    assoc = Association (asntable, outdir,
-                         create_csum_image, save_temp_files,
-                         stimfile, livetimefile, burstfile)
+    # some of the command-line arguments
+    cl_args = {"create_csum_image": create_csum_image,
+               "binx": binx,
+               "biny": biny,
+               "compress_csum": compress_csum,
+               "compression_parameters": compression_parameters,
+               "shift_file": shift_file,
+               "save_temp_files": save_temp_files,
+               "stimfile": stimfile,
+               "livetimefile": livetimefile,
+               "burstfile": burstfile}
+    assoc = Association (asntable, outdir, cl_args)
     if len (assoc.obs) == 0:
         return NO_DATA_TO_CALIBRATE
     if not assoc.isAnySwitchSet():
@@ -339,6 +401,7 @@ class Association (object):
     Some of the attributes are:
         asntable           full name of the association file, or None if the
                              name (or rootname) of a raw file was specified
+        cl_args            some of the command-line arguments
         asn_info           a dictionary of the contents of the association table
         indir              name of input directory, or an empty string; if a
                              directory was specified, it will be added as a
@@ -368,9 +431,7 @@ class Association (object):
                              or accum, whichever is not None)
     """
 
-    def __init__ (self, asntable, outdir=None,
-                  create_csum_image=False, save_temp_files=False,
-                  stimfile=None, livetimefile=None, burstfile=None):
+    def __init__ (self, asntable, outdir, cl_args):
 
         """Constructor.
 
@@ -381,27 +442,8 @@ class Association (object):
         @param outdir: name of output directory, or None
         @type outdir: string
 
-        @param create_csum_image: if True, write an image that reflects the
-            counts detected at each pixel (includes deadcorr but not flatcorr),
-            for OPUS to add to cumulative image
-        @type create_csum_image: boolean
-
-        @param save_temp_files: By default, the _x1d_a.fits and _x1d_b.fits
-            files (if FUV) will be deleted after concatenating to the _x1d.fits
-            file.  Specify save_temp_files=True to keep these files.
-        @type save_temp_files: boolean
-
-        @param stimfile: if specified, the stim positions will be written to
-            (or appended to) a text file with this name
-        @type stimfile: string
-
-        @param livetimefile: if specified, the livetime factors will be written
-            to (or appended to) a text file with this name
-        @type livetimefile: string
-
-        @param burstfile: if specified, burst information will be written to
-            (or appended to) a text file with this name
-        @type burstfile: string
+        @param cl_args: some of the command-line arguments, or their defaults
+        @type cl_args: dictionary
         """
 
         self.asn_info = {}          # association table info
@@ -419,11 +461,7 @@ class Association (object):
 
         # Copy command-line options to attributes.
         self.asntable = None                    # initial value
-        self.create_csum_image = create_csum_image
-        self.save_temp_files = save_temp_files
-        self.stimfile = stimfile
-        self.livetimefile = livetimefile
-        self.burstfile = burstfile
+        self.cl_args = cl_args
 
         asntable = os.path.expandvars (asntable)
         self.indir = os.path.dirname (asntable)
@@ -1124,7 +1162,7 @@ class Association (object):
         # ones that are independent of others.  For example, it wouldn't
         # matter if fluxcorr were set to perform if x1dcorr were omit.
         self.global_switches["any"] = "OMIT"            # default value
-        if self.create_csum_image:
+        if self.cl_args["create_csum_image"]:
             self.global_switches["any"] = "PERFORM"
         for key in ["badtcorr", "brstcorr", "deadcorr", "doppcorr",
                     "dqicorr",  "flatcorr", "geocorr",  "helcorr",
@@ -1202,7 +1240,7 @@ class Association (object):
                 self.checkExists (obs.filenames["x1d_x"], wavecal_exists)
                 if obs.filenames["x1d"] != obs.filenames["x1d_x"]:
                     self.checkExists (obs.filenames["x1d"], wavecal_exists)
-                if self.create_csum_image:
+                if self.cl_args["create_csum_image"]:
                     self.checkExists (obs.filenames["csum"], wavecal_exists)
             else:
                 if obs.info["obsmode"] == "TIME-TAG":
@@ -1278,8 +1316,9 @@ class Association (object):
         """
 
         i = self.first_science
-        if self.stimfile is not None and self.obs[i].info["detector"] != "FUV":
-            self.stimfile = None
+        if self.cl_args["stimfile"] is not None and \
+           self.obs[i].info["detector"] != "FUV":
+            self.cl_args["stimfile"] = None
             cosutil.printWarning (
                 "stimfile reset to None because detector is NUV.")
 
@@ -1445,6 +1484,9 @@ class Observation (object):
 
         self.getHeaderInfo()
         self.filenames = self.makeFileNames (suffix, outdir)
+        # This value of rootname is based on the filename on disk, which
+        # could differ from the value of the rootname keyword.
+        self.info["root"] = self.filenames["root"]
         self.openTrailer (first)    # open the trailer file for this input file
         self.sanityCheck()
 
@@ -2096,23 +2138,22 @@ class Calibration (object):
             outflash = filenames["flash_x"]
         else:
             outflash = None
-        if self.assoc.create_csum_image:
+        if self.assoc.cl_args["create_csum_image"]:
             outcsum = filenames["csum"]
         else:
             outcsum = None
         if info["obsmode"] == "TIME-TAG":
             status = timetag.timetagBasicCalibration (input, None, outtag,
                         output, outcounts, outflash, outcsum,
+                        self.assoc.cl_args,
                         info, switches, reffiles,
-                        self.wavecal_info,
-                        self.assoc.stimfile, self.assoc.livetimefile,
-                        self.assoc.burstfile)
+                        self.wavecal_info)
         else:
             status = accum.accumBasicCalibration (input, inpha, outtag,
                         output, outcounts, outcsum,
+                        self.assoc.cl_args,
                         info, switches, reffiles,
-                        self.wavecal_info,
-                        self.assoc.stimfile, self.assoc.livetimefile)
+                        self.wavecal_info)
 
     def allWavecals (self):
         """Process all the wavecal observations in the association."""
@@ -2234,7 +2275,9 @@ class Calibration (object):
                     wavecal.printWavecalRef (obs.reffiles)
                     first = False
                 cosutil.printFilenames ([("Input", x1d_file)])
-                shift_dict = wavecal.findWavecalShift (x1d_file, self.wcp_info)
+                shift_dict = wavecal.findWavecalShift (x1d_file,
+                                self.assoc.cl_args["shift_file"], obs.info,
+                                self.wcp_info)
 
                 if shift_dict is not None:
                     # time is the MJD at the midpoint of the exposure.
@@ -2459,7 +2502,7 @@ class Calibration (object):
                         continue
                 else:
                     extract.concatenateFUVSegments (infiles, output)
-                    if not self.assoc.save_temp_files:
+                    if not self.assoc.cl_args["save_temp_files"]:
                         # Delete the _x1d_a.fits and _x1d_b.fits files.
                         for file in infiles:
                             if os.access (file, os.R_OK):

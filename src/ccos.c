@@ -88,6 +88,7 @@ xy_collapse collapses events along the dispersion direction.
 		cast time to a float or double array (still allows either)
 		when calling search or search_d, and change those functions
 		to accept a float or double array rather than a PyArrayObject.
+2009 May 6	Include binx and biny as arguments to csum_2d and csum_3d.
 */
 
 # include <Python.h>
@@ -194,9 +195,11 @@ static int collapseFromEvents (PyArrayObject *, PyArrayObject *,
 		short [], int,
 		double, double [], int);
 static void bin3DtoCsum (float [], int, int, int,
+		int, int,
 		float [], float [],
 		float [], short [], int);
 static void bin2DtoCsum (float [], int, int,
+		int, int,
 		float [], float [], float [], int);
 
 /* This function returns the documentation string to be assigned to
@@ -239,8 +242,10 @@ static char *DocString (void) {
     xy_extract (xi, eta, outdata, slope, intercept, x_offset,\n\
                 <optional:  dq, sdqflags, epsilon>)\n\
     xy_collapse (xi, eta, dq, slope, xdisp)\n\
-    csum_3d (array, x, y, epsilon, pha)\n\
-    csum_2d (array, x, y, epsilon)\n\
+    csum_3d (array, x, y, epsilon, pha,\n\
+               <optional:  binx, biny>)\n\
+    csum_2d (array, x, y, epsilon,\n\
+               <optional:  binx, biny>)\n\
 "
         /* string split because it is too long for windows compiler */
 "\
@@ -3365,12 +3370,16 @@ static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 
 /* calling sequence for csum_3d:
 
-   csum_3d (array, x, y, epsilon, pha)
+   csum_3d (array, x, y, epsilon, pha, binx, biny)
 
     array     io: the output 3-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (float32)
     epsilon    i: array of weights for the events (float32)
     pha        i: array of pulse heights (int16)
+
+   optional arguments:
+    binx       i: binning factor in the more rapidly varying axis
+    biny       i: binning factor in the less rapidly varying axis
 
    ccos_csum_3d calls bin3DtoCsum, which converts arrays of pixel
    coordinates to an image array.  The 3-D array ('array') is assumed
@@ -3382,10 +3391,11 @@ static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon, *opha;
 	PyArrayObject *array, *x, *y, *epsilon, *pha;
+	int binx=1, biny=1;
 	int n_events, nx, ny, nz;
 
-	if (!PyArg_ParseTuple (args, "OOOOO",
-			&oarray, &ox, &oy, &oepsilon, &opha)) {
+	if (!PyArg_ParseTuple (args, "OOOOO|ii",
+			&oarray, &ox, &oy, &oepsilon, &opha, &binx, &biny)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -3422,6 +3432,7 @@ static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
 	}
 
 	bin3DtoCsum ((float *)PyArray_DATA (array), nx, ny, nz,
+		binx, biny,
 		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
 		(float *)PyArray_DATA (epsilon),
 		(short *)PyArray_DATA (pha), n_events);
@@ -3439,6 +3450,7 @@ static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
 /* This is called by ccos_csum_3d. */
 
 static void bin3DtoCsum (float array[], int nx, int ny, int nz,
+		int binx, int biny,
 		float x[], float y[],
 		float epsilon[], short pha[], int n_events) {
 
@@ -3446,11 +3458,16 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 	int i, j, k;	/* pixel coordinates of event, indices in 3-D array */
 	int m;		/* 1-D index into array */
 
+	if (binx < 1)
+	    binx = 1;
+	if (biny < 1)
+	    biny = 1;
+
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = NINT (x[n]);
-	    j = NINT (y[n]);
+	    i = NINT (x[n]) / binx;
+	    j = NINT (y[n]) / biny;
 	    k = pha[n];
 
 	    /* truncate at borders of image */
@@ -3464,11 +3481,15 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 
 /* calling sequence for csum_2d:
 
-   csum_2d (array, x, y, epsilon)
+   csum_2d (array, x, y, epsilon, binx, biny)
 
     array     io: the output 2-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (float32)
     epsilon    i: array of weights for the events (float32)
+
+   optional arguments:
+    binx       i: binning factor in the more rapidly varying axis
+    biny       i: binning factor in the less rapidly varying axis
 
    ccos_csum_2d calls bin2DtoCsum, which converts arrays of pixel
    coordinates to an image array.  The 2-D array ('array') is assumed
@@ -3480,10 +3501,11 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon;
 	PyArrayObject *array, *x, *y, *epsilon;
+	int binx=1, biny=1;
 	int n_events, nx, ny;
 
-	if (!PyArg_ParseTuple (args, "OOOO",
-			&oarray, &ox, &oy, &oepsilon)) {
+	if (!PyArg_ParseTuple (args, "OOOO|ii",
+			&oarray, &ox, &oy, &oepsilon, &binx, &biny)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -3507,6 +3529,7 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 	ny = PyArray_DIM (array, 0);
 
 	bin2DtoCsum ((float *)PyArray_DATA (array), nx, ny,
+		binx, biny,
 		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
 		(float *)PyArray_DATA (epsilon), n_events);
 
@@ -3522,17 +3545,23 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 /* This is called by ccos_csum_2d. */
 
 static void bin2DtoCsum (float array[], int nx, int ny,
+		int binx, int biny,
 		float x[], float y[],
 		float epsilon[], int n_events) {
 
 	int n;		/* loop index for events */
 	int i, j;	/* pixel coordinates of event, indices in 2-D array */
 
+	if (binx < 1)
+	    binx = 1;
+	if (biny < 1)
+	    biny = 1;
+
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = NINT (x[n]);
-	    j = NINT (y[n]);
+	    i = NINT (x[n]) / binx;
+	    j = NINT (y[n]) / biny;
 
 	    /* truncate at borders of image */
 	    if (i < 0 || i >= nx || j < 0 || j >= ny)

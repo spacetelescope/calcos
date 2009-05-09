@@ -4,6 +4,7 @@ from convolve import boxcar
 import pyfits
 import cosutil
 import ccos
+import dispersion
 import getinfo
 # xxx import xd_search
 from calcosparam import *       # parameter definitions
@@ -241,12 +242,10 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                   "cenwave": info["cenwave"],
                   "aperture": info["aperture"]}
         xtract_info = cosutil.getTable (reffiles["xtractab"], filter)
-        # If the FPOFFSET column is present in the disptab, include fpoffset
-        # in the filter.
-        if cosutil.findColumn (reffiles["disptab"], "fpoffset"):
-            filter["fpoffset"] = info["fpoffset"]
-        disp_info = cosutil.getTable (reffiles["disptab"], filter)
-        if disp_info is None or xtract_info is None:
+        # Include fpoffset in the filter for disptab.
+        filter["fpoffset"] = info["fpoffset"]
+        disp_rel = dispersion.Dispersion (reffiles["disptab"], filter, True)
+        if xtract_info is None or not disp_rel.isValid():
             continue
         slope = xtract_info.field ("slope")[0]
 
@@ -256,7 +255,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
             key = "dpixel1" + segment[-1]
             dpixel1 = hdr.get (key, 0.)
 
-        shift2 = 0.              # cross-dispersion direction
+        shift2 = 0.             # cross-dispersion direction
 
         # xdisp_locn will be the user-specified location in cross-dispersion
         # direction (or None, if the user did not specify a value).
@@ -272,26 +271,20 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
 
         # These are pixel coordinates.
         pixel = N.arange (nelem, dtype=N.float64)
-        ncoeff = disp_info.field ("nelem")[0]
-        coeff = disp_info.field ("coeff")[0][0:ncoeff]
-        if cosutil.findColumn (disp_info, "delta"):
-            delta = disp_info.field ("delta")[0]
-        else:
-            delta = 0.
 
         x_offset = hdr.get ("x_offset", 0)
 
         # Correct for the extra pixels (if any) in the dispersion direction.
         pixel -= x_offset
 
-        pixel += dpixel1                # shift will be 0 for a wavecal
-        wavelength = cosutil.evalDisp (pixel, coeff, delta)
-        del disp_info
+        pixel += dpixel1                # dpixel1 will be 0 for a wavecal
+        wavelength = disp_rel.evalDisp (pixel)
+        disp_rel.close()
 
         # S/N of the flat field
         snr_ff = getSnrFf (switches, reffiles, segment)
 
-        axis = 2 - hdr["dispaxis"]          # 1 --> 1,  2 --> 0
+        axis = 2 - hdr["dispaxis"]      # 1 --> 1,  2 --> 0
 
         if corrtag:
             if info["detector"] == "FUV":
@@ -1240,12 +1233,10 @@ def recomputeWavelengths (input):
         filter = {"segment": segment,
                   "opt_elem": info["opt_elem"],
                   "cenwave": info["cenwave"],
-                  "aperture": "WCA"}
-        # If the FPOFFSET column is present, include it in the filter.
-        if cosutil.findColumn (disptab, "fpoffset"):
-            filter["fpoffset"] = info["fpoffset"]
-        disp_info = cosutil.getTable (disptab, filter)
-        if disp_info is None:
+                  "aperture": "WCA",
+                  "fpoffset": info["fpoffset"]}
+        disp_rel = dispersion.Dispersion (disptab, filter)
+        if not disp_rel.isValid():
             continue
         key = "shift1" + segment[-1]
         shift1 = hdr.get (key, 0.)
@@ -1253,17 +1244,11 @@ def recomputeWavelengths (input):
         # 'pixel' is an array of pixel coordinates.
         nelem = nelem_col[row]
         pixel = N.arange (nelem, dtype=N.float64)
-        ncoeff = disp_info.field ("nelem")[0]
-        coeff = disp_info.field ("coeff")[0][0:ncoeff]
-        if cosutil.findColumn (disp_info, "delta"):
-            delta = disp_info.field ("delta")[0]
-        else:
-            delta = 0.
 
         pixel -= shift1
         pixel -= x_offset
-        wl_col[row][0:nelem] = cosutil.evalDisp (pixel, coeff, delta)
-        del disp_info
+        wl_col[row][0:nelem] = disp_rel.evalDisp (pixel)
+        disp_rel.close()
 
     phdr.update ("WAVECORR", "COMPLETE")
 

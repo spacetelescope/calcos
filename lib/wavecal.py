@@ -6,17 +6,23 @@ from calcosparam import *
 import ccos
 import cosutil
 import findshift1
+import shiftfile
 
 # Each element of wavecal_info is a dictionary with the keys:
 # "time", "fpoffset", "shift_dict", "rootname", "filename".  The variable
 # name wc_dict is used for one element of wavecal_info.
 
-def findWavecalShift (input, wcp_info):
+def findWavecalShift (input, shift_file, info, wcp_info):
     """Find the shift from a wavecal image.
 
-    arguments:
-    input           name of an x1d FITS file containing a wavecal observation
-    wcp_info        data (one row) from the wavecal parameters table
+    @param input: name of an x1d FITS file containing a wavecal observation
+    @type input: string
+    @param shift_file: name of a user-supplied file to override shifts, or None
+    @type shift_file: string
+    @param info: keywords and values
+    @type info: dictionary
+    @param wcp_info: data (one row) from the wavecal parameters table
+    @type wcp_info: pyfits record
 
     The function value is a dictionary of shifts, with keys shift1a,
     shift1b, shift1c.  The shift is the value for that segment or stripe
@@ -37,11 +43,6 @@ def findWavecalShift (input, wcp_info):
         fd.close()
         return None
 
-    info = {}
-    info["detector"] = phdr["detector"]
-    info["opt_elem"] = phdr["opt_elem"]
-    info["cenwave"] = phdr["cenwave"]
-    info["fpoffset"] = phdr["fpoffset"]
     reffiles = {}
     lamptab = cosutil.expandFileName (phdr["lamptab"])
     reffiles["lamptab"] = lamptab
@@ -97,12 +98,19 @@ def findWavecalShift (input, wcp_info):
                              xc_range, stepsize, fp)
     fs1.findShifts()
 
-    if detector == "FUV":
-        cosutil.printMsg ("segment   shift   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("-------   -----   ----------", VERBOSE)
+    # Did the user supply a file with overrides for the shifts?
+    if shift_file is None:
+        user_shifts = None
     else:
-        cosutil.printMsg ("stripe    shift   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("------    -----   ----------", VERBOSE)
+        user_shifts = shiftfile.ShiftFile (shift_file,
+                                           info["root"], info["fpoffset"])
+
+    if detector == "FUV":
+        cosutil.printMsg ("segment   shift  [orig.]   chi sq (n)", VERBOSE)
+        cosutil.printMsg ("-------  ------ --------   ----------", VERBOSE)
+    else:
+        cosutil.printMsg ("stripe    shift  [orig.]   chi sq (n)", VERBOSE)
+        cosutil.printMsg ("------   ------  -------   ----------", VERBOSE)
 
     # Print and save results.
     for row in index:
@@ -125,14 +133,24 @@ def findWavecalShift (input, wcp_info):
             fp_pixel_shift = lamp_info.field ("fp_pixel_shift")[0]
         else:
             fp_pixel_shift = 0.
+        user_specified = False
+        if user_shifts is not None:
+            ((user_shift1, user_shift2), nfound) = \
+                        user_shifts.getShifts (("any", segment[row]))
+            if user_shift1 is not None:
+                fs1.setShift1 (segment[row], user_shift1-fp_pixel_shift)
+                user_specified = True
         shift_segment = fs1.getShift1 (segment[row]) + fp_pixel_shift
+        orig_shift1 = fs1.getOrigShift1 (segment[row]) + fp_pixel_shift
         sci_extn.header.update (key, shift_segment)
         shift_dict[key] = shift_segment
 
-        message = " %4s   %7.2f   %7.1f (%d)" % \
-                (segment[row], shift_segment,
+        message = " %4s    %6.1f [%6.1f]  %7.1f (%d)" % \
+                (segment[row], shift_segment, orig_shift1,
                  fs1.getChiSq (segment[row]), fs1.getNdf (segment[row]))
-        if not fs1.getSpecFound (segment[row]):
+        if user_specified:
+            message = message + "  # user-specified"
+        elif not fs1.getSpecFound (segment[row]):
             message = message + "  # not found"
         cosutil.printMsg (message, VERBOSE)
 
@@ -200,8 +218,8 @@ def cmpTime (wc_dict_a, wc_dict_b):
 def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
     """Return the shift dictionary from wavecal_info that matches fpoffset.
 
-    @param wavecal_info:   list of wavecal information dictionaries
-    @type wavecal_info:   list of dictionaries
+    @param wavecal_info: list of wavecal information dictionaries
+    @type wavecal_info: list of dictionaries
     @param wcp_info: data (one row) from the wavecal parameters table
     @type wcp_info: PyFITS record
     @param fpoffset: OSM position, used to select entries from wavecal_info

@@ -9,6 +9,7 @@ import cosutil
 import burst
 import ccos
 import concurrent
+import dispersion
 import phot
 import wavecal
 from calcosparam import *       # parameter definitions
@@ -35,44 +36,58 @@ active_area = None
 
 def timetagBasicCalibration (input, inpha, outtag,
                   output, outcounts, outflash, outcsum,
+                  cl_args,
                   info, switches, reffiles,
-                  wavecal_info,
-                  stimfile=None, livetimefile=None, burstfile=None):
+                  wavecal_info):
     """Do the basic processing for time-tag data.
 
     The function value will be zero if there was no problem,
     and it will be one if there was no input data.
 
-    arguments:
-    input         name of the input file
-    inpha         name of the input file containing the pulse height
-                  histogram (FUV ACCUM only)
-    outtag        name of the output file for corrected time-tag data
-    output        name of the output file for flat-fielded count-rate image
-    outcounts     name of the output file for count-rate image
-    outflash      name of the output file for tagflash wavecal spectra (or None)
-    outcsum       name of the output image for OPUS to add to cumulative
-                      image (or None)
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    wavecal_info  when wavecal exposures were processed, the results
-                    were stored in this dictionary
-    stimfile      name of output text file for stim positions (or None)
-    livetimefile  name of output text file for livetime factors (or None)
-    burstfile     name of output text file for burst info (or None)
+    @param input: name of the input file
+    @type input: string
+    @param inpha: name of the input file containing the pulse height
+        histogram (FUV ACCUM only)
+    @type inpha: string
+    @param outtag: name of the output file for corrected time-tag data
+    @type outtag: string
+    @param output: name of the output file for flat-fielded count-rate image
+    @type output: string
+    @param outcounts: name of the output file for count-rate image
+    @type outcounts: string
+    @param outflash: name of the output file for tagflash wavecal spectra
+        (or None)
+    @type outflash: string
+    @param outcsum: name of the output image for OPUS to add to cumulative
+        image (or None)
+    @type outcsum: string
+    @param cl_args: some of the command-line arguments
+    @type cl_args: dictionary
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param wavecal_info: when wavecal exposures were processed, the results
+        were stored in dictionaries in this list
+    @type wavecal_info: list of dictionaries
     """
 
     if info["obsmode"] == "TIME-TAG":
         cosutil.printIntro ("TIME-TAG calibration")
-        names = [("Input", input), ("OutTag", outtag),
-                 ("OutFlt", output), ("OutCounts", outcounts)]
+        names = [("Input", input),
+                 ("OutTag", outtag),
+                 ("OutFlt", output),
+                 ("OutCounts", outcounts)]
         if outflash is not None:
             names.append (("OutFlash", outflash))
         if outcsum is not None:
             names.append (("OutCsum", outcsum))
-        cosutil.printFilenames (names, stimfile=stimfile,
-                                livetimefile=livetimefile)
+        cosutil.printFilenames (names,
+                                shift_file=cl_args["shift_file"],
+                                stimfile=cl_args["stimfile"],
+                                livetimefile=cl_args["livetimefile"])
         cosutil.printMode (info)
 
     # Copy data from the input file to the output.  Then open the output
@@ -98,7 +113,8 @@ def timetagBasicCalibration (input, inpha, outtag,
     events_hdu = ofd["EVENTS"]
 
     if nrows == 0:
-        writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu)
+        writeNull (input, output, outcounts, outcsum,
+                   cl_args, info, phdr, events_hdu)
         ofd.close()
         return 1
 
@@ -112,7 +128,8 @@ def timetagBasicCalibration (input, inpha, outtag,
 
     updateGlobrate (info, events_hdu.header)
 
-    bursts = doBurstcorr (events, info, switches, reffiles, phdr, burstfile)
+    bursts = doBurstcorr (events, info, switches, reffiles, phdr,
+                          cl_args["burstfile"])
 
     badt = doBadtcorr (events, info, switches, reffiles, phdr)
 
@@ -126,7 +143,8 @@ def timetagBasicCalibration (input, inpha, outtag,
     doRandcorr (events, info, switches, reffiles, phdr)
 
     (stim_param, stim_countrate, stim_livetime) = initTempcorr (events,
-            input, info, switches, reffiles, events_hdu.header, stimfile)
+            input, info, switches, reffiles, events_hdu.header,
+            cl_args["stimfile"])
 
     doTempcorr (stim_param, events, info, switches, reffiles, phdr)
 
@@ -142,7 +160,7 @@ def timetagBasicCalibration (input, inpha, outtag,
     initHelcorr (events, info, switches, events_hdu.header)
 
     doDeadcorr (events, input, info, switches, reffiles, phdr,
-                stim_countrate, stim_livetime, livetimefile)
+                stim_countrate, stim_livetime, cl_args["livetimefile"])
 
     # Write the calcos sum image.
     if outcsum is not None:
@@ -150,27 +168,29 @@ def timetagBasicCalibration (input, inpha, outtag,
             pha = events.field ("pha")
         else:
             pha = None
-        writeCsum (events.field (xcorr), events.field (ycorr),
+        writeCsum (outcsum, events.field (xcorr), events.field (ycorr),
                    events.field ("epsilon"), pha,
                    info["detector"], info["subarray"],
                    phdr, events_hdu.header,
-                   outcsum)
+                   cl_args["binx"],
+                   cl_args["biny"],
+                   cl_args["compress_csum"],
+                   cl_args["compression_parameters"])
 
     doFlatcorr (events, info, switches, reffiles, phdr)
 
     if info["obstype"] == "SPECTROSCOPIC" and \
        switches["wavecorr"] == "PERFORM":
         if info["tagflash"]:
-            (avg_dx, avg_dy, shift1_vs_time) = \
-                    concurrent.processConcurrentWavecal (events, outflash,
+            shift1_vs_time = concurrent.processConcurrentWavecal (events, \
+                        outflash, cl_args["shift_file"],
                         info, switches, reffiles, phdr, events_hdu.header)
             phdr.update ("wavecals", os.path.basename (input))
         else:
-            (avg_dx, avg_dy, shift1_vs_time) = \
-                    updateFromWavecal (events, wavecal_info,
+            shift1_vs_time = updateFromWavecal (events, wavecal_info,
                         info, switches, reffiles, phdr, events_hdu.header)
     else:
-        (avg_dx, avg_dy, shift1_vs_time) = (0., 0., None)
+        shift1_vs_time = None
 
     minmax_shifts = getWavecalOffsets (events)
 
@@ -1357,13 +1377,12 @@ def dopplerParam (info, disptab, doppcorr):
             else:
                 filter["segment"] = "NUVB"
                 middle = float (NUV_X) / 2.
-            # Use at_least_one instead of exactly_one in case there is an
-            # fpoffset column in the disptab.
-            disp_info = cosutil.getTable (disptab, filter, at_least_one=True)
-            ncoeff = disp_info.field ("nelem")[0]
-            coeff = disp_info.field ("coeff")[0][0:ncoeff]
+            disp_rel = dispersion.Dispersion (disptab, filter, False)
+            if not disp_rel.isValid():
+                raise RuntimeError, "missing row in disptab"
             # get the dispersion (disp) at the middle of the detector
-            disp = cosutil.evalDerivDisp (middle, coeff, 0.)
+            disp = disp_rel.evalDerivDisp (middle)
+            disp_rel.close()
         else:
             disp = info["tc2_2"]
         # Compute the Doppler shift in pixels from the shift in km/s.
@@ -1507,30 +1526,23 @@ def dopplerCorrection (time, xi, info, reffiles, stripe=None):
     # Compute the wavelength and dispersion at each pixel.
     filter = {"opt_elem": info["opt_elem"],
               "cenwave": info["cenwave"],
-              "aperture": info["aperture"]}
+              "aperture": info["aperture"],
+              "fpoffset": info["fpoffset"]}
     if stripe is None:
         filter["segment"] = info["segment"]
     else:
         filter["segment"] = stripe
-    # If the FPOFFSET column is present in the disptab, include fpoffset
-    # in the filter.
-    fpoffset_present = cosutil.findColumn (disptab, "fpoffset")
-    if fpoffset_present:
-        filter["fpoffset"] = info["fpoffset"]
-    disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
-
-    ncoeff = disp_info.field ("nelem")[0]
-    coeff = disp_info.field ("coeff")[0][0:ncoeff]
-    if cosutil.findColumn (disp_info, "delta"):
-        delta = disp_info.field ("delta")[0]
-    else:
-        delta = 0.
+    disp_rel = dispersion.Dispersion (disptab, filter, use_fpoffset=True)
+    if not disp_rel.isValid():
+        disp_rel.close()
+        raise RuntimeError, "missing row in disptab"
 
     xi = xi.astype (N.float64)
+    fpoffset_present = cosutil.findColumn (disptab, "fpoffset")
     if fpoffset_present:
         # Compute wavelength and dispersion at each element of xi.
-        wavelength = cosutil.evalDisp (xi, coeff, delta)
-        dispersion = cosutil.evalDerivDisp (xi, coeff, delta)
+        wavelength = disp_rel.evalDisp (xi)
+        disp = disp_rel.evalDerivDisp (xi)
     else:
         # Correct for fpoffset when computing wavelength and dispersion
         # (a feature will be at larger pixel number if fpoffset is larger,
@@ -1539,14 +1551,15 @@ def dopplerCorrection (time, xi, info, reffiles, stripe=None):
                                      filter={"opt_elem": info["opt_elem"]},
                                      exactly_one=True)
         stepsize = wcp_info.field ("stepsize")[0]
-        wavelength = cosutil.evalDisp (xi, coeff, delta)
+        wavelength = disp_rel.evalDisp (xi)
         xi_temp = xi - info["fpoffset"] * stepsize
-        wavelength = cosutil.evalDisp (xi_temp, coeff, delta)
-        dispersion = cosutil.evalDerivDisp (xi_temp, coeff, delta)
+        wavelength = disp_rel.evalDisp (xi_temp)
+        disp = disp_rel.evalDerivDisp (xi_temp)
         del xi_temp, wcp_info
+    disp_rel.close()
 
     # Apply the Doppler correction to the pixel coordinates.
-    xd = orbitalDoppler (time, xi, wavelength, dispersion, info["expstart"],
+    xd = orbitalDoppler (time, xi, wavelength, disp, info["expstart"],
                          info["doppmagv"], info["doppzero"], info["orbitper"])
 
     return xd
@@ -1633,7 +1646,7 @@ def heliocentricVelocity (t, ra_targ, dec_targ):
     REFDATE = 51544.5           # MJD for 2000 Jan 1.5 UT, or JD 2451545.0
     KM_AU   = 1.4959787e8       # astronomical unit in kilometers
     SEC_DAY = 86400.            # seconds per day
-    
+
     deg_to_rad = math.pi / 180.
     eps = 23.439 * deg_to_rad           # obliquity of Earth's axis
     orb_v = 29.786                      # speed of Earth around Sun, km/s
@@ -2218,7 +2231,8 @@ def determineLivetime (countrate, obs_rate, live_factor):
 
     return livetime
 
-def writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu):
+def writeNull (input, output, outcounts, outcsum,
+               cl_args, info, phdr, events_hdu):
     """Write output files; images will have null data portions.
 
     The outtag file has already been written, so we only need to write
@@ -2230,6 +2244,7 @@ def writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu):
     outcounts     name of the output file for count-rate image
     outcsum       name of the output image for OPUS to add to cumulative
                       image (or None)
+    cl_args       dictionary of some of the command-line arguments
     info          dictionary of header keywords and values
     phdr          primary header
     events_hdu    hdu for events extension
@@ -2240,9 +2255,9 @@ def writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu):
     makeImage (output, phdr, events_hdu.header, None, None, None)
     if outcsum is not None:
         # pha has to be not None to get the correct dimensions for FUV.
-        writeCsum (None, None, None, N.zeros (1, dtype=N.int8),
+        writeCsum (outcsum, None, None, None, N.zeros (1, dtype=N.int8),
                    info["detector"], info["subarray"],
-                   phdr, events_hdu.header, outcsum)
+                   phdr, events_hdu.header)
 
 def writeImages (x, y, epsilon, dq,
                  phdr, hdr, dq_array, npix, x_offset, exptime,
@@ -2368,10 +2383,15 @@ def makeImageHDU (fd, table_hdr, data_array, name="SCI"):
     hdu = pyfits.ImageHDU (data=data_array, header=imhdr, name=name)
     fd.append (hdu)
 
-def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
-               phdr, hdr, outcsum):
+def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
+               phdr, hdr,
+               binx=None, biny=None,
+               compress_csum=False,
+               compression_parameters="gzip,-0.1"):
     """Write the "calcos sum" (csum) image.
 
+    @param outcsum: name of output "calcos sum" file
+    @type outcsum: string
     @param xcorr: column for X coordinates of events
     @type xcorr: numpy array
     @param ycorr: column for Y coordinates of events
@@ -2388,8 +2408,21 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
     @type phdr: pyfits Header object
     @param hdr: first extension (EVENTS) header from input file
     @type hdr: pyfits Header object
-    @param outcsum: name of output "calcos sum" file
-    @type outcsum: string
+    @param binx: binning factor in the dispersion direction (or None for
+        the default binning)
+    @type binx: int
+    @param biny: binning factor in the cross-dispersion direction (or None
+        for the default binning)
+    @type biny: int
+    @param compress_csum: compress the csum image?
+    @type compress_csum: boolean
+    @param compression_parameters: compressionType and quantizeLevel (separated
+        by a comma) for the call to pyfits.CompImageHDU; compressionType can
+        be "rice", "gzip", or "hcompress", and quantizeLevel can be e.g. -0.1,
+        which means the floating point values will be scaled to integers with
+        spacing that corresponds to 0.1 dn (see the doc string for
+        pyfits.CompImageHDU for more details)
+    @type compression_parameters: string
     """
 
     # This is the number of possible values for the pulse height amplitude,
@@ -2413,56 +2446,79 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
     # Copy the subarray keywords to the output primary header.
     cosutil.copySubKeywords (hdr, fd[0].header, subarray)
 
-    ### This is an example for future reference.
-    #if detector == "FUV":
-    #    if pha is None:
-    #        data = N.zeros ((FUV_Y, FUV_X), dtype=N.float32)
-    #        if xcorr is not None:
-    #            ccos.csum_2d (data, xcorr, ycorr, epsilon)
-    #    else:
-    #        data = N.zeros ((PHA_RANGE, FUV_Y, FUV_X), dtype=N.float32)
-    #        if xcorr is not None:
-    #            ccos.csum_3d (data, xcorr, ycorr, epsilon, pha.astype(N.int16))
-    #else:
-    #    data = N.zeros ((NUV_Y, NUV_X), dtype=N.float32)
-    #    if xcorr is not None:
-    #        ccos.csum_2d (data, xcorr, ycorr, epsilon)
-    #fd[0].header.update ("counts", data.sum())
-    #fd.append (pyfits.CompImageHDU (data, header=hdr, name="SCI",
-    #                                compressionType="RICE_1",
-    #                                quantizeLevel=-0.001))
-    #  the arguments and their defaults are:
-    # compressionType='RICE_1', # 'RICE_1', 'PLIO_1', 'GZIP_1', 'HCOMPRESS_1'
-    # tileSize=None,                    # shape of tile, default is one row
-    # hcompScale=0.,                    # unit is RMS of image
-    # hcompSmooth=0,
-    # quantizeLevel=16.                 # perhaps use quantizeLevel = -0.001
-    #del data
-    ###
-
     if detector == "FUV":
-        if pha is None:
-            fd.append (pyfits.ImageHDU (data=N.zeros ((FUV_Y, FUV_X),
-                                                      dtype=N.float32),
-                                        header=hdr, name="SCI"))
-            if xcorr is not None:
-                ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
-        else:
-            fd.append (pyfits.ImageHDU (data=N.zeros ((PHA_RANGE,
-                                                             FUV_Y, FUV_X),
-                                                      dtype=N.float32),
-                                        header=hdr, name="SCI"))
-            if xcorr is not None:
-                ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
-                              pha.astype(N.int16))
+        if binx is None or binx <= 0:
+            binx = FUV_BIN_X
+        if biny is None or biny <= 0:
+            biny = FUV_BIN_Y
+        nx = FUV_X / binx
+        ny = FUV_Y / biny
+        fd[0].header.update ("fuvbinx", binx)
+        fd[0].header.update ("fuvbiny", biny)
     else:
-        fd.append (pyfits.ImageHDU (data=N.zeros ((NUV_Y, NUV_X),
-                                                  dtype=N.float32),
-                                    header=hdr, name="SCI"))
-        if xcorr is not None:
-            ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
+        if binx is None or binx <= 0:
+            binx = NUV_BIN_X
+        if biny is None or biny <= 0:
+            biny = NUV_BIN_Y
+        nx = NUV_X / binx
+        ny = NUV_Y / biny
+        fd[0].header.update ("nuvbinx", binx)
+        fd[0].header.update ("nuvbiny", biny)
 
-    fd[0].header.update ("counts", fd[1].data.sum())
+    if compress_csum:
+        (compType, quantLevel) = compression_parameters.split (",")
+        compType = compType.upper() + "_1"
+        quantLevel = float (quantLevel)
+        if detector == "FUV":
+            if pha is None:
+                data = N.zeros ((ny, nx), dtype=N.float32)
+                if xcorr is not None:
+                    ccos.csum_2d (data, xcorr, ycorr, epsilon, binx, biny)
+            else:
+                data = N.zeros ((PHA_RANGE, ny, nx), dtype=N.float32)
+                if xcorr is not None:
+                    ccos.csum_3d (data, xcorr, ycorr, epsilon,
+                               pha.astype(N.int16), binx, biny)
+        else:
+            data = N.zeros ((ny, nx), dtype=N.float32)
+            if xcorr is not None:
+                ccos.csum_2d (data, xcorr, ycorr, epsilon, binx, biny)
+        fd[0].header.update ("counts", data.sum(dtype=N.float64))
+        fd.append (pyfits.CompImageHDU (data, header=hdr, name="SCI",
+                                        compressionType=compType,
+                                        quantizeLevel=quantLevel))
+        #  the arguments and their defaults are:
+        # compressionType='RICE_1', 'PLIO_1', 'GZIP_1', 'HCOMPRESS_1'
+        # tileSize=None,       # shape of tile, default is one row
+        # hcompScale=0.,       # unit is RMS of image tile
+        # hcompSmooth=0,
+        # if quantizeLevel is positive, unit is RMS of image tile; if negative,
+        # the quantization level is the absolute value of quantizeLevel
+        # quantizeLevel=16.
+        del data
+    else:
+        if detector == "FUV":
+            if pha is None:
+                fd.append (pyfits.ImageHDU (data=N.zeros ((ny, nx),
+                                                          dtype=N.float32),
+                                            header=hdr, name="SCI"))
+                if xcorr is not None:
+                    ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon, binx, biny)
+            else:
+                fd.append (pyfits.ImageHDU (data=N.zeros ((PHA_RANGE, ny, nx),
+                                                          dtype=N.float32),
+                                            header=hdr, name="SCI"))
+                if xcorr is not None:
+                    ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
+                                  pha.astype(N.int16), binx, biny)
+        else:
+            fd.append (pyfits.ImageHDU (data=N.zeros ((ny, nx),
+                                                      dtype=N.float32),
+                                        header=hdr, name="SCI"))
+            if xcorr is not None:
+                ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon, binx, biny)
+        fd[0].header.update ("counts", fd[1].data.sum(dtype=N.float64))
+
     fd[1].header.update ("BUNIT", "count")
 
     fd.writeto (outcsum, output_verify="silentfix")
@@ -2572,12 +2628,10 @@ def updateFromWavecal (events, wavecal_info,
     @param hdr: the events extension header (modified in-place)
     @type hdr: PyFITS Header object
 
-    @return: three objects:  the average offset in the X direction, the
-        average offset in the Y direction, and an array of the shifts in
-        the dispersion direction at one-second intervals; these values
-        will be (0., 0., None) if the current observation is a wavecal
-        or if wavecal processing was not done.
-    @rtype: tuple
+    @return: the shifts in the dispersion direction at one-second intervals,
+        or None if the current observation is a wavecal or if wavecal
+        processing was not done.
+    @rtype: array
     """
 
     global xcorr, ycorr, xdopp, ydopp, xfull, yfull
@@ -2597,7 +2651,7 @@ def updateFromWavecal (events, wavecal_info,
     # If the current exposure is a wavecal, or for a science exposure if
     # wavecal processing has not been done, there's nothing to do.
     if info["exptype"].find ("WAVE") >= 0 or not wavecal_info:
-        return (0., 0., None)
+        return None
 
     # Get the shifts in dispersion and cross-dispersion directions at the
     # start of the exposure.  If the science exposure was bracketed by
@@ -2605,7 +2659,7 @@ def updateFromWavecal (events, wavecal_info,
     shift_info = wavecal.returnWavecalShift (wavecal_info,
                         wcp_info, info["fpoffset"], info["expstart"])
     if shift_info is None:
-        return (0., 0., None)
+        return None
 
     (shift_dict, slope_dict, filename) = shift_info
 
@@ -2627,7 +2681,7 @@ def updateFromWavecal (events, wavecal_info,
         key = "shift1" + segment[-1].lower()
         if not (shift_dict.has_key (key) and slope_dict.has_key (key)):
             cosutil.printError ("There is no wavecal for segment %s." % segment)
-            return (0., 0., None)
+            return None
         shift1_zero = shift_dict[key]
         shift1_slope = slope_dict[key]
         if info["detector"] == "FUV":
@@ -2662,7 +2716,6 @@ def updateFromWavecal (events, wavecal_info,
     key = "shift1" + segment[-1].lower()        # stripe B if NUV
     shift1_zero = shift_dict[key]
     shift1_slope = slope_dict[key]
-    avg_dx = shift1_slope * t_mid + shift1_zero
     avg_dy = shift2_slope * t_mid + shift2_zero
 
     # These are one-second time bins, so we add 0.5 second to the array t
@@ -2676,12 +2729,17 @@ def updateFromWavecal (events, wavecal_info,
     # Set DPIXEL1[A-C] to the average of the difference xfull minus the
     # nearest integer to xfull, where xfull is the column of that name;
     # this will be used when assigning wavelengths in extract.py.
-    xi_diff = xi_full - N.around (xi_full)
-    dpixel1 = xi_diff.mean()
 
     for segment in segment_list:
         key = "SHIFT2" + segment[-1]
         hdr.update (key, avg_dy)
+        if info["detector"] == "FUV":
+            xi_active = xi_full[active_area]
+            xi_diff = xi_active - N.around (xi_active)
+        else:
+            xi_psa = xi_full[psa_region_flags_dict[segment]]
+            xi_diff = xi_psa - N.around (xi_psa)
+        dpixel1 = xi_diff.mean()
         key = "DPIXEL1" + segment[-1]
         hdr.update (key, dpixel1)
     if info["opt_elem"] == "G230L" and info["cenwave"] == 3360:
@@ -2695,7 +2753,7 @@ def updateFromWavecal (events, wavecal_info,
     phdr.update ("wavecals", filename)
     cosutil.printMsg ("Wavecal file(s) '%s'" % filename, VERBOSE)
 
-    return (avg_dx, avg_dy, shift1_vs_time)
+    return shift1_vs_time
 
 def nuvPsaRegions (eta, info, xtractab):
     """Determine the set of events within the NUV regions for the PSA.

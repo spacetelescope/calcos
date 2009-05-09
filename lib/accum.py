@@ -13,9 +13,9 @@ from calcosparam import *       # parameter definitions
 
 def accumBasicCalibration (input, inpha, outtag,
                   outflt, outcounts, outcsum,
+                  cl_args,
                   info, switches, reffiles,
-                  wavecal_info,
-                  stimfile, livetimefile):
+                  wavecal_info):
     """Do the basic processing for accum data.
 
     The function value will be zero if there was no problem.
@@ -34,6 +34,8 @@ def accumBasicCalibration (input, inpha, outtag,
     @param outcsum: name of the output image for OPUS to add to cumulative
         image (or None)
     @type outcsum: string
+    @param cl_args: some of the command-line arguments
+    @type cl_args: dictionary
     @param info: header keywords and values
     @type info: dictionary
     @param switches: calibration switches
@@ -43,10 +45,6 @@ def accumBasicCalibration (input, inpha, outtag,
     @param wavecal_info: when wavecal exposures were processed, the results
         were stored in dictionaries in this list
     @type wavecal_info: list of dictionaries
-    @param stimfile: name of output text file for stim positions (or None)
-    @type stimfile: string
-    @param livetimefile: name of output text file for livetime factors (or None)
-    @type livetimefile: string
     """
 
     cosutil.printIntro ("ACCUM calibration")
@@ -56,7 +54,10 @@ def accumBasicCalibration (input, inpha, outtag,
         names.insert (1, ("InPha", inpha))
     if outcsum is not None:
         names.append (("OutCsum", outcsum))
-    cosutil.printFilenames (names, stimfile=stimfile, livetimefile=livetimefile)
+    cosutil.printFilenames (names,
+                            shift_file=cl_args["shift_file"],
+                            stimfile=cl_args["stimfile"],
+                            livetimefile=cl_args["livetimefile"])
     cosutil.printMode (info)
 
     # Get a list of all the headers in the input file.
@@ -77,7 +78,7 @@ def accumBasicCalibration (input, inpha, outtag,
     # acq/image data are processed differently because they have two imsets.
     if info["exptype"] == "ACQ/IMAGE":
         acqImage (input, outflt, outcounts, outcsum,
-                  info, switches, reffiles, livetimefile)
+                  info, switches, reffiles, cl_args["livetimefile"])
         return 0
 
     # Open the accum image.
@@ -128,9 +129,9 @@ def accumBasicCalibration (input, inpha, outtag,
 
     status = timetag.timetagBasicCalibration (input, inpha, outtag,
                     outflt, outcounts, None, outcsum,
+                    cl_args,
                     info, switches, reffiles,
-                    wavecal_info,
-                    stimfile, livetimefile)
+                    wavecal_info)
 
     return status
 
