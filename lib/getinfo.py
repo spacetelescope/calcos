@@ -7,8 +7,8 @@ from calcosparam import *
 def initialInfo (filename):
     """Get DETECTOR, OBSMODE, and EXPTYPE from the primary header.
 
-    argument:
-    filename      name of input file
+    @param filename: name of input file
+    @type filename: string
     """
 
     fd = pyfits.open (filename, mode="readonly")
@@ -65,9 +65,10 @@ def getGeneralInfo (phdr, hdr):
     detector, rather than being read directly from the header.  The
     heliocentric velocity will be initialized to zero.
 
-    arguments:
-    phdr          primary header
-    hdr           extension header
+    @param phdr: primary header
+    @type phdr: pyfits Header object
+    @param hdr: extension header
+    @type hdr: pyfits Header object
     """
 
     info = {}
@@ -205,8 +206,8 @@ def getSwitchValues (phdr):
     keyword is missing from the header, it will still be included in the
     dictionary, but its value will be set to the NOT_APPLICABLE string.
 
-    argument:
-    phdr          primary header
+    @param phdr: primary header
+    @type phdr: pyfits Header object
     """
 
     switches = {}
@@ -232,8 +233,8 @@ def getRefFileNames (phdr):
     header, while keys of the form "bpixtab" have been translated to full
     path names (operating system dependent).
 
-    argument:
-    phdr          primary header
+    @param phdr: primary header
+    @type phdr: pyfits Header object
     """
 
     reffiles = {}

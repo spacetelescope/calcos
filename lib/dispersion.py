@@ -66,12 +66,12 @@ class Dispersion (object):
                 d_tv03 = disp_info.field ("d_tv03")[0]
             else:
                 d_tv03 = 0.
-            if cosutil.findColumn (disp_info, "d2"):
-                d2 = disp_info.field ("d2")[0]
+            if cosutil.findColumn (disp_info, "d"):
+                d = disp_info.field ("d")[0]
             else:
-                d2 = 0.
+                d = 0.
             # the sign of this difference is uncertain at this time:
-            self.delta = d_tv03 - d2            # xxx sign?
+            self.delta = d - d_tv03
 
         del disp_info
 

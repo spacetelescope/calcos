@@ -91,14 +91,20 @@ def processConcurrentWavecal (events, outflash, shift_file,
 def initWavecal (events, outflash, shift_file, info, reffiles, phdr, hdr):
     """Return a ConcurrentWavecal object, depending on detector.
 
-    arguments:
-    events      data block (recarray object) for an events table corrtag file
-    outflash    name of output file for table of extracted wavecal spectra
-    shift_file  name of user-supplied file to override shifts (or None)
-    info        dictionary of keywords and values
-    reffiles    dictionary of reference file names
-    phdr        primary header of corrtag file
-    hdr         events extension header
+    @param events: data block for an events table corrtag file
+    @type events: pyfits record array
+    @param outflash: name of output file for table of extracted wavecal spectra
+    @type outflash: string
+    @param shift_file: name of user-supplied file to override shifts (or None)
+    @type shift_file: string
+    @param info: keywords and values
+    @type info: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: primary header of corrtag file
+    @type phdr: pyfits Header object
+    @param hdr: events extension header
+    @type hdr: pyfits Header object
     """
 
     if info["detector"] == "FUV":
@@ -471,11 +477,9 @@ class ConcurrentWavecal (object):
                     at_least_one_found = True
 
             if not at_least_one_found:
-                print "%2d no spectrum found" % (n+1,)
+                # flag all segments/stripes as not found
                 for segment in self.segment_list:
-                    shift1[segment] = 0.
-                self.shift1.append (shift1)
-                continue
+                    spec_found[segment] = False
 
             # find offset in dispersion direction
             fs1 = findshift1.Shift1 (save_spectra, save_templates,

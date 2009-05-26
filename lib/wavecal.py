@@ -168,14 +168,20 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
                       rootname, filename):
     """Append the current info to the wavecal_info list.
 
-    arguments:
-    wavecal_info    list of wavecal information dictionaries; updated in-place
-    time            time of observation, MJD at middle of exposure
-    fpoffset        OSM position, used to select entries from wavecal_info
-    shift_dict      a dictionary of keyword names and shifts
-    rootname        the rootname (typically lower case) of the observation
-    filename        the name of the raw file (this will typically be the
+    @param wavecal_info: list of wavecal information dictionaries; updated
+        in-place
+    @type wavecal_info: list
+    @param time: time of observation, MJD at middle of exposure
+    @type time: float
+    @param fpoffset: OSM position, used to select entries from wavecal_info
+    @type fpoffset: int
+    @param shift_dict: a dictionary of keyword names and shifts
+    @type shift_dict: dictionary
+    @param rootname: the rootname (typically lower case) of the observation
+    @type rootname: string
+    @param filename: the name of the raw file (this will typically be the
                     _a.fits name for FUV)
+    @type filename: string
 
     shift_dict can have any of the following keys:
     "shift1a" for FUV segment A or NUV stripe A,
@@ -207,10 +213,16 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
 def cmpTime (wc_dict_a, wc_dict_b):
     """Compare the times in two wavecal_info entries.
 
-    arguments:
-    wc_dict_a      one wavecal information dictionary (one element of
-                     wavecal_info)
-    wc_dict_b      another wavecal information dictionary
+    @param wc_dict_a: one wavecal information dictionary (one element of
+        wavecal_info)
+    @type wc_dict_a: dictionary
+    @param wc_dict_b: another wavecal information dictionary
+    @type wc_dict_b: dictionary
+
+    @return: 0 if the times are the same,
+            -1 if the time in wc_dict_a is smaller than the time in wc_dict_b,
+            +1 if the time in wc_dict_a is larger than the time in wc_dict_b
+    @rtype: int
     """
 
     return cmp (wc_dict_a["time"], wc_dict_b["time"])
@@ -295,9 +307,13 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
 def returnExactMatch (wavecal_info, rootname):
     """Return the shift dictionary for the specified wavecal rootname.
 
-    arguments:
-    wavecal_info    list of wavecal information dictionaries
-    rootname        used to find the appropriate element of wavecal_info
+    @param wavecal_info: list of wavecal information dictionaries
+    @type wavecal_info: list
+    @param rootname: used to find the appropriate element of wavecal_info
+    @type rootname: string
+
+    @return: the shift dictionary corresponding to rootname, or None
+    @rtype: dictionary
 
     The rootname of a wavecal exposure is used to extract one element of
     wavecal_info (there should always be exactly one matching element).
@@ -319,9 +335,13 @@ def returnExactMatch (wavecal_info, rootname):
 def selectWavecalInfo (wavecal_info, fpoffset):
     """Return a list of all elements of wavecal_info that match fpoffset.
 
-    arguments:
-    wavecal_info    list of wavecal information dictionaries
-    fpoffset        used to find one or more elements of wavecal_info
+    @param wavecal_info: list of wavecal information dictionaries
+    @type wavecal_info: list
+    @param fpoffset: used to find one or more elements of wavecal_info
+    @type fpoffset: int
+
+    @return: list of dictionaries in wavecal_info that match fpoffset
+    @rtype: list
     """
 
     subset_wavecal_info = []
@@ -335,10 +355,17 @@ def selectWavecalInfo (wavecal_info, fpoffset):
 def minTimeWavecalInfo (wavecal_info, time, max_time_diff):
     """Return the element of wavecal_info that is closest to time.
 
-    arguments:
-    wavecal_info    list of wavecal information dictionaries
-    time            time of a science observation (MJD at middle of exposure)
-    max_time_diff   cutoff for time difference between 'time' and a wavecal obs.
+    @param wavecal_info: list of wavecal information dictionaries
+    @type wavecal_info: list
+    @param time: time of a science observation (MJD at middle of exposure)
+    @type time: float
+    @param max_time_diff: cutoff for time difference between 'time' and a
+        wavecal observation
+    @type max_time_diff: float
+
+    @return: the shift dictionary closest in time to 'time', or None if
+        there is none that is within max_time_diff
+    @rtype: dictionary
 
     The element of wavecal_info that is closest in time to the specified time
     will be selected.  If the difference between the time for that element
@@ -434,10 +461,15 @@ def interpolateWavecal (wavecal_info, time):
 def findWavecalSpectrum (corrtag, info, reffiles):
     """Find the offset of a wavecal spectrum in the cross-dispersion direction.
 
-    arguments:
-    corrtag         name of the corrtag FITS file containing a wavecal
-    info            dictionary of header keywords and values
-    reffiles        dictionary of reference file names
+    @param corrtag: name of the corrtag FITS file containing a wavecal
+    @type corrtag: string
+    @param info: header keywords and values
+    @type info: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+
+    @return: (shift2, xd_shifts, xd_locns)
+    @rtype: tuple of a float and two dictionaries
 
     The function value is a tuple of three items:  shift2 and two dictionaries,
     xc_shifts, xd_locns.  shift2 is the offset (average of those found, if NUV)
@@ -496,16 +528,25 @@ def findWavecalSpectrum (corrtag, info, reffiles):
 def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     """Find the offset of a wavecal spectrum in cross-dispersion direction.
 
-    arguments:
-    xi              corrected pixel coordinates in the dispersion direction
-    eta             corrected pixel coords in the cross-dispersion direction
-    dq              data quality flags
-    info            dictionary of header keywords and values
-    xd_range        search within + or - xd_range from the nominal location
-                    for the peak in the cross-dispersion direction
-    box             smooth the cross-dispersion profile with a box of this
-                    width before looking for the maximum
-    xtractab        name of 1-D extraction parameters table
+    @param xi: corrected pixel coordinates in the dispersion direction
+    @type xi: numpy array
+    @param eta: corrected pixel coords in the cross-dispersion direction
+    @type eta: numpy array
+    @param dq: data quality flags
+    @type dq: numpy array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param xd_range: search within + or - xd_range from the nominal location
+        for the peak in the cross-dispersion direction
+    @type xd_range: int
+    @param box: smooth the cross-dispersion profile with a box of this
+        width before looking for the maximum
+    @type box: float
+    @param xtractab: name of the 1-D extraction parameters table
+    @type xtractab: string
+
+    @return: (shift2, xd_shifts, xd_locns)
+    @rtype: tuple of a float and two dictionaries
 
     The function value is a tuple of three items:  shift2 and two dictionaries,
     xc_shifts, xd_locns.  shift2 is the offset (average of those found, if NUV)
@@ -625,14 +666,20 @@ def ttFindNUV (xi, eta, dq, xd_range, box, filter, xtractab):
 def ttFindSpec (xdisp, xtract_info, xd_range, box):
     """Find the location in the cross-dispersion direction.
 
-    arguments:
-    xdisp           1-D array of time-tag data collapsed along dispersion
-                    axis, but taking into account the tilt of the spectrum
-    xtract_info     data block (but just one row) from the xtractab
-    xd_range        search within + or - xd_range from the nominal location
-                    for the peak in xdisp
-    box             smooth xdisp with a box of this width before looking
-                    for the maximum
+    @param xdisp: 1-D array of time-tag data collapsed along dispersion
+        axis, but taking into account the tilt of the spectrum
+    @type xdisp: numpy array
+    @param xtract_info: data block (but just one row) from the xtractab
+    @type xtract_info: pyfits record array
+    @param xd_range: search within + or - xd_range from the nominal location
+        for the peak in xdisp
+    @type xd_range: int
+    @param box: smooth xdisp with a box of this width before looking
+        for the maximum
+    @type box: int
+
+    @return: (shift2, y)
+    @rtype: tuple of a float and an integer
 
     The function value is a tuple of the shift from nominal in the
     cross-dispersion direction and the location of the spectrum.
@@ -683,8 +730,8 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
 def printWavecalRef (reffiles):
     """Print the names of reference files used for wavecal processing.
 
-    argument:
-    reffiles        dictionary of reference file names
+    @param reffiles: reference file names
+    @type reffiles: dictionary
     """
 
     cosutil.printRef ("wcptab", reffiles)

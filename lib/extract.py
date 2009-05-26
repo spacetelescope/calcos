@@ -548,10 +548,9 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         # Get data quality flags within extraction region.
         dq_ij = N.zeros ((extr_height, axis_length), dtype=N.int16)
         ccos.extractband (e_dq_data, axis, slope, b_spec, x_offset, dq_ij)
-        # xxx replace with a C function
-        DQ_i[:] = dq_ij[0].copy()
-        for j in range (extr_height-1):
-            DQ_i[:] = N.bitwise_or (DQ_i, dq_ij[j+1])
+        # For each i, DQ_i[i] will be the bitwise OR of dq_ij[:,i].
+        DQ_i = N.zeros (axis_length, dtype=N.int16)
+        ccos.dq_or (dq_ij, DQ_i)
 
         # In bad_ij and bad_i, 0 means OK and 1 means bad
         bad_ij = N.zeros ((extr_height, axis_length), dtype=N.int32)
@@ -614,7 +613,18 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         BK_i *= (float (bkg_height1 + bkg_height2)) / good_i
         # Scale the background to the spectral extraction height.
         BK_i *= bkg_norm
-        boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
+        if x_offset > 0:
+            # assumes x_offset only for NUV
+            key = "shift1" + segment[-1].lower()
+            i = x_offset - ofd_header.get (key, 0.)
+            i = int (round (i))
+            j = i + NUV_X
+            temp_bk = BK_i[i:j].copy()
+            boxcar (temp_bk, (bkg_smooth,), output=temp_bk, mode='nearest')
+            BK_i[i:j] = temp_bk.copy()
+            del temp_bk
+        else:
+            boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
     else:
         BK_i = N.zeros (axis_length, dtype=N.float32)
 
@@ -956,8 +966,8 @@ def updateExtractionKeywords (hdr, segment, slope, height, xd__locn,
 def updateArchiveSearch (ofd):
     """Update the keywords giving min & max wavelengths, etc.
 
-    argument:
-    ofd         output (FITS HDUList object), table header modified in-place
+    @param ofd: output, table header will be modified in-place
+    @type ofd: pyfits HDUList object
     """
 
     phdr = ofd[0].header
@@ -1005,10 +1015,12 @@ def updateArchiveSearch (ofd):
 def fixApertureKeyword (ofd, aperture, detector):
     """Replace aperture in output header if aperture is RelMvReq.
 
-    arguments:
-    ofd         output (FITS HDUList object), primary header modified in-place
-    aperture    correct aperture name, without -FUV or -NUV
-    detector    detector name
+    @param ofd: output primary header, modified in-place
+    @type ofd: pyfits HDUList object
+    @param aperture: correct aperture name, without -FUV or -NUV
+    @type aperture: string
+    @param detector: detector name
+    @type detector: string
     """
 
     aperture_hdr = ofd[0].header.get ("aperture", NOT_APPLICABLE)
@@ -1021,9 +1033,10 @@ def fixApertureKeyword (ofd, aperture, detector):
 def concatenateFUVSegments (infiles, output):
     """Concatenate the 1-D spectra for the two FUV segments into one file.
 
-    arguments:
-    infiles       list of input file names
-    output        output file name
+    @param infiles: list of input file names
+    @type infiles: list
+    @param output: output file name
+    @type output: string
     """
 
     cosutil.printMsg ("Concatenate " + repr (infiles) + " --> " + output, \
@@ -1091,7 +1104,9 @@ def concatenateFUVSegments (infiles, output):
     for key in ["stimb_lx", "stimb_ly", "stimb_rx", "stimb_ry",
                 "stimb0lx", "stimb0ly", "stimb0rx", "stimb0ry",
                 "stimbslx", "stimbsly", "stimbsrx", "stimbsry",
-                "pha_badb", "phalowrb", "phaupprb",
+                "npha_b", "phalowrb", "phaupprb",
+                "tbrst_b", "tbadt_b", "nbrst_b", "nbadt_b",
+                "nout_b",
                 "sp_loc_b", "sp_slp_b",
                 "b_bkg1_b", "b_bkg2_b",
                 "b_hgt1_b", "b_hgt2_b",
@@ -1099,6 +1114,10 @@ def concatenateFUVSegments (infiles, output):
                 "chi_sq_b", "ndf_b"]:
         if seg_b[1].header.has_key (key):
             hdu.header.update (key, seg_b[1].header.get (key, -1.0))
+
+    hdu.header.update ("nbadevnt",
+                       seg_a[1].header.get ("nbadevnt", 0) +
+                       seg_b[1].header.get ("nbadevnt", 0))
 
     # If one of the segments has no data, use the other segment for the
     # primary header.  This is so the calibration switch keywords in the
@@ -1127,12 +1146,16 @@ def concatenateFUVSegments (infiles, output):
 def copySegments (data_a, nrows_a, data_b, nrows_b, outdata):
     """Copy the two input tables to the output table.
 
-    arguments:
-    data_a        recarray object for segment A (may have no data)
-    nrows_a       length of data_a (may be zero)
-    data_b        recarray object for segment B (may have no data)
-    nrows_b       length of data_b (may be zero)
-    outdata       a recarray object with nrows_a + nrows_b rows
+    @param data_a: data block for segment A (may have no data)
+    @type data_a: pyfits recarray object
+    @param nrows_a: length of data_a (may be zero)
+    @type nrows_a: int
+    @param data_b: data block for segment B (may have no data)
+    @type data_b: pyfits recarray object
+    @param nrows_b: length of data_b (may be zero)
+    @type nrows_b: int
+    @param outdata: data block with nrows_a + nrows_b rows
+    @type outdata: pyfits recarray object
     """
 
     n = 0

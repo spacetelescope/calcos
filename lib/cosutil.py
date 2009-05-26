@@ -23,10 +23,11 @@ def writeOutputEvents (infile, outfile):
     into this object, and writes it to the output file.  If the input file
     contains a GTI table, that will be copied unchanged to output.
 
-    argument:
-    infile         name of the input FITS file containing an EVENTS table
-                   and optionally a GTI table
-    outfile        name of file for output EVENTS table (and GTI table)
+    @param infile: name of the input FITS file containing an EVENTS table
+        and optionally a GTI table
+    @type infile: string
+    @param outfile: name of file for output EVENTS table (and GTI table)
+    @type outfile: string
     """
 
     # ifd = pyfits.open (infile, mode="readonly", memmap=1)
@@ -218,8 +219,8 @@ def dummyGTI (exptime):
 def returnGTI (infile):
     """Return a list of (start, stop) good time intervals.
 
-    arguments:
-    infile         name of the input FITS file containing a GTI table
+    @param infile: name of the input FITS file containing a GTI table
+    @type infile: string
     """
 
     fd = pyfits.open (infile, mode="readonly")
@@ -402,6 +403,43 @@ def getTemplate (raw_template, x_offset, nelem):
 
     return template
 
+def determineLivetime (countrate, obs_rate, live_factor):
+    """Compute livetime factor from observed count rate.
+
+    This is just linear interpolation in live_factor vs obs_rate.
+
+    @param countrate: observed count rate
+    @type countrate: float
+    @param obs_rate: observed count rate column from deadtab
+    @type obs_rate: array
+    @param live_factor: livetime factor column from deadtab
+    @type live_factor: array
+
+    @return: the interpolated livetime factor.
+    @rtype: float
+    """
+
+    n = len (obs_rate)
+
+    if countrate <= 0.:
+        livetime = 1.
+    elif n == 1:
+        livetime = live_factor[0]
+    elif countrate < obs_rate[0]:
+        livetime = 1.
+    elif countrate >= obs_rate[n-1]:
+        livetime = live_factor[n-1]
+    else:
+        # Find the interval containing the observed count rate, and interpolate.
+        for i in range (n-1):
+            if countrate < obs_rate[i+1]:
+                p = (countrate - obs_rate[i]) / (obs_rate[i+1] - obs_rate[i])
+                q = 1. - p
+                livetime = live_factor[i] * q + live_factor[i+1] * p
+                break
+
+    return livetime
+
 def getHeaders (input):
     """Return a list of all the headers in the file.
 
@@ -482,23 +520,28 @@ def activeArea (segment, brftab):
 
     return (a_low, a_high, a_left, a_right)
 
-def getInputDQ (input):
+def getInputDQ (input, imset=1):
     """Return the data quality array, or an array of zeros.
 
-    If the data quality extension (EXTNAME = "DQ", EXTVER = 1) actually has
-    a non-null data portion, that data array will be returned.  If the data
-    portion is null (NAXIS = 0), a constant array will be returned; in this
-    case the size will be taken from keywords NPIX1 and NPIX2, and the data
-    value will be the value of the PIXVALUE keyword.
+    If the data quality extension (EXTNAME = "DQ", EXTVER = imset) actually
+    has a non-null data portion, that data array will be returned.  If the
+    data portion is null (NAXIS = 0), a constant array will be returned;
+    in this case the size will be taken from keywords NPIX1 and NPIX2, and
+    the data value will be the value of the PIXVALUE keyword.
 
-    argument:
-    input         name of a FITS file containing an image set (SCI, ERR, DQ);
+    @param input: name of a FITS file containing an image set (SCI, ERR, DQ);
                   only the DQ extension will be read
+    @type input: string
+    @param imset: image set number (one indexed)
+    @type imset: int
+
+    @return: data quality array read from input file, or array of zeros
+    @rtype: numpy array
     """
 
     fd = pyfits.open (input, mode="readonly")
 
-    hdr = fd[("DQ",1)].header
+    hdr = fd[("DQ",imset)].header
     detector = fd[0].header["detector"]
     obstype = fd[0].header["obstype"]
 
@@ -518,13 +561,13 @@ def getInputDQ (input):
 
     # Does the data portion exist?
     if hdr["naxis"] > 0:
-        if fd[("DQ",1)].data.shape[1] == npix[1]:
-            dq_array = fd[("DQ",1)].data
+        if fd[("DQ",imset)].data.shape[1] == npix[1]:
+            dq_array = fd[("DQ",imset)].data
             # undo the flagging of regions outside subarrays
             dq_array = N.bitwise_and (dq_array, 16383-(64+128))
         else:
             dq_array = N.zeros (npix, dtype=N.int16)
-            dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",1)].data
+            dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",imset)].data
     else:
         dq_array = N.zeros (npix, dtype=N.int16)
         if hdr.has_key ("pixvalue"):

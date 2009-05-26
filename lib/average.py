@@ -6,9 +6,10 @@ from calcosparam import *       # parameter definitions
 def avgImage (input, output):
     """Average 2-D image sets, assumed to be aligned.
 
-    arguments:
-    input         name of the input file
-    output        name of the output file
+    @param input: name of the input file
+    @type input: string
+    @param output: name of the output file
+    @type output: string
     """
 
     nimages = len (input)

@@ -533,9 +533,10 @@ class OutputSpectrum (object):
     def normalizeSums (self, data, sumweight):
         """Divide the sums by the sum of the weights.
 
-        arguments:
-            data           record array for the current row of the output file
-            sumweight      sum of weights
+        @param data: the current row of the output file
+        @type data: pyfits record array
+        @param sumweight: sum of weights
+        @type sumweight: float
         """
 
         sumweight = N.where (sumweight == 0., 1., sumweight)
@@ -555,10 +556,12 @@ class OutputSpectrum (object):
         The values in data and sumweight will be modified in-place.
         This version allows for fractional-pixel offset of the input arrays.
 
-        arguments:
-            sp             current input Spectrum object
-            data           record array for the current row of the output file
-            sumweight      sum of weights
+        @param sp: current input spectrum
+        @type sp: Spectrum object
+        @param data: the current row of the output file
+        @type data: record array
+        @param sumweight: sum of weights
+        @type sumweight: float
         """
 
         input_nelem = sp.nelem
