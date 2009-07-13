@@ -1,3 +1,5 @@
+from __future__ import division
+
 class ShiftFile (object):
     """Read shift_file.
 
@@ -10,6 +12,8 @@ class ShiftFile (object):
 
     All words given as strings are case insensitive (internally they will be
     converted to lower case).
+    flash_number is one-indexed, to agree with the header keywords and with
+    the information written to the trailer file.
     If shift1 is not to be specified, use the value "N/A".
     If shift2 is not to be specified, it may be given as "N/A" or simply left
     off (i.e. only five words on the line).
@@ -44,6 +48,8 @@ class ShiftFile (object):
         user_shift_dict = {}
         for line in lines:
             line = line.strip()
+            if not line:                        # ignore blank lines
+                continue
             if line[0] == '#':                  # ignore comments
                 continue
             words = line.split()
@@ -81,10 +87,10 @@ class ShiftFile (object):
     def getShifts (self, key):
         """Return the shifts corresponding to key, if any.
 
-        @param key: flash number and segment; if flash number is "any" it
-            matches any flash number (use "any" for auto/GO wavecals), and
-            if segment is "any" it matches any segment or stripe (strings
-            are case insensitive)
+        @param key: flash number (one indexed) and segment; if flash number
+            is "any" it matches any flash number (use "any" for auto/GO
+            wavecals), and if segment is "any" it matches any segment or
+            stripe (strings are case insensitive)
         @type key: tuple
 
         @return: (shift1, shift2) and nfound (the number of elements--which

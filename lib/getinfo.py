@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 import string
 import pyfits
@@ -84,6 +85,8 @@ def getGeneralInfo (phdr, hdr):
         "exptype":   NOT_APPLICABLE,
         "opt_elem":  NOT_APPLICABLE,
         "targname":  NOT_APPLICABLE,
+        "lampused":  NOT_APPLICABLE,
+        "lampplan":  NOT_APPLICABLE,
         "rootname":  "",
         "subarray":  False,
         "tagflash":  False,

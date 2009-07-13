@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 import numpy as N
 from convolve import boxcar
@@ -468,18 +469,20 @@ def findWavecalSpectrum (corrtag, info, reffiles):
     @param reffiles: reference file names
     @type reffiles: dictionary
 
-    @return: (shift2, xd_shifts, xd_locns)
-    @rtype: tuple of a float and two dictionaries
+    @return: (shift2, xd_shifts, xd_locns, lamp_is_on)
+    @rtype: tuple of a float, two dictionaries, and a boolean flag
 
-    The function value is a tuple of three items:  shift2 and two dictionaries,
-    xc_shifts, xd_locns.  shift2 is the offset (average of those found, if NUV)
-    from nominal in the cross-dispersion direction, in pixels; this value will
-    be zero if the offset could not be determined.  xd_shifts and xd_locns use
-    the segment or stripe name as the key; the value for xd_shifts is the shift
-    from nominal, and the value for xd_locns is the location where the spectrum
-    was found (projected onto the left edge if FUV or lower edge if NUV).
+    The function value is a tuple of four items:  shift2, two dictionaries
+    (xc_shifts, xd_locns), and a boolean flag.  shift2 is the offset (average
+    of those found, if NUV) from nominal in the cross-dispersion direction,
+    in pixels; this value will be zero if the offset could not be determined.
+    xd_shifts and xd_locns use the segment or stripe name as the key; the
+    value for xd_shifts is the shift from nominal, and the value for xd_locns
+    is the location where the spectrum was found (projected onto the left
+    edge).  lamp_is_on is a flag that indicates whether the lamp was actually
+    on.
 
-    Note that this assumes that all wavecals are taken in time-tag mode.
+    Note that it is assumed that all wavecals are taken in time-tag mode.
     """
 
     fd = pyfits.open (corrtag, mode="readonly", memmap=0)
@@ -506,8 +509,8 @@ def findWavecalSpectrum (corrtag, info, reffiles):
 
     dq = sci_extn.data.field ("DQ")
 
-    (shift2, xd_shifts, xd_locns) = ttFindWavecalSpectrum (xi, eta, dq,
-                                    info, xd_range, box, xtractab)
+    (shift2, xd_shifts, xd_locns, lamp_is_on) = \
+    ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab)
 
     fd.close()
 
@@ -523,7 +526,7 @@ def findWavecalSpectrum (corrtag, info, reffiles):
                     (key, xd_shifts[key], xd_locns[key]))
     cosutil.printMsg ("  avg %6.1f" % shift2)
 
-    return (shift2, xd_shifts, xd_locns)
+    return (shift2, xd_shifts, xd_locns, lamp_is_on)
 
 def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     """Find the offset of a wavecal spectrum in cross-dispersion direction.
@@ -545,16 +548,17 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     @param xtractab: name of the 1-D extraction parameters table
     @type xtractab: string
 
-    @return: (shift2, xd_shifts, xd_locns)
-    @rtype: tuple of a float and two dictionaries
+    @return: (shift2, xd_shifts, xd_locns, lamp_is_on)
+    @rtype: tuple of a float, two dictionaries, and a boolean flag
 
-    The function value is a tuple of three items:  shift2 and two dictionaries,
-    xc_shifts, xd_locns.  shift2 is the offset (average of those found, if NUV)
-    from nominal in the cross-dispersion direction, in pixels; this value will
-    be zero if the offset could not be determined.  xd_shifts and xd_locns use
-    the segment or stripe name as the key; the value for xd_shifts is the shift
-    from nominal, and the value for xd_locns is the location where the spectrum
-    was found.
+    The function value is a tuple of four items:  shift2, two dictionaries
+    (xc_shifts, xd_locns), and a boolean flag.  shift2 is the offset (average
+    of those found, if NUV) from nominal in the cross-dispersion direction,
+    in pixels; this value will be zero if the offset could not be determined.
+    xd_shifts and xd_locns use the segment or stripe name as the key; the
+    value for xd_shifts is the shift from nominal, and the value for xd_locns
+    is the location where the spectrum was found.  lamp_is_on is a flag that
+    indicates whether the lamp was actually on.
     """
 
     if len (xi) < 1:
@@ -568,6 +572,9 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     if info["detector"] == "FUV":
         (shift2, xd_shifts, xd_locns) = ttFindFUV (xi, eta, dq,
                 xd_range, box, filter, xtractab)
+    elif info["obstype"] == "IMAGING":
+        (shift2, xd_shifts, xd_locns) = ttFindImagingWavecal (xi, eta, dq,
+                xd_range, box, filter, xtractab)
     else:
         (shift2, xd_shifts, xd_locns) = ttFindNUV (xi, eta, dq,
                 xd_range, box, filter, xtractab)
@@ -575,7 +582,12 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     if shift2 is None:
         shift2 = 0.
 
-    return (shift2, xd_shifts, xd_locns)
+    # Was the lamp was actually on?  shift2 would have been None if we
+    # didn't find the shift, but this test is more quantitative and prints
+    # some statistics.
+    lamp_is_on = cosutil.isLampOn (xi, eta, dq, info, xtractab, shift2)
+
+    return (shift2, xd_shifts, xd_locns, lamp_is_on)
 
 def ttFindFUV (xi, eta, dq, xd_range, box, filter, xtractab):
 
@@ -594,6 +606,25 @@ def ttFindFUV (xi, eta, dq, xd_range, box, filter, xtractab):
         segment = filter["segment"]
         xd_shifts = {segment: shift2}
         xd_locns = {segment: y}
+
+    return (shift2, xd_shifts, xd_locns)
+
+def ttFindImagingWavecal (xi, eta, dq, xd_range, box, filter, xtractab):
+
+    xdisp = N.zeros (NUV_Y, dtype=N.float32)
+
+    xd_shifts = {}
+    xd_locns = {}
+
+    filter["segment"] = "NUVA"
+    xtract_info = cosutil.getTable (xtractab, filter)
+    if xtract_info is not None:
+        slope = xtract_info.field ("slope")[0]
+        # Collapse the data along the dispersion direction.
+        ccos.xy_collapse (xi, eta, dq, slope, xdisp)
+        (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
+        xd_shifts["NUVA"] = shift2
+        xd_locns["NUVA"] = y
 
     return (shift2, xd_shifts, xd_locns)
 

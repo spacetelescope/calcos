@@ -1,3 +1,4 @@
+from __future__ import division
 import copy
 import numpy as N
 from calcosparam import *
@@ -19,7 +20,8 @@ MIN_NUMBER_OF_COUNTS = 50
 N_SIGMA = 6.
 
 # For comparison of individual shifts with the global shift (NUV only).
-SLOP = 15.      # pixels
+# SLOP = 15.      # pixels
+SLOP = 25.      # pixels
 
 # The number of pixels to set to zero at the ends of the template spectra.
 TRIM = 20       # this is currently not used
@@ -150,16 +152,14 @@ class Shift1 (object):
             self.n50_dict[key] = None
             self.chisq_dict[key] = 0.
             self.ndf_dict[key] = 0
-            self.spec_dict[key] = []
-            self.tmpl_dict[key] = []
         else:
             (chisq, ndf, spec, tmpl) = \
             self.computeChiSquare (spectrum, template,
                                    factor, spec_slice, tmpl_slice)
             self.chisq_dict[key] = chisq
             self.ndf_dict[key] = ndf
-            self.spec_dict[key] = spec.copy()
-            self.tmpl_dict[key] = tmpl.copy()
+        self.spec_dict[key] = spec.copy()
+        self.tmpl_dict[key] = tmpl.copy()
 
         self.shift1_dict[key] = shift1
         self.spec_found[key] = True
@@ -300,10 +300,7 @@ class Shift1 (object):
         """Find the shifts in the dispersion direction for NUV data."""
 
         global_shift = self.globalShift()
-        if global_shift is None:
-            global_shift = 0.
 
-        factors = []
         for key in self.keys:
             if key not in self.templates.keys():
                 self.notFound (key)
@@ -313,8 +310,9 @@ class Shift1 (object):
             template = self.templates[key]
             (shift, orig_shift1, n50) = self.findShift (spectrum, template)
             self.orig_shift1_dict[key] = orig_shift1
-            if abs (shift - global_shift) > SLOP:
-                self.spec_found[key] = False
+            if global_shift is not None:
+                if abs (shift - global_shift) > SLOP:
+                    self.spec_found[key] = False
             self.shift1_dict[key] = shift
             self.n50_dict[key] = n50
 
@@ -323,33 +321,10 @@ class Shift1 (object):
             if factor is None:
                 self.notFound (key)
                 continue
-            if self.spec_found[key]:
-                factors.append (factor)
 
-        # Use the median factor in the loop below.
-        n_factors = len (factors)
-        if n_factors == 0:
-            return
-        factors.sort()
-        n = n_factors // 2
-        if n * 2 == n_factors:
-            median_factor = (factors[n-1] + factors[n]) / 2.
-        else:
-            median_factor = factors[n]
-
-        for key in self.keys:
-            self.current_key = key
-            shift = self.shift1_dict[key]
-            spectrum = self.spectra[key]
-            template = self.templates[key]
-            (factor, spec_slice, tmpl_slice) = \
-                    self.computeNormalization (spectrum, template, shift)
-            if factor is None:
-                self.notFound (key)
-                continue
             (chisq, ndf, spec, tmpl) = \
             self.computeChiSquare (spectrum, template,
-                                   median_factor, spec_slice, tmpl_slice)
+                                   factor, spec_slice, tmpl_slice)
             self.chisq_dict[key] = chisq
             self.ndf_dict[key] = ndf
             self.spec_dict[key] = spec.copy()
@@ -370,8 +345,6 @@ class Shift1 (object):
         self.n50_dict[key] = None
         self.chisq_dict[key] = 0.
         self.ndf_dict[key] = 0
-        self.spec_dict[key] = []
-        self.tmpl_dict[key] = []
 
     def checkCounts (self):
         """Flag data with negligible counts.
@@ -432,6 +405,8 @@ class Shift1 (object):
 
         initial_offset = self.fp * self.stepsize
 
+        FACTOR_IS_NONE = 1.             # this is a flag value
+
         lenxc = len (self.xc)
         maxlag = lenxc // 2
         for shift in range (-maxlag, maxlag+1):
@@ -439,13 +414,18 @@ class Shift1 (object):
             (factor, spec_slice, tmpl_slice) = \
                     self.computeNormalization (spectrum, template, shift_x)
             if factor is None:
-                self.xc[maxlag+shift] = -1.     # shouldn't ever be the maximum
+                # replace this later
+                self.xc[maxlag+shift] = FACTOR_IS_NONE
                 continue
             (chisq, ndf, spec, tmpl) = \
             self.computeChiSquare (spectrum, template,
                                    factor, spec_slice, tmpl_slice)
             # we want the minimum, but xcStat finds the maximum, so change sign
             self.xc[maxlag+shift] = -chisq
+        # Where factor was None, set xc to a smaller value (larger chisq)
+        # than any actual value.
+        min_xc = self.xc.min()
+        self.xc = N.where (self.xc == FACTOR_IS_NONE, 2.*min_xc, self.xc)
 
         # imax is the index of the maximum.  n50 is for diagnostic purposes.
         (imax, status, n50) = self.xcStat()
@@ -629,39 +609,35 @@ class Shift1 (object):
         if done:
             return (None, (s0, s1), (t0, t1))
 
-        # Ratio of counts in the spectrum to counts in the template.
-        factors = []
-        STEP = 100
+        # Truncate the noise to zero, then add up the remaining counts.
         nelem = s1 - s0
-        si = s0
-        ti = t0
-        done = False
-        while not done:
-            sj = si + STEP
-            tj = ti + STEP
-            sj = min (sj, nelem)
-            tj = min (tj, nelem)
-            sum_spec = spectrum[si:sj].sum()
-            sum_tmpl = template[ti:tj].sum()
-            si += STEP
-            ti += STEP
-            if si > s1 or ti > t1:
-                done = True
-            if sum_tmpl <= 0.:
-                continue
-            factors.append (sum_spec / sum_tmpl)
-        factors.sort()
-        n_factors = len (factors)
-        if n_factors == 0:
-            return (None, (s0, s1), (t0, t1))
-        n = n_factors // 2
-        if n * 2 == n_factors:
-            factor = (factors[n-1] + factors[n]) / 2.
-        else:
-            factor = factors[n]
+        middle = nelem // 2
+        spec_cp = spectrum[s0:s1].copy()
+        tmpl_cp = template[t0:t1].copy()
+        spec_cp.sort()
+        tmpl_cp.sort()
+        median_spec = spec_cp[middle]
+        median_tmpl = tmpl_cp[middle]
+        # absolute values of the deviations from the median
+        spec_diff = N.abs (spec_cp - median_spec)
+        tmpl_diff = N.abs (tmpl_cp - median_tmpl)
+        spec_diff.sort()
+        tmpl_diff.sort()
+        # median of the absolute values of the deviations from the median
+        median_spec_diff = spec_diff[middle]
+        median_tmpl_diff = tmpl_diff[middle]
+        # Cut off the noise.
+        cutoff = median_spec + 5. * median_spec_diff
+        spec_cp = N.where (spec_cp > cutoff, spec_cp, 0.)
+        cutoff = median_tmpl + 5. * median_tmpl_diff
+        tmpl_cp = N.where (tmpl_cp > cutoff, tmpl_cp, 0.)
 
-        if factor <= 0:
+        sum_spec = spec_cp.sum()
+        sum_tmpl = tmpl_cp.sum()
+        if sum_tmpl <= 0.:
             factor = None
+        else:
+            factor = sum_spec / sum_tmpl
 
         return (factor, (s0, s1), (t0, t1))
 

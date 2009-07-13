@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+from __future__ import division
+import math
 import os
 import shutil
 import sys
@@ -23,6 +25,10 @@ def writeOutputEvents (infile, outfile):
     into this object, and writes it to the output file.  If the input file
     contains a GTI table, that will be copied unchanged to output.
 
+    If the input is already a corrtag table (if the table in the first
+    extension contains the column XFULL), then the file will be copied
+    to output without change.
+
     @param infile: name of the input FITS file containing an EVENTS table
         and optionally a GTI table
     @type infile: string
@@ -38,6 +44,13 @@ def writeOutputEvents (infile, outfile):
         nrows = 0
     else:
         nrows = indata.shape[0]
+
+    # If the input is already a corrtag file, just copy it.
+    if isCorrtag (infile):
+        ifd.close()
+        shutil.copy (infile, outfile)
+        return nrows
+
     detector = ifd[0].header.get ("detector", "FUV")
     tagflash = (ifd[0].header.get ("tagflash", default="NONE") != "NONE")
 
@@ -90,6 +103,55 @@ def writeOutputEvents (infile, outfile):
     ifd.close()
 
     return nrows
+
+def isCorrtag (filename):
+    """Determine whether 'filename' is a corrtag file.
+
+    A corrtag file contains a table in the first extension, and there
+    will be a column with the name "XFULL".
+
+    @param filename: name of a file
+    @type filename: string
+
+    @return: True if the first extension of 'filename' is a corrtag table
+    @rtype: boolean
+    """
+
+    fd = pyfits.open (filename, mode="readonly")
+    if len (fd) < 2:                    # no extensions?
+        fd.close()
+        return False
+
+    # Find an EVENTS table (any one, if there is more than one).
+    hdunum = 0
+    for i in range (1, len(fd)):
+        hdu = fd[i]
+        extname = hdu.header.get ("extname", "MISSING")
+        if extname.upper() == "EVENTS":
+            hdunum = i
+            break
+
+    if hdunum < 1:
+        fd.close()
+        return False
+
+    hdr = fd[hdunum].header
+    data = fd[hdunum].data
+    got_xfull = False                   # initial value
+    if data is None:
+        # check each of the TTYPEi keywords
+        ncols = hdr.get ("tfields", 0)
+        for i in range (1, ncols+1):
+            key = "ttype%d" % i
+            ttype = hdr.get (key, "missing").lower()
+            if ttype == "xfull":
+                got_xfull = True
+                break
+    else:
+        got_xfull = findColumn (data, "xfull")
+    fd.close()
+
+    return got_xfull
 
 def createCorrtagHDU (nrows, detector, header):
     """Create the output events HDU.
@@ -224,19 +286,30 @@ def returnGTI (infile):
     """
 
     fd = pyfits.open (infile, mode="readonly")
-    if len (fd) < 3:
-        fd.close()
-        gti = []
-        return gti
 
-    indata = fd["GTI"].data
-    if indata is None:
+    # Find the GTI table with the largest value of EXTVER.
+    last_extver = 0                     # initial value
+    hdunum = 0
+    for i in range (1, len(fd)):
+        hdu = fd[i]
+        extname = hdu.header.get ("extname", "MISSING")
+        if extname.upper() == "GTI":
+            extver = hdu.header.get ("extver", 1)
+            if extver > last_extver:
+                last_extver = extver
+                hdunum = i
+
+    if hdunum < 1:
         gti = []
     else:
-        nrows = indata.shape[0]
-        start = indata.field ("START")
-        stop = indata.field ("STOP")
-        gti = [(start[i], stop[i]) for i in range (nrows)]
+        indata = fd[hdunum].data
+        if indata is None:
+            gti = []
+        else:
+            nrows = indata.shape[0]
+            start = indata.field ("START")
+            stop = indata.field ("STOP")
+            gti = [(start[i], stop[i]) for i in range (nrows)]
 
     return gti
 
@@ -283,13 +356,19 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
     matches the filter.  A warning will be printed if exactly_one is true
     but more than one row matches the filter.
 
-    arguments:
-    table          name of the reference table
-    filter         dictionary; each key is a column name, and if the value
-                   in that column matches the filter value for some row,
-                   that row will be included in the set that is returned
-    exactly_one    true if there must be one and only one matching row
-    at_least_one   true if there must be at least one matching row
+    @param table: name of the reference table
+    @type table: string
+    @param filter: dictionary; each key is a column name, and if the value
+        in that column matches the filter value for some row, that row will
+        be included in the set that is returned
+    @type filter: dictionary
+    @param exactly_one: true if there must be one and only one matching row
+    @type exactly_one: boolean
+    @param at_least_one: true if there must be at least one matching row
+    @type at_least_one: boolean
+
+    @return: 
+    @rtype: pyfits record array
     """
 
     # fd = pyfits.open (table, mode="readonly", memmap=1)
@@ -439,6 +518,163 @@ def determineLivetime (countrate, obs_rate, live_factor):
                 break
 
     return livetime
+
+def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
+    """Test whether a lamp was on.
+
+    This function returns True if a wavecal lamp was on, i.e. if the
+    counts through the wavecal aperture were significantly greater than
+    the background counts.
+
+    @param xi: pixel coordinates of events, in dispersion direction
+    @type xi: numpy array
+    @param eta: pixel coordinates of events, in cross-dispersion direction
+    @type eta: numpy array
+    @param dq: data quality column
+    @type dq: numpy array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param xtractab: name of the 1-D extraction parameters table
+    @type xtractab: string
+    @param shift2: offset of spectrum in cross-dispersion direction
+    @type shift2: float
+
+    @return: True if the background-subtracted wavecal source spectrum is
+        more than five times the standard deviation of the difference
+        between the source counts and the background counts
+    @rtype: boolean
+    """
+
+    # Use hard-coded numbers for imaging data.  Delete this section if
+    # the xtractab actually includes MIRRORA and MIRRORB.
+    if info["obstype"] == "IMAGING":
+        # note:  xtractab and shift2 are ignored
+        len_spectrum = NUV_X
+        x_offset = 0
+        slope = 0.
+        b_spec = 605.
+        height = 100
+        b_bkg1 = 705.
+        b_bkg2 = 505.
+        b_hgt = 50
+        source = N.zeros ((height, len_spectrum), dtype=N.float64)
+        background1 = N.zeros ((b_hgt, len_spectrum), dtype=N.float64)
+        background2 = N.zeros ((b_hgt, len_spectrum), dtype=N.float64)
+        ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
+                         dq, info["sdqflags"])
+        ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
+                         dq, info["sdqflags"])
+        ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
+                         dq, info["sdqflags"])
+        ns = source.sum (dtype=N.float64)
+        nb = background1.sum (dtype=N.float64) + \
+             background2.sum (dtype=N.float64)
+        sigma_s = math.sqrt (ns)
+        sigma_b = math.sqrt (nb)
+        printMsg ("Counts from lamp = %.0f, background = %.1f, " \
+                  "stddev of difference = %.2f" % \
+                  (ns, nb, math.sqrt (sigma_s**2 + sigma_b**2)),
+                  level=VERY_VERBOSE)
+        sigma_s_b = math.sqrt (sigma_s**2 + sigma_b**2)
+        if sigma_s_b > 0.:
+            signal_to_noise = (ns - nb) / sigma_s_b
+        else:
+            signal_to_noise = 0.
+        if signal_to_noise > 5.:
+            return True
+        else:
+            return False
+    # end of section to delete if xtractab includes MIRRORA and MIRRORB
+
+    x_offset = info["x_offset"]
+
+    if info["detector"] == "FUV":
+        len_spectrum = FUV_EXTENDED_X
+        segment_list = [info["segment"]]
+    else:
+        if info["obstype"] == "IMAGING":
+            segment_list = ["NUVA"]
+        else:
+            segment_list = ["NUVB", "NUVA", "NUVC"]     # list NUVB first
+        if x_offset <= 0:
+            len_spectrum = NUV_X
+        else:
+            len_spectrum = NUV_EXTENDED_X
+
+    filter = {"opt_elem": info["opt_elem"],
+              "cenwave": info["cenwave"],
+              "aperture": "WCA"}
+
+    # Get the background counts.  For NUV the background regions are in
+    # nearly the same place for all stripes, so take the background region
+    # for just NUVB.
+    filter["segment"] = segment_list[0]         # if NUV, use NUVB
+    xtract_info = getTable (xtractab, filter)
+    if xtract_info is None:
+        printWarning ("(isLampOn) matching row not found in xtractab %s" \
+                      % xtractab)
+        printContinuation ("filter = %s" % str (filter))
+        return False
+
+    slope  = xtract_info.field ("slope")[0]
+    b_bkg1 = xtract_info.field ("b_bkg1")[0] + shift2
+    b_bkg2 = xtract_info.field ("b_bkg2")[0] + shift2
+    if findColumn (xtract_info, "b_hgt1"):
+        bkg_height1 = xtract_info.field ("b_hgt1")[0]
+        bkg_height2 = xtract_info.field ("b_hgt2")[0]
+    else:
+        bkg_height1 = xtract_info.field ("bheight")[0]
+        bkg_height2 = bkg_height1
+    background1 = N.zeros ((bkg_height1, len_spectrum), dtype=N.float64)
+    background2 = N.zeros ((bkg_height2, len_spectrum), dtype=N.float64)
+    ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
+                     dq, info["sdqflags"])
+    ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
+                     dq, info["sdqflags"])
+    # number of background counts
+    unscaled_nb = background1.sum (dtype=N.float64) + \
+                  background2.sum (dtype=N.float64)
+    sum_bkg_height = bkg_height1 + bkg_height2
+    del background1, background2
+
+    # Get the source counts.
+    ns = 0.                     # number of source counts (incremented in loop)
+    sum_height = 0
+    for segment in segment_list:
+        filter["segment"] = segment
+        xtract_info = getTable (xtractab, filter, exactly_one=True)
+        slope  = xtract_info.field ("slope")[0]
+        b_spec = xtract_info.field ("b_spec")[0] + shift2
+        height = xtract_info.field ("height")[0]
+        source = N.zeros ((height, len_spectrum), dtype=N.float64)
+        ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
+                         dq, info["sdqflags"])
+        ns += source.sum (dtype=N.float64)
+        sum_height += height
+        del source
+
+    # The heights of the source and background regions differ, so the
+    # background counts will be multiplied by this factor.
+    normalization = float (sum_height) / float (sum_bkg_height)
+    nb = float (unscaled_nb) * normalization
+    sigma_s = math.sqrt (ns)
+    sigma_b = normalization * math.sqrt (unscaled_nb)
+
+    printMsg ("Counts in wavecal = %.0f, background = %.1f, " \
+              "stddev of difference = %.2f" % \
+              (ns, nb, math.sqrt (sigma_s**2 + sigma_b**2)),
+              level=VERY_VERBOSE)
+
+    sigma_s_b = math.sqrt (sigma_s**2 + sigma_b**2)
+    if sigma_s_b > 0.:
+        signal_to_noise = (ns - nb) / sigma_s_b
+    else:
+        signal_to_noise = 0.
+
+    if signal_to_noise > 5.:
+        return True
+    else:
+        return False
 
 def getHeaders (input):
     """Return a list of all the headers in the file.
@@ -670,19 +906,14 @@ def updateDQArray (bpixtab, info, dq_array,
     ccos.bindq (lx, ly, ux, uy, dq_info.field ("dq"),
                 dq_array, info["x_offset"])
 
-def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
+def flagOutOfBounds (hdr, dq_array, info, switches,
                      brftab, geofile, minmax_shifts, minmax_doppler):
     """Flag regions that are outside all subarrays (done in-place).
 
-    @param phdr: the primary header
-    @type phdr: pyfits Header object
     @param hdr: the extension header
     @type hdr: pyfits Header object
     @param dq_array: data quality image array (modified in-place)
     @type dq_array: numpy array
-    @param stim_param: a dictionary of lists, with keys
-        i0, i1, x0, xslope, y0, yslope
-    @type stim_param: dictionary
     @param info: keywords and values
     @type info: dictionary
     @param switches: calibration switches
@@ -706,7 +937,7 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
     if detector == "FUV":
         # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
         indices = N.arange (4, dtype=N.int32)
-        if phdr["segment"] == "FUVB":
+        if segment == "FUVB":
             indices += 4
     else:
         indices = N.arange (nsubarrays, dtype=N.int32)
@@ -776,27 +1007,39 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
     temp[:,:] = DQ_OUT_OF_BOUNDS
     (ny, nx) = dq_array.shape
 
-    if switches["tempcorr"] == "PERFORM":
-        # These are the parameters found by computeThermalParam.
-        xintercept = stim_param["x0"]
-        xslope = stim_param["xslope"]
-        yintercept = stim_param["y0"]
-        yslope = stim_param["yslope"]
-        # get the average values
-        n_values = len (xintercept)
-        sum_xintercept = 0.
-        sum_yintercept = 0.
-        sum_xslope = 0.
-        sum_yslope = 0.
-        for i in range (n_values):
-            sum_xintercept += xintercept[i]
-            sum_yintercept += yintercept[i]
-            sum_xslope += xslope[i]
-            sum_yslope += yslope[i]
-        xintercept = sum_xintercept / n_values
-        xslope = sum_xslope / n_values
-        yintercept = sum_yintercept / n_values
-        yslope = sum_yslope / n_values
+    # The test on COMPLETE is for corrtag input.
+    if switches["tempcorr"] == "PERFORM" or switches["tempcorr"] == "COMPLETE":
+
+        # Get the parameters found by computeThermalParam.
+        seg = segment[-1]           # "A" or "B"
+        # reference positions
+        sx1r = hdr.get ("STIM"+seg+"0LX", -1.)
+        sy1r = hdr.get ("STIM"+seg+"0LY", -1.)
+        sx2r = hdr.get ("STIM"+seg+"0RX", -1.)
+        sy2r = hdr.get ("STIM"+seg+"0RY", -1.)
+        # measured positions of the stims
+        sx1 = hdr.get ("STIM"+seg+"_LX", sx1r)
+        sy1 = hdr.get ("STIM"+seg+"_LY", sy1r)
+        sx2 = hdr.get ("STIM"+seg+"_RX", sx2r)
+        sy2 = hdr.get ("STIM"+seg+"_RY", sy2r)
+        if sx1 < 0:
+            sx1 = sx1r
+        if sy1 < 0:
+            sy1 = sy1r
+        if sx2 < 0:
+            sx2 = sx2r
+        if sy2 < 0:
+            sy2 = sy2r
+        if sx1 < 0. or sy1 < 0. or sx2 < 0. or sy2 < 0.:
+            xslope = 1.
+            xintercept = 0.
+            yslope = 1.
+            yintercept = 0.
+        else:
+            xslope = (sx2r - sx1r) / (sx2 - sx1)
+            xintercept = sx1r - sx1 * xslope
+            yslope = (sy2r - sy1r) / (sy2 - sy1)
+            yintercept = sy1r - sy1 * yslope
 
         # subarrays is a list of dictionaries, each with keys:
         #     "x0", "x1", "y0", "y1"
@@ -859,7 +1102,8 @@ def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
         "in flagOutOfBounds, there should be at least one full-size 'subarray'")
     if nfound > 1:
         printWarning ("in flagOutOfBounds, more subarrays than expected")
-    if switches["geocorr"] == "PERFORM":
+    # The test on COMPLETE is for corrtag input.
+    if switches["geocorr"] == "PERFORM" or switches["geocorr"] == "COMPLETE":
         interp_flag = (switches["igeocorr"] == "PERFORM")
         (x_data, origin_x, xbin, y_data, origin_y, ybin) = \
                         getGeoData (geofile, segment)
@@ -1510,13 +1754,14 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
         if key.find ("_hdr") < 0 and phdr.has_key (key):
             phdr[key] = reffiles[key+"_hdr"]
 
-    for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype"]:
+    for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype",
+                "exptype"]:
         if phdr.has_key (key):
             phdr[key] = info[key]
-    if phdr.has_key ("exptype"):
-        # Override exptype, except for the case of an imaging wavecal.
-        if info["obstype"] != "IMAGING" or info["targname"] != "WAVE":
-            phdr["exptype"] = info["exptype"]
+    #if phdr.has_key ("exptype"):
+    #    # Override exptype, except for the case of an imaging wavecal.
+    #    if info["obstype"] != "IMAGING" or info["targname"] != "WAVE":
+    #        phdr["exptype"] = info["exptype"]
 
     if hdr.has_key ("dispaxis"):
         hdr["dispaxis"] = info["dispaxis"]

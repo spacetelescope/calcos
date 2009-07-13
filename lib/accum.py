@@ -1,5 +1,7 @@
+from __future__ import division
 import copy
 import math
+import shutil
 import time
 import types
 import numpy as N
@@ -50,8 +52,12 @@ def accumBasicCalibration (input, inpha, outtag,
     """
 
     cosutil.printIntro ("ACCUM calibration")
-    names = [("Input", input), ("pseudo tt", outtag),
-             ("OutFlt", outflt), ("OutCounts", outcounts)]
+    if info["exptype"] == "ACQ/IMAGE":
+        names = [("Input", input),
+                 ("OutFlt", outflt), ("OutCounts", outcounts)]
+    else:
+        names = [("Input", input), ("pseudo tt", outtag),
+                 ("OutFlt", outflt), ("OutCounts", outcounts)]
     if info["detector"] == "FUV":
         names.insert (1, ("InPha", inpha))
     if outcsum is not None:
@@ -61,6 +67,13 @@ def accumBasicCalibration (input, inpha, outtag,
                             stimfile=cl_args["stimfile"],
                             livetimefile=cl_args["livetimefile"])
     cosutil.printMode (info)
+
+    if info["corrtag_input"]:
+        shutil.copy (input, outtag)
+        status = timetag.timetagBasicCalibration (input, inpha, outtag,
+                    outflt, outcounts, None, outcsum,
+                    cl_args, info, switches, reffiles, wavecal_info)
+        return status
 
     # Get a list of all the headers in the input file.
     headers = cosutil.getHeaders (input)
@@ -130,9 +143,7 @@ def accumBasicCalibration (input, inpha, outtag,
 
     status = timetag.timetagBasicCalibration (input, inpha, outtag,
                     outflt, outcounts, None, outcsum,
-                    cl_args,
-                    info, switches, reffiles,
-                    wavecal_info)
+                    cl_args, info, switches, reffiles, wavecal_info)
 
     return status
 
@@ -495,8 +506,8 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
         binx = NUV_BIN_X
     if biny is None or biny <= 0:
         biny = NUV_BIN_Y
-    nx = shape[1] / binx
-    ny = shape[0] / biny
+    nx = shape[1] // binx
+    ny = shape[0] // biny
     fd[0].header.update ("nuvbinx", binx)
     fd[0].header.update ("nuvbiny", biny)
 

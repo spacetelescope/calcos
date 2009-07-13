@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 import numpy as N
 from convolve import boxcar
@@ -102,7 +103,8 @@ def extract1D (input, incounts=None, output=None,
             nrows = NUV_SPECTRA
         if ifd_c is not None:
             # get the actual value of naxis (note:  dispaxis is one-indexed)
-            key = "naxis" + str (info["dispaxis"])
+            dispaxis = max (info["dispaxis"], 1)
+            key = "naxis" + str (dispaxis)
             nelem = hdr[key]
     rpt = str (nelem)                           # used for defining columns
 
@@ -135,6 +137,8 @@ def extract1D (input, incounts=None, output=None,
     if nrows > 0:
         if info["detector"] == "FUV":
             segments = [info["segment"]]
+        elif info["obstype"] == "IMAGING":
+            segments = ["NUVA"]
         else:
             segments = ["NUVA", "NUVB", "NUVC"]
         # Extract the spectrum or spectra.
@@ -251,11 +255,12 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
 
         if is_wavecal:
             dpixel1 = 0.
+            key = "shift2" + segment[-1]
+            shift2 = hdr.get (key, 0.)
         else:
             key = "dpixel1" + segment[-1]
             dpixel1 = hdr.get (key, 0.)
-
-        shift2 = 0.             # cross-dispersion direction
+            shift2 = 0.
 
         # xdisp_locn will be the user-specified location in cross-dispersion
         # direction (or None, if the user did not specify a value).
@@ -284,7 +289,8 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         # S/N of the flat field
         snr_ff = getSnrFf (switches, reffiles, segment)
 
-        axis = 2 - hdr["dispaxis"]      # 1 --> 1,  2 --> 0
+        dispaxis = max (info["dispaxis"], 1)
+        axis = 2 - dispaxis             # 1 --> 1,  2 --> 0
 
         if corrtag:
             if info["detector"] == "FUV":
@@ -535,6 +541,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
             # (which will be used to update a header keyword)
             b_spec += shift2
             xd_locn = b_spec + slope * (axis_length // 2 - x_offset)
+            b_bkg1 += shift2
+            b_bkg2 += shift2
     else:
         # use the user-specified value, but convert to b_spec, the intersection
         # with the left edge of the array
@@ -619,6 +627,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
             i = x_offset - ofd_header.get (key, 0.)
             i = int (round (i))
             j = i + NUV_X
+            i = max (i, 0)
+            j = min (j, axis_length-1)
             temp_bk = BK_i[i:j].copy()
             boxcar (temp_bk, (bkg_smooth,), output=temp_bk, mode='nearest')
             BK_i[i:j] = temp_bk.copy()

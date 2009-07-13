@@ -1,3 +1,4 @@
+from __future__ import division
 import math
 import os
 import time
@@ -39,7 +40,7 @@ def timetagBasicCalibration (input, inpha, outtag,
                   cl_args,
                   info, switches, reffiles,
                   wavecal_info):
-    """Do the basic processing for time-tag data.
+    """Do the basic processing for either time-tag or accum data.
 
     The function value will be zero if there was no problem,
     and it will be one if there was no input data.
@@ -107,8 +108,9 @@ def timetagBasicCalibration (input, inpha, outtag,
     # Get a copy of the primary header.  This copy will be modified and
     # written to the output image files.
     phdr = ofd[0].header
-    # This list also includes the primary header, but we'll ignore this copy.
-    if info["obsmode"] == "ACCUM":
+    # This list also includes the primary header, but we'll ignore this
+    # copy of the primary header.
+    if info["obsmode"] == "ACCUM" and not info["corrtag_input"]:
         headers = cosutil.getHeaders (input)
         # replace the first extension header so the headers of the
         # pseudo-corrtag table will be updated
@@ -131,6 +133,10 @@ def timetagBasicCalibration (input, inpha, outtag,
     setCorrColNames (info["detector"])
 
     events = events_hdu.data
+
+    # For corrtag input, reinitialize the DQ column if dqicorr is perform.
+    if info["corrtag_input"] and switches["dqicorr"] == "PERFORM":
+        events.field ("dq")[:] = 0.
 
     setActiveArea (events, info, reffiles["brftab"])
 
@@ -167,7 +173,8 @@ def timetagBasicCalibration (input, inpha, outtag,
         countBadEvents (events, bursts, badt, info, headers[1])
 
     # Copy columns to xdopp, xfull, yfull so we'll have default values.
-    copyColumns (events)
+    if not info["corrtag_input"]:
+        copyColumns (events)
 
     doDoppcorr (events, info, switches, reffiles, phdr)
     initHelcorr (events, info, switches, headers[1])
@@ -192,8 +199,9 @@ def timetagBasicCalibration (input, inpha, outtag,
 
     doFlatcorr (events, info, switches, reffiles, phdr)
 
-    if info["obstype"] == "SPECTROSCOPIC" and \
-       switches["wavecorr"] == "PERFORM":
+    if info["tagflash"]:
+        cosutil.printSwitch ("WAVECORR", switches)
+    if switches["wavecorr"] == "PERFORM" or switches["wavecorr"] == "COMPLETE":
         if info["tagflash"]:
             shift1_vs_time = concurrent.processConcurrentWavecal (events, \
                         outflash, cl_args["shift_file"],
@@ -212,7 +220,6 @@ def timetagBasicCalibration (input, inpha, outtag,
     minmax_shifts = getWavecalOffsets (events)
 
     dq_array = doDqicorr (events, input, info, switches, reffiles,
-                          stim_param,
                           phdr, headers[1], minmax_shifts)
 
     writeImages (events.field (xfull), events.field (yfull),
@@ -322,6 +329,7 @@ def updateGlobrate (info, hdr):
         keyword = "globrt_" + info["segment"][-1]
     else:
         keyword = "globrate"
+    globrate = round (globrate, 4)
     hdr.update (keyword, globrate)
 
 def globrate_tt (exptime, detector):
@@ -621,7 +629,7 @@ def recomputeGTI (gti, badt):
     return gti
 
 def saveNewGTI (ofd, gti):
-    """Insert new GTI information as a BINTABLE extension.
+    """Append new GTI information as a BINTABLE extension.
 
     @param ofd: output file header/data list
     @type ofd: pyfits HDUList object
@@ -646,7 +654,7 @@ def saveNewGTI (ofd, gti):
     # Set extver for the new GTI table to be larger than extver for any
     # existing GTI table.  We expect only one, the original one, but there
     # could be others.
-    last_extver = 0                 # initial value
+    last_extver = 0                     # initial value
     for i in range (1, len(ofd)):
         existing_gti = ofd[i]
         extname = existing_gti.header.get ("extname", "MISSING")
@@ -660,6 +668,8 @@ def saveNewGTI (ofd, gti):
     ofd.append (hdu)
     # if we have pyfits 2.1.1dev462 or later, we could insert
     # ofd.insert (2, hdu)
+
+    ofd[0].header.update ("nextend", len(ofd)-1)
 
 def doPhacorr (inpha, events, info, switches, reffiles, phdr, hdr):
     """Filter by pulse height.
@@ -913,9 +923,10 @@ def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
             reffiles["brftab"], info["obsmode"],
             info["segment"], info["exptime"], info["stimrate"],
             input, stimfile)
-        # Update stim location keywords in extension header.
-        stimKeywords (hdr, info["segment"], avg_s1, avg_s2, rms_s1, rms_s2,
-                      s1_ref, s2_ref)
+        if switches["tempcorr"] == "PERFORM":
+            # Update stim location keywords in extension header.
+            stimKeywords (hdr, info["segment"], avg_s1, avg_s2,
+                          rms_s1, rms_s2, s1_ref, s2_ref)
     else:
         stim_countrate = 0.
         stim_livetime = 1.
@@ -1353,14 +1364,11 @@ def thermalParam (s1, s2, s1_ref, s2_ref):
 
     else:
 
-        (sy1, sx1) = s1_ref
-        (sy2, sx2) = s2_ref
+        xslope = (s2_ref[1] - s1_ref[1]) / (s2[1] - s1[1])
+        xintercept = s1_ref[1] - s1[1] * xslope
 
-        xslope = (sx2 - sx1) / (s2[1] - s1[1])
-        xintercept = sx1 - s1[1] * xslope
-
-        yslope = (sy2 - sy1) / (s2[0] - s1[0])
-        yintercept = sy1 - s1[0] * yslope
+        yslope = (s2_ref[0] - s1_ref[0]) / (s2[0] - s1[0])
+        yintercept = s1_ref[0] - s1[0] * yslope
 
     return (xintercept, xslope, yintercept, yslope)
 
@@ -1466,7 +1474,6 @@ def doGeocorr (events, info, switches, reffiles, phdr):
                 phdr["igeocorr"] = "COMPLETE"
 
 def doDqicorr (events, input, info, switches, reffiles,
-               stim_param,
                phdr, hdr, minmax_shifts):
     """Create a data quality array, initialized from the DQI table.
 
@@ -1480,9 +1487,6 @@ def doDqicorr (events, input, info, switches, reffiles,
     @type switches: dictionary
     @param reffiles: reference file names
     @type reffiles: dictionary
-    @param stim_param: a dictionary of lists, with keys
-        i0, i1, x0, xslope, y0, yslope
-    @type stim_param: dictionary of lists
     @param phdr: the input primary header
     @type phdr: pyfits Header object
     @param hdr: the input events extension header
@@ -1508,16 +1512,24 @@ def doDqicorr (events, input, info, switches, reffiles,
     dqicorr is not PERFORM.
     """
 
-    cosutil.printSwitch ("DQICORR", switches)
+    # temp_switch is only used for printing the DQICORR message
+    temp_switch = {}
+    if switches["dqicorr"] == "COMPLETE" and info["corrtag_input"]:
+        temp_switch["dqicorr"] = "PERFORM (complete, but repeat)"
+    else:
+        temp_switch["dqicorr"] = switches["dqicorr"]
+    cosutil.printSwitch ("DQICORR", temp_switch)
 
-    if info["obsmode"] == "TIME-TAG":
+    if info["obsmode"] == "TIME-TAG" or info["corrtag_input"]:
         # Create an initially zero 2-D data quality extension array.
         dq_array = N.zeros (info["npix"], dtype=N.int16)
     else:
         # Read the data quality array from the rawaccum file.
         dq_array = cosutil.getInputDQ (input)
 
-    if switches["dqicorr"] == "PERFORM":
+    # If the input is a corrtag file and dqicorr was done when that file was
+    # created, we should do dqicorr again.
+    if switches["dqicorr"] == "PERFORM" or switches["dqicorr"] == "COMPLETE":
 
         cosutil.printRef ("BPIXTAB", reffiles)
 
@@ -1542,8 +1554,7 @@ def doDqicorr (events, input, info, switches, reffiles,
                                minmax_shifts, minmax_doppler)
 
         # Flag regions that are outside any subarray as out of bounds.
-        cosutil.flagOutOfBounds (phdr, hdr, dq_array, stim_param,
-                                 info, switches,
+        cosutil.flagOutOfBounds (hdr, dq_array, info, switches,
                                  reffiles["brftab"], reffiles["geofile"],
                                  minmax_shifts, minmax_doppler)
 
@@ -1564,7 +1575,8 @@ def dopplerParam (info, disptab, doppcorr):
     @type info: dictionary
     @param disptab: name of dispersion relation table
     @type disptab: string
-    @param doppcorr: if Doppler correction is OMIT, return dummy values
+    @param doppcorr: if Doppler correction is OMIT or SKIPPED, return
+        dummy values
     @type doppcorr: string
 
     @return: Doppler magnitude in pixels, time (MJD) when the Doppler shift
@@ -1573,7 +1585,7 @@ def dopplerParam (info, disptab, doppcorr):
     @rtype: tuple
     """
 
-    if doppcorr != "PERFORM":
+    if doppcorr == "OMIT" or doppcorr == "SKIPPED":
         doppmag  = 0.
         doppzero = info["expstart"]
         orbitper = 5760.
@@ -1634,7 +1646,7 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
     if info["obstype"] == "SPECTROSCOPIC":
         cosutil.printSwitch ("DOPPCORR", switches)
 
-    if switches["doppcorr"] == "PERFORM":
+    if switches["doppcorr"] == "PERFORM" or switches["doppcorr"] == "COMPLETE":
 
         # xi and eta are the columns of pixel coordinates for the
         # dispersion and cross-dispersion directions respectively.
@@ -1669,8 +1681,9 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
                                            xi, info, reffiles, stripe=stripe),
                                    dopp)
 
-        # Copy to xfull in case wavecal processing will not be done.
-        xi_full[:] = dopp.copy()
+        # Copy to xfull if wavecal processing will not be done.
+        if switches["wavecorr"] == "OMIT" and not info["corrtag_input"]:
+            xi_full[:] = dopp.copy()
 
         phdr["doppcorr"] = "COMPLETE"
 
@@ -1869,7 +1882,6 @@ def heliocentricVelocity (t, ra_targ, dec_targ):
 
     deg_to_rad = math.pi / 180.
     eps = 23.439 * deg_to_rad           # obliquity of Earth's axis
-    orb_v = 29.786                      # speed of Earth around Sun, km/s
 
     ra  = ra_targ * deg_to_rad
     dec = dec_targ * deg_to_rad
@@ -1969,7 +1981,8 @@ def doFlatcorr (events, info, switches, reffiles, phdr):
         if info["obsmode"] == "ACCUM":
             if info["obstype"] == "SPECTROSCOPIC":
                 cosutil.printSwitch ("DOPPCORR", switches)
-            if switches["doppcorr"] == "PERFORM":
+            if switches["doppcorr"] == "PERFORM" or \
+               switches["doppcorr"] == "COMPLETE":
                 convolveFlat (flat, info["dispaxis"], \
                      info["expstart"], info["exptime"],
                      info["dopmagt"], info["dopzerot"], info["orbtpert"])
@@ -2700,8 +2713,8 @@ def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
             binx = FUV_BIN_X
         if biny is None or biny <= 0:
             biny = FUV_BIN_Y
-        nx = FUV_X / binx
-        ny = FUV_Y / biny
+        nx = FUV_X // binx
+        ny = FUV_Y // biny
         fd[0].header.update ("fuvbinx", binx)
         fd[0].header.update ("fuvbiny", biny)
     else:
@@ -2709,8 +2722,8 @@ def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
             binx = NUV_BIN_X
         if biny is None or biny <= 0:
             biny = NUV_BIN_Y
-        nx = NUV_X / binx
-        ny = NUV_Y / biny
+        nx = NUV_X // binx
+        ny = NUV_Y // biny
         fd[0].header.update ("nuvbinx", binx)
         fd[0].header.update ("nuvbiny", biny)
 
@@ -2814,23 +2827,17 @@ def appendShift1 (outtag, output, outcounts, shift1_vs_time=None):
 
     fd = pyfits.open (outtag, mode="update")
     fd.append (hdu)
-    phdr = fd[0].header
-    if phdr.has_key ("nextend"):
-        phdr["nextend"] = phdr["nextend"] + 1
+    fd[0].header.update ("nextend", len(fd)-1)
     fd.close()
 
     fd = pyfits.open (output, mode="update")
     fd.append (hdu)
-    phdr = fd[0].header
-    if phdr.has_key ("nextend"):
-        phdr["nextend"] = phdr["nextend"] + 1
+    fd[0].header.update ("nextend", len(fd)-1)
     fd.close()
 
     fd = pyfits.open (outcounts, mode="update")
     fd.append (hdu)
-    phdr = fd[0].header
-    if phdr.has_key ("nextend"):
-        phdr["nextend"] = phdr["nextend"] + 1
+    fd[0].header.update ("nextend", len(fd)-1)
     fd.close()
 
 def flag_gti (time, dq, gti):
@@ -2955,9 +2962,11 @@ def updateFromWavecal (events, wavecal_info,
                            xi_full)
         avg_shift1 = shift1_slope * t_mid + shift1_zero
         key = "SHIFT1" + segment[-1]
-        hdr.update (key, avg_shift1)
+        hdr.update (key, round (avg_shift1, 4))
 
-    if info["detector"] == "NUV":
+    if info["detector"] == "FUV":
+        segment = segment_list[0]
+    else:
         segment = "NUVB"
 
     key = "shift2" + segment[-1].lower()
@@ -2971,7 +2980,8 @@ def updateFromWavecal (events, wavecal_info,
         # Use the same shift2 for every stripe.
         eta_full[:] = eta - ((time - t0) * shift2_slope + shift2_zero)
 
-    key = "shift1" + segment[-1].lower()        # stripe B if NUV
+    # stripe B for NUV
+    key = "shift1" + segment[-1].lower()
     shift1_zero = shift_dict[key]
     shift1_slope = slope_dict[key]
     avg_dy = shift2_slope * t_mid + shift2_zero
@@ -2990,7 +3000,7 @@ def updateFromWavecal (events, wavecal_info,
 
     for segment in segment_list:
         key = "SHIFT2" + segment[-1]
-        hdr.update (key, avg_dy)
+        hdr.update (key, round (avg_dy, 4))
         if info["detector"] == "FUV":
             xi_active = xi_full[active_area]
             xi_diff = xi_active - N.around (xi_active)
@@ -2999,7 +3009,7 @@ def updateFromWavecal (events, wavecal_info,
             xi_diff = xi_psa - N.around (xi_psa)
         dpixel1 = xi_diff.mean()
         key = "DPIXEL1" + segment[-1]
-        hdr.update (key, dpixel1)
+        hdr.update (key, round (dpixel1, 4))
     if info["opt_elem"] == "G230L" and info["cenwave"] == 3360:
         hdr.update ("SHIFT1C", 0.)
         hdr.update ("SHIFT2C", 0.)

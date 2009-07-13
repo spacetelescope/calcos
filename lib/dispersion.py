@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as N
 import cosutil
 
@@ -70,21 +71,20 @@ class Dispersion (object):
                 d = disp_info.field ("d")[0]
             else:
                 d = 0.
-            # the sign of this difference is uncertain at this time:
-            self.delta = d - d_tv03
+            self.delta = d_tv03 - d
 
         del disp_info
 
     def info (self):
 
-        print "filter =", self.filter
-        print "use_fpoffset =", self.use_fpoffset
-        print "fpoffset =", self.fpoffset
-        print "number of coefficients =", self.ncoeff
-        print "coeff =", self.coeff
-        print "delta =", self.delta
-        print "number of matching rows =", self._nrows
-        print "valid =", self._valid
+        cosutil.printMsg ("filter = %s" % str (self.filter))
+        cosutil.printMsg ("use_fpoffset = %s" % str (self.use_fpoffset))
+        cosutil.printMsg ("fpoffset = %d" % self.fpoffset)
+        cosutil.printMsg ("number of coefficients = %d" % self.ncoeff)
+        cosutil.printMsg ("coeff = %s" % str (self.coeff))
+        cosutil.printMsg ("delta = %.6g" % self.delta)
+        cosutil.printMsg ("number of matching rows = %d" % self._nrows)
+        cosutil.printMsg ("valid = %s" % str (self._valid))
 
     def isValid (self):
         """Return True if a matching row was found in disptab."""
@@ -120,7 +120,7 @@ class Dispersion (object):
         @rtype: numpy array or float
         """
 
-        x_prime = x - self.delta
+        x_prime = x + self.delta
 
         sum = self.coeff[self.ncoeff-1]
         for i in range (self.ncoeff-2, -1, -1):
@@ -141,7 +141,7 @@ class Dispersion (object):
         @rtype: numpy array or float
         """
 
-        x_prime = x - self.delta
+        x_prime = x + self.delta
 
         sum = (self.ncoeff - 1.) * self.coeff[self.ncoeff-1]
         for n in range (self.ncoeff-2, 0, -1):
