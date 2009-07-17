@@ -1635,6 +1635,14 @@ class Observation (object):
                 else:
                     # don't need to change exptype, just exp_type
                     self.exp_type = EXP_CALIBRATION
+            elif self.info["exptype"] == "WAVECAL":
+                cosutil.printWarning ("EXPTYPE = %s and OBSTYPE = %s " \
+                        "for %s;" % (self.info["exptype"],
+                                    self.info["obstype"], self.input))
+                cosutil.printContinuation (
+                        "EXPTYPE will be changed to EXTERNAL/CAL.")
+                self.info["exptype"] = "EXTERNAL/CAL"
+                self.exp_type = EXP_CALIBRATION
             else:
                 pass                            # no change needed
 

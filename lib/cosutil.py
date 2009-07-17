@@ -17,6 +17,8 @@ verbosity = VERBOSE
 
 # for appending to a trailer file
 fd_trl = None
+# if this is False, writing to trailer files will be disabled
+write_to_trailer = True
 
 def writeOutputEvents (infile, outfile):
     """
@@ -1833,6 +1835,17 @@ def checkVerbosity (level):
 
     return (verbosity >= level)
 
+def setWriteToTrailer (flag=False):
+    """Set the flag to indicate whether we should write to trailer files.
+
+    @param flag: if True, write to trailer file(s)
+    @type flag: boolean
+    """
+
+    global write_to_trailer
+
+    write_to_trailer = flag
+
 def openTrailer (filename):
     """Open the trailer file for 'filename' in append mode.
 
@@ -1841,6 +1854,11 @@ def openTrailer (filename):
     """
 
     global fd_trl
+    global write_to_trailer
+
+    if not write_to_trailer:
+        fd_trl = None
+        return
 
     closeTrailer()
 
