@@ -1,4 +1,3 @@
-from __future__ import division
 import math
 import numpy as N
 from calcosparam import *
@@ -15,21 +14,16 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     data quality column for each event within that time interval.
     This is based on cf_screen_burst.c for FUSE.
 
-    @param time: the time column in the events table
-    @type time: numpy array
-    @param y: the column of cross dispersion locations of events
-    @type y: numpy array
-    @param dq: the data quality column in the events table (updated in-place)
-    @type dq: numpy array
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param info: header keywords and values
-    @type info: dictionary
-    @param burstfile: name of output text file for burst info (or None)
-    @type burstfile: string
-    @param high_countrate: this flag can be set to true to force the time
-        interval to be short, as if the data were high count rate
-    @type high_countrate: boolean
+    arguments:
+    time            the time column in the events table
+    y               the column of cross dispersion locations of events
+    dq              the data quality column in the events table (updated
+                    in-place)
+    reffiles        dictionary of reference file names
+    info            dictionary of header keywords and values
+    burstfile       name of output text file for burst info (or None)
+    high_countrate  this boolean flag can be set to true to force the time
+                    interval to be short, as if the data were high count rate
 
     @return: list of [bad_start, bad_stop] intervals during which a burst
         was detected (seconds since expstart)
@@ -179,10 +173,9 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
 def getBurstParam (brsttab, segment):
     """Read parameters from burst reference table.
 
-    @param brsttab: the name of the burst reference table
-    @type brsttab: string
-    @param segment: FUVA or FUVB
-    @type segment: string
+    arguments:
+    brsttab       the name of the burst reference table
+    segment       FUVA or FUVB
 
     The function value is a tuple with the parameter values.
     """
@@ -212,10 +205,9 @@ def getRegionLocations (reffiles, info):
     table, and these will be used to define the source and background
     regions.
 
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param info: header keywords and values
-    @type info: dictionary
+    arguments:
+    reffiles      dictionary of reference file names
+    info          dictionary of header keywords and values
 
     The function value is a tuple with the lower and upper limits
     (in the cross-dispersion direction) of the active area, the

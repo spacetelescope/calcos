@@ -1,7 +1,5 @@
 #! /usr/bin/env python
 
-from __future__ import division
-import math
 import os
 import shutil
 import sys
@@ -17,8 +15,6 @@ verbosity = VERBOSE
 
 # for appending to a trailer file
 fd_trl = None
-# if this is False, writing to trailer files will be disabled
-write_to_trailer = True
 
 def writeOutputEvents (infile, outfile):
     """
@@ -27,15 +23,10 @@ def writeOutputEvents (infile, outfile):
     into this object, and writes it to the output file.  If the input file
     contains a GTI table, that will be copied unchanged to output.
 
-    If the input is already a corrtag table (if the table in the first
-    extension contains the column XFULL), then the file will be copied
-    to output without change.
-
-    @param infile: name of the input FITS file containing an EVENTS table
-        and optionally a GTI table
-    @type infile: string
-    @param outfile: name of file for output EVENTS table (and GTI table)
-    @type outfile: string
+    argument:
+    infile         name of the input FITS file containing an EVENTS table
+                   and optionally a GTI table
+    outfile        name of file for output EVENTS table (and GTI table)
     """
 
     # ifd = pyfits.open (infile, mode="readonly", memmap=1)
@@ -46,13 +37,6 @@ def writeOutputEvents (infile, outfile):
         nrows = 0
     else:
         nrows = indata.shape[0]
-
-    # If the input is already a corrtag file, just copy it.
-    if isCorrtag (infile):
-        ifd.close()
-        shutil.copy (infile, outfile)
-        return nrows
-
     detector = ifd[0].header.get ("detector", "FUV")
     tagflash = (ifd[0].header.get ("tagflash", default="NONE") != "NONE")
 
@@ -105,55 +89,6 @@ def writeOutputEvents (infile, outfile):
     ifd.close()
 
     return nrows
-
-def isCorrtag (filename):
-    """Determine whether 'filename' is a corrtag file.
-
-    A corrtag file contains a table in the first extension, and there
-    will be a column with the name "XFULL".
-
-    @param filename: name of a file
-    @type filename: string
-
-    @return: True if the first extension of 'filename' is a corrtag table
-    @rtype: boolean
-    """
-
-    fd = pyfits.open (filename, mode="readonly")
-    if len (fd) < 2:                    # no extensions?
-        fd.close()
-        return False
-
-    # Find an EVENTS table (any one, if there is more than one).
-    hdunum = 0
-    for i in range (1, len(fd)):
-        hdu = fd[i]
-        extname = hdu.header.get ("extname", "MISSING")
-        if extname.upper() == "EVENTS":
-            hdunum = i
-            break
-
-    if hdunum < 1:
-        fd.close()
-        return False
-
-    hdr = fd[hdunum].header
-    data = fd[hdunum].data
-    got_xfull = False                   # initial value
-    if data is None:
-        # check each of the TTYPEi keywords
-        ncols = hdr.get ("tfields", 0)
-        for i in range (1, ncols+1):
-            key = "ttype%d" % i
-            ttype = hdr.get (key, "missing").lower()
-            if ttype == "xfull":
-                got_xfull = True
-                break
-    else:
-        got_xfull = findColumn (data, "xfull")
-    fd.close()
-
-    return got_xfull
 
 def createCorrtagHDU (nrows, detector, header):
     """Create the output events HDU.
@@ -283,35 +218,24 @@ def dummyGTI (exptime):
 def returnGTI (infile):
     """Return a list of (start, stop) good time intervals.
 
-    @param infile: name of the input FITS file containing a GTI table
-    @type infile: string
+    arguments:
+    infile         name of the input FITS file containing a GTI table
     """
 
     fd = pyfits.open (infile, mode="readonly")
+    if len (fd) < 3:
+        fd.close()
+        gti = []
+        return gti
 
-    # Find the GTI table with the largest value of EXTVER.
-    last_extver = 0                     # initial value
-    hdunum = 0
-    for i in range (1, len(fd)):
-        hdu = fd[i]
-        extname = hdu.header.get ("extname", "MISSING")
-        if extname.upper() == "GTI":
-            extver = hdu.header.get ("extver", 1)
-            if extver > last_extver:
-                last_extver = extver
-                hdunum = i
-
-    if hdunum < 1:
+    indata = fd["GTI"].data
+    if indata is None:
         gti = []
     else:
-        indata = fd[hdunum].data
-        if indata is None:
-            gti = []
-        else:
-            nrows = indata.shape[0]
-            start = indata.field ("START")
-            stop = indata.field ("STOP")
-            gti = [(start[i], stop[i]) for i in range (nrows)]
+        nrows = indata.shape[0]
+        start = indata.field ("START")
+        stop = indata.field ("STOP")
+        gti = [(start[i], stop[i]) for i in range (nrows)]
 
     return gti
 
@@ -358,19 +282,13 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
     matches the filter.  A warning will be printed if exactly_one is true
     but more than one row matches the filter.
 
-    @param table: name of the reference table
-    @type table: string
-    @param filter: dictionary; each key is a column name, and if the value
-        in that column matches the filter value for some row, that row will
-        be included in the set that is returned
-    @type filter: dictionary
-    @param exactly_one: true if there must be one and only one matching row
-    @type exactly_one: boolean
-    @param at_least_one: true if there must be at least one matching row
-    @type at_least_one: boolean
-
-    @return: 
-    @rtype: pyfits record array
+    arguments:
+    table          name of the reference table
+    filter         dictionary; each key is a column name, and if the value
+                   in that column matches the filter value for some row,
+                   that row will be included in the set that is returned
+    exactly_one    true if there must be one and only one matching row
+    at_least_one   true if there must be at least one matching row
     """
 
     # fd = pyfits.open (table, mode="readonly", memmap=1)
@@ -484,200 +402,6 @@ def getTemplate (raw_template, x_offset, nelem):
 
     return template
 
-def determineLivetime (countrate, obs_rate, live_factor):
-    """Compute livetime factor from observed count rate.
-
-    This is just linear interpolation in live_factor vs obs_rate.
-
-    @param countrate: observed count rate
-    @type countrate: float
-    @param obs_rate: observed count rate column from deadtab
-    @type obs_rate: array
-    @param live_factor: livetime factor column from deadtab
-    @type live_factor: array
-
-    @return: the interpolated livetime factor.
-    @rtype: float
-    """
-
-    n = len (obs_rate)
-
-    if countrate <= 0.:
-        livetime = 1.
-    elif n == 1:
-        livetime = live_factor[0]
-    elif countrate < obs_rate[0]:
-        livetime = 1.
-    elif countrate >= obs_rate[n-1]:
-        livetime = live_factor[n-1]
-    else:
-        # Find the interval containing the observed count rate, and interpolate.
-        for i in range (n-1):
-            if countrate < obs_rate[i+1]:
-                p = (countrate - obs_rate[i]) / (obs_rate[i+1] - obs_rate[i])
-                q = 1. - p
-                livetime = live_factor[i] * q + live_factor[i+1] * p
-                break
-
-    return livetime
-
-def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
-    """Test whether a lamp was on.
-
-    This function returns True if a wavecal lamp was on, i.e. if the
-    counts through the wavecal aperture were significantly greater than
-    the background counts.
-
-    @param xi: pixel coordinates of events, in dispersion direction
-    @type xi: numpy array
-    @param eta: pixel coordinates of events, in cross-dispersion direction
-    @type eta: numpy array
-    @param dq: data quality column
-    @type dq: numpy array
-    @param info: header keywords and values
-    @type info: dictionary
-    @param xtractab: name of the 1-D extraction parameters table
-    @type xtractab: string
-    @param shift2: offset of spectrum in cross-dispersion direction
-    @type shift2: float
-
-    @return: True if the background-subtracted wavecal source spectrum is
-        more than five times the standard deviation of the difference
-        between the source counts and the background counts
-    @rtype: boolean
-    """
-
-    # Use hard-coded numbers for imaging data.  Delete this section if
-    # the xtractab actually includes MIRRORA and MIRRORB.
-    if info["obstype"] == "IMAGING":
-        # note:  xtractab and shift2 are ignored
-        len_spectrum = NUV_X
-        x_offset = 0
-        slope = 0.
-        b_spec = 605.
-        height = 100
-        b_bkg1 = 705.
-        b_bkg2 = 505.
-        b_hgt = 50
-        source = N.zeros ((height, len_spectrum), dtype=N.float64)
-        background1 = N.zeros ((b_hgt, len_spectrum), dtype=N.float64)
-        background2 = N.zeros ((b_hgt, len_spectrum), dtype=N.float64)
-        ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
-                         dq, info["sdqflags"])
-        ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
-                         dq, info["sdqflags"])
-        ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
-                         dq, info["sdqflags"])
-        ns = source.sum (dtype=N.float64)
-        nb = background1.sum (dtype=N.float64) + \
-             background2.sum (dtype=N.float64)
-        sigma_s = math.sqrt (ns)
-        sigma_b = math.sqrt (nb)
-        printMsg ("Counts from lamp = %.0f, background = %.1f, " \
-                  "stddev of difference = %.2f" % \
-                  (ns, nb, math.sqrt (sigma_s**2 + sigma_b**2)),
-                  level=VERY_VERBOSE)
-        sigma_s_b = math.sqrt (sigma_s**2 + sigma_b**2)
-        if sigma_s_b > 0.:
-            signal_to_noise = (ns - nb) / sigma_s_b
-        else:
-            signal_to_noise = 0.
-        if signal_to_noise > 5.:
-            return True
-        else:
-            return False
-    # end of section to delete if xtractab includes MIRRORA and MIRRORB
-
-    x_offset = info["x_offset"]
-
-    if info["detector"] == "FUV":
-        len_spectrum = FUV_EXTENDED_X
-        segment_list = [info["segment"]]
-    else:
-        if info["obstype"] == "IMAGING":
-            segment_list = ["NUVA"]
-        else:
-            segment_list = ["NUVB", "NUVA", "NUVC"]     # list NUVB first
-        if x_offset <= 0:
-            len_spectrum = NUV_X
-        else:
-            len_spectrum = NUV_EXTENDED_X
-
-    filter = {"opt_elem": info["opt_elem"],
-              "cenwave": info["cenwave"],
-              "aperture": "WCA"}
-
-    # Get the background counts.  For NUV the background regions are in
-    # nearly the same place for all stripes, so take the background region
-    # for just NUVB.
-    filter["segment"] = segment_list[0]         # if NUV, use NUVB
-    xtract_info = getTable (xtractab, filter)
-    if xtract_info is None:
-        printWarning ("(isLampOn) matching row not found in xtractab %s" \
-                      % xtractab)
-        printContinuation ("filter = %s" % str (filter))
-        return False
-
-    slope  = xtract_info.field ("slope")[0]
-    b_bkg1 = xtract_info.field ("b_bkg1")[0] + shift2
-    b_bkg2 = xtract_info.field ("b_bkg2")[0] + shift2
-    if findColumn (xtract_info, "b_hgt1"):
-        bkg_height1 = xtract_info.field ("b_hgt1")[0]
-        bkg_height2 = xtract_info.field ("b_hgt2")[0]
-    else:
-        bkg_height1 = xtract_info.field ("bheight")[0]
-        bkg_height2 = bkg_height1
-    background1 = N.zeros ((bkg_height1, len_spectrum), dtype=N.float64)
-    background2 = N.zeros ((bkg_height2, len_spectrum), dtype=N.float64)
-    ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
-                     dq, info["sdqflags"])
-    ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
-                     dq, info["sdqflags"])
-    # number of background counts
-    unscaled_nb = background1.sum (dtype=N.float64) + \
-                  background2.sum (dtype=N.float64)
-    sum_bkg_height = bkg_height1 + bkg_height2
-    del background1, background2
-
-    # Get the source counts.
-    ns = 0.                     # number of source counts (incremented in loop)
-    sum_height = 0
-    for segment in segment_list:
-        filter["segment"] = segment
-        xtract_info = getTable (xtractab, filter, exactly_one=True)
-        slope  = xtract_info.field ("slope")[0]
-        b_spec = xtract_info.field ("b_spec")[0] + shift2
-        height = xtract_info.field ("height")[0]
-        source = N.zeros ((height, len_spectrum), dtype=N.float64)
-        ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
-                         dq, info["sdqflags"])
-        ns += source.sum (dtype=N.float64)
-        sum_height += height
-        del source
-
-    # The heights of the source and background regions differ, so the
-    # background counts will be multiplied by this factor.
-    normalization = float (sum_height) / float (sum_bkg_height)
-    nb = float (unscaled_nb) * normalization
-    sigma_s = math.sqrt (ns)
-    sigma_b = normalization * math.sqrt (unscaled_nb)
-
-    printMsg ("Counts in wavecal = %.0f, background = %.1f, " \
-              "stddev of difference = %.2f" % \
-              (ns, nb, math.sqrt (sigma_s**2 + sigma_b**2)),
-              level=VERY_VERBOSE)
-
-    sigma_s_b = math.sqrt (sigma_s**2 + sigma_b**2)
-    if sigma_s_b > 0.:
-        signal_to_noise = (ns - nb) / sigma_s_b
-    else:
-        signal_to_noise = 0.
-
-    if signal_to_noise > 5.:
-        return True
-    else:
-        return False
-
 def getHeaders (input):
     """Return a list of all the headers in the file.
 
@@ -700,6 +424,119 @@ def timeAtMidpoint (info):
     info          dictionary of header keywords (or could be a Header object)
     """
     return (info["expstart"] + info["expend"]) / 2.
+
+def evalDisp (x, coeff, delta=0.):
+    """Evaluate the dispersion relation at x.
+
+    The function value will be the wavelength (or array of wavelengths) at x,
+    in Angstroms.
+
+    @param x: pixel coordinate (or array of coordinates)
+    @type x: numpy array or float
+    @param coeff: array of polynomial coefficients which convert pixel number
+        to wavelength in Angstroms
+    @type coeff: sequence object (e.g. numpy array)
+    @param delta: offset to subtract from pixel coordinate
+    @type delta: float
+
+    @return: wavelength (or array of wavelengths) at x
+    @rtype: numpy array or float
+    """
+
+    ncoeff = len (coeff)
+    if ncoeff < 2:
+        raise ValueError, "Dispersion relation has too few coefficients"
+
+    x_prime = x - delta
+
+    sum = coeff[ncoeff-1]
+    for i in range (ncoeff-2, -1, -1):
+        sum = sum * x_prime + coeff[i]
+
+    return sum
+
+def evalDerivDisp (x, coeff, delta=0.):
+    """Evaluate the derivative of the dispersion relation at x.
+
+    The function value will be the slope (or array of slopes) at x,
+    in Angstroms per pixel.
+
+    @param x: pixel coordinate (or array of coordinates)
+    @type x: numpy array or float
+    @param coeff: array of polynomial coefficients which convert pixel number
+        to wavelength in Angstroms
+    @type coeff: sequence object (e.g. numpy array)
+    @param delta: offset to subtract from pixel coordinate
+    @type delta: float
+
+    @return: slope at x, in Angstroms per pixel
+    @rtype: numpy array or float
+    """
+
+    ncoeff = len (coeff)
+    if ncoeff < 2:
+        raise ValueError, "Dispersion relation has too few coefficients"
+
+    x_prime = x - delta
+
+    sum = (ncoeff-1.) * coeff[ncoeff-1]
+    for n in range (ncoeff-2, 0, -1):
+        sum = sum * x_prime + n * coeff[n]
+
+    return sum
+
+def evalInvDisp (wavelength, coeff, delta=0., tiny=1.e-8):
+    """Evaluate the inverse of the dispersion relation at wavelength.
+
+    The function value will be the pixel number (or array of pixel numbers)
+    at the specified wavelength(s).  Newton's method is used for finding
+    the pixel numbers, and the iterations are stopped when the largest
+    difference between the specified wavelengths and computed wavelengths
+    is less than tiny.
+
+    @param wavelength: wavelength (or array of wavelengths)
+    @type wavelength: numpy array or float
+    @param coeff: array of polynomial coefficients which convert pixel number
+        to wavelength in Angstroms
+    @type coeff: sequence object (e.g. numpy array)
+    @param delta: offset to subtract from pixel coordinate
+    @type delta: float
+    @param tiny: maximum allowed difference between the final pixel number(s)
+        and the value from the previous iteration
+    @type tiny: float
+
+    @return: pixel number (or array of pixel numbers) at wavelength
+    @rtype: numpy array or float
+    """
+
+    tiny = abs (tiny)
+
+    # initial value
+    try:
+        nelem = len (wavelength)
+        x = N.arange (nelem, dtype=N.float64)
+    except TypeError:
+        nelem = 0
+        x = 0.
+
+    # Iterate to find the pixel number(s) x such that evaluating the
+    # dispersion relation at that point gives the actual wavelength
+    # at the first pixel.
+    done = 0
+    while not done:
+        if nelem > 0:
+            x_prev = x.copy()
+        else:
+            x_prev = x
+        wl = evalDisp (x, coeff, delta)
+        slope = evalDerivDisp (x, coeff, delta)
+        wl_diff = wavelength - wl
+        x += wl_diff / slope
+        diff = N.abs (x - x_prev)
+        if diff.max() < tiny:
+            done = 1
+
+    return x
 
 def geometricDistortion (x, y, geofile, segment, igeocorr):
     """Apply geometric (INL) correction.
@@ -758,28 +595,23 @@ def activeArea (segment, brftab):
 
     return (a_low, a_high, a_left, a_right)
 
-def getInputDQ (input, imset=1):
+def getInputDQ (input):
     """Return the data quality array, or an array of zeros.
 
-    If the data quality extension (EXTNAME = "DQ", EXTVER = imset) actually
-    has a non-null data portion, that data array will be returned.  If the
-    data portion is null (NAXIS = 0), a constant array will be returned;
-    in this case the size will be taken from keywords NPIX1 and NPIX2, and
-    the data value will be the value of the PIXVALUE keyword.
+    If the data quality extension (EXTNAME = "DQ", EXTVER = 1) actually has
+    a non-null data portion, that data array will be returned.  If the data
+    portion is null (NAXIS = 0), a constant array will be returned; in this
+    case the size will be taken from keywords NPIX1 and NPIX2, and the data
+    value will be the value of the PIXVALUE keyword.
 
-    @param input: name of a FITS file containing an image set (SCI, ERR, DQ);
+    argument:
+    input         name of a FITS file containing an image set (SCI, ERR, DQ);
                   only the DQ extension will be read
-    @type input: string
-    @param imset: image set number (one indexed)
-    @type imset: int
-
-    @return: data quality array read from input file, or array of zeros
-    @rtype: numpy array
     """
 
     fd = pyfits.open (input, mode="readonly")
 
-    hdr = fd[("DQ",imset)].header
+    hdr = fd[("DQ",1)].header
     detector = fd[0].header["detector"]
     obstype = fd[0].header["obstype"]
 
@@ -799,13 +631,13 @@ def getInputDQ (input, imset=1):
 
     # Does the data portion exist?
     if hdr["naxis"] > 0:
-        if fd[("DQ",imset)].data.shape[1] == npix[1]:
-            dq_array = fd[("DQ",imset)].data
+        if fd[("DQ",1)].data.shape[1] == npix[1]:
+            dq_array = fd[("DQ",1)].data
             # undo the flagging of regions outside subarrays
             dq_array = N.bitwise_and (dq_array, 16383-(64+128))
         else:
             dq_array = N.zeros (npix, dtype=N.int16)
-            dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",imset)].data
+            dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",1)].data
     else:
         dq_array = N.zeros (npix, dtype=N.int16)
         if hdr.has_key ("pixvalue"):
@@ -908,14 +740,19 @@ def updateDQArray (bpixtab, info, dq_array,
     ccos.bindq (lx, ly, ux, uy, dq_info.field ("dq"),
                 dq_array, info["x_offset"])
 
-def flagOutOfBounds (hdr, dq_array, info, switches,
+def flagOutOfBounds (phdr, hdr, dq_array, stim_param, info, switches,
                      brftab, geofile, minmax_shifts, minmax_doppler):
     """Flag regions that are outside all subarrays (done in-place).
 
+    @param phdr: the primary header
+    @type phdr: pyfits Header object
     @param hdr: the extension header
     @type hdr: pyfits Header object
     @param dq_array: data quality image array (modified in-place)
     @type dq_array: numpy array
+    @param stim_param: a dictionary of lists, with keys
+        i0, i1, x0, xslope, y0, yslope
+    @type stim_param: dictionary
     @param info: keywords and values
     @type info: dictionary
     @param switches: calibration switches
@@ -939,7 +776,7 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
     if detector == "FUV":
         # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
         indices = N.arange (4, dtype=N.int32)
-        if segment == "FUVB":
+        if phdr["segment"] == "FUVB":
             indices += 4
     else:
         indices = N.arange (nsubarrays, dtype=N.int32)
@@ -1009,39 +846,19 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
     temp[:,:] = DQ_OUT_OF_BOUNDS
     (ny, nx) = dq_array.shape
 
-    # The test on COMPLETE is for corrtag input.
-    if switches["tempcorr"] == "PERFORM" or switches["tempcorr"] == "COMPLETE":
-
-        # Get the parameters found by computeThermalParam.
-        seg = segment[-1]           # "A" or "B"
-        # reference positions
-        sx1r = hdr.get ("STIM"+seg+"0LX", -1.)
-        sy1r = hdr.get ("STIM"+seg+"0LY", -1.)
-        sx2r = hdr.get ("STIM"+seg+"0RX", -1.)
-        sy2r = hdr.get ("STIM"+seg+"0RY", -1.)
-        # measured positions of the stims
-        sx1 = hdr.get ("STIM"+seg+"_LX", sx1r)
-        sy1 = hdr.get ("STIM"+seg+"_LY", sy1r)
-        sx2 = hdr.get ("STIM"+seg+"_RX", sx2r)
-        sy2 = hdr.get ("STIM"+seg+"_RY", sy2r)
-        if sx1 < 0:
-            sx1 = sx1r
-        if sy1 < 0:
-            sy1 = sy1r
-        if sx2 < 0:
-            sx2 = sx2r
-        if sy2 < 0:
-            sy2 = sy2r
-        if sx1 < 0. or sy1 < 0. or sx2 < 0. or sy2 < 0.:
-            xslope = 1.
-            xintercept = 0.
-            yslope = 1.
-            yintercept = 0.
-        else:
-            xslope = (sx2r - sx1r) / (sx2 - sx1)
-            xintercept = sx1r - sx1 * xslope
-            yslope = (sy2r - sy1r) / (sy2 - sy1)
-            yintercept = sy1r - sy1 * yslope
+    if switches["tempcorr"] == "PERFORM":
+        # These are the parameters found by computeThermalParam.
+        xintercept = stim_param["x0"]
+        xslope = stim_param["xslope"]
+        yintercept = stim_param["y0"]
+        yslope = stim_param["yslope"]
+        # check the length; we expect (for accum mode) only one element
+        if len (xintercept) != 1:
+            printWarning ("in flagOutOfBounds, more stim_param than expected")
+        xintercept = xintercept[0]
+        xslope = xslope[0]
+        yintercept = yintercept[0]
+        yslope = yslope[0]
 
         # subarrays is a list of dictionaries, each with keys:
         #     "x0", "x1", "y0", "y1"
@@ -1104,8 +921,7 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
         "in flagOutOfBounds, there should be at least one full-size 'subarray'")
     if nfound > 1:
         printWarning ("in flagOutOfBounds, more subarrays than expected")
-    # The test on COMPLETE is for corrtag input.
-    if switches["geocorr"] == "PERFORM" or switches["geocorr"] == "COMPLETE":
+    if switches["geocorr"] == "PERFORM":
         interp_flag = (switches["igeocorr"] == "PERFORM")
         (x_data, origin_x, xbin, y_data, origin_y, ybin) = \
                         getGeoData (geofile, segment)
@@ -1756,14 +1572,13 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
         if key.find ("_hdr") < 0 and phdr.has_key (key):
             phdr[key] = reffiles[key+"_hdr"]
 
-    for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype",
-                "exptype"]:
+    for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype"]:
         if phdr.has_key (key):
             phdr[key] = info[key]
-    #if phdr.has_key ("exptype"):
-    #    # Override exptype, except for the case of an imaging wavecal.
-    #    if info["obstype"] != "IMAGING" or info["targname"] != "WAVE":
-    #        phdr["exptype"] = info["exptype"]
+    if phdr.has_key ("exptype"):
+        # Override exptype, except for the case of an imaging wavecal.
+        if info["obstype"] != "IMAGING" or info["targname"] != "WAVE":
+            phdr["exptype"] = info["exptype"]
 
     if hdr.has_key ("dispaxis"):
         hdr["dispaxis"] = info["dispaxis"]
@@ -1835,17 +1650,6 @@ def checkVerbosity (level):
 
     return (verbosity >= level)
 
-def setWriteToTrailer (flag=False):
-    """Set the flag to indicate whether we should write to trailer files.
-
-    @param flag: if True, write to trailer file(s)
-    @type flag: boolean
-    """
-
-    global write_to_trailer
-
-    write_to_trailer = flag
-
 def openTrailer (filename):
     """Open the trailer file for 'filename' in append mode.
 
@@ -1854,11 +1658,6 @@ def openTrailer (filename):
     """
 
     global fd_trl
-    global write_to_trailer
-
-    if not write_to_trailer:
-        fd_trl = None
-        return
 
     closeTrailer()
 
@@ -1908,12 +1707,11 @@ def printIntro (str):
     printMsg ("", VERBOSE)
     printMsg (str + " -- " + returnTime(), VERBOSE)
 
-def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
+def printFilenames (names, stimfile=None, livetimefile=None):
     """Print input and output filenames.
 
     arguments:
     names         a list of (label, filename) tuples
-    shift_file    name of input text file to specify shift1 and shift2
     stimfile      name of output text file for stim positions (or None)
     livetimefile  name of output text file for livetime factors (or None)
 
@@ -1932,8 +1730,6 @@ def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
     for (label, filename) in names:
         printMsg ("%-10s%s" % (label, filename), VERBOSE)
 
-    if shift_file is not None:
-        printMsg ("wavecal shifts overridden by file " + shift_file, VERBOSE)
     if stimfile is not None:
         printMsg ("stim locations log file   " + stimfile, VERBOSE)
     if livetimefile is not None:
@@ -1953,8 +1749,7 @@ def printMode (info):
     printMsg ("EXPTYPE   " + info["exptype"], VERBOSE)
     if info["obstype"] == "SPECTROSCOPIC":
         printMsg ("OPT_ELEM  " + info["opt_elem"] + \
-              ", CENWAVE " + str (info["cenwave"]) + \
-              ", FPOFFSET " + str (info["fpoffset"]), VERBOSE)
+              ", CENWAVE " + str (info["cenwave"]), VERBOSE)
     else:
         printMsg ("OPT_ELEM  " + info["opt_elem"], VERBOSE)
     printMsg ("APERTURE  " + info["aperture"], VERBOSE)
@@ -2108,51 +1903,6 @@ def expandFileName (filename):
 
     return filename
 
-def changeSegment (filename, detector, segment):
-    """Replace '_a' with '_b' or vice versa, if appropriate.
-
-    This was written for auto/GO wavecal file names for FUV data.  Wavecals
-    are processed from the x1d file, and the name of the raw file is for
-    the first segment in the input list (which will be FUVA if both segments
-    are present).  When calibrating segment B data, the name or names of
-    the wavecal files need to be changed to end in "_b.fits" instead of
-    "_a.fits".
-
-    @param filename: one or more file names, separated by spaces
-    @type filename: string
-    @param detector: FUV or NUV
-    @type filename: string
-    @param segment: FUVA or FUVB, if detector is FUV
-    @type segment: string
-
-    @return: name(s) with '_a' replaced with '_b', or vice versa, or no change
-    @rtype: string
-    """
-
-    if detector != "FUV":
-        return filename
-
-    if segment == "FUVB":
-        names = filename.split()
-        new_names = []
-        for name in names:
-            if name.endswith ("_a.fits"):
-                n = len (name) - 7
-                name = name[:n] + "_b.fits"
-            new_names.append (name)
-        filename = " ".join(new_names)
-    elif segment == "FUVA":
-        names = filename.split()
-        new_names = []
-        for name in names:
-            if name.endswith ("_b.fits"):
-                n = len (name) - 7
-                name = name[:n] + "_a.fits"
-            new_names.append (name)
-        filename = " ".join(new_names)
-
-    return filename
-
 def findRefFile (ref, missing, wrong_filetype, bad_version):
     """Check for the existence of a reference file.
 
@@ -2213,66 +1963,6 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
     else:
 
         missing[keyword] = filename
-
-def precess (t, target):
-    """Precess target to the time of observation.
-
-    This function is currently not used.
-    It could be called by timetag.heliocentricVelocity.
-
-    @param t: time (MJD)
-    @type t: float
-    @param target: unit vector pointing toward the target, J2000 coordinates
-    @type target: sequence type
-
-    @return: target coordinates precessed to time t
-    @rtype: list
-    """
-
-    # 51544.5 is MJD for 2000 Jan 1.5 UT, or JD 2451545.0
-    dt = (t - 51544.5) / 36525.
-    dt2 = dt * dt
-    dt3 = dt * dt * dt
-
-    zeta = 2306.2181 * dt + 0.30188 * dt2 + 0.017998 * dt3
-
-    z = 2306.2181 * dt + 1.09468 * dt2 + 0.018203 * dt3
-
-    theta = 2004.3109 * dt - 0.42665 * dt2 - 0.041833 * dt3
-
-    # convert from arc seconds to radians
-    zeta = math.radians (zeta / 3600.)
-    z = math.radians (z / 3600.)
-    theta = math.radians (theta / 3600.)
-
-    # convert zeta, z, theta to a rotation matrix
-    a = [0., 0., 0., 0., 0., 0., 0., 0., 0.]
-    # first row
-    a[0] =  math.cos (z) * math.cos (theta) * math.cos (zeta) - \
-            math.sin (z) *                    math.sin (zeta)
-    a[1] = -math.cos (z) * math.cos (theta) * math.sin (zeta) - \
-            math.sin (z) *                    math.cos (zeta)
-    a[2] = -math.cos (z) * math.sin (theta)
-
-    # second row
-    a[3] =  math.sin (z) * math.cos (theta) * math.cos (zeta) + \
-            math.cos (z) *                    math.sin (zeta)
-    a[4] = -math.sin (z) * math.cos (theta) * math.sin (zeta) + \
-            math.cos (z) *                    math.cos (zeta)
-    a[5] = -math.sin (z) * math.sin (theta)
-
-    # third row
-    a[6] =                 math.sin (theta) * math.cos (zeta)
-    a[7] =                -math.sin (theta) * math.sin (zeta)
-    a[8] =                 math.cos (theta)
-
-    # Multiply:  a * target
-    targ = [0., 0., 0.]
-    targ[0] = a[0] * target[0] + a[1] * target[1] + a[2] * target[2]
-    targ[1] = a[3] * target[0] + a[4] * target[1] + a[5] * target[2]
-    targ[2] = a[6] * target[0] + a[7] * target[1] + a[8] * target[2]
-
-    return targ
 
 def cmpVersion (min_ver, phdr_ver, calcos_ver):
     """Compare version strings.

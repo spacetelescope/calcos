@@ -1,7 +1,7 @@
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.9"
-CALCOS_VERSION_DATE = "2009-07-17"
+CALCOS_VERSION_NUMBER = "2.8b"
+CALCOS_VERSION_DATE = "2009-07-28"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
@@ -35,12 +35,6 @@ FUV_X_OFFSET = 0
 FUV_EXTENDED_X = FUV_X
 NUV_X_OFFSET = 100
 NUV_EXTENDED_X = NUV_X + 250
-
-# These are the default binning factors for FUV and NUV "calcos sum" images.
-FUV_BIN_X = 1
-FUV_BIN_Y = 1
-NUV_BIN_X = 1
-NUV_BIN_Y = 1
 
 # These give the number of spectra per detector (used in extract.py).
 FUV_SPECTRA = 1                 # one spectrum on one FUV segment

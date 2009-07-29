@@ -1,29 +1,20 @@
-from __future__ import division
-import os
 import numpy as N
 from convolve import boxcar
 import pyfits
 from calcosparam import *
 import ccos
 import cosutil
-import findshift1
-import shiftfile
 
 # Each element of wavecal_info is a dictionary with the keys:
-# "time", "fpoffset", "shift_dict", "rootname", "filename".  The variable
-# name wc_dict is used for one element of wavecal_info.
+# "time", "fpoffset", "shift_dict", "rootname".  The variable name
+# wc_dict is used for one element of wavecal_info.
 
-def findWavecalShift (input, shift_file, info, wcp_info):
+def findWavecalShift (input, wcp_info):
     """Find the shift from a wavecal image.
 
-    @param input: name of an x1d FITS file containing a wavecal observation
-    @type input: string
-    @param shift_file: name of a user-supplied file to override shifts, or None
-    @type shift_file: string
-    @param info: keywords and values
-    @type info: dictionary
-    @param wcp_info: data (one row) from the wavecal parameters table
-    @type wcp_info: pyfits record
+    arguments:
+    input           name of an x1d FITS file containing a wavecal observation
+    wcp_info        data (one row) from the wavecal parameters table
 
     The function value is a dictionary of shifts, with keys shift1a,
     shift1b, shift1c.  The shift is the value for that segment or stripe
@@ -44,145 +35,113 @@ def findWavecalShift (input, shift_file, info, wcp_info):
         fd.close()
         return None
 
-    reffiles = {}
-    lamptab = cosutil.expandFileName (phdr["lamptab"])
-    reffiles["lamptab"] = lamptab
-
-    x_offset = sci_extn.header.get ("x_offset", default=0)
-    info["x_offset"] = x_offset
+    x_offset = fd[1].header.get ("x_offset", 0)
 
     nrows = sci_extn.data.shape[0]
     net = sci_extn.data.field ("net")
     nelem = len (net[0])
-    exptime = sci_extn.data.field ("exptime")
     segment = sci_extn.data.field ("segment")
+    lamptab = phdr["lamptab"]
+    lamptab = cosutil.expandFileName (lamptab)
 
-    detector = info["detector"]
-    xc_range = wcp_info.field ("xc_range")
-    stepsize = wcp_info.field ("stepsize")
+    detector = phdr["detector"]
+    maxlag = wcp_info.field ("xc_range")
+    fp = -phdr.get ("fpoffset", default=0) * wcp_info.field ("stepsize")
 
     # segment will be added to the filter in the loop below.
-    filter = {"opt_elem": info["opt_elem"],
-              "cenwave": info["cenwave"]}
+    filter = {"opt_elem": phdr["opt_elem"],
+              "cenwave": phdr["cenwave"]}
     # If the FPOFFSET column is present in the lamptab, include fpoffset
-    # in the filter.  If not, use an offset when doing the cross correlation.
+    # in the filter.
     if cosutil.findColumn (lamptab, "fpoffset"):
-        filter["fpoffset"] = info["fpoffset"]
-    # fp is for an initial offset when matching the spectrum to the
-    # template.  If we've got fpoffset and fp_pixel_shift columns,
-    # the initial offset should be zero.
-    got_pixel_shift = cosutil.findColumn (lamptab, "fp_pixel_shift")
-    if got_pixel_shift:
-        fp = 0
-    else:
-        fp = info["fpoffset"]
+        filter["fpoffset"] = phdr["fpoffset"]
 
     shift_dict = {}
+    if detector == "FUV":
+        cosutil.printMsg ("segment   shift   diagnostics", VERBOSE)
+        cosutil.printMsg ("-------   -----   -----------", VERBOSE)
+    else:
+        cosutil.printMsg ("stripe    shift   diagnostics", VERBOSE)
+        cosutil.printMsg ("------    -----   -----------", VERBOSE)
 
     index = segment.argsort()
-    save_spectra = {}
-    save_templates = {}
-
-    for row in index:
-        filter["segment"] = segment[row]
-        lamp_info = cosutil.getTable (lamptab, filter)
-        if lamp_info is None:
-            continue
-        # Save net, but convert from count rate back to counts.
-        save_spectra[segment[row]] = net[row] * exptime[row]
-        raw_template = lamp_info.field ("intensity")[0]
-        save_templates[segment[row]] = \
-                cosutil.getTemplate (raw_template, x_offset, nelem)
-
-    # find offset in dispersion direction
-    fs1 = findshift1.Shift1 (save_spectra, save_templates, info, reffiles,
-                             xc_range, stepsize, fp)
-    fs1.findShifts()
-
-    # Did the user supply a file with overrides for the shifts?
-    if shift_file is None:
-        user_shifts = None
-    else:
-        user_shifts = shiftfile.ShiftFile (shift_file,
-                                           info["root"], info["fpoffset"])
 
     if detector == "FUV":
-        cosutil.printMsg ("segment   shift  [orig.]   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("-------  ------ --------   ----------", VERBOSE)
-    else:
-        cosutil.printMsg ("stripe    shift  [orig.]   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("------   ------  -------   ----------", VERBOSE)
-
-    # Print and save results.
-    for row in index:
-
-        # This is the offset in the cross-dispersion direction.
-        key = "shift2" + segment[row][-1].lower()
-        shift_dict[key] = sci_extn.header.get (key, default=0.)
-
-        # Zero for dpixel1[a-c] is appropriate for auto/GO wavecals.
-        key = "dpixel1" + segment[row][-1].lower()
-        sci_extn.header.update (key, 0.)
-        shift_dict[key] = 0.
-
-        key = "shift1" + segment[row][-1].lower()
-        if got_pixel_shift:
+        for row in index:
             filter["segment"] = segment[row]
             lamp_info = cosutil.getTable (lamptab, filter)
             if lamp_info is None:
                 continue
-            fp_pixel_shift = lamp_info.field ("fp_pixel_shift")[0]
-        else:
-            fp_pixel_shift = 0.
-        user_specified = False
-        if user_shifts is not None:
-            ((user_shift1, user_shift2), nfound) = \
-                        user_shifts.getShifts (("any", segment[row]))
-            if user_shift1 is not None:
-                fs1.setShift1 (segment[row], user_shift1-fp_pixel_shift)
-                user_specified = True
-        shift_segment = fs1.getShift1 (segment[row]) + fp_pixel_shift
-        orig_shift1 = fs1.getOrigShift1 (segment[row]) + fp_pixel_shift
-        sci_extn.header.update (key, shift_segment)
-        shift_dict[key] = shift_segment
+            raw_template = lamp_info.field ("intensity")[0]
+            sum_template = cosutil.getTemplate (raw_template, x_offset, nelem)
+            sum_net = net[row].copy()
 
-        message = " %4s    %6.1f [%6.1f]  %7.1f (%d)" % \
-                (segment[row], shift_segment, orig_shift1,
-                 fs1.getChiSq (segment[row]), fs1.getNdf (segment[row]))
-        if user_specified:
-            message = message + "  # user-specified"
-        elif not fs1.getSpecFound (segment[row]):
-            message = message + "  # not found"
-        cosutil.printMsg (message, VERBOSE)
+            (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
 
-        # Save Chi square and the number of degrees of freedom.
-        key = "chi_sq_" + segment[row][-1].lower()
-        shift_dict[key] = round (fs1.getChiSq (segment[row]), 1)
-        key = "ndf_" + segment[row][-1].lower()
-        shift_dict[key] = fs1.getNdf (segment[row])
+            key = "shift1" + segment[row][-1].lower()
+            sci_extn.header.update (key, shift)
+            shift_dict[key] = shift
+            message = " %4s    %6.2f   " % (segment[row], shift) + str (n50)
+            cosutil.printMsg (message, VERBOSE)
+
+            # This is the offset in the cross-dispersion direction.
+            key = "shift2" + segment[row][-1].lower()
+            shift_dict[key] = sci_extn.header.get (key, default=0.)
+    else:
+        first = True
+        for row in index:
+            filter["segment"] = segment[row]
+            lamp_info = cosutil.getTable (lamptab, filter)
+            if lamp_info is None:
+                continue
+            raw_template = lamp_info.field ("intensity")[0]
+            if first:
+                sum_template = cosutil.getTemplate (raw_template,
+                                                    x_offset, nelem)
+                sum_net = net[row].copy()
+                first = False
+            else:
+                sum_template += cosutil.getTemplate (raw_template,
+                                                     x_offset, nelem)
+                sum_net += net[row]
+
+        (shift, n50) = crosscor (sum_net, sum_template, maxlag, fp)
+
+        first = True
+        for row in index:
+            key = "shift1" + segment[row][-1].lower()
+            sci_extn.header.update (key, shift)
+            shift_dict[key] = shift
+            if first:
+                message = " %4s    %6.2f   " % (segment[row], shift) + str (n50)
+                first = False
+            else:
+                message = " %4s" % segment[row]
+            cosutil.printMsg (message, VERBOSE)
+
+            # This is the offset in the cross-dispersion direction.
+            key = "shift2" + segment[row][-1].lower()
+            shift_dict[key] = sci_extn.header.get (key, default=0.)
+
+    # Assign zero values to dpixel1[a-c].
+    for row in index:
+        key = "dpixel1" + segment[row][-1].lower()
+        sci_extn.header.update (key, 0.)
+        shift_dict[key] = 0.
 
     fd.close()
 
     return shift_dict
 
-def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
-                      rootname, filename):
+def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict, rootname):
     """Append the current info to the wavecal_info list.
 
-    @param wavecal_info: list of wavecal information dictionaries; updated
-        in-place
-    @type wavecal_info: list
-    @param time: time of observation, MJD at middle of exposure
-    @type time: float
-    @param fpoffset: OSM position, used to select entries from wavecal_info
-    @type fpoffset: int
-    @param shift_dict: a dictionary of keyword names and shifts
-    @type shift_dict: dictionary
-    @param rootname: the rootname (typically lower case) of the observation
-    @type rootname: string
-    @param filename: the name of the raw file (this will typically be the
-                    _a.fits name for FUV)
-    @type filename: string
+    arguments:
+    wavecal_info    list of wavecal information dictionaries; updated in-place
+    time            time of observation, MJD at middle of exposure
+    fpoffset        OSM position, used to select entries from wavecal_info
+    shift_dict      a dictionary of keyword names and shifts
+    rootname        the rootname (typically lower case) of the observation
 
     shift_dict can have any of the following keys:
     "shift1a" for FUV segment A or NUV stripe A,
@@ -205,7 +164,6 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
     wc_dict["fpoffset"]   = fpoffset
     wc_dict["shift_dict"] = shift_dict
     wc_dict["rootname"]   = rootname
-    wc_dict["filename"]   = os.path.basename (filename)
 
     wavecal_info.append (wc_dict)
     if len (wavecal_info) > 1:
@@ -214,16 +172,10 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
 def cmpTime (wc_dict_a, wc_dict_b):
     """Compare the times in two wavecal_info entries.
 
-    @param wc_dict_a: one wavecal information dictionary (one element of
-        wavecal_info)
-    @type wc_dict_a: dictionary
-    @param wc_dict_b: another wavecal information dictionary
-    @type wc_dict_b: dictionary
-
-    @return: 0 if the times are the same,
-            -1 if the time in wc_dict_a is smaller than the time in wc_dict_b,
-            +1 if the time in wc_dict_a is larger than the time in wc_dict_b
-    @rtype: int
+    arguments:
+    wc_dict_a      one wavecal information dictionary (one element of
+                     wavecal_info)
+    wc_dict_b      another wavecal information dictionary
     """
 
     return cmp (wc_dict_a["time"], wc_dict_b["time"])
@@ -231,8 +183,8 @@ def cmpTime (wc_dict_a, wc_dict_b):
 def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
     """Return the shift dictionary from wavecal_info that matches fpoffset.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list of dictionaries
+    @param wavecal_info:   list of wavecal information dictionaries
+    @type wavecal_info:   list of dictionaries
     @param wcp_info: data (one row) from the wavecal parameters table
     @type wcp_info: PyFITS record
     @param fpoffset: OSM position, used to select entries from wavecal_info
@@ -240,14 +192,11 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
     @param time: time of observation, MJD at middle of exposure
     @type time: float
 
-    @return: a pair of dictionaries and a string.  For the dictionaries, the
-        key is the keyword name for the shift (shift1a, shift1b, shift1c,
-        shift2a, shift2b, shift2c).  For the first dictionary, the value is
-        the shift at the specified time.  For the second dictionary, the
-        value is the slope (pixels/s).  The string is the name or names of
-        the wavecal files (separated by a blank, if there are two) that were
-        used to find the shifts.
-    @rtype: tuple, or None
+    @return: a pair of dictionaries, with the keyword name for the shift
+        (shift1a, shift1b, shift1c, shift2a, shift2b, shift2c) as the key.
+        For the first dictionary, the value is the shift at the specified
+        time.  For the second dictionary, the value is the slope.
+    @rtype: tuple of dictionaries, or None
 
     The element of wavecal_info that matches fpoffset will be extracted.
     If there are multiple entries that match fpoffset, we'll find the two
@@ -273,9 +222,8 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
 
     if len (subset_wavecal_info) == 1:
         shift_dict = subset_wavecal_info[0]["shift_dict"]
-        filename = subset_wavecal_info[0]["filename"]
     elif len (subset_wavecal_info) > 1:
-        (shift_dict, slope_dict, filename) = \
+        (shift_dict, slope_dict) = \
         interpolateWavecal (subset_wavecal_info, time)
     else:
         # No matching row; find nearest in time.
@@ -293,7 +241,6 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
             for key in shift_dict.keys():
                 if key.startswith ("shift1"):
                     shift_dict[key] += correction
-            filename = wc_dict["filename"]
 
     if shift_dict is None:
         return None
@@ -303,18 +250,14 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
         for key in shift_dict.keys():
             slope_dict[key] = 0.
 
-    return (shift_dict, slope_dict, filename)
+    return (shift_dict, slope_dict)
 
 def returnExactMatch (wavecal_info, rootname):
     """Return the shift dictionary for the specified wavecal rootname.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list
-    @param rootname: used to find the appropriate element of wavecal_info
-    @type rootname: string
-
-    @return: the shift dictionary corresponding to rootname, or None
-    @rtype: dictionary
+    arguments:
+    wavecal_info    list of wavecal information dictionaries
+    rootname        used to find the appropriate element of wavecal_info
 
     The rootname of a wavecal exposure is used to extract one element of
     wavecal_info (there should always be exactly one matching element).
@@ -336,13 +279,9 @@ def returnExactMatch (wavecal_info, rootname):
 def selectWavecalInfo (wavecal_info, fpoffset):
     """Return a list of all elements of wavecal_info that match fpoffset.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list
-    @param fpoffset: used to find one or more elements of wavecal_info
-    @type fpoffset: int
-
-    @return: list of dictionaries in wavecal_info that match fpoffset
-    @rtype: list
+    arguments:
+    wavecal_info    list of wavecal information dictionaries
+    fpoffset        used to find one or more elements of wavecal_info
     """
 
     subset_wavecal_info = []
@@ -356,17 +295,10 @@ def selectWavecalInfo (wavecal_info, fpoffset):
 def minTimeWavecalInfo (wavecal_info, time, max_time_diff):
     """Return the element of wavecal_info that is closest to time.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list
-    @param time: time of a science observation (MJD at middle of exposure)
-    @type time: float
-    @param max_time_diff: cutoff for time difference between 'time' and a
-        wavecal observation
-    @type max_time_diff: float
-
-    @return: the shift dictionary closest in time to 'time', or None if
-        there is none that is within max_time_diff
-    @rtype: dictionary
+    arguments:
+    wavecal_info    list of wavecal information dictionaries
+    time            time of a science observation (MJD at middle of exposure)
+    max_time_diff   cutoff for time difference between 'time' and a wavecal obs.
 
     The element of wavecal_info that is closest in time to the specified time
     will be selected.  If the difference between the time for that element
@@ -399,14 +331,12 @@ def interpolateWavecal (wavecal_info, time):
     @param time: time of observation, MJD at middle of exposure
     @type time: float
 
-    @return: a pair of dictionaries and a string.  For the dictionaries, the
-        key is the keyword name for the shift (shift1a, shift1b, shift1c,
-        shift2a, shift2b, shift2c).  For the first dictionary, the value is
-        the shift at the specified time.  For the second dictionary, the
-        value is the slope in pixels per second.  The string is the name or
-        names of the wavecal files (separated by a blank, if there are two)
-        that were used to find the shifts.
-    @rtype: tuple, or None
+    @return: a pair of dictionaries, with the keyword name for the shift
+        (shift1a, shift1b, shift1c, shift2a, shift2b, shift2c) as the key.
+        For the first dictionary, the value is the shift at the specified
+        time.  For the second dictionary, the value is the slope in
+        pixels per second.
+    @rtype: tuple of dictionaries, or None
 
     wavecal_info is assumed to be sorted in increasing order of time.
     If the time of observation is earlier than the first entry or later
@@ -428,12 +358,10 @@ def interpolateWavecal (wavecal_info, time):
         slope_dict[key] = 0.
 
     if time <= wavecal_info[0]["time"]:
-        return (wavecal_info[0]["shift_dict"], slope_dict,
-                wavecal_info[0]["filename"])
+        return (wavecal_info[0]["shift_dict"], slope_dict)
 
     if time >= wavecal_info[wlen-1]["time"]:
-        return (wavecal_info[wlen-1]["shift_dict"], slope_dict,
-                wavecal_info[wlen-1]["filename"])
+        return (wavecal_info[wlen-1]["shift_dict"], slope_dict)
 
     for i in range (1, wlen):
         wc_i = wavecal_info[i]
@@ -441,9 +369,7 @@ def interpolateWavecal (wavecal_info, time):
             t0 = wavecal_info[i-1]["time"]
             t1 = wavecal_info[i]["time"]
             shift_dict0 = wavecal_info[i-1]["shift_dict"].copy()
-            filename = wavecal_info[i-1]["filename"]
             if t0 != t1:
-                filename = filename + " " + wavecal_info[i]["filename"]
                 shift_dict1 = wavecal_info[i]["shift_dict"]
                 # for each segment or stripe ...
                 for key in shift_dict0.keys():
@@ -457,32 +383,164 @@ def interpolateWavecal (wavecal_info, time):
                         slope_dict[key] = (shift1 - shift0) \
                                           / ((t1 - t0) * SEC_PER_DAY)
 
-            return (shift_dict0, slope_dict, filename)
+            return (shift_dict0, slope_dict)
+
+def crosscor (x, template, maxlag, fp=0):
+    """Cross correlate two arrays to find the offset between them.
+
+    arguments:
+    x           the observed spectrum
+    template    a template wavecal spectrum (same length as x)
+    maxlag      the amplitude of the offset for computing cross correlation
+    fp          fpoffset in pixels
+
+    The function value is a tuple, consisting of the shift and a diagnostic
+    quantity n50.
+
+    >>> x        = N.array ([1., 1., 1., 4., 1., 1., 1., 1., 1.])
+    >>> template = N.array ([0., 0., 0., 0., 7., 0., 0., 0., 0.])
+    >>> print crosscor (x, template, 2)
+    (-1.0, array([1, 1, 1, 1, 1, 1, 1, 1, 1]))
+    >>> x        = N.array ([1., 1., 1., 1., 1., 4., 1., 1., 1.])
+    >>> print crosscor (x, template, 2)
+    (1.0, array([1, 1, 1, 1, 1, 1, 1, 1, 1]))
+    """
+
+    length = len (x)
+
+    # xc is the cross correlation.
+    lenxc = 2*maxlag+1
+    xc = N.zeros (lenxc, dtype=N.float32)
+    for lag in range (-maxlag, maxlag+1):
+        x1 = lag - fp
+        x2 = x1 + length
+        x1 = max (x1, 0)
+        x2 = min (x2, length)
+        t1 = -lag + fp
+        t2 = t1 + length
+        t1 = max (t1, 0)
+        t2 = min (t2, length)
+        product = x[x1:x2] * template[t1:t2]
+        xc[maxlag+lag] = N.sum (product)
+
+    # imax is the index of the maximum.  n50 is for diagnostic purposes.
+    (imax, n50) = xcStat (xc)
+
+    i1 = imax - 1
+    i1 = max (i1, 0)
+    i2 = i1 + 2
+    i2 = min (i2, lenxc-1)
+    # Unless we're at an endpoint of xc, index is equal to imax, the index
+    # of the peak.
+    index = i2 - 1
+    denominator = xc[index-1] - 2. * xc[index] + xc[index+1]
+    if denominator == 0.:
+        cosutil.printWarning (
+                "Indeterminate location of peak in cross correlation")
+        cosutil.printContinuation (
+                "for finding the shift from a wavecal observation.")
+        cosutil.printContinuation (
+                "The shift for this wavecal image will be set to zero.")
+        shift = 0.
+    else:
+        location = (xc[index-1] - xc[index+1]) / (2. * denominator)
+        # The peak in xc would be at maxlag (the middle element of xc)
+        # if x and template were identical.
+        shift = location + index - fp - maxlag
+
+    return (shift, n50)
+
+def xcStat (xc):
+    """Find the location of the maximum, and some diagnostic info.
+
+    argument:
+    xc          the cross correlation
+
+    The function value is a tuple giving the index of the maximum in xc
+    and a diagnostic quantity n50.  n50 is described in the doc string for
+    ttFindWavecalShift.
+    """
+
+    xc_sort = N.argsort (xc)
+
+    # Find the location of the maximum value, and other stuff.
+    imax = xc_sort[-1]
+    imin = xc_sort[0]
+    maxval = xc[imax]
+    minval = xc[imin]
+    if imax == 0 or imax == len (xc) - 1:
+        cosutil.printWarning (
+                "Peak in cross correlation is at an endpoint of the range")
+        cosutil.printContinuation (
+                "for finding the shift from a wavecal observation;")
+        cosutil.printContinuation (
+                "the shift is therefore likely to be incorrect.")
+
+    # Find the number of elements that have a value greater than
+    # the midpoint of the range.
+    diff = maxval - minval
+    fractions = N.arange (0.9, 0., -0.1)
+    cutoff = [(fraction * diff + minval) for fraction in fractions]
+    n50 = N.zeros (len (cutoff), dtype=N.int32)
+    for i in range (len (cutoff)):
+        gt = xc > cutoff[i]
+        # Using sum() here relies on the fact that the values are 0 or 1.
+        n = N.sum (gt.astype (N.float64))
+        n50[i] = int (round (n))
+
+    return (imax, n50)
+
+def ttFindWavecalShift (net, template, info, wcp_info):
+    """Find the shift from a wavecal spectrum.
+
+    arguments:
+    net             the 1-D extracted spectrum (may be either net or gross)
+    template        template spectrum
+    info            dictionary of header keywords and values
+    wcp_info        data (one row) from the wavecal parameters table
+
+    The function value is a tuple of the shift in the dispersion direction
+    and some diagnostic info n50.  (None, [0.]) will be returned if there
+    is nothing in the net array.  n50 is an array of nine elements, giving
+    the number of elements in the cross correlation with values greater
+    than various fractions of the range from the minimum to maximum values
+    of the cross correlation.  The fractions are 0.9, 0.8, ... 0.1.  The
+    idea is that if the spectrum and the template are very similar (as we
+    would expect), the values in n50 should be small, but they could increase
+    sharply toward the end due to noise in the spectrum.  Elements near the
+    middle of n50 should be of order twice the size of the resolution element.
+    Larger values in n50 indicate a poorer agreement between the spectrum
+    and the template.
+    """
+
+    nelem = len (net)
+    if nelem < 1:
+        return (None, [0.])
+
+    maxlag = wcp_info.field ("xc_range")
+    fp = -info["fpoffset"] * wcp_info.field ("stepsize")
+
+    (shift1, n50) = crosscor (net, template, maxlag, fp)
+
+    return (shift1, n50)
 
 def findWavecalSpectrum (corrtag, info, reffiles):
     """Find the offset of a wavecal spectrum in the cross-dispersion direction.
 
-    @param corrtag: name of the corrtag FITS file containing a wavecal
-    @type corrtag: string
-    @param info: header keywords and values
-    @type info: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
+    arguments:
+    corrtag         name of the corrtag FITS file containing a wavecal
+    info            dictionary of header keywords and values
+    reffiles        dictionary of reference file names
 
-    @return: (shift2, xd_shifts, xd_locns, lamp_is_on)
-    @rtype: tuple of a float, two dictionaries, and a boolean flag
+    The function value is a tuple of three items:  shift2 and two dictionaries,
+    xc_shifts, xd_locns.  shift2 is the offset (average of those found, if NUV)
+    from nominal in the cross-dispersion direction, in pixels; this value will
+    be zero if the offset could not be determined.  xd_shifts and xd_locns use
+    the segment or stripe name as the key; the value for xd_shifts is the shift
+    from nominal, and the value for xd_locns is the location where the spectrum
+    was found (projected onto the left edge if FUV or lower edge if NUV).
 
-    The function value is a tuple of four items:  shift2, two dictionaries
-    (xc_shifts, xd_locns), and a boolean flag.  shift2 is the offset (average
-    of those found, if NUV) from nominal in the cross-dispersion direction,
-    in pixels; this value will be zero if the offset could not be determined.
-    xd_shifts and xd_locns use the segment or stripe name as the key; the
-    value for xd_shifts is the shift from nominal, and the value for xd_locns
-    is the location where the spectrum was found (projected onto the left
-    edge).  lamp_is_on is a flag that indicates whether the lamp was actually
-    on.
-
-    Note that it is assumed that all wavecals are taken in time-tag mode.
+    Note that this assumes that all wavecals are taken in time-tag mode.
     """
 
     fd = pyfits.open (corrtag, mode="readonly", memmap=0)
@@ -497,8 +555,16 @@ def findWavecalSpectrum (corrtag, info, reffiles):
     wcp_info = cosutil.getTable (reffiles["wcptab"],
                                  filter={"opt_elem": info["opt_elem"]},
                                  exactly_one=True)
-    xd_range = wcp_info.field ("xd_range")[0]
-    box = wcp_info.field ("box")[0]
+    if cosutil.findColumn (reffiles["wcptab"], "xd_range"):
+        xd_range = wcp_info.field ("xd_range")[0]
+        box = wcp_info.field ("box")[0]
+    else:
+        if info["detector"] == "FUV":
+            xd_range = 50
+            box = 7
+        else:
+            xd_range = 40
+            box = 13
 
     if info["detector"] == "FUV":
         xi = sci_extn.data.field ("XCORR")
@@ -509,8 +575,8 @@ def findWavecalSpectrum (corrtag, info, reffiles):
 
     dq = sci_extn.data.field ("DQ")
 
-    (shift2, xd_shifts, xd_locns, lamp_is_on) = \
-    ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab)
+    (shift2, xd_shifts, xd_locns) = ttFindWavecalSpectrum (xi, eta, dq,
+                                    info, xd_range, box, xtractab)
 
     fd.close()
 
@@ -519,46 +585,35 @@ def findWavecalSpectrum (corrtag, info, reffiles):
     keys.sort()
     for key in keys:
         if xd_shifts[key] is None:
-            cosutil.printMsg ("%4s    ---- (%5.1f)  # not found in XD" \
-                              % (key, xd_locns[key]))
+            cosutil.printMsg ("%4s    None (%5.1f)" % (key, xd_locns[key]))
         else:
             cosutil.printMsg ("%4s  %6.1f (%5.1f)" % \
                     (key, xd_shifts[key], xd_locns[key]))
     cosutil.printMsg ("  avg %6.1f" % shift2)
 
-    return (shift2, xd_shifts, xd_locns, lamp_is_on)
+    return (shift2, xd_shifts, xd_locns)
 
 def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     """Find the offset of a wavecal spectrum in cross-dispersion direction.
 
-    @param xi: corrected pixel coordinates in the dispersion direction
-    @type xi: numpy array
-    @param eta: corrected pixel coords in the cross-dispersion direction
-    @type eta: numpy array
-    @param dq: data quality flags
-    @type dq: numpy array
-    @param info: header keywords and values
-    @type info: dictionary
-    @param xd_range: search within + or - xd_range from the nominal location
-        for the peak in the cross-dispersion direction
-    @type xd_range: int
-    @param box: smooth the cross-dispersion profile with a box of this
-        width before looking for the maximum
-    @type box: float
-    @param xtractab: name of the 1-D extraction parameters table
-    @type xtractab: string
+    arguments:
+    xi              corrected pixel coordinates in the dispersion direction
+    eta             corrected pixel coords in the cross-dispersion direction
+    dq              data quality flags
+    info            dictionary of header keywords and values
+    xd_range        search within + or - xd_range from the nominal location
+                    for the peak in the cross-dispersion direction
+    box             smooth the cross-dispersion profile with a box of this
+                    width before looking for the maximum
+    xtractab        name of 1-D extraction parameters table
 
-    @return: (shift2, xd_shifts, xd_locns, lamp_is_on)
-    @rtype: tuple of a float, two dictionaries, and a boolean flag
-
-    The function value is a tuple of four items:  shift2, two dictionaries
-    (xc_shifts, xd_locns), and a boolean flag.  shift2 is the offset (average
-    of those found, if NUV) from nominal in the cross-dispersion direction,
-    in pixels; this value will be zero if the offset could not be determined.
-    xd_shifts and xd_locns use the segment or stripe name as the key; the
-    value for xd_shifts is the shift from nominal, and the value for xd_locns
-    is the location where the spectrum was found.  lamp_is_on is a flag that
-    indicates whether the lamp was actually on.
+    The function value is a tuple of three items:  shift2 and two dictionaries,
+    xc_shifts, xd_locns.  shift2 is the offset (average of those found, if NUV)
+    from nominal in the cross-dispersion direction, in pixels; this value will
+    be zero if the offset could not be determined.  xd_shifts and xd_locns use
+    the segment or stripe name as the key; the value for xd_shifts is the shift
+    from nominal, and the value for xd_locns is the location where the spectrum
+    was found.
     """
 
     if len (xi) < 1:
@@ -572,9 +627,6 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     if info["detector"] == "FUV":
         (shift2, xd_shifts, xd_locns) = ttFindFUV (xi, eta, dq,
                 xd_range, box, filter, xtractab)
-    elif info["obstype"] == "IMAGING":
-        (shift2, xd_shifts, xd_locns) = ttFindImagingWavecal (xi, eta, dq,
-                xd_range, box, filter, xtractab)
     else:
         (shift2, xd_shifts, xd_locns) = ttFindNUV (xi, eta, dq,
                 xd_range, box, filter, xtractab)
@@ -582,12 +634,7 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     if shift2 is None:
         shift2 = 0.
 
-    # Was the lamp was actually on?  shift2 would have been None if we
-    # didn't find the shift, but this test is more quantitative and prints
-    # some statistics.
-    lamp_is_on = cosutil.isLampOn (xi, eta, dq, info, xtractab, shift2)
-
-    return (shift2, xd_shifts, xd_locns, lamp_is_on)
+    return (shift2, xd_shifts, xd_locns)
 
 def ttFindFUV (xi, eta, dq, xd_range, box, filter, xtractab):
 
@@ -606,25 +653,6 @@ def ttFindFUV (xi, eta, dq, xd_range, box, filter, xtractab):
         segment = filter["segment"]
         xd_shifts = {segment: shift2}
         xd_locns = {segment: y}
-
-    return (shift2, xd_shifts, xd_locns)
-
-def ttFindImagingWavecal (xi, eta, dq, xd_range, box, filter, xtractab):
-
-    xdisp = N.zeros (NUV_Y, dtype=N.float32)
-
-    xd_shifts = {}
-    xd_locns = {}
-
-    filter["segment"] = "NUVA"
-    xtract_info = cosutil.getTable (xtractab, filter)
-    if xtract_info is not None:
-        slope = xtract_info.field ("slope")[0]
-        # Collapse the data along the dispersion direction.
-        ccos.xy_collapse (xi, eta, dq, slope, xdisp)
-        (shift2, y) = (ttFindSpec (xdisp, xtract_info, xd_range, box))
-        xd_shifts["NUVA"] = shift2
-        xd_locns["NUVA"] = y
 
     return (shift2, xd_shifts, xd_locns)
 
@@ -697,20 +725,14 @@ def ttFindNUV (xi, eta, dq, xd_range, box, filter, xtractab):
 def ttFindSpec (xdisp, xtract_info, xd_range, box):
     """Find the location in the cross-dispersion direction.
 
-    @param xdisp: 1-D array of time-tag data collapsed along dispersion
-        axis, but taking into account the tilt of the spectrum
-    @type xdisp: numpy array
-    @param xtract_info: data block (but just one row) from the xtractab
-    @type xtract_info: pyfits record array
-    @param xd_range: search within + or - xd_range from the nominal location
-        for the peak in xdisp
-    @type xd_range: int
-    @param box: smooth xdisp with a box of this width before looking
-        for the maximum
-    @type box: int
-
-    @return: (shift2, y)
-    @rtype: tuple of a float and an integer
+    arguments:
+    xdisp           1-D array of time-tag data collapsed along dispersion
+                    axis, but taking into account the tilt of the spectrum
+    xtract_info     data block (but just one row) from the xtractab
+    xd_range        search within + or - xd_range from the nominal location
+                    for the peak in xdisp
+    box             smooth xdisp with a box of this width before looking
+                    for the maximum
 
     The function value is a tuple of the shift from nominal in the
     cross-dispersion direction and the location of the spectrum.
@@ -761,8 +783,8 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
 def printWavecalRef (reffiles):
     """Print the names of reference files used for wavecal processing.
 
-    @param reffiles: reference file names
-    @type reffiles: dictionary
+    argument:
+    reffiles        dictionary of reference file names
     """
 
     cosutil.printRef ("wcptab", reffiles)

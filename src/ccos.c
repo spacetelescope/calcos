@@ -3,7 +3,6 @@
 binevents bins a list of (x,y) coordinates into a 2-D array.
 bindq updates a 2-D array of data quality flags from DQI table info.
 applydq assigns data quality flags from a DQI table into a column.
-dq_or collapses (bitwise OR) a column of a 2-D data quality array to 1-D.
 applyflat divides the epsilon values by a flat field.
 range returns indices for a slice of time.
 unbinaccum updates X & Y coordinates of pixel values in an image.
@@ -21,9 +20,6 @@ smallerbursts screens for bursts (larger bursts screened separately).
 getbadtime returns the sum of time intervals within which dq was bad.
 xy_extract extracts a 1-D spectrum from an events list.
 xy_collapse collapses events along the dispersion direction.
-csum_3d bins a list of (x,y,pha) coordinates into a 3-D array.
-csum_2d bins a list of (x,y) coordinates into a 2-D array.
-bin2d bins a 2-D image to a smaller 2-D image (block sum).
 
 2001 Nov 19
 2001 Dec 7	In totalcounts, round float data to int.  In unbinaccum,
@@ -92,8 +88,6 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 		cast time to a float or double array (still allows either)
 		when calling search or search_d, and change those functions
 		to accept a float or double array rather than a PyArrayObject.
-2009 May 6	Include binx and biny as arguments to csum_2d and csum_3d.
-2009 May 13	Add functions dq_or and bin2d.
 */
 
 # include <Python.h>
@@ -125,7 +119,6 @@ static char *DocString (void);
 static PyObject *ccos_binevents (PyObject *, PyObject *);
 static PyObject *ccos_bindq (PyObject *, PyObject *);
 static PyObject *ccos_applydq (PyObject *, PyObject *);
-static PyObject *ccos_dq_or (PyObject *, PyObject *);
 static PyObject *ccos_applyflat (PyObject *, PyObject *);
 static PyObject *ccos_range (PyObject *, PyObject *);
 static PyObject *ccos_unbinaccum (PyObject *, PyObject *);
@@ -154,7 +147,6 @@ static int binDQToImage (
 static int applyDQToEvents (int [], int [],
 		int [], int [], int [], int,
 		PyArrayObject *, PyArrayObject *, short []);
-static int bitwiseOrDQ (short [], short [], int, int);
 static void applyFlatField (PyArrayObject *, PyArrayObject *,
 	PyArrayObject *, PyArrayObject *, int, int);
 static PyObject *timeRange (PyArrayObject *, double, double);
@@ -202,14 +194,10 @@ static int collapseFromEvents (PyArrayObject *, PyArrayObject *,
 		short [], int,
 		double, double [], int);
 static void bin3DtoCsum (float [], int, int, int,
-		int, int,
 		float [], float [],
 		float [], short [], int);
 static void bin2DtoCsum (float [], int, int,
-		int, int,
 		float [], float [], float [], int);
-static void bin2DArray (float [], int, int,
-		float [], int, int);
 
 /* This function returns the documentation string to be assigned to
    __doc__.
@@ -223,7 +211,6 @@ static char *DocString (void) {
                 <optional:  dq, sdqflags, epsilon>)\n\
     bindq (lx, ly, ux, uy, flag, dq_array, x_offset)\n\
     applydq (lx, ly, dx, dy, flag, x, y, dq)\n\
-    dq_or (dq_2d, dq_1d)\n\
     applyflat (x, y, epsilon, flat,\n\
                 <optional:  origin_x, origin_y>)\n\
     indices = range (time, t0, t1)\n\
@@ -252,11 +239,8 @@ static char *DocString (void) {
     xy_extract (xi, eta, outdata, slope, intercept, x_offset,\n\
                 <optional:  dq, sdqflags, epsilon>)\n\
     xy_collapse (xi, eta, dq, slope, xdisp)\n\
-    csum_3d (array, x, y, epsilon, pha,\n\
-               <optional:  binx, biny>)\n\
-    csum_2d (array, x, y, epsilon,\n\
-               <optional:  binx, biny>)\n\
-    bin2d (array, binned_array)\n\
+    csum_3d (array, x, y, epsilon, pha)\n\
+    csum_2d (array, x, y, epsilon)\n\
 "
         /* string split because it is too long for windows compiler */
 "\
@@ -752,81 +736,6 @@ static int applyDQToEvents (int lx[], int ly[],
 
 	PyMem_Free (c_ux);
 	PyMem_Free (c_uy);
-
-	return 0;
-}
-
-/* calling sequence for dq_or:
-
-   dq_or (dq_2d, dq_1d)
-
-    dq_2d      i: 2-D data quality array (int16)
-    dq_1d     io: 1-D data quality array (int16)
-
-   If the shape of dq_2d is (ny, nx), the shape of dq_1d should be (nx,).
-
-   ccos_dq_or calls bitwiseOrDQ, which updates dq_1d in-place.  For each
-   element i, dq_1d[i] will be the bitwise OR of dq_2d[:,i].
-*/
-
-static PyObject *ccos_dq_or (PyObject *self, PyObject *args) {
-
-	PyObject *odq_2d, *odq_1d;
-	PyArrayObject *dq_2d, *dq_1d;
-	int nx, ny;
-	int status;
-
-	if (!PyArg_ParseTuple (args, "OO", &odq_2d, &odq_1d)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
-	    return NULL;
-	}
-
-	dq_2d = (PyArrayObject *)PyArray_FROM_OTF (odq_2d, NPY_INT16,
-			NPY_IN_ARRAY);
-	dq_1d = (PyArrayObject *)PyArray_FROM_OTF (odq_1d, NPY_INT16,
-			NPY_INOUT_ARRAY);
-	if (dq_2d == NULL || dq_1d == NULL)
-	    return NULL;
-
-	nx = PyArray_DIM (dq_2d, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (dq_2d, 0);
-	if (nx != PyArray_DIM (dq_1d, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
-		"dq_1d and dq_2d must have the same X axis length");
-	    return NULL;
-	}
-	status = bitwiseOrDQ ((short *)PyArray_DATA (dq_2d),
-			      (short *)PyArray_DATA (dq_1d), nx, ny);
-
-	Py_DECREF (dq_2d);
-	Py_DECREF (dq_1d);
-
-	if (status) {
-	    return NULL;
-	} else {
-	    Py_INCREF (Py_None);
-	    return Py_None;
-	}
-}
-
-/* This is called by ccos_dq_or. */
-
-static int bitwiseOrDQ (short dq_2d[], short dq_1d[], int nx, int ny) {
-
-	int i, j;		/* array indices */
-	short c_dq;		/* an individual value in dq_1d */
-
-	for (i = 0;  i < nx;  i++) {
-            dq_1d[i] = 0;
-	}
-
-	for (i = 0;  i < nx;  i++) {
-	    c_dq = dq_1d[i];
-	    for (j = 0;  j < ny;  j++) {
-		c_dq |= dq_2d[i+nx*j];
-	    }
-	    dq_1d[i] = c_dq;
-	}
 
 	return 0;
 }
@@ -3456,16 +3365,12 @@ static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 
 /* calling sequence for csum_3d:
 
-   csum_3d (array, x, y, epsilon, pha, binx, biny)
+   csum_3d (array, x, y, epsilon, pha)
 
     array     io: the output 3-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (float32)
     epsilon    i: array of weights for the events (float32)
     pha        i: array of pulse heights (int16)
-
-   optional arguments:
-    binx       i: binning factor in the more rapidly varying axis
-    biny       i: binning factor in the less rapidly varying axis
 
    ccos_csum_3d calls bin3DtoCsum, which converts arrays of pixel
    coordinates to an image array.  The 3-D array ('array') is assumed
@@ -3477,11 +3382,10 @@ static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon, *opha;
 	PyArrayObject *array, *x, *y, *epsilon, *pha;
-	int binx=1, biny=1;
 	int n_events, nx, ny, nz;
 
-	if (!PyArg_ParseTuple (args, "OOOOO|ii",
-			&oarray, &ox, &oy, &oepsilon, &opha, &binx, &biny)) {
+	if (!PyArg_ParseTuple (args, "OOOOO",
+			&oarray, &ox, &oy, &oepsilon, &opha)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -3518,7 +3422,6 @@ static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
 	}
 
 	bin3DtoCsum ((float *)PyArray_DATA (array), nx, ny, nz,
-		binx, biny,
 		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
 		(float *)PyArray_DATA (epsilon),
 		(short *)PyArray_DATA (pha), n_events);
@@ -3536,7 +3439,6 @@ static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
 /* This is called by ccos_csum_3d. */
 
 static void bin3DtoCsum (float array[], int nx, int ny, int nz,
-		int binx, int biny,
 		float x[], float y[],
 		float epsilon[], short pha[], int n_events) {
 
@@ -3544,16 +3446,11 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 	int i, j, k;	/* pixel coordinates of event, indices in 3-D array */
 	int m;		/* 1-D index into array */
 
-	if (binx < 1)
-	    binx = 1;
-	if (biny < 1)
-	    biny = 1;
-
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = NINT (x[n]) / binx;
-	    j = NINT (y[n]) / biny;
+	    i = NINT (x[n]);
+	    j = NINT (y[n]);
 	    k = pha[n];
 
 	    /* truncate at borders of image */
@@ -3567,15 +3464,11 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 
 /* calling sequence for csum_2d:
 
-   csum_2d (array, x, y, epsilon, binx, biny)
+   csum_2d (array, x, y, epsilon)
 
     array     io: the output 2-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (float32)
     epsilon    i: array of weights for the events (float32)
-
-   optional arguments:
-    binx       i: binning factor in the more rapidly varying axis
-    biny       i: binning factor in the less rapidly varying axis
 
    ccos_csum_2d calls bin2DtoCsum, which converts arrays of pixel
    coordinates to an image array.  The 2-D array ('array') is assumed
@@ -3587,11 +3480,10 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon;
 	PyArrayObject *array, *x, *y, *epsilon;
-	int binx=1, biny=1;
 	int n_events, nx, ny;
 
-	if (!PyArg_ParseTuple (args, "OOOO|ii",
-			&oarray, &ox, &oy, &oepsilon, &binx, &biny)) {
+	if (!PyArg_ParseTuple (args, "OOOO",
+			&oarray, &ox, &oy, &oepsilon)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -3615,7 +3507,6 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 	ny = PyArray_DIM (array, 0);
 
 	bin2DtoCsum ((float *)PyArray_DATA (array), nx, ny,
-		binx, biny,
 		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
 		(float *)PyArray_DATA (epsilon), n_events);
 
@@ -3631,103 +3522,23 @@ static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
 /* This is called by ccos_csum_2d. */
 
 static void bin2DtoCsum (float array[], int nx, int ny,
-		int binx, int biny,
 		float x[], float y[],
 		float epsilon[], int n_events) {
 
 	int n;		/* loop index for events */
 	int i, j;	/* pixel coordinates of event, indices in 2-D array */
 
-	if (binx < 1)
-	    binx = 1;
-	if (biny < 1)
-	    biny = 1;
-
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = NINT (x[n]) / binx;
-	    j = NINT (y[n]) / biny;
+	    i = NINT (x[n]);
+	    j = NINT (y[n]);
 
 	    /* truncate at borders of image */
 	    if (i < 0 || i >= nx || j < 0 || j >= ny)
 		continue;
 
 	    array[i+nx*j] += epsilon[n];
-	}
-}
-
-/* calling sequence for bin2d:
-
-   bin2d (array, binned_array)
-
-    array        i: the input 2-D array (float32)
-    binned_array o: the output 2-D array (float32)
-
-   ccos_bin2d calls bin2DArray, which bins the input 'array' by integer
-   factors in each axis and writes the results to the output 'binned_array'.
-   The binning factor must be an integer in each axis; that is, the shape
-   of 'binned_array' must divide the shape of 'array'.
-*/
-
-static PyObject *ccos_bin2d (PyObject *self, PyObject *args) {
-
-	PyObject *oarray, *obinned_array;
-	PyArrayObject *array, *binned_array;
-	int nx, ny, nxb, nyb;
-
-	if (!PyArg_ParseTuple (args, "OO", &oarray, &obinned_array)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
-	    return NULL;
-	}
-
-	array = (PyArrayObject *)PyArray_FROM_OTF (oarray,
-			NPY_FLOAT32, NPY_IN_ARRAY);
-	binned_array = (PyArrayObject *)PyArray_FROM_OTF (obinned_array,
-			NPY_FLOAT32, NPY_INOUT_ARRAY);
-	if (array == NULL || binned_array == NULL)
-	    return NULL;
-
-	nx = PyArray_DIM (array, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (array, 0);
-	nxb = PyArray_DIM (binned_array, 1);
-	nyb = PyArray_DIM (binned_array, 0);
-	if (nx / nxb * nxb != nx || ny / nyb * nyb != ny) {
-	    PyErr_SetString (PyExc_RuntimeError, "bin factors must be integer");
-	    return NULL;
-	}
-
-	bin2DArray ((float *)PyArray_DATA (array), nx, ny,
-		    (float *)PyArray_DATA (binned_array), nxb, nyb);
-
-	Py_DECREF (array);
-	Py_DECREF (binned_array);
-
-	Py_INCREF (Py_None);
-	return Py_None;
-}
-
-/* This is called by ccos_bin2d. */
-
-static void bin2DArray (float array[], int nx, int ny,
-		float binned_array[], int nxb, int nyb) {
-
-	int binx, biny;
-	int i, j;	/* indices in array */
-	int ib, jb;	/* indices in binned_array */
-
-	binx = nx / nxb;
-	biny = ny / nyb;
-
-	for (i = 0;  i < nxb*nyb;  i++)
-	    binned_array[i] = 0.;
-
-	for (j = 0;  j < ny;  j++) {
-	    jb = j / biny;
-	    for (i = 0;  i < nx;  i++) {
-		ib = i / binx;
-		binned_array[ib+nxb*jb] += array[i+nx*j];
-	    }
 	}
 }
 
@@ -3740,9 +3551,6 @@ static PyMethodDef ccos_methods[] = {
 
 	{"applydq", ccos_applydq, METH_VARARGS,
 	"assign data quality flags from a DQI table into an events table column"},
-
-	{"dq_or", ccos_dq_or, METH_VARARGS,
-	"bitwise OR each column of a 2-D array, writing to a 1-D array"},
 
 	{"applyflat", ccos_applyflat, METH_VARARGS,
 	"divide events table EPSILON column by a flat field"},
@@ -3796,13 +3604,10 @@ static PyMethodDef ccos_methods[] = {
 	    "collapse an events list along the dispersion direction"},
 
 	{"csum_3d", ccos_csum_3d, METH_VARARGS,
-	    "bin 3-D events to a 'calcos sum' (csum) image"},
+	    "bin FUV events to a 'calcos sum' (csum) image"},
 
 	{"csum_2d", ccos_csum_2d, METH_VARARGS,
-	    "bin 2-D events to a 'calcos sum' (csum) image"},
-
-	{"bin2d", ccos_bin2d, METH_VARARGS,
-	    "bin (block sum) a 2-D array to a smaller 2-D array"},
+	    "bin NUV events to a 'calcos sum' (csum) image"},
 
 	{NULL, NULL, 0, NULL}
 };
