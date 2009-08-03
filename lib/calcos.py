@@ -565,6 +565,9 @@ class Association (object):
             self.product = os.path.join (self.outdir, self.product)
             cosutil.printMsg ("product = " + self.product, VERY_VERBOSE)
 
+        # Enable writing to trailer files.
+        cosutil.setWriteToTrailer (True)
+
     def dummyAsnTable (self, asntable):
         """Construct a recarray corresponding to an association table.
 
@@ -594,6 +597,9 @@ class Association (object):
         # Because the input is not an association, there is no product.
         self.product = None
         self.product_type = None
+
+        # Disable writing to the trailer file.
+        cosutil.setWriteToTrailer (False)
 
     def initialInfo (self, memname):
         """Get preliminary information from an input file.
