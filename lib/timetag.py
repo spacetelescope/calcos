@@ -1,4 +1,6 @@
+from __future__ import division
 import math
+import os
 import time
 import numpy as N
 from numpy import random
@@ -8,6 +10,7 @@ import cosutil
 import burst
 import ccos
 import concurrent
+import dispersion
 import phot
 import wavecal
 from calcosparam import *       # parameter definitions
@@ -34,44 +37,58 @@ active_area = None
 
 def timetagBasicCalibration (input, inpha, outtag,
                   output, outcounts, outflash, outcsum,
+                  cl_args,
                   info, switches, reffiles,
-                  wavecal_info,
-                  stimfile=None, livetimefile=None, burstfile=None):
-    """Do the basic processing for time-tag data.
+                  wavecal_info):
+    """Do the basic processing for either time-tag or accum data.
 
     The function value will be zero if there was no problem,
     and it will be one if there was no input data.
 
-    arguments:
-    input         name of the input file
-    inpha         name of the input file containing the pulse height
-                  histogram (FUV ACCUM only)
-    outtag        name of the output file for corrected time-tag data
-    output        name of the output file for flat-fielded count-rate image
-    outcounts     name of the output file for count-rate image
-    outflash      name of the output file for tagflash wavecal spectra (or None)
-    outcsum       name of the output image for OPUS to add to cumulative
-                      image (or None)
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    wavecal_info  when wavecal exposures were processed, the results
-                    were stored in this dictionary
-    stimfile      name of output text file for stim positions (or None)
-    livetimefile  name of output text file for livetime factors (or None)
-    burstfile     name of output text file for burst info (or None)
+    @param input: name of the input file
+    @type input: string
+    @param inpha: name of the input file containing the pulse height
+        histogram (FUV ACCUM only)
+    @type inpha: string
+    @param outtag: name of the output file for corrected time-tag data
+    @type outtag: string
+    @param output: name of the output file for flat-fielded count-rate image
+    @type output: string
+    @param outcounts: name of the output file for count-rate image
+    @type outcounts: string
+    @param outflash: name of the output file for tagflash wavecal spectra
+        (or None)
+    @type outflash: string
+    @param outcsum: name of the output image for OPUS to add to cumulative
+        image (or None)
+    @type outcsum: string
+    @param cl_args: some of the command-line arguments
+    @type cl_args: dictionary
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param wavecal_info: when wavecal exposures were processed, the results
+        were stored in dictionaries in this list
+    @type wavecal_info: list of dictionaries
     """
 
     if info["obsmode"] == "TIME-TAG":
         cosutil.printIntro ("TIME-TAG calibration")
-        names = [("Input", input), ("OutTag", outtag),
-                 ("OutFlt", output), ("OutCounts", outcounts)]
+        names = [("Input", input),
+                 ("OutTag", outtag),
+                 ("OutFlt", output),
+                 ("OutCounts", outcounts)]
         if outflash is not None:
             names.append (("OutFlash", outflash))
         if outcsum is not None:
             names.append (("OutCsum", outcsum))
-        cosutil.printFilenames (names, stimfile=stimfile,
-                                livetimefile=livetimefile)
+        cosutil.printFilenames (names,
+                                shift_file=cl_args["shift_file"],
+                                stimfile=cl_args["stimfile"],
+                                livetimefile=cl_args["livetimefile"])
         cosutil.printMode (info)
 
     # Copy data from the input file to the output.  Then open the output
@@ -84,20 +101,32 @@ def timetagBasicCalibration (input, inpha, outtag,
     else:
         nrows = len (ofd["EVENTS"].data)
 
-    # Get a copy of the primary header.  This copy will be modified and
-    # written to the output image files.
-    phdr = ofd[0].header
-
-    # Update the switches and reference file names, so the output header
-    # will reflect what was actually used.
-    cosutil.overrideKeywords (phdr, ofd[1].header, info, switches, reffiles)
-
     # events_hdu is a complete fits HDU object (i.e., header plus data),
     # while events (assigned below) is just the data, a recarray object.
     events_hdu = ofd["EVENTS"]
 
+    # Get a copy of the primary header.  This copy will be modified and
+    # written to the output image files.
+    phdr = ofd[0].header
+    # This list also includes the primary header, but we'll ignore this
+    # copy of the primary header.
+    if info["obsmode"] == "ACCUM" and not info["corrtag_input"]:
+        headers = cosutil.getHeaders (input)
+        # replace the first extension header so the headers of the
+        # pseudo-corrtag table will be updated
+        headers[1] = events_hdu.header
+    else:
+        headers = [phdr]
+        for i in range (3):
+            headers.append (events_hdu.header)
+
+    # Update the switches and reference file names, so the output header
+    # will reflect what was actually used.
+    cosutil.overrideKeywords (phdr, headers[1], info, switches, reffiles)
+
     if nrows == 0:
-        writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu)
+        writeNull (input, output, outcounts, outcsum,
+                   cl_args, info, phdr, headers)
         ofd.close()
         return 1
 
@@ -105,27 +134,33 @@ def timetagBasicCalibration (input, inpha, outtag,
 
     events = events_hdu.data
 
+    # For corrtag input, reinitialize the DQ column if dqicorr is perform.
+    if info["corrtag_input"] and switches["dqicorr"] == "PERFORM":
+        events.field ("dq")[:] = 0.
+
     setActiveArea (events, info, reffiles["brftab"])
 
-    doPhotcorr (info, switches, reffiles["imphttab"], phdr, ofd[1].header)
+    doPhotcorr (info, switches, reffiles["imphttab"], phdr, headers[1])
 
-    updateGlobrate (info, events_hdu.header)
+    updateGlobrate (info, headers[1])
 
-    bursts = doBurstcorr (events, info, switches, reffiles, phdr, burstfile)
+    bursts = doBurstcorr (events, info, switches, reffiles, phdr,
+                          cl_args["burstfile"])
 
     badt = doBadtcorr (events, info, switches, reffiles, phdr)
 
     if info["obsmode"] == "TIME-TAG":
         gti = recomputeExptime (input, bursts, badt, events,
-                                events_hdu.header, info)
+                                headers[1], info)
         saveNewGTI (ofd, gti)
 
-    doPhacorr (inpha, events, info, switches, reffiles, phdr, events_hdu.header)
+    doPhacorr (inpha, events, info, switches, reffiles, phdr, headers[1])
 
     doRandcorr (events, info, switches, reffiles, phdr)
 
     (stim_param, stim_countrate, stim_livetime) = initTempcorr (events,
-            input, info, switches, reffiles, events_hdu.header, stimfile)
+            input, info, switches, reffiles, headers[1],
+            cl_args["stimfile"])
 
     doTempcorr (stim_param, events, info, switches, reffiles, phdr)
 
@@ -134,14 +169,18 @@ def timetagBasicCalibration (input, inpha, outtag,
     # Set this array of flags again, after geometric correction.
     setActiveArea (events, info, reffiles["brftab"])
 
+    if info["obsmode"] == "TIME-TAG":
+        countBadEvents (events, bursts, badt, info, headers[1])
+
     # Copy columns to xdopp, xfull, yfull so we'll have default values.
-    copyColumns (events)
+    if not info["corrtag_input"]:
+        copyColumns (events)
 
     doDoppcorr (events, info, switches, reffiles, phdr)
-    initHelcorr (events, info, switches, events_hdu.header)
+    initHelcorr (events, info, switches, headers[1])
 
     doDeadcorr (events, input, info, switches, reffiles, phdr,
-                stim_countrate, stim_livetime, livetimefile)
+                stim_countrate, stim_livetime, cl_args["livetimefile"])
 
     # Write the calcos sum image.
     if outcsum is not None:
@@ -149,35 +188,43 @@ def timetagBasicCalibration (input, inpha, outtag,
             pha = events.field ("pha")
         else:
             pha = None
-        writeCsum (events.field (xcorr), events.field (ycorr),
+        writeCsum (outcsum, events.field (xcorr), events.field (ycorr),
                    events.field ("epsilon"), pha,
                    info["detector"], info["subarray"],
-                   phdr, events_hdu.header,
-                   outcsum)
+                   phdr, headers[1],
+                   cl_args["binx"],
+                   cl_args["biny"],
+                   cl_args["compress_csum"],
+                   cl_args["compression_parameters"])
 
     doFlatcorr (events, info, switches, reffiles, phdr)
 
-    if info["obstype"] == "SPECTROSCOPIC":
+    if info["tagflash"]:
+        cosutil.printSwitch ("WAVECORR", switches)
+    if switches["wavecorr"] == "PERFORM" or switches["wavecorr"] == "COMPLETE":
         if info["tagflash"]:
-            (avg_dx, avg_dy, shift1_vs_time) = \
-                    concurrent.processConcurrentWavecal (events, outflash,
-                        info, switches, reffiles, phdr, events_hdu.header)
+            shift1_vs_time = concurrent.processConcurrentWavecal (events, \
+                        outflash, cl_args["shift_file"],
+                        info, switches, reffiles, phdr, headers[1])
+            filename = os.path.basename (input)
+            if cl_args["shift_file"] is not None:
+                filename = filename + " " + cl_args["shift_file"]
+            phdr.update ("wavecals", filename)
         else:
-            (avg_dx, avg_dy, shift1_vs_time) = \
-                    updateFromWavecal (events, wavecal_info,
-                        info, switches, reffiles, phdr, events_hdu.header)
+            shift1_vs_time = updateFromWavecal (events, wavecal_info,
+                        cl_args["shift_file"],
+                        info, switches, reffiles, phdr, headers[1])
     else:
-        (avg_dx, avg_dy, shift1_vs_time) = (0., 0., None)
+        shift1_vs_time = None
 
     minmax_shifts = getWavecalOffsets (events)
 
     dq_array = doDqicorr (events, input, info, switches, reffiles,
-                          stim_param,
-                          phdr, events_hdu.header, minmax_shifts)
+                          phdr, headers[1], minmax_shifts)
 
     writeImages (events.field (xfull), events.field (yfull),
                  events.field ("epsilon"), events.field ("dq"),
-                 phdr, events_hdu.header,
+                 phdr, headers,
                  dq_array, info["npix"], info["x_offset"], info["exptime"],
                  outcounts, output)
 
@@ -194,8 +241,8 @@ def timetagBasicCalibration (input, inpha, outtag,
 def setCorrColNames (detector):
     """Assign column names to global variables.
 
-    argument:
-    detector      FUV or NUV
+    @param detector: FUV or NUV
+    @type detector: string
     """
 
     global xcorr, ycorr, xdopp, ydopp, xfull, yfull
@@ -271,22 +318,30 @@ def doPhotcorr (info, switches, imphttab, phdr, hdr):
 def updateGlobrate (info, hdr):
     """Update the GLOBRATE keyword in the extension header.
 
-    arguments:
-    info          dictionary of header keywords and values
-    hdr           the input events extension header
+    @param info: header keywords and values
+    @type info: dictionary
+    @param hdr: the input events extension header
+    @type hdr: pyfits Header object
     """
 
     globrate = globrate_tt (info["exptime"], info["detector"])
-    hdr.update ("globrate", globrate)
+    if info["detector"] == "FUV":
+        keyword = "globrt_" + info["segment"][-1]
+    else:
+        keyword = "globrate"
+    globrate = round (globrate, 4)
+    hdr.update (keyword, globrate)
 
 def globrate_tt (exptime, detector):
     """Return the global count rate for time-tag data.
 
-    arguments:
-    exptime       the exposure time
-    detector      FUV or NUV
+    @param exptime: the exposure time
+    @type exptime: float
+    @param detector: FUV or NUV
+    @type detector: string
 
-    The function value is the global count rate, counts per second.
+    @return: the global count rate, counts per second
+    @rtype: float
     """
 
     global active_area
@@ -416,6 +471,82 @@ def filterByTime (time, dq, badttab, expstart, segment):
 
     return badt
 
+def countBadEvents (events, bursts, badt, info, hdr):
+    """Update keywords for events and time lost.
+
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param bursts: list of [bad_start, bad_stop] intervals during which
+        a burst was detected
+    @type bursts: list of two-element lists
+    @param badt: list of [bad_start, bad_stop] intervals from the badttab
+        (converted to seconds since expstart)
+    @type badt: list of two-element lists
+    @param info: keywords and values (exptime can be updated)
+    @type info: dictionary
+    @param hdr: the events extension header (keywords will be updated)
+    @type hdr: pyfits Header object
+    """
+
+    t = events.field ("time").astype (N.float64)
+    expstart = t[0]             # seconds since exposure start
+    expend = t[-1]
+
+    t_burst = 0.
+    n_burst = 0
+    t_badt = 0.
+    n_badt = 0
+    n_outside_active_area = 0
+    n_bad_pha = 0
+
+    if info["detector"] == "FUV":
+        if bursts is not None:
+            for burst in bursts:
+                t_burst += (burst[1] - burst[0])
+                r = ccos.range (t, burst[0], burst[1])
+                n_burst += (r[1] - r[0])
+        t_key = "tbrst_" + info["segment"][-1]
+        n_key = "nbrst_" + info["segment"][-1]
+        hdr.update (t_key, t_burst)
+        hdr.update (n_key, n_burst)
+
+        # The length of t is the total number of events, while the number of
+        # True flags is the number of events that are within the active area.
+        n_outside_active_area = len (t) - N.sum (active_area.astype (N.int32))
+        n_key = "nout_" + info["segment"][-1]
+        hdr.update (n_key, n_outside_active_area)
+
+    for (bad_start, bad_stop) in badt:
+        if badt is not None:
+            # badt includes all time intervals in the badttab, and many of
+            # those intervals may lie outside the time range of the exposure.
+            if bad_stop <= expstart:
+                continue
+            if bad_start >= expend:
+                continue
+            bad_start = max (bad_start, expstart)
+            bad_stop = min (bad_stop, expend)
+            t_badt += (bad_stop - bad_start)
+            r = ccos.range (t, bad_start, bad_stop)
+            n_badt += (r[1] - r[0])
+    if info["detector"] == "FUV":
+        t_key = "tbadt_" + info["segment"][-1]
+        n_key = "nbadt_" + info["segment"][-1]
+    else:
+        t_key = "tbadt"
+        n_key = "nbadt"
+    hdr.update (t_key, t_badt)
+    hdr.update (n_key, n_badt)
+
+    if info["detector"] == "FUV":
+        # The keyword for the number of events flagged as bad due to pulse
+        # height out of bounds has already been set, so just get the value.
+        n_pha_key = "npha_" + info["segment"][-1]
+        n_bad_pha = hdr.get (n_pha_key, 0)
+
+    hdr.update ("nbadevnt", n_burst + n_badt +
+                 n_outside_active_area + n_bad_pha)
+
 def recomputeExptime (input, bursts, badt, events, hdr, info):
     """Recompute the exposure time and update the keyword.
 
@@ -498,20 +629,65 @@ def recomputeGTI (gti, badt):
     return gti
 
 def saveNewGTI (ofd, gti):
-    """xxx not implemented yet"""
-    pass
+    """Append new GTI information as a BINTABLE extension.
+
+    @param ofd: output file header/data list
+    @type ofd: pyfits HDUList object
+    @param gti: an updated list of [start, stop] good time intervals
+    @type gti: list of two-element lists
+    """
+
+    len_gti = len (gti)
+    col = []
+    col.append (pyfits.Column (name="START", format="1D", unit="s"))
+    col.append (pyfits.Column (name="STOP", format="1D", unit="s"))
+    cd = pyfits.ColDefs (col)
+    hdu = pyfits.new_table (cd, nrows=len_gti)
+    hdu.header.update ("extname", "GTI")
+    outdata = hdu.data
+    startcol = outdata.field ("START")
+    stopcol = outdata.field ("STOP")
+    for i in range (len_gti):
+        startcol[i] = gti[i][0]
+        stopcol[i] = gti[i][1]
+
+    # Set extver for the new GTI table to be larger than extver for any
+    # existing GTI table.  We expect only one, the original one, but there
+    # could be others.
+    last_extver = 0                     # initial value
+    for i in range (1, len(ofd)):
+        existing_gti = ofd[i]
+        extname = existing_gti.header.get ("extname", "MISSING")
+        extname = extname.upper()
+        if extname == "GTI":
+            extver = existing_gti.header.get ("extver", 1)
+            last_extver = max (last_extver, extver)
+    hdu.header.update ("extver", last_extver+1)
+
+    # Now append the updated GTI table.
+    ofd.append (hdu)
+    # if we have pyfits 2.1.1dev462 or later, we could insert
+    # ofd.insert (2, hdu)
+
+    ofd[0].header.update ("nextend", len(ofd)-1)
 
 def doPhacorr (inpha, events, info, switches, reffiles, phdr, hdr):
     """Filter by pulse height.
 
-    arguments:
-    inpha         name of the input file containing the pulse height histogram
-    events        the data unit containing the events table
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    phdr          the input primary header
-    hdr           the input events extension header
+    @param inpha: name of the input file containing the pulse height histogram
+    @type inpha: string
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
+    @param hdr: the input events extension header
+    @type hdr: pyfits Header object
     """
 
     global serious_dq_flags
@@ -534,13 +710,17 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
 
     This is only called for TIME-TAG mode data.
 
-    arguments:
-    pha        pulse-height column in events table
-    dq         data-quality column in events table (modified in-place)
-    phatab     name of PHA thresholds table
-    segment    segment name (FUVA or FUVB)
-    hdr        header for events table extension (keywords for screening
-                 limits and number of rejected events will be assigned)
+    @param pha: pulse-height column in events table
+    @type pha: numpy array
+    @param dq: data-quality column in events table (modified in-place)
+    @type dq: numpy array
+    @param phatab: name of PHA thresholds table
+    @type phatab: string
+    @param segment: segment name (FUVA or FUVB)
+    @type segment: string
+    @param hdr: header for events table extension (keywords for screening
+        limits and number of rejected events will be assigned)
+    @type hdr: pyfits Header object
     """
 
     global active_area
@@ -585,7 +765,7 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
         msg += " rejected because PHA was greater than %d" % high
         cosutil.printMsg (msg, VERY_VERBOSE)
 
-    keyword = "PHA_BAD" + segment[-1]
+    keyword = "NPHA_" + segment[-1]
     hdr.update (keyword, nbad)
 
     # Update the values for the screening limit keywords
@@ -597,11 +777,15 @@ def checkPulseHeight (inpha, phatab, info, hdr):
 
     This is only called for ACCUM mode data.
 
-    arguments:
-    inpha         name of file containing pulse-height distribution
-    phatab        name of table of pulse-height parameters
-    info          dictionary of keywords and values
-    hdr           extension header
+    @param inpha: name of file containing pulse-height distribution
+    @type inpha: string
+    @param phatab: name of table of pulse-height parameters
+    @type phatab: string
+    @param info: header keywords and values
+    @type info: dictionary
+    @param hdr: header for events table extension (keywords for screening
+        limits and number of rejected events will be assigned)
+    @type hdr: pyfits Header object
     """
 
     pha_info = cosutil.getTable (phatab, filter={"segment": info["segment"]},
@@ -671,12 +855,16 @@ def checkPulseHeight (inpha, phatab, info, hdr):
 def doRandcorr (events, info, switches, reffiles, phdr):
     """Add pseudo-random numbers to x and y coordinates within the active area.
 
-    arguments:
-    events        the data unit containing the events table
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    phdr          the input primary header
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: primary header
+    @type phdr: pyfits Header object
     """
 
     global active_area
@@ -702,14 +890,26 @@ def doRandcorr (events, info, switches, reffiles, phdr):
 def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
     """Compute parameters for thermal distortion.
 
-    arguments:
-    events        the data unit containing the events table
-    input         name of raw file (for writing to stimfile)
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    hdr           the input events extension header
-    stimfile      name of output text file for stim positions (or None)
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param input: name of raw file (for writing to stimfile)
+    @type input: string
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param hdr: the input events extension header
+    @type hdr: pyfits Header object
+    @param stimfile: name of output text file for stim positions (or None)
+    @type stimfile: string
+
+    @return: (stim_param, stim_countrate, stim_livetime); stim_param is a
+        dictionary of lists, with keys i0, i1, x0, xslope, y0, yslope;
+        stim_countrate and stim_livetime are the count rate of the stims
+        and the livetime factor based on that count rate
+    @rtype: tuple
     """
 
     if info["detector"] == "FUV" and \
@@ -723,9 +923,10 @@ def initTempcorr (events, input, info, switches, reffiles, hdr, stimfile):
             reffiles["brftab"], info["obsmode"],
             info["segment"], info["exptime"], info["stimrate"],
             input, stimfile)
-        # Update stim location keywords in extension header.
-        stimKeywords (hdr, info["segment"], avg_s1, avg_s2, rms_s1, rms_s2,
-                      s1_ref, s2_ref)
+        if switches["tempcorr"] == "PERFORM":
+            # Update stim location keywords in extension header.
+            stimKeywords (hdr, info["segment"], avg_s1, avg_s2,
+                          rms_s1, rms_s2, s1_ref, s2_ref)
     else:
         stim_countrate = 0.
         stim_livetime = 1.
@@ -747,21 +948,32 @@ def computeThermalParam (time, x, y, dq,
     (The 'input' argument is included in the calling sequence only for the
     purpose of writing its name to the stimfile.)
 
-    arguments:
-    time          array of event times
-    x, y          arrays of detector X and Y coordinates
-    dq            array of data quality flags   (NOTE:  not currently used)
-    brftab        name of baseline reference data table
-    obsmode       TIME-TAG or ACCUM
-    segment       segment name (for FUV)
-    exptime       exposure time (for computing livetime)
-    stimrate      input count rate for a stim (for computing livetime)
-    input         name of raw file (for writing to stimfile)
-    stimfile      name of text file to which stim locations will be appended
+    @param time: array of event times
+    @type time: numpy array
+    @param x: detector X coordinates
+    @type x: numpy array
+    @param y: detector Y coordinates
+    @type y: numpy array
+    @param dq: array of data quality flags   (NOTE:  not currently used)
+    @type dq: numpy array
+    @param brftab: name of baseline reference data table
+    @type brftab: string
+    @param obsmode: TIME-TAG or ACCUM
+    @type obsmode: string
+    @param segment: segment name (for FUV)
+    @type segment: string
+    @param exptime: exposure time (for computing livetime)
+    @type exptime: float
+    @param stimrate: input count rate for a stim (for computing livetime)
+    @type stimrate: float
+    @param input: name of raw file (for writing to stimfile)
+    @type input: string
+    @param stimfile: name of text file to which stim locations will be appended
+    @type stimfile: string
 
-    The function value is a tuple:
-      (stim_param, avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref,
-       stim_countrate, stim_livetime)
+    @return: (stim_param, avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref,
+        stim_countrate, stim_livetime)
+    @rtype: tuple
 
     stim_param is a dictionary of lists:  (i0, i1, x0, xslope, y0, yslope)
 
@@ -1024,8 +1236,7 @@ def updateStimSum (sumstim, nevents1, s1, sumsq1, found_s1,
                             nevents2, s2, sumsq2, found_s2):
     """Update sums for averages of stim positions.
 
-    arguments:
-    sumstim    tuple with current sums:
+    @param sumstim: tuple with current sums:
                  n1      number of events for first stim
                  sum1y   sum for first stim, Y coordinate
                  sum1x   sum for first stim, X coordinate
@@ -1036,15 +1247,22 @@ def updateStimSum (sumstim, nevents1, s1, sumsq1, found_s1,
                  sum2x   sum for second stim, X coordinate
                  sumsq2y sum of squares for second stim, Y coordinate
                  sumsq2x sum of squares for second stim, X coordinate
-    nevents1   number of events for first stim in current time interval
-    s1         tuple of (y,x) coordinates of the first stim in current
-                 interval
-    found_s1   True if the first stim was actually found
-    nevents2   number of events for second stim in current time interval
-    s2         same as s1, but for the second stim
-    found_s2   True if the second stim was actually found
+    @type sumstim: tuple
+    @param nevents1: number of events for first stim in current time interval
+    @type nevents1: int
+    @param s1: tuple of (y,x) coordinates of the first stim in current interval
+    @type s1: tuple
+    @param found_s1: True if the first stim was actually found
+    @type found_s1: boolean
+    @param nevents2: number of events for second stim in current time interval
+    @type nevents2: int
+    @param s2: same as s1, but for the second stim
+    @type s2: tuple
+    @param found_s2: True if the second stim was actually found
+    @type found_s2: boolean
 
-    The function value is an updated sumstim tuple.
+    @return: an updated sumstim tuple
+    @rtype: tuple
 
     nevents1 and nevents2 are used as weights when incrementing the sums.
     n1 and n2 are the total number of events for the first and second stims
@@ -1075,9 +1293,10 @@ def stimKeywords (hdr, segment, avg_s1, avg_s2, rms_s1, rms_s2,
                   s1_ref, s2_ref):
     """Update keywords for the locations of the stims.
 
-    arguments:
-    hdr             the input events extension header (updated)
-    segment         FUVA or FUVB
+    @param hdr: the input events extension header (updated)
+    @type hdr: pyfits Header object
+    @param segment: FUVA or FUVB
+    @type segment: string
 
     avg_s1[0] is the average Y location of the first stim.
     avg_s1[1] is the average X location of the first stim.
@@ -1123,11 +1342,17 @@ def stimKeywords (hdr, segment, avg_s1, avg_s2, rms_s1, rms_s2,
 def thermalParam (s1, s2, s1_ref, s2_ref):
     """Compute linear thermal distortion correction from stim positions.
 
-    arguments:
-    s1          measured location in raw data of first stim (y, x)
-    s2          measured location in raw data of second stim (y, x)
-    s1_ref      reference location of first stim (y, x)
-    s2_ref      reference location of second stim (y, x)
+    @param s1: measured location in raw data of first stim (y, x)
+    @type s1: tuple
+    @param s2: measured location in raw data of second stim (y, x)
+    @type s2: tuple
+    @param s1_ref: reference location of first stim (y, x)
+    @type s1_ref: tuple
+    @param s2_ref: reference location of second stim (y, x)
+    @type s2_ref: tuple
+
+    @return: (xintercept, xslope, yintercept, yslope)
+    @rtype: tuple
     """
 
     if s1[0] is None or s2[0] is None:
@@ -1139,28 +1364,30 @@ def thermalParam (s1, s2, s1_ref, s2_ref):
 
     else:
 
-        (sy1, sx1) = s1_ref
-        (sy2, sx2) = s2_ref
+        xslope = (s2_ref[1] - s1_ref[1]) / (s2[1] - s1[1])
+        xintercept = s1_ref[1] - s1[1] * xslope
 
-        xslope = (sx2 - sx1) / (s2[1] - s1[1])
-        xintercept = sx1 - s1[1] * xslope
-
-        yslope = (sy2 - sy1) / (s2[0] - s1[0])
-        yintercept = sy1 - s1[0] * yslope
+        yslope = (s2_ref[0] - s1_ref[0]) / (s2[0] - s1[0])
+        yintercept = s1_ref[0] - s1[0] * yslope
 
     return (xintercept, xslope, yintercept, yslope)
 
 def doTempcorr (stim_param, events, info, switches, reffiles, phdr):
     """Apply thermal distortion correction.
 
-    arguments:
-    stim_param    a dictionary of lists, with keys
-                    i0, i1, x0, xslope, y0, yslope
-    events        the data unit containing the events table
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    phdr          the input primary header
+    @param stim_param: a dictionary of lists, with keys
+        i0, i1, x0, xslope, y0, yslope
+    @type stim_param: dictionary of lists
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
     """
 
     if info["detector"] == "FUV":
@@ -1178,12 +1405,17 @@ def doTempcorr (stim_param, events, info, switches, reffiles, phdr):
 def thermalDistortion (x, y, stim_param):
     """Apply thermal distortion correction to positions in events list.
 
-    arguments:
-    x, y          arrays of pixel coordinates of events
-    stim_param    a dictionary of lists, with keys
-                    i0, i1, x0, xslope, y0, yslope
+    @param x: array of detector X coordinates
+    @type x: array
+    @param y: array of detector Y coordinates
+    @type y: array
+    @param stim_param: a dictionary of lists, with keys
+        i0, i1, x0, xslope, y0, yslope
+    @type stim_param: dictionary of lists
 
-    The function value will be true if a correction was actually applied.
+    @return: True if a correction was actually applied
+    @rtype: boolean
+
     No correction is necessary and none will be applied if the slopes are
     all 0 and the intercepts are all 1.
     """
@@ -1194,7 +1426,7 @@ def thermalDistortion (x, y, stim_param):
     y0 = stim_param["y0"]
     yslope = stim_param["yslope"]
 
-    actually_done = 0
+    actually_done = False
 
     if stim_param.has_key ("i0"):
         i0 = stim_param["i0"]
@@ -1210,19 +1442,23 @@ def thermalDistortion (x, y, stim_param):
            y0[n] != 0. or yslope[n] != 1.:
             x[i:j] = x0[n] + x[i:j] * xslope[n]
             y[i:j] = y0[n] + y[i:j] * yslope[n]
-            actually_done = 1
+            actually_done = True
 
     return actually_done
 
 def doGeocorr (events, info, switches, reffiles, phdr):
     """Apply geometric correction.
 
-    arguments:
-    events        the data unit containing the events table
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    phdr          the input primary header
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
     """
 
     if info["detector"] == "FUV":
@@ -1238,21 +1474,28 @@ def doGeocorr (events, info, switches, reffiles, phdr):
                 phdr["igeocorr"] = "COMPLETE"
 
 def doDqicorr (events, input, info, switches, reffiles,
-               stim_param,
                phdr, hdr, minmax_shifts):
     """Create a data quality array, initialized from the DQI table.
 
-    arguments:
-    events         the data unit containing the events table
-    input          name of raw file, used for getting DQ array for ACCUM data
-    info           dictionary of header keywords and values
-    switches       dictionary of calibration switches
-    reffiles       dictionary of reference file names
-    stim_param     a dictionary of lists, with keys
-                     i0, i1, x0, xslope, y0, yslope
-    phdr           the input primary header
-    hdr            the input events extension header
-    minmax_shifts  (min_shift1, max_shift1, min_shift2, max_shift2)
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param input: name of raw file, used for getting DQ array for ACCUM data
+    @type input: string
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
+    @param hdr: the input events extension header
+    @type hdr: pyfits Header object
+    @param minmax_shifts: (min_shift1, max_shift1, min_shift2, max_shift2)
+    @type minmax_shifts: tuple
+
+    @return: 2-D data quality array
+    @rtype: numpy array
 
     This function applies the data quality initialization table (bpixtab) to
     two arrays, the 2-D DQ image extension and the 1-D DQ events table column.
@@ -1269,16 +1512,24 @@ def doDqicorr (events, input, info, switches, reffiles,
     dqicorr is not PERFORM.
     """
 
-    cosutil.printSwitch ("DQICORR", switches)
+    # temp_switch is only used for printing the DQICORR message
+    temp_switch = {}
+    if switches["dqicorr"] == "COMPLETE" and info["corrtag_input"]:
+        temp_switch["dqicorr"] = "PERFORM (complete, but repeat)"
+    else:
+        temp_switch["dqicorr"] = switches["dqicorr"]
+    cosutil.printSwitch ("DQICORR", temp_switch)
 
-    if info["obsmode"] == "TIME-TAG":
+    if info["obsmode"] == "TIME-TAG" or info["corrtag_input"]:
         # Create an initially zero 2-D data quality extension array.
         dq_array = N.zeros (info["npix"], dtype=N.int16)
     else:
         # Read the data quality array from the rawaccum file.
         dq_array = cosutil.getInputDQ (input)
 
-    if switches["dqicorr"] == "PERFORM":
+    # If the input is a corrtag file and dqicorr was done when that file was
+    # created, we should do dqicorr again.
+    if switches["dqicorr"] == "PERFORM" or switches["dqicorr"] == "COMPLETE":
 
         cosutil.printRef ("BPIXTAB", reffiles)
 
@@ -1303,8 +1554,7 @@ def doDqicorr (events, input, info, switches, reffiles,
                                minmax_shifts, minmax_doppler)
 
         # Flag regions that are outside any subarray as out of bounds.
-        cosutil.flagOutOfBounds (phdr, hdr, dq_array, stim_param,
-                                 info, switches,
+        cosutil.flagOutOfBounds (hdr, dq_array, info, switches,
                                  reffiles["brftab"], reffiles["geofile"],
                                  minmax_shifts, minmax_doppler)
 
@@ -1325,7 +1575,8 @@ def dopplerParam (info, disptab, doppcorr):
     @type info: dictionary
     @param disptab: name of dispersion relation table
     @type disptab: string
-    @param doppcorr: if Doppler correction is OMIT, return dummy values
+    @param doppcorr: if Doppler correction is OMIT or SKIPPED, return
+        dummy values
     @type doppcorr: string
 
     @return: Doppler magnitude in pixels, time (MJD) when the Doppler shift
@@ -1334,7 +1585,7 @@ def dopplerParam (info, disptab, doppcorr):
     @rtype: tuple
     """
 
-    if doppcorr != "PERFORM":
+    if doppcorr == "OMIT" or doppcorr == "SKIPPED":
         doppmag  = 0.
         doppzero = info["expstart"]
         orbitper = 5760.
@@ -1354,13 +1605,12 @@ def dopplerParam (info, disptab, doppcorr):
             else:
                 filter["segment"] = "NUVB"
                 middle = float (NUV_X) / 2.
-            if cosutil.findColumn (disptab, "fpoffset"):
-                filter["fpoffset"] = info["fpoffset"]
-            disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
-            ncoeff = disp_info.field ("nelem")[0]
-            coeff = disp_info.field ("coeff")[0][0:ncoeff]
+            disp_rel = dispersion.Dispersion (disptab, filter, False)
+            if not disp_rel.isValid():
+                raise RuntimeError, "missing row in disptab"
             # get the dispersion (disp) at the middle of the detector
-            disp = cosutil.evalDerivDisp (middle, coeff, 0.)
+            disp = disp_rel.evalDerivDisp (middle)
+            disp_rel.close()
         else:
             disp = info["tc2_2"]
         # Compute the Doppler shift in pixels from the shift in km/s.
@@ -1378,12 +1628,16 @@ def dopplerParam (info, disptab, doppcorr):
 def doDoppcorr (events, info, switches, reffiles, phdr):
     """Apply Doppler correction to the x and y pixel coordinates.
 
-    arguments:
-    events        the data unit containing the events table
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    phdr          the input primary header
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
     """
 
     if info["obsmode"] == "ACCUM":              # done on-board
@@ -1392,7 +1646,7 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
     if info["obstype"] == "SPECTROSCOPIC":
         cosutil.printSwitch ("DOPPCORR", switches)
 
-    if switches["doppcorr"] == "PERFORM":
+    if switches["doppcorr"] == "PERFORM" or switches["doppcorr"] == "COMPLETE":
 
         # xi and eta are the columns of pixel coordinates for the
         # dispersion and cross-dispersion directions respectively.
@@ -1412,23 +1666,24 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
         wcptab = reffiles["wcptab"]
         if info["detector"] == "FUV":
             # This array of flags indicates which events should be corrected.
-            shift_flags = fuvDopplerRegions (eta, info, xtractab)
+            region_flags = fuvDopplerRegions (eta, info, xtractab)
             # Apply the orbital Doppler correction to the flagged events.
-            dopp[:] = N.where (shift_flags, \
+            dopp[:] = N.where (region_flags, \
                                dopplerCorrection (events.field ("time"),
                                            xi, info, reffiles),
                                xi)
         else:
-            shift_flags_dict = nuvDopplerRegions (eta, info, xtractab)
+            region_flags_dict = nuvPsaRegions (eta, info, xtractab)
             dopp[:] = xi
             for stripe in ["NUVA", "NUVB", "NUVC"]:
-                dopp[:] = N.where (shift_flags_dict[stripe], \
+                dopp[:] = N.where (region_flags_dict[stripe], \
                                    dopplerCorrection (events.field ("time"),
                                            xi, info, reffiles, stripe=stripe),
                                    dopp)
 
-        # Copy to xfull in case wavecal processing will not be done.
-        xi_full[:] = dopp.copy()
+        # Copy to xfull if wavecal processing will not be done.
+        if switches["wavecorr"] == "OMIT" and not info["corrtag_input"]:
+            xi_full[:] = dopp.copy()
 
         phdr["doppcorr"] = "COMPLETE"
 
@@ -1451,7 +1706,7 @@ def fuvDopplerRegions (eta, info, xtractab):
 
     global active_area
 
-    shift_flags = active_area.copy()
+    region_flags = active_area.copy()
 
     # Protect against the possibility that the aperture keyword is "WCA".
     if info["aperture"] == "BOA":
@@ -1477,73 +1732,9 @@ def fuvDopplerRegions (eta, info, xtractab):
 
     boundary = int (round ((b_spec_psa + b_spec_wca) / 2.))
 
-    shift_flags &= (eta < boundary)
+    region_flags &= (eta < boundary)
 
-    return shift_flags
-
-def nuvDopplerRegions (eta, info, xtractab):
-    """Determine the regions over which Doppler shift should be applied.
-
-    This version is for NUV data.
-
-    @param eta: pixel coordinates in cross-dispersion direction
-    @type eta: array
-    @param info: keywords and values
-    @type info: dictionary
-    @param xtractab: name of spectral extraction parameters reference table
-    @type xtractab: string
-
-    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
-        and an array of Boolean flags as the value, true for events for which
-        it would be appropriate to apply Doppler correction
-    @rtype: dictionary of Boolean arrays
-    """
-
-    if info["aperture"] == "BOA":
-        aperture = "BOA"
-    else:
-        aperture = "PSA"
-    # segment will be added to the filter below.
-    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"],
-              "aperture": aperture}
-    middle = float (NUV_X) / 2.
-
-    # b_spec_a, b_spec_b, b_spec_c, are the locations (at the middle of the
-    # detector) of stripes A, B, C for the PSA, and b_spec_wca is the location
-    # of stripe A for the WCA.
-
-    filter["segment"] = "NUVA"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_a = xtract_info.field ("b_spec")[0] + \
-               xtract_info.field ("slope")[0] * middle
-
-    filter["segment"] = "NUVB"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_b = xtract_info.field ("b_spec")[0] + \
-               xtract_info.field ("slope")[0] * middle
-
-    filter["segment"] = "NUVC"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_c = xtract_info.field ("b_spec")[0] + \
-               xtract_info.field ("slope")[0] * middle
-
-    filter["segment"] = "NUVA"
-    filter["aperture"] = "WCA"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_wca = xtract_info.field ("b_spec")[0] + \
-                 xtract_info.field ("slope")[0] * middle
-
-    # Set boundaries midway between adjacent stripes.
-    boundary_a_b = int (round ((b_spec_a + b_spec_b) / 2.))
-    boundary_b_c = int (round ((b_spec_b + b_spec_c) / 2.))
-    boundary_c_wca = int (round ((b_spec_c + b_spec_wca) / 2.))
-
-    shift_flags_dict = {}
-    shift_flags_dict["NUVA"] = (eta < boundary_a_b)
-    shift_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
-    shift_flags_dict["NUVC"] = (eta >= boundary_b_c) & (eta < boundary_c_wca)
-
-    return shift_flags_dict
+    return region_flags
 
 def dopplerCorrection (time, xi, info, reffiles, stripe=None):
     """Apply orbital and heliocentric Doppler correction.
@@ -1568,30 +1759,23 @@ def dopplerCorrection (time, xi, info, reffiles, stripe=None):
     # Compute the wavelength and dispersion at each pixel.
     filter = {"opt_elem": info["opt_elem"],
               "cenwave": info["cenwave"],
-              "aperture": info["aperture"]}
+              "aperture": info["aperture"],
+              "fpoffset": info["fpoffset"]}
     if stripe is None:
         filter["segment"] = info["segment"]
     else:
         filter["segment"] = stripe
-    # If the FPOFFSET column is present in the disptab, include fpoffset
-    # in the filter.
-    fpoffset_present = cosutil.findColumn (disptab, "fpoffset")
-    if fpoffset_present:
-        filter["fpoffset"] = info["fpoffset"]
-    disp_info = cosutil.getTable (disptab, filter, exactly_one=True)
-
-    ncoeff = disp_info.field ("nelem")[0]
-    coeff = disp_info.field ("coeff")[0][0:ncoeff]
-    if cosutil.findColumn (disp_info, "delta"):
-        delta = disp_info.field ("delta")[0]
-    else:
-        delta = 0.
+    disp_rel = dispersion.Dispersion (disptab, filter, use_fpoffset=True)
+    if not disp_rel.isValid():
+        disp_rel.close()
+        raise RuntimeError, "missing row in disptab"
 
     xi = xi.astype (N.float64)
+    fpoffset_present = cosutil.findColumn (disptab, "fpoffset")
     if fpoffset_present:
         # Compute wavelength and dispersion at each element of xi.
-        wavelength = cosutil.evalDisp (xi, coeff, delta)
-        dispersion = cosutil.evalDerivDisp (xi, coeff, delta)
+        wavelength = disp_rel.evalDisp (xi)
+        disp = disp_rel.evalDerivDisp (xi)
     else:
         # Correct for fpoffset when computing wavelength and dispersion
         # (a feature will be at larger pixel number if fpoffset is larger,
@@ -1600,14 +1784,15 @@ def dopplerCorrection (time, xi, info, reffiles, stripe=None):
                                      filter={"opt_elem": info["opt_elem"]},
                                      exactly_one=True)
         stepsize = wcp_info.field ("stepsize")[0]
-        wavelength = cosutil.evalDisp (xi, coeff, delta)
+        wavelength = disp_rel.evalDisp (xi)
         xi_temp = xi - info["fpoffset"] * stepsize
-        wavelength = cosutil.evalDisp (xi_temp, coeff, delta)
-        dispersion = cosutil.evalDerivDisp (xi_temp, coeff, delta)
+        wavelength = disp_rel.evalDisp (xi_temp)
+        disp = disp_rel.evalDerivDisp (xi_temp)
         del xi_temp, wcp_info
+    disp_rel.close()
 
     # Apply the Doppler correction to the pixel coordinates.
-    xd = orbitalDoppler (time, xi, wavelength, dispersion, info["expstart"],
+    xd = orbitalDoppler (time, xi, wavelength, disp, info["expstart"],
                          info["doppmagv"], info["doppzero"], info["orbitper"])
 
     return xd
@@ -1659,67 +1844,121 @@ def initHelcorr (events, info, switches, hdr):
     if info["obstype"] != "SPECTROSCOPIC":
         return
 
-    if switches["helcorr"] == "PERFORM":
+    # get midpoint of exposure, MJD
+    expstart = info["expstart"]
+    time = events.field ("time")
+    t_mid = expstart + (time[0] + time[len(time)-1]) / 2. / SEC_PER_DAY
 
-        # get midpoint of exposure, MJD
-        expstart = info["expstart"]
-        time = events.field ("time")
-        t_mid = expstart + (time[0] + time[len(time)-1]) / 2. / SEC_PER_DAY
+    # Compute radial velocity and heliocentric correction factor.
+    radvel = heliocentricVelocity (t_mid, info["ra_targ"], info["dec_targ"])
+    helio_factor = -radvel  / SPEED_OF_LIGHT
+    hdr.update ("v_helio", radvel)
+    info["v_helio"] = radvel
 
-        # Compute radial velocity and heliocentric correction factor.
-        radvel = heliocentricVelocity (t_mid, info["ra_targ"], info["dec_targ"])
-        helio_factor = -radvel  / SPEED_OF_LIGHT
-        hdr.update ("v_helio", radvel)
-        info["v_helio"] = radvel
-
-    else:
-        hdr.update ("v_helio", 0.)
-
-def heliocentricVelocity (t_mid, ra_targ, dec_targ):
+def heliocentricVelocity (t, ra_targ, dec_targ):
     """Compute heliocentric radial velocity.
 
-    arguments:
-    t_mid         time (MJD) at the middle of the exposure
-    ra_targ       right ascension of the target
-    dec_targ      declination of the target
+    This is copied from the code for calstis, except that the target
+    coordinates will not be precessed to the time of observation.
+
+    @param t: time (MJD)
+    @type t: float
+    @param ra_targ: right ascension of the target (J2000)
+    @type ra_targ: float
+    @param dec_targ: declination of the target (J2000)
+    @type dec_targ: float
+
+    @return: the contribution of the Earth's velocity around the Sun to the
+        radial velocity of the target, in km/s; if the Earth is approaching
+        the target, this will be negative (i.e. the sign convention is that
+        radial velocity is positive if the distance between the Earth and
+        the target is increasing)
+    @rtype: float
     """
+
+    REFDATE = 51544.5           # MJD for 2000 Jan 1.5 UT, or JD 2451545.0
+    KM_AU   = 1.4959787e8       # astronomical unit in kilometers
+    SEC_DAY = 86400.            # seconds per day
 
     deg_to_rad = math.pi / 180.
     eps = 23.439 * deg_to_rad           # obliquity of Earth's axis
-    orb_v = 29.786                      # speed of Earth around Sun, km/s
 
     ra  = ra_targ * deg_to_rad
     dec = dec_targ * deg_to_rad
 
     # target will be a unit vector toward the target;
     # velocity will be Earth's orbital velocity in km/s.
-    target = N.zeros (3, dtype=N.float64)
-    velocity = N.zeros (3, dtype=N.float64)
+    target = [0., 0., 0.]
+    velocity = [0., 0., 0.]
 
     target[0] = math.cos (dec) * math.cos (ra)
     target[1] = math.cos (dec) * math.sin (ra)
     target[2] = math.sin (dec)
 
-    # Earth's ecliptic longitude
-    ecl_long = (100.461 + 0.9856474 * (t_mid - 51544.5)) * deg_to_rad
+    # Precess the target coordinates to time t.
+    # target = cosutil.precess (t, target)        # note, commented out
 
-    velocity[0] = -orb_v * math.sin (ecl_long)
-    velocity[1] = orb_v * math.cos (ecl_long) * math.cos (eps)
-    velocity[2] = orb_v * math.cos (ecl_long) * math.sin (eps)
+    dt = t - REFDATE                    # days since 2000 Jan 1, 12h UT
 
-    radvel = -N.dot (velocity, target)
+    g_dot = 0.9856003 * deg_to_rad
+    l_dot = 0.9856474 * deg_to_rad
+
+    eps = (23.439 - 0.0000004 * dt) * deg_to_rad
+
+    g = mod2pi ((357.528 + 0.9856003 * dt) * deg_to_rad)
+    l = mod2pi ((280.461 + 0.9856474 * dt) * deg_to_rad)
+
+    #       L   1.915 deg                 0.02 deg
+    elong = l + 0.033423 * math.sin (g) + 0.000349 * math.sin (2.*g)
+    elong_dot = l_dot + \
+                0.033423 * math.cos (g) * g_dot + \
+                0.000349 * math.cos (2.*g) * 2.*g_dot
+
+    radius = 1.00014 - 0.01671 * math.cos (g) - 0.00014 * math.cos (2.*g)
+    radius_dot =       0.01671 * math.sin (g) * g_dot + \
+                       0.00014 * math.sin (2.*g) * 2.*g_dot
+
+    x_dot = radius_dot * math.cos (elong) - \
+                radius * math.sin (elong) * elong_dot
+
+    y_dot = radius_dot * math.cos (eps) * math.sin (elong) + \
+                radius * math.cos (eps) * math.cos (elong) * elong_dot
+
+    z_dot = radius_dot * math.sin (eps) * math.sin (elong) + \
+                radius * math.sin (eps) * math.cos (elong) * elong_dot
+
+    velocity[0] = -x_dot * KM_AU / SEC_DAY
+    velocity[1] = -y_dot * KM_AU / SEC_DAY
+    velocity[2] = -z_dot * KM_AU / SEC_DAY
+
+    dot_product = velocity[0] * target[0] + \
+                  velocity[1] * target[1] + \
+                  velocity[2] * target[2]
+    radvel = -dot_product
 
     return radvel
+
+def mod2pi (x):
+    """Return the argument modulo two pi."""
+
+    (f, i) = math.modf (x / (2.*math.pi))
+    if f < 0.:
+        f += 1.
+    return f * 2. * math.pi
 
 def doFlatcorr (events, info, switches, reffiles, phdr):
     """Apply flat field correction.
 
-    arguments:
-    events        the data unit containing the events table
-    info          dictionary of header keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
-    phdr          the input primary header
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
     """
 
     cosutil.printSwitch ("FLATCORR", switches)
@@ -1742,7 +1981,8 @@ def doFlatcorr (events, info, switches, reffiles, phdr):
         if info["obsmode"] == "ACCUM":
             if info["obstype"] == "SPECTROSCOPIC":
                 cosutil.printSwitch ("DOPPCORR", switches)
-            if switches["doppcorr"] == "PERFORM":
+            if switches["doppcorr"] == "PERFORM" or \
+               switches["doppcorr"] == "COMPLETE":
                 convolveFlat (flat, info["dispaxis"], \
                      info["expstart"], info["exptime"],
                      info["dopmagt"], info["dopzerot"], info["orbtpert"])
@@ -1759,14 +1999,20 @@ def convolveFlat (flat, dispaxis,
                 expstart, exptime, dopmagt, dopzerot, orbtpert):
     """Convolve the flat field file with the Doppler smearing function.
 
-    arguments:
-    flat       flat field data array, modified in-place
-    dispaxis   dispersion axis (1 or 2)
-    expstart   exposure start time, MJD
-    exptime    exposure duration, seconds
-    dopmagt    magnitude of Doppler shift, pixels
-    dopzerot   time when Doppler shift is zero and increasing
-    orbtpert   orbital period of HST
+    @param flat: flat field data array, modified in-place
+    @type flat: numpy array
+    @param dispaxis: dispersion axis (1 or 2)
+    @type dispaxis: int
+    @param expstart: exposure start time, MJD
+    @type expstart: float
+    @param exptime: exposure duration, seconds
+    @type exptime: float
+    @param dopmagt: magnitude of Doppler shift, pixels
+    @type dopmagt: int
+    @param dopzerot: time when Doppler shift is zero and increasing
+    @type dopzerot: float
+    @param orbtpert: orbital period of HST
+    @type orbtpert: float
     """
 
     # Round dopmagt up to the next integer; mag is a zero-point offset.
@@ -1799,16 +2045,24 @@ def doDeadcorr (events, input, info, switches, reffiles, phdr,
             stim_countrate, stim_livetime, livetimefile):
     """Correct for deadtime.
 
-    arguments:
-    events          the data unit containing the events table
-    input           name of raw file (for writing to livetimefile)
-    info            dictionary of header keywords and values
-    switches        dictionary of calibration switches
-    reffiles        dictionary of reference file names
-    phdr            the input primary header
-    livetimefile    name of output text file for livetime factors (or None)
-    stim_countrate  the observed count rate for a stim (for info)
-    stim_livetime   live time computed from the input and observed stim rate
+    @param events: the data unit containing the events table
+    @type events: pyfits record array
+    @param input: name of raw file (for writing to livetimefile)
+    @type input: string
+    @param info: header keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param reffiles: reference file names
+    @type reffiles: dictionary
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
+    @param livetimefile: name of output text file for livetime factors (or None)
+    @type livetimefile: string
+    @param stim_countrate: the observed count rate for a stim (for info)
+    @type stim_countrate: float
+    @param stim_livetime: live time computed from the stim rate
+    @type stim_livetime: float
     """
 
     cosutil.printSwitch ("DEADCORR", switches)
@@ -1903,11 +2157,12 @@ def deadtimeCorrection (events, deadtab, info,
         actual_countrate = float (nevents) / (time[nevents-1] - time[0])
     else:
         actual_countrate = 0.
-    actual_rate_livetime = determineLivetime (actual_countrate,
-                                              obs_rate, live_factor)
+    actual_rate_livetime = cosutil.determineLivetime (actual_countrate,
+                                                      obs_rate, live_factor)
 
     # dec_countrate is from DEVENTA, DEVENTB or from MEVENTS.
-    dec_livetime = determineLivetime (dec_countrate, obs_rate, live_factor)
+    dec_livetime = cosutil.determineLivetime (dec_countrate,
+                                              obs_rate, live_factor)
 
     print_details = (cosutil.checkVerbosity (VERY_VERBOSE))     # initial value
     if abs (dec_livetime - actual_rate_livetime) > \
@@ -1981,7 +2236,8 @@ def deadtimeCorrection (events, deadtab, info,
 
             if t1 < last_time:
                 countrate = (j - i) / dt_deadtime
-                livetime = determineLivetime (countrate, obs_rate, live_factor)
+                livetime = cosutil.determineLivetime (countrate,
+                                                      obs_rate, live_factor)
             elif t0 < last_time:
                 t1_for_printing = last_time
                 if (last_time - t0) < 0.5 * dt_deadtime and not first:
@@ -1991,8 +2247,8 @@ def deadtimeCorrection (events, deadtab, info,
                                       (last_time - t0,))
                 else:
                     countrate = (j - i) / (last_time - t0)
-                    livetime = determineLivetime (countrate,
-                                                  obs_rate, live_factor)
+                    livetime = cosutil.determineLivetime (countrate,
+                                                          obs_rate, live_factor)
             else:
                 countrate = 0.
                 livetime = 1.
@@ -2075,15 +2331,16 @@ def deadtimeCorrectionAccum (events, deadtab, info,
     # Output count rate from digital event counter (DEC), and corresponding
     # livetime factor.
     dec_countrate = info["countrate"]
-    dec_livetime = determineLivetime (dec_countrate, obs_rate, live_factor)
+    dec_livetime = cosutil.determineLivetime (dec_countrate,
+                                              obs_rate, live_factor)
 
     if info["exptime"] <= 0.:
         cosutil.printWarning ("Can't do deadcorr, exptime = %.6g." %
                               info["exptime"])
         return (0., "SKIPPED")
     actual_countrate = float (ncounts) / info["exptime"]
-    actual_rate_livetime = determineLivetime (actual_countrate,
-                                              obs_rate, live_factor)
+    actual_rate_livetime = cosutil.determineLivetime (actual_countrate,
+                                                      obs_rate, live_factor)
 
     if info["subarray"]:
         livetime_source = "digital event counter (%s)" % keyword
@@ -2149,19 +2406,26 @@ def printLiveInfo (segment, stim_countrate, stim_livetime,
                    dec_countrate, dec_livetime, livetime_source, fd=None):
     """Print or write information about livetime.
 
-    arguments:
-    segment         segment name (for setting keyword name for DEC count rate)
-    stim_countrate  the observed count rate for the stims, or None
-    stim_livetime   livetime factor computed from the input and observed
+    @param segment: segment name (for setting keyword name for DEC count rate)
+    @type segment: string
+    @param stim_countrate: the observed count rate for the stims, or None
+    @type stim_countrate: float
+    @param stim_livetime: livetime factor computed from the input and observed
                       stim rate
-    actual_countrate       observed count rate, from events table
-    actual_rate_livetime   livetime factor derived from countrate
-    dec_countrate   the count rate from the digital event counter
-    dec_livetime    livetime factor computed from dec_countrate
-    livetime_source a string saying whether actual rate or DEC was used
+    @type stim_livetime: float
+    @param actual_countrate: observed count rate, from events table
+    @type actual_countrate: float
+    @param actual_rate_livetime: livetime factor derived from countrate
+    @type actual_rate_livetime: float
+    @param dec_countrate: the count rate from the digital event counter
+    @type dec_countrate: float
+    @param dec_livetime: livetime factor computed from dec_countrate
+    @type dec_livetime: float
+    @param livetime_source: a string saying whether actual rate or DEC was used
                       for computing the livetime factor
-    fd              None if printing to trailer; an fd for printing to a
-                      log file
+    @type livetime_source: string
+    @param fd: None if printing to trailer; an fd for printing to a log file
+    @type fd: int
     """
 
     if segment == "FUVA":
@@ -2193,84 +2457,70 @@ def printLiveInfo (segment, stim_countrate, stim_livetime,
         for msg in messages:
             fd.write (msg + "\n")
 
-def determineLivetime (countrate, obs_rate, live_factor):
-    """Compute livetime factor from observed count rate.
-
-    This is just linear interpolation in live_factor vs obs_rate.
-
-    arguments:
-    countrate     observed count rate
-    obs_rate      list of observed count rates, from deadtab reference table
-    live_factor   list of livetime factors corresponding to obs_rate, from
-                    deadtab
-
-    The function value is the interpolated livetime factor.
-    """
-
-    n = len (obs_rate)
-
-    if countrate <= 0.:
-        livetime = 1.
-    elif n == 1:
-        livetime = live_factor[0]
-    elif countrate < obs_rate[0]:
-        livetime = 1.
-    elif countrate >= obs_rate[n-1]:
-        livetime = live_factor[n-1]
-    else:
-        # Find the interval containing the observed count rate, and interpolate.
-        for i in range (n-1):
-            if countrate < obs_rate[i+1]:
-                p = (countrate - obs_rate[i]) / (obs_rate[i+1] - obs_rate[i])
-                q = 1. - p
-                livetime = live_factor[i] * q + live_factor[i+1] * p
-                break
-
-    return livetime
-
-def writeNull (input, output, outcounts, outcsum, info, phdr, events_hdu):
+def writeNull (input, output, outcounts, outcsum,
+               cl_args, info, phdr, headers):
     """Write output files; images will have null data portions.
 
     The outtag file has already been written, so we only need to write
     the output and outcounts files.
 
-    arguments:
-    input         name of input file
-    output        name of the output file for flat-fielded count-rate image
-    outcounts     name of the output file for count-rate image
-    outcsum       name of the output image for OPUS to add to cumulative
-                      image (or None)
-    info          dictionary of header keywords and values
-    phdr          primary header
-    events_hdu    hdu for events extension
+    @param input: name of the input file
+    @type input: string
+    @param output: name of the output file for flat-fielded count-rate image
+    @type output: string
+    @param outcounts: name of the output file for count-rate image
+    @type outcounts: string
+    @param outcsum: name of the output image for OPUS to add to cumulative
+        image (or None)
+    @type outcsum: string
+    @param cl_args: some of the command-line arguments
+    @type cl_args: dictionary
+    @param info: header keywords and values
+    @type info: dictionary
+    @param phdr: primary header
+    @type phdr: pyfits Header object
+    @param headers: headers
+    @type headers: list of pyfits Header objects
     """
 
     cosutil.printWarning ("No data in " + input)
-    makeImage (outcounts, phdr, events_hdu.header, None, None, None)
-    makeImage (output, phdr, events_hdu.header, None, None, None)
+    makeImage (outcounts, phdr, headers, None, None, None)
+    makeImage (output, phdr, headers, None, None, None)
     if outcsum is not None:
         # pha has to be not None to get the correct dimensions for FUV.
-        writeCsum (None, None, None, N.zeros (1, dtype=N.int8),
+        writeCsum (outcsum, None, None, None, N.zeros (1, dtype=N.int8),
                    info["detector"], info["subarray"],
-                   phdr, events_hdu.header, outcsum)
+                   phdr, headers[1])
 
 def writeImages (x, y, epsilon, dq,
-                 phdr, hdr, dq_array, npix, x_offset, exptime,
+                 phdr, headers, dq_array, npix, x_offset, exptime,
                  outcounts=None, output=None):
     """Bin events to images, and write to output files.
 
-    arguments:
-    x, y          arrays of pixel coordinates of events
-    epsilon       weight column
-    dq            data quality column
-    phdr          the input primary header
-    hdr           the input events extension header
-    dq_array      the data quality array
-    npix          the array shape (ny, nx)
-    x_offset      offset of the detector in a calibrated image
-    exptime       the exposure time
-    outcounts     name of the output file for count-rate image
-    output        name of the output file for flat-fielded count-rate image
+    @param x: X pixel coordinates of events
+    @type x: numpy array
+    @param y: Y pixel coordinates of events
+    @type y: numpy array
+    @param epsilon: weight column
+    @type epsilon: numpy array
+    @param dq: data quality column
+    @type dq: numpy array
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
+    @param headers: the input headers
+    @type headers: list of pyfits Header objects
+    @param dq_array: the data quality array
+    @type dq_array: numpy array
+    @param npix: the array shape (ny, nx)
+    @type npix: tuple
+    @param x_offset: offset of the detector in a calibrated image
+    @type x_offset: int
+    @param exptime: the exposure time
+    @type exptime: float
+    @param outcounts: name of the output file for count-rate image
+    @type outcounts: string
+    @param output: name of the output file for flat-fielded count-rate image
+    @type output: string
     """
 
     global serious_dq_flags
@@ -2297,13 +2547,14 @@ def writeImages (x, y, epsilon, dq,
     C_rate = N.zeros (npix, dtype=N.float32)
 
     if exptime <= 0:
-        cosutil.printWarning ("Exposure time is zero, so output files are dummy.")
+        cosutil.printWarning (
+                "Exposure time is zero, so output files are dummy.")
         E_rate = C_rate.copy()
         errE_rate = C_rate.copy()
         if outcounts is not None:
-            makeImage (outcounts, phdr, hdr, E_rate, errE_rate, dq_array)
+            makeImage (outcounts, phdr, headers, E_rate, errE_rate, dq_array)
         if output is not None:
-            makeImage (output, phdr, hdr, E_rate, errE_rate, dq_array)
+            makeImage (output, phdr, headers, E_rate, errE_rate, dq_array)
         return
 
     ccos.binevents (x, y, C_rate, x_offset, dq, serious_dq_flags)
@@ -2312,7 +2563,7 @@ def writeImages (x, y, epsilon, dq,
 
     if outcounts is not None:
         C_rate /= exptime
-        makeImage (outcounts, phdr, hdr, C_rate, errC_rate, dq_array)
+        makeImage (outcounts, phdr, headers, C_rate, errC_rate, dq_array)
     del C_rate                          # but we still need errC_rate
 
     if output is None:
@@ -2333,18 +2584,23 @@ def writeImages (x, y, epsilon, dq,
     errE_rate = E_rate / errC_rate / exptime
     del errC_rate
 
-    makeImage (output, phdr, hdr, E_rate, errE_rate, dq_array)
+    makeImage (output, phdr, headers, E_rate, errE_rate, dq_array)
 
-def makeImage (outimage, phdr, hdr, sci_array, err_array, dq_array):
+def makeImage (outimage, phdr, headers, sci_array, err_array, dq_array):
     """Write a FITS file, based on headers and data arrays.
 
-    arguments:
-    output        name of the output file to be written
-    phdr          the input primary header
-    hdr           the input events extension header
-    sci_array     the science data array (may be None)
-    err_array     the error estimates array (may be None)
-    dq_array      the data quality array (may be None)
+    @param output: name of the output file to be written
+    @type output: string
+    @param phdr: the input primary header
+    @type phdr: pyfits Header object
+    @param headers: the input headers
+    @type headers: list of pyfits Header objects
+    @param sci_array: the science data array (may be None)
+    @type sci_array: numpy array
+    @param err_array: the error estimates array (may be None)
+    @type err_array: numpy array
+    @param dq_array: the data quality array (may be None)
+    @type dq_array: numpy array
     """
 
     primary_hdu = pyfits.PrimaryHDU (header=phdr)
@@ -2352,20 +2608,23 @@ def makeImage (outimage, phdr, hdr, sci_array, err_array, dq_array):
     fd[0].header["nextend"] = 3
     cosutil.updateFilename (fd[0].header, outimage)
 
-    makeImageHDU (fd, hdr, sci_array, name="SCI")
-    makeImageHDU (fd, hdr, err_array, name="ERR")
-    makeImageHDU (fd, hdr, dq_array, name="DQ")
+    makeImageHDU (fd, headers[1], sci_array, name="SCI")
+    makeImageHDU (fd, headers[2], err_array, name="ERR")
+    makeImageHDU (fd, headers[3], dq_array, name="DQ")
 
     fd.writeto (outimage, output_verify='silentfix')
 
 def makeImageHDU (fd, table_hdr, data_array, name="SCI"):
     """Make an image hdu from data and a table header and append to fd.
 
-    arguments:
-    fd            pyfits object for FITS file (new hdu will be appended)
-    table_hdr     a FITS Header object for a table
-    data_array    image data to be appended (may be None)
-    name          string to be used for EXTNAME
+    @param fd: pyfits object for FITS file (new hdu will be appended)
+    @type fd: pyfits HDUList object
+    @param table_hdr: header for the input table
+    @type table_hdr: pyfits Header object
+    @param data_array: image data to be appended (may be None)
+    @type data_array: numpy array
+    @param name: name to be used for EXTNAME
+    @type name: string
     """
 
     # Create an image header from the table header.
@@ -2375,13 +2634,26 @@ def makeImageHDU (fd, table_hdr, data_array, name="SCI"):
     else:
         imhdr.update ("BUNIT", "count /s")
 
+    if data_array is not None:
+        if imhdr.has_key ("npix1"):
+            del (imhdr["npix1"])
+        if imhdr.has_key ("npix2"):
+            del (imhdr["npix2"])
+        if imhdr.has_key ("pixvalue"):
+            del (imhdr["pixvalue"])
+
     hdu = pyfits.ImageHDU (data=data_array, header=imhdr, name=name)
     fd.append (hdu)
 
-def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
-               phdr, hdr, outcsum):
+def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
+               phdr, hdr,
+               binx=None, biny=None,
+               compress_csum=False,
+               compression_parameters="gzip,-0.1"):
     """Write the "calcos sum" (csum) image.
 
+    @param outcsum: name of output "calcos sum" file
+    @type outcsum: string
     @param xcorr: column for X coordinates of events
     @type xcorr: numpy array
     @param ycorr: column for Y coordinates of events
@@ -2398,13 +2670,26 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
     @type phdr: pyfits Header object
     @param hdr: first extension (EVENTS) header from input file
     @type hdr: pyfits Header object
-    @param outcsum: name of output "calcos sum" file
-    @type outcsum: string
+    @param binx: binning factor in the dispersion direction (or None for
+        the default binning)
+    @type binx: int
+    @param biny: binning factor in the cross-dispersion direction (or None
+        for the default binning)
+    @type biny: int
+    @param compress_csum: compress the csum image?
+    @type compress_csum: boolean
+    @param compression_parameters: compressionType and quantizeLevel (separated
+        by a comma) for the call to pyfits.CompImageHDU; compressionType can
+        be "rice", "gzip", or "hcompress", and quantizeLevel can be e.g. -0.1,
+        which means the floating point values will be scaled to integers with
+        spacing that corresponds to 0.1 dn (see the doc string for
+        pyfits.CompImageHDU for more details)
+    @type compression_parameters: string
     """
 
     # This is the number of possible values for the pulse height amplitude,
     # pha = 0..31.
-    PULSE_HEIGHT_RANGE = 32
+    PHA_RANGE = 32
 
     cosutil.printMsg ("writing file %s ..." % outcsum, VERY_VERBOSE)
 
@@ -2424,28 +2709,78 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
     cosutil.copySubKeywords (hdr, fd[0].header, subarray)
 
     if detector == "FUV":
-        if pha is None:
-            fd.append (pyfits.ImageHDU (data=N.zeros ((FUV_Y, FUV_X),
-                                                      dtype=N.float32),
-                                        header=hdr, name="SCI"))
-            if xcorr is not None:
-                ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
-        else:
-            fd.append (pyfits.ImageHDU (data=N.zeros ((PULSE_HEIGHT_RANGE,
-                                                             FUV_Y, FUV_X),
-                                                      dtype=N.float32),
-                                        header=hdr, name="SCI"))
-            if xcorr is not None:
-                ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
-                              pha.astype(N.int16))
+        if binx is None or binx <= 0:
+            binx = FUV_BIN_X
+        if biny is None or biny <= 0:
+            biny = FUV_BIN_Y
+        nx = FUV_X // binx
+        ny = FUV_Y // biny
+        fd[0].header.update ("fuvbinx", binx)
+        fd[0].header.update ("fuvbiny", biny)
     else:
-        fd.append (pyfits.ImageHDU (data=N.zeros ((NUV_Y, NUV_X),
-                                                  dtype=N.float32),
-                                    header=hdr, name="SCI"))
-        if xcorr is not None:
-            ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon)
+        if binx is None or binx <= 0:
+            binx = NUV_BIN_X
+        if biny is None or biny <= 0:
+            biny = NUV_BIN_Y
+        nx = NUV_X // binx
+        ny = NUV_Y // biny
+        fd[0].header.update ("nuvbinx", binx)
+        fd[0].header.update ("nuvbiny", biny)
 
-    fd[0].header.update ("counts", fd[1].data.sum())
+    if compress_csum:
+        (compType, quantLevel) = compression_parameters.split (",")
+        compType = compType.upper() + "_1"
+        quantLevel = float (quantLevel)
+        if detector == "FUV":
+            if pha is None:
+                data = N.zeros ((ny, nx), dtype=N.float32)
+                if xcorr is not None:
+                    ccos.csum_2d (data, xcorr, ycorr, epsilon, binx, biny)
+            else:
+                data = N.zeros ((PHA_RANGE, ny, nx), dtype=N.float32)
+                if xcorr is not None:
+                    ccos.csum_3d (data, xcorr, ycorr, epsilon,
+                               pha.astype(N.int16), binx, biny)
+        else:
+            data = N.zeros ((ny, nx), dtype=N.float32)
+            if xcorr is not None:
+                ccos.csum_2d (data, xcorr, ycorr, epsilon, binx, biny)
+        fd[0].header.update ("counts", data.sum(dtype=N.float64))
+        fd.append (pyfits.CompImageHDU (data, header=hdr, name="SCI",
+                                        compressionType=compType,
+                                        quantizeLevel=quantLevel))
+        #  the arguments and their defaults are:
+        # compressionType='RICE_1', 'PLIO_1', 'GZIP_1', 'HCOMPRESS_1'
+        # tileSize=None,       # shape of tile, default is one row
+        # hcompScale=0.,       # unit is RMS of image tile
+        # hcompSmooth=0,
+        # if quantizeLevel is positive, unit is RMS of image tile; if negative,
+        # the quantization level is the absolute value of quantizeLevel
+        # quantizeLevel=16.
+        del data
+    else:
+        if detector == "FUV":
+            if pha is None:
+                fd.append (pyfits.ImageHDU (data=N.zeros ((ny, nx),
+                                                          dtype=N.float32),
+                                            header=hdr, name="SCI"))
+                if xcorr is not None:
+                    ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon, binx, biny)
+            else:
+                fd.append (pyfits.ImageHDU (data=N.zeros ((PHA_RANGE, ny, nx),
+                                                          dtype=N.float32),
+                                            header=hdr, name="SCI"))
+                if xcorr is not None:
+                    ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
+                                  pha.astype(N.int16), binx, biny)
+        else:
+            fd.append (pyfits.ImageHDU (data=N.zeros ((ny, nx),
+                                                      dtype=N.float32),
+                                        header=hdr, name="SCI"))
+            if xcorr is not None:
+                ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon, binx, biny)
+        fd[0].header.update ("counts", fd[1].data.sum(dtype=N.float64))
+
     fd[1].header.update ("BUNIT", "count")
 
     fd.writeto (outcsum, output_verify="silentfix")
@@ -2453,10 +2788,12 @@ def writeCsum (xcorr, ycorr, epsilon, pha, detector, subarray,
 def doStatflag (switches, output, outcounts):
     """Compute statistics and update keywords.
 
-    arguments:
-    output        name of the output file for flat-fielded count-rate image
-    outcounts     name of the output file for count-rate image
-    switches      dictionary of calibration switches
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param outflt: name of the output file for flat-fielded count-rate image
+    @type outflt: string
+    @param outcounts: name of the output file for count-rate image
+    @type outcounts: string
     """
 
     cosutil.printSwitch ("STATFLAG", switches)
@@ -2490,32 +2827,28 @@ def appendShift1 (outtag, output, outcounts, shift1_vs_time=None):
 
     fd = pyfits.open (outtag, mode="update")
     fd.append (hdu)
-    phdr = fd[0].header
-    if phdr.has_key ("nextend"):
-        phdr["nextend"] = phdr["nextend"] + 1
+    fd[0].header.update ("nextend", len(fd)-1)
     fd.close()
 
     fd = pyfits.open (output, mode="update")
     fd.append (hdu)
-    phdr = fd[0].header
-    if phdr.has_key ("nextend"):
-        phdr["nextend"] = phdr["nextend"] + 1
+    fd[0].header.update ("nextend", len(fd)-1)
     fd.close()
 
     fd = pyfits.open (outcounts, mode="update")
     fd.append (hdu)
-    phdr = fd[0].header
-    if phdr.has_key ("nextend"):
-        phdr["nextend"] = phdr["nextend"] + 1
+    fd[0].header.update ("nextend", len(fd)-1)
     fd.close()
 
 def flag_gti (time, dq, gti):
     """Flag events in dq that are outside any good time interval.
 
-    arguments:
-    time          the time column in the events table
-    dq            the data quality column in the events table (updated in-place)
-    gti           list of good time intervals
+    @param time: the time column in the events table
+    @type time: numpy array
+    @param dq: the data quality column in the events table (updated in-place)
+    @type dq: numpy array
+    @param gti: list of good time intervals
+    @type gti: list
     """
 
     SMALL_INCR = 0.02           # smaller than the timestep of 0.032 s
@@ -2536,6 +2869,7 @@ def flag_gti (time, dq, gti):
         dq[i0:i1] &= ~DQ_BAD_TIME
 
 def updateFromWavecal (events, wavecal_info,
+                       shift_file,
                        info, switches, reffiles, phdr, hdr):
     """Update XFULL and YFULL based on auto or GO wavecal info.
 
@@ -2544,23 +2878,25 @@ def updateFromWavecal (events, wavecal_info,
     @param wavecal_info: when wavecal exposures were processed, the results
         were stored in this dictionary
     @type wavecal_info: dictionary
+    @param shift_file: if not None, this text file may have been used to
+        override shift1; it's included here just to append its name to
+        the WAVECALS string for the header and trailer
+    @type shift_file: string
     @param info: header keywords and values
     @type info: dictionary
     @param switches: calibration switches
     @type switches: dictionary
     @param reffiles: reference file names
     @type reffiles: dictionary
-    @param phdr: the primary header (WAVECORR keyword can be updated)
+    @param phdr: the primary header (WAVECORR and WAVECALS can be updated)
     @type phdr: PyFITS Header object
     @param hdr: the events extension header (modified in-place)
     @type hdr: PyFITS Header object
 
-    @return: three objects:  the average offset in the X direction, the
-        average offset in the Y direction, and an array of the shifts in
-        the dispersion direction at one-second intervals; these values
-        will be (0., 0., None) if the current observation is a wavecal
-        or if wavecal processing was not done.
-    @rtype: tuple
+    @return: the shifts in the dispersion direction at one-second intervals,
+        or None if the current observation is a wavecal or if wavecal
+        processing was not done.
+    @rtype: array
     """
 
     global xcorr, ycorr, xdopp, ydopp, xfull, yfull
@@ -2580,7 +2916,7 @@ def updateFromWavecal (events, wavecal_info,
     # If the current exposure is a wavecal, or for a science exposure if
     # wavecal processing has not been done, there's nothing to do.
     if info["exptype"].find ("WAVE") >= 0 or not wavecal_info:
-        return (0., 0., None)
+        return None
 
     # Get the shifts in dispersion and cross-dispersion directions at the
     # start of the exposure.  If the science exposure was bracketed by
@@ -2588,30 +2924,50 @@ def updateFromWavecal (events, wavecal_info,
     shift_info = wavecal.returnWavecalShift (wavecal_info,
                         wcp_info, info["fpoffset"], info["expstart"])
     if shift_info is None:
-        return (0., 0., None)
+        return None
 
-    (shift_dict, slope_dict) = shift_info
+    (shift_dict, slope_dict, filename) = shift_info
 
     if info["detector"] == "FUV":
-        segment = info["segment"]
+        segment_list = [info["segment"]]
     else:
-        segment = "NUVB"
+        segment_list = ["NUVA", "NUVB", "NUVC"]
+        psa_region_flags_dict = nuvPsaRegions (eta, info, reffiles["xtractab"])
+        wca_region_flags_dict = nuvWcaRegions (eta, info, reffiles["xtractab"])
 
     time = events.field ("TIME")
     t0 = time[0]
+    t_mid = (t0 + time[-1]) / 2.
 
-    key = "shift1" + segment[-1].lower()
-    if not (shift_dict.has_key (key) and slope_dict.has_key (key)):
-        cosutil.printError ("There is no wavecal for segment %s." % segment)
-        return (0., 0., None)
-    shift1_zero = shift_dict[key]
-    shift1_slope = slope_dict[key]
+    xi_full[:] = xi.copy()
+
+    for segment in segment_list:
+
+        key = "shift1" + segment[-1].lower()
+        if not (shift_dict.has_key (key) and slope_dict.has_key (key)):
+            cosutil.printError ("There is no wavecal for segment %s." % segment)
+            return None
+        shift1_zero = shift_dict[key]
+        shift1_slope = slope_dict[key]
+        if info["detector"] == "FUV":
+            xi_full[:] = N.where (active_area,
+                           xi - ((time - t0) * shift1_slope + shift1_zero),
+                           xi_full)
+        else:
+            xi_full[:] = N.where (psa_region_flags_dict[segment],
+                           xi - ((time - t0) * shift1_slope + shift1_zero),
+                           xi_full)
+            xi_full[:] = N.where (wca_region_flags_dict[segment],
+                           xi - ((time - t0) * shift1_slope + shift1_zero),
+                           xi_full)
+        avg_shift1 = shift1_slope * t_mid + shift1_zero
+        key = "SHIFT1" + segment[-1]
+        hdr.update (key, round (avg_shift1, 4))
+
     if info["detector"] == "FUV":
-        xi_full[:] = N.where (active_area,
-                       xi - ((time - t0) * shift1_slope + shift1_zero),
-                       xi)
+        segment = segment_list[0]
     else:
-        xi_full[:] = xi - ((time - t0) * shift1_slope + shift1_zero)
+        segment = "NUVB"
 
     key = "shift2" + segment[-1].lower()
     shift2_zero = shift_dict[key]
@@ -2621,10 +2977,13 @@ def updateFromWavecal (events, wavecal_info,
                         eta - ((time - t0) * shift2_slope + shift2_zero),
                         eta)
     else:
+        # Use the same shift2 for every stripe.
         eta_full[:] = eta - ((time - t0) * shift2_slope + shift2_zero)
 
-    t_mid = (t0 + time[-1]) / 2.
-    avg_dx = shift1_slope * t_mid + shift1_zero
+    # stripe B for NUV
+    key = "shift1" + segment[-1].lower()
+    shift1_zero = shift_dict[key]
+    shift1_slope = slope_dict[key]
     avg_dy = shift2_slope * t_mid + shift2_zero
 
     # These are one-second time bins, so we add 0.5 second to the array t
@@ -2633,32 +2992,155 @@ def updateFromWavecal (events, wavecal_info,
     t = N.arange (nbins, dtype=N.float64) + t0 + 0.5
     shift1_vs_time = shift1_slope * t + shift1_zero
 
-    # Set the SHIFT1[A-C] and SHIFT2[A-C] keywords to the average offsets
-    # in the dispersion and cross-dispersion directions respectively.
+    # Set the SHIFT2[A-C] keywords to the average offset in the
+    # cross-dispersion direction.
     # Set DPIXEL1[A-C] to the average of the difference xfull minus the
     # nearest integer to xfull, where xfull is the column of that name;
     # this will be used when assigning wavelengths in extract.py.
-    xi_diff = xi_full - N.around (xi_full)
-    dpixel1 = xi_diff.mean()
-    if info["detector"] == "FUV":
-        segment_list = [info["segment"]]
-    else:
-        segment_list = ["NUVA", "NUVB", "NUVC"]
+
     for segment in segment_list:
-        key = "SHIFT1" + segment[-1]
-        hdr.update (key, avg_dx)
         key = "SHIFT2" + segment[-1]
-        hdr.update (key, avg_dy)
+        hdr.update (key, round (avg_dy, 4))
+        if info["detector"] == "FUV":
+            xi_active = xi_full[active_area]
+            xi_diff = xi_active - N.around (xi_active)
+        else:
+            xi_psa = xi_full[psa_region_flags_dict[segment]]
+            xi_diff = xi_psa - N.around (xi_psa)
+        dpixel1 = xi_diff.mean()
         key = "DPIXEL1" + segment[-1]
-        hdr.update (key, dpixel1)
-    if info["opt_elem"] == "G230L" and info["cenwave"] == 3360:
-        hdr.update ("SHIFT1C", 0.)
-        hdr.update ("SHIFT2C", 0.)
-        hdr.update ("DPIXEL1C", 0.)
+        hdr.update (key, round (dpixel1, 4))
 
     phdr["wavecorr"] = "COMPLETE"
+    filename = cosutil.changeSegment (filename, info["detector"],
+                                      info["segment"])
+    if shift_file is not None:
+        filename = filename + " " + shift_file
+    phdr.update ("wavecals", filename)
+    cosutil.printMsg ("Wavecal file(s) '%s'" % filename, VERBOSE)
 
-    return (avg_dx, avg_dy, shift1_vs_time)
+    return shift1_vs_time
+
+def nuvPsaRegions (eta, info, xtractab):
+    """Determine the set of events within the NUV regions for the PSA.
+
+    This is only needed for NUV data.
+
+    @param eta: pixel coordinates in cross-dispersion direction
+    @type eta: array
+    @param info: keywords and values
+    @type info: dictionary
+    @param xtractab: name of spectral extraction parameters reference table
+    @type xtractab: string
+
+    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
+        and an array of Boolean flags as the value, true for events for which
+        the Y coordinate is within the regions for the PSA.
+    @rtype: dictionary of Boolean arrays
+    """
+
+    # segment will be added to the filter below.
+    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"],
+              "aperture": "PSA"}
+    middle = float (NUV_X) / 2.
+
+    # b_spec_a, b_spec_b, b_spec_c, are the locations (at the middle of the
+    # detector) of stripes A, B, C for the PSA, and b_spec_wca is the location
+    # of stripe A for the WCA.
+
+    filter["segment"] = "NUVA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_a = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVB"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_b = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVC"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_c = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVA"
+    filter["aperture"] = "WCA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca = xtract_info.field ("b_spec")[0] + \
+                 xtract_info.field ("slope")[0] * middle
+
+    # Set boundaries midway between adjacent stripes.
+    boundary_a_b = round ((b_spec_a + b_spec_b) / 2.)
+    boundary_b_c = round ((b_spec_b + b_spec_c) / 2.)
+    boundary_c_wca = round ((b_spec_c + b_spec_wca) / 2.)
+
+    region_flags_dict = {}
+    region_flags_dict["NUVA"] = (eta < boundary_a_b)
+    region_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
+    region_flags_dict["NUVC"] = (eta >= boundary_b_c) & (eta < boundary_c_wca)
+
+    return region_flags_dict
+
+def nuvWcaRegions (eta, info, xtractab):
+    """Determine the set of events within the NUV regions for the WCA.
+
+    This is only needed for NUV data.
+
+    @param eta: pixel coordinates in cross-dispersion direction
+    @type eta: array
+    @param info: keywords and values
+    @type info: dictionary
+    @param xtractab: name of spectral extraction parameters reference table
+    @type xtractab: string
+
+    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
+        and an array of Boolean flags as the value, true for events for which
+        the Y coordinate is within the regions for the WCA.
+    @rtype: dictionary of Boolean arrays
+    """
+
+    # aperture and segment will be added to the filter below.
+    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"]}
+    middle = float (NUV_X) / 2.
+
+    # b_spec_c is the location (at the middle of the detector) of stripe C
+    # for the PSA, and b_spec_wca is the location
+    # of stripe A for the WCA.
+
+    filter["segment"] = "NUVC"
+    filter["aperture"] = "PSA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_c = xtract_info.field ("b_spec")[0] + \
+               xtract_info.field ("slope")[0] * middle
+
+    filter["aperture"] = "WCA"
+
+    filter["segment"] = "NUVA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca_a = xtract_info.field ("b_spec")[0] + \
+                   xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVB"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca_b = xtract_info.field ("b_spec")[0] + \
+                   xtract_info.field ("slope")[0] * middle
+
+    filter["segment"] = "NUVC"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca_c = xtract_info.field ("b_spec")[0] + \
+                   xtract_info.field ("slope")[0] * middle
+
+    # Set boundaries midway between adjacent stripes.
+    boundary_c_wca = round ((b_spec_c + b_spec_wca_a) / 2.)
+    boundary_a_b = round ((b_spec_wca_a + b_spec_wca_b) / 2.)
+    boundary_b_c = round ((b_spec_wca_b + b_spec_wca_c) / 2.)
+
+    region_flags_dict = {}
+    region_flags_dict["NUVA"] = (eta >= boundary_c_wca) & (eta < boundary_a_b)
+    region_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
+    region_flags_dict["NUVC"] = (eta >= boundary_b_c)
+
+    return region_flags_dict
 
 def getWavecalOffsets (events):
     """Get min and max values of shift1 and shift2.

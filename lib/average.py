@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as N
 import pyfits
 import cosutil
@@ -6,9 +7,10 @@ from calcosparam import *       # parameter definitions
 def avgImage (input, output):
     """Average 2-D image sets, assumed to be aligned.
 
-    arguments:
-    input         name of the input file
-    output        name of the output file
+    @param input: name of the input file
+    @type input: string
+    @param output: name of the output file
+    @type output: string
     """
 
     nimages = len (input)
@@ -35,6 +37,11 @@ def avgImage (input, output):
     phdr = ifd[0].header
     sci_extn = ifd["SCI"]
     statflag = phdr.get ("statflag", False)
+    if phdr["detector"] == "FUV":
+        segment = phdr["segment"]
+        globrate_keyword = "globrt_" + segment[-1].lower()
+    else:
+        globrate_keyword = "globrate"
     expstart = sci_extn.header["expstart"]
     expend = sci_extn.header["expend"]
     ifd.close()
@@ -55,7 +62,7 @@ def avgImage (input, output):
                 sci_data = sci_extn.data * exptime
                 got_data = 1
             sum_exptime += exptime
-            sum_globrate += (sci_extn.header["globrate"] * exptime)
+            sum_globrate += (sci_extn.header[globrate_keyword] * exptime)
         ifd.close()
     del ifd
 
@@ -84,7 +91,7 @@ def avgImage (input, output):
     scihdu.header.update ("expstrtj", expstart + MJD_TO_JD)
     scihdu.header.update ("expendj", expend + MJD_TO_JD)
     scihdu.header.update ("plantime", sum_plantime)
-    scihdu.header.update ("globrate", globrate)
+    scihdu.header.update (globrate_keyword, round (globrate, 4))
     ofd.append (scihdu)
     ofd.writeto (output, output_verify='silentfix')
     del ofd, phdr, hdr, primary_hdu, sci_data, scihdu

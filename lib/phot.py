@@ -1,3 +1,5 @@
+from __future__ import division
+
 def doPhot (imphttab, obsmode, hdr):
     """Update photometry parameter keywords for imaging data.
 

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+from __future__ import division
 import sys
 import os
 import shutil
@@ -29,6 +30,14 @@ EXP_TARGET_ACQ  = 4
 EXP_ACQ_IMAGE   = 5
 EXP_ENGINEERING = 6
 
+# calcos returns this if there are no files to calibrate (e.g. rawacq but
+# not acq/image).
+NO_DATA_TO_CALIBRATE = 5
+
+# If the input is a raw file rather than an association file, this flag
+# will be set to True.
+raw_input_trailer = False
+
 def main (args):
     """Check arguments and call calcos.
 
@@ -41,6 +50,10 @@ def main (args):
         -s (save temporary files)
         -o outdir (output directory name)
         --csum (create csum image)
+        --compress parameters (compress csum image)
+        --binx X_bin_factor (csum binning in X)
+        --biny Y_bin_factor (csum binning in Y)
+        --shift filename (file to specify shift values)
         --stim filename (append stim locations to filename)
         --live filename (append livetime factors to filename)
         --burst filename (append burst info to filename)
@@ -57,7 +70,8 @@ def main (args):
 
     try:
         (options, pargs) = getopt.getopt (args, "qvso:",
-                           ["csum", "stim=", "live=", "burst="])
+                           ["csum", "compress=", "binx=", "biny=",
+                            "shift=", "stim=", "live=", "burst="])
     except Exception, error:
         cosutil.printError (str (error))
         prtOptions()
@@ -73,9 +87,15 @@ def main (args):
 
     # default values
     cosutil.setVerbosity (VERBOSE)
+    # parameters pertaining to the "calcos sum" file
     create_csum_image = False
+    binx = 1
+    biny = 1
+    compress_csum = False
+    compression_parameters = "gzip,-0.01"
+    # user-supplied text file to specify shift1 and shift2
+    shift_file = None
     save_temp_files = False
-    csumfile = None
     stimfile = None
     livetimefile = None
     burstfile = None
@@ -92,6 +112,15 @@ def main (args):
             outdir = options[i][1]
         elif options[i][0] == "--csum":
             create_csum_image = True
+        elif options[i][0] == "--compress":
+            compress_csum = True
+            compression_parameters = options[i][1]
+        elif options[i][0] == "--binx":
+            binx = int (options[i][1])
+        elif options[i][0] == "--biny":
+            biny = int (options[i][1])
+        elif options[i][0] == "--shift":
+            shift_file = options[i][1]
         elif options[i][0] == "--stim":
             stimfile = options[i][1]
         elif options[i][0] == "--live":
@@ -108,12 +137,19 @@ def main (args):
 
     infiles = uniqueInput (pargs)       # remove duplicate names from list
 
+    status = 0
     for i in range (len (infiles)):
-        calcos (infiles[i], outdir=outdir,
-                create_csum_image=create_csum_image,
-                save_temp_files=save_temp_files,
-                stimfile=stimfile, livetimefile=livetimefile,
-                burstfile=burstfile)
+        status = calcos (infiles[i], outdir=outdir, verbosity=None,
+                         create_csum_image=create_csum_image,
+                         binx=binx, biny=biny,
+                         compress_csum=compress_csum,
+                         compression_parameters=compression_parameters,
+                         shift_file=shift_file,
+                         save_temp_files=save_temp_files,
+                         stimfile=stimfile, livetimefile=livetimefile,
+                         burstfile=burstfile)
+    if status != 0:
+        sys.exit (status)
 
 def prtOptions():
     """Print a list of command-line options and arguments."""
@@ -124,6 +160,10 @@ def prtOptions():
     cosutil.printMsg ("  -s (save temporary files)")
     cosutil.printMsg ("  -o outdir (output directory name)")
     cosutil.printMsg ("  --csum (create 'calcos sum' image)")
+    cosutil.printMsg ("  --compress parameters (compress csum image)")
+    cosutil.printMsg ("  --binx X_bin_factor (csum bin factor in X)")
+    cosutil.printMsg ("  --biny Y_bin_factor (csum bin factor in Y)")
+    cosutil.printMsg ("  --shift filename (file to specify shift values)")
     cosutil.printMsg ("  --stim filename (append stim locations to filename)")
     cosutil.printMsg ("  --live filename (append livetime factors to filename)")
     cosutil.printMsg ("  --burst filename (append burst info to filename)")
@@ -175,7 +215,11 @@ def checkNumerix():
                               os.environ["NUMERIX"])
 
 def calcos (asntable, outdir=None, verbosity=None,
-            create_csum_image=False, save_temp_files=False,
+            create_csum_image=False,
+            binx=None, biny=None,
+            compress_csum=False, compression_parameters="gzip,-0.01",
+            shift_file=None,
+            save_temp_files=False,
             stimfile=None, livetimefile=None, burstfile=None):
     """Calibrate COS data.
 
@@ -193,6 +237,27 @@ def calcos (asntable, outdir=None, verbosity=None,
         counts detected at each pixel (includes deadcorr but not flatcorr),
         for OPUS to add to cumulative image
     @type create_csum_image: boolean
+
+    @param binx: binning factor for the X axis (or None, which means that
+        the default binning should be used)
+    @type binx: int or None
+
+    @param biny: binning factor for the Y axis (or None, which means that
+        the default binning should be used)
+    @type biny: int or None
+
+    @param compress_csum: if True, compress the "calcos sum" image
+    @type compress_csum: boolean
+
+    @param compression_parameters: two values separated by a comma; the first
+        is the compression type (rice, gzip or hcompress), and the second is
+        the quantization level
+    @type compression_parameters: string
+
+    @param shift_file: if specified, this text file contains values of
+        shift1 (and possibly shift2) to override the values found via
+        wavecal processing
+    @type shift_file: string
 
     @param save_temp_files: By default, the _x1d_a.fits and _x1d_b.fits files
         (if FUV) will be deleted after concatenating to the _x1d.fits file.
@@ -213,6 +278,9 @@ def calcos (asntable, outdir=None, verbosity=None,
     """
 
     t0 = time.time()
+    # If asntable is a raw file, open a trailer for it.
+    openTrailerForRawInput (asntable, outdir)
+
     cosutil.printMsg ("CALCOS version " + CALCOS_VERSION)
     cosutil.printMsg ("numpy version " + numpy.__version__)
     cosutil.printMsg ("pyfits version " + pyfits.__version__)
@@ -224,14 +292,24 @@ def calcos (asntable, outdir=None, verbosity=None,
     if verbosity is not None:
         cosutil.setVerbosity (verbosity)
 
-    assoc = Association (asntable, outdir,
-                         create_csum_image, save_temp_files,
-                         stimfile, livetimefile, burstfile)
+    # some of the command-line arguments
+    cl_args = {"create_csum_image": create_csum_image,
+               "binx": binx,
+               "biny": biny,
+               "compress_csum": compress_csum,
+               "compression_parameters": compression_parameters,
+               "shift_file": shift_file,
+               "save_temp_files": save_temp_files,
+               "stimfile": stimfile,
+               "livetimefile": livetimefile,
+               "burstfile": burstfile}
+
+    assoc = Association (asntable, outdir, cl_args)
     if len (assoc.obs) == 0:
-        return
+        return NO_DATA_TO_CALIBRATE
     if not assoc.isAnySwitchSet():
         cosutil.printMsg ("Nothing to do; all calibration switches are OMIT.")
-        return
+        return 0
 
     cal = Calibration (assoc)
 
@@ -250,6 +328,38 @@ def calcos (asntable, outdir=None, verbosity=None,
     t1 = time.time()
     cosutil.printMsg ("elapsed time = %.1f sec. = %.2f min." % \
                                 (t1-t0, (t1-t0)/60.), VERY_VERBOSE)
+    closeTrailerForRawInput()
+
+    return 0
+
+def openTrailerForRawInput (input, outdir):
+    """Open the trailer file for this file."""
+
+    global raw_input_trailer
+
+    if input.endswith ("_asn") or input.endswith ("_asn.fits"):
+        return
+    if raw_input_trailer:               # already open?
+        return
+
+    input = os.path.expandvars (input)
+    input = os.path.basename (input)
+    rootname = getRootname (input, "_raw")
+    if outdir:
+        trailer = os.path.join (outdir, rootname) + ".tra"
+    else:
+        trailer = rootname + ".tra"
+
+    cosutil.openTrailer (trailer)
+    raw_input_trailer = True
+
+def closeTrailerForRawInput():
+    """Close the trailer file for this file."""
+
+    global raw_input_trailer
+
+    cosutil.closeTrailer()
+    raw_input_trailer = False
 
 def replaceSuffix (rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
@@ -315,6 +425,10 @@ def getRootname (input, suffix):
     abc
     """
 
+    # Allow corrtag as input.
+    if input.find (suffix) < 0:
+        suffix = "_corr"
+
     pieces = input.split (suffix)
     if len (pieces) > 1:
         root = suffix.join (pieces[:-1])
@@ -332,6 +446,7 @@ class Association (object):
     Some of the attributes are:
         asntable           full name of the association file, or None if the
                              name (or rootname) of a raw file was specified
+        cl_args            some of the command-line arguments
         asn_info           a dictionary of the contents of the association table
         indir              name of input directory, or an empty string; if a
                              directory was specified, it will be added as a
@@ -361,9 +476,7 @@ class Association (object):
                              or accum, whichever is not None)
     """
 
-    def __init__ (self, asntable, outdir=None,
-                  create_csum_image=False, save_temp_files=False,
-                  stimfile=None, livetimefile=None, burstfile=None):
+    def __init__ (self, asntable, outdir, cl_args):
 
         """Constructor.
 
@@ -374,29 +487,14 @@ class Association (object):
         @param outdir: name of output directory, or None
         @type outdir: string
 
-        @param create_csum_image: if True, write an image that reflects the
-            counts detected at each pixel (includes deadcorr but not flatcorr),
-            for OPUS to add to cumulative image
-        @type create_csum_image: boolean
-
-        @param save_temp_files: By default, the _x1d_a.fits and _x1d_b.fits
-            files (if FUV) will be deleted after concatenating to the _x1d.fits
-            file.  Specify save_temp_files=True to keep these files.
-        @type save_temp_files: boolean
-
-        @param stimfile: if specified, the stim positions will be written to
-            (or appended to) a text file with this name
-        @type stimfile: string
-
-        @param livetimefile: if specified, the livetime factors will be written
-            to (or appended to) a text file with this name
-        @type livetimefile: string
-
-        @param burstfile: if specified, burst information will be written to
-            (or appended to) a text file with this name
-        @type burstfile: string
+        @param cl_args: some of the command-line arguments, or their defaults
+        @type cl_args: dictionary
         """
 
+        self.asntable = None
+        self.cl_args = None
+        self.indir = ""
+        self.outdir = ""
         self.asn_info = {}          # association table info
         self.combine = {}           # files to combine
         self.concat = []            # list of dictionaries of concat info
@@ -411,12 +509,7 @@ class Association (object):
                                     # whichever is not None
 
         # Copy command-line options to attributes.
-        self.asntable = None                    # initial value
-        self.create_csum_image = create_csum_image
-        self.save_temp_files = save_temp_files
-        self.stimfile = stimfile
-        self.livetimefile = livetimefile
-        self.burstfile = burstfile
+        self.cl_args = cl_args
 
         asntable = os.path.expandvars (asntable)
         self.indir = os.path.dirname (asntable)
@@ -450,7 +543,8 @@ class Association (object):
 
                 basic_info = self.initialInfo (memname[i])
                 if basic_info is None:
-                    continue
+                    # Missing raw data, or error in association table.
+                    continue            # don't process this exposure
                 self.rawfiles.extend (basic_info["rawfiles"])
                 concat_info = {}                # will be one element of concat
                 concat_these = []               # x1d_a and x1d_b names
@@ -539,14 +633,16 @@ class Association (object):
         self.asn_info["memtype"] = []
         self.asn_info["mempresent"] = []
 
-        # Convert the memnames to lower case, and prefix them with the
-        # input directory name.
+        # Convert the memnames to lower case (unless a full file name was
+        # given), and prefix them with the input directory name.
         asn_memname = asn_data.field ("memname")
         asn_memtype = asn_data.field ("memtype")
         asn_memprsnt = asn_data.field ("memprsnt")
         for i in range (nrows):
+            if not asn_memname[i].endswith (".fits"):
+                asn_memname[i] = asn_memname[i].lower()
             self.asn_info["memname"].append ( \
-                        os.path.join (self.indir, asn_memname[i].lower()))
+                        os.path.join (self.indir, asn_memname[i]))
             self.asn_info["memtype"].append (asn_memtype[i])
             self.asn_info["mempresent"].append (asn_memprsnt[i])
 
@@ -566,20 +662,18 @@ class Association (object):
             cosutil.printMsg ("product = " + self.product, VERY_VERBOSE)
 
         # Enable writing to trailer files.
-        cosutil.setWriteToTrailer (True)
+        # cosutil.setWriteToTrailer (True)
 
     def dummyAsnTable (self, asntable):
         """Construct a recarray corresponding to an association table.
 
         This function will be called for the case that the user specified
-        the name of a raw file instead of an association table.  The
-        'asntable' argument is the name as given by the user; we will
-        extract the root that precedes "_raw*.fits", i.e. excluding the
-        suffix.  A recarray object will be created that has the appropriate
-        column names for an association table, and the "row" of data will be
-        assigned the specified rootname.  There will only be this one row;
-        product will be set to None.  The memtype will be set to "none",
-        even though it might actually be a wavecal.
+        the name of a raw (or corrtag) file instead of an association table.
+        The 'asntable' argument is the name as given by the user; we will
+        assign that full name (not just the rootname) to asn_info["memname"].
+        There will only be this one row; product will be set to None.  The
+        memtype will be set to "none", even though it might actually be a
+        wavecal.
 
         @param asntable: the name of an input raw file (not really an
             association table name)
@@ -588,9 +682,16 @@ class Association (object):
 
         cosutil.printMsg ("Input file = " + asntable, VERBOSE)
 
-        rootname = getRootname (asntable, "_raw")
+        # asntable is not an association table name, it's an actual file
+        # name.  If a complete file name was specified, and if that file
+        # exists, save the full name as memname; otherwise, extract the
+        # root name and save that.
+        if os.access (asntable, os.R_OK):
+            self.asn_info["memname"] = [asntable]
+        else:
+            rootname = getRootname (asntable, "_raw")
+            self.asn_info["memname"] = [rootname]
 
-        self.asn_info["memname"] = [rootname]
         self.asn_info["memtype"] = ["none"]
         self.asn_info["mempresent"] = [True]    # yes, it is present
 
@@ -599,7 +700,7 @@ class Association (object):
         self.product_type = None
 
         # Disable writing to the trailer file.
-        cosutil.setWriteToTrailer (False)
+        # cosutil.setWriteToTrailer (False)
 
     def initialInfo (self, memname):
         """Get preliminary information from an input file.
@@ -610,15 +711,46 @@ class Association (object):
         that the suffixes are as expected for the DETECTOR and OBSMODE
         keywords.
 
+        If the input is a complete file name, and the file exists, then the
+        dictionary of keywords and values will be returned without using
+        wildcards or other checks on suffix.
+
         @param memname: a value in the MEMNAME (member name) column of an
-            association table, converted to lower case
+            association table, converted to lower case; if the user specified
+            an explicit file name rather than an association table name,
+            memname should be the full file name
         @type memname: string
 
         @return: dictionary of keywords and values; the value will be None
             if there are no files that match the template, or if the input
             is an ACQ other than ACQ/IMAGE.
-        @rtype: dictionary
+        @rtype: dictionary, or None
         """
+
+        # Did the user specify a particular input file?  If so, this is
+        # all we need to do.
+        if os.access (memname, os.R_OK):
+            basic_info = getinfo.initialInfo (memname)
+            if memname.endswith ("rawacq.fits") and \
+               basic_info["exptype"] != "ACQ/IMAGE":
+                cosutil.printWarning ("File %s will be skipped because " \
+                        "it is not an ACQ/IMAGE" % memname)
+                return None
+            rawfiles = [memname]
+            if basic_info["detector"] == "FUV":
+                if memname.endswith ("_a.fits"):
+                    other_segment = memname[:-7] + "_b.fits"
+                elif memname.endswith ("_b.fits"):
+                    other_segment = memname[:-7] + "_a.fits"
+                else:
+                    other_segment = None
+                if other_segment is not None and \
+                   os.access (other_segment, os.R_OK):
+                    rawfiles.append (other_segment)
+                    rawfiles.sort()
+            basic_info["rawfiles"] = rawfiles
+
+            return basic_info
 
         # First find out whether we've got time-tag or accum, FUV or NUV.
         # Look for both rawaccum and rawimage.
@@ -629,6 +761,7 @@ class Association (object):
         all_rawfiles.extend (raw)
         raw = glob.glob (memname + "_rawimage*.fits")
         all_rawfiles.extend (raw)
+
         # The input should not include both science files and acq files,
         # but if it does, make sure the first raw file (see below) is a
         # science file rather than an acq.  If the only file is an acq,
@@ -642,10 +775,12 @@ class Association (object):
             else:
                 cosutil.printWarning (
             "File %s will be skipped because it is not an ACQ/IMAGE" % raw[0])
-        if len (all_rawfiles) == 0:
+
+        if not all_rawfiles:
             cosutil.printWarning (
-                "There are no raw files for rootname `%s'" % memname)
+                "There are no files to calibrate for rootname '%s'" % memname)
             return None
+
         # Get info from the first raw file with the specified rootname.
         initial_basic_info = getinfo.initialInfo (all_rawfiles[0])
         detector = initial_basic_info["detector"]
@@ -1123,7 +1258,7 @@ class Association (object):
         # ones that are independent of others.  For example, it wouldn't
         # matter if fluxcorr were set to perform if x1dcorr were omit.
         self.global_switches["any"] = "OMIT"            # default value
-        if self.create_csum_image:
+        if self.cl_args["create_csum_image"]:
             self.global_switches["any"] = "PERFORM"
         for key in ["badtcorr", "brstcorr", "deadcorr", "doppcorr",
                     "dqicorr",  "flatcorr", "geocorr",  "helcorr",
@@ -1202,15 +1337,15 @@ class Association (object):
                 self.checkExists (obs.filenames["x1d_x"], wavecal_exists)
                 if obs.filenames["x1d"] != obs.filenames["x1d_x"]:
                     self.checkExists (obs.filenames["x1d"], wavecal_exists)
-                if self.create_csum_image:
+                if self.cl_args["create_csum_image"]:
                     self.checkExists (obs.filenames["csum"], wavecal_exists)
             else:
-                if obs.info["obsmode"] == "TIME-TAG":
-                    self.checkExists (obs.filenames["corrtag"], already_exists)
-                    self.checkExists (obs.filenames["flash_x"], already_exists)
-                    self.checkExists (obs.filenames["flash"], already_exists)
+                self.checkExists (obs.filenames["corrtag"], already_exists)
                 self.checkExists (obs.filenames["flt"], already_exists)
                 self.checkExists (obs.filenames["counts"], already_exists)
+                if obs.info["obsmode"] == "TIME-TAG":
+                    self.checkExists (obs.filenames["flash_x"], already_exists)
+                    self.checkExists (obs.filenames["flash"], already_exists)
                 if obs.switches["x1dcorr"] == "PERFORM":
                     self.checkExists (obs.filenames["x1d_x"], already_exists)
                     if obs.filenames["x1d"] != obs.filenames["x1d_x"]:
@@ -1278,8 +1413,9 @@ class Association (object):
         """
 
         i = self.first_science
-        if self.stimfile is not None and self.obs[i].info["detector"] != "FUV":
-            self.stimfile = None
+        if self.cl_args["stimfile"] is not None and \
+           self.obs[i].info["detector"] != "FUV":
+            self.cl_args["stimfile"] = None
             cosutil.printWarning (
                 "stimfile reset to None because detector is NUV.")
 
@@ -1385,7 +1521,7 @@ def initObservation (input, outdir, memtype, detector, obsmode, first=False):
     @type obsmode: string
     @param first: True if the current file is the first for a given rootname
         (this is for writing the calcos version string to the trailer, so
-        it won't be written for both FUV segments A and B)
+        that it won't be written for both FUV segments A and B)
     @type first: boolean
 
     @return: an Observation object
@@ -1424,7 +1560,8 @@ class Observation (object):
         @type memtype: string
         @param suffix: suffix to the rootname, but just "_rawtag" or
             "_rawaccum" (i.e. excluding "_a" or "_b" if the data were taken
-            with the FUV detector)
+            with the FUV detector); this can be reset to "_corrtag" or
+            "_rawimage" or "_rawacq"
         @type suffix: string
         @param first: True if the current file is the first of two for FUV
         @type first: boolean
@@ -1437,17 +1574,28 @@ class Observation (object):
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
 
-        # For ACCUM data, allow suffix to be "_rawaccum", "_rawimage" or
-        # "_rawacq".
-        if input.find (suffix) < 0:
-            suffix = "_rawimage"
-        if input.find (suffix) < 0:
-            suffix = "_rawacq"
-        if input.find (suffix) < 0:
-            raise RuntimeError, "can't find suffix in `%s'" % input
-
         self.getHeaderInfo()
+        if self.info["corrtag_input"] and not outdir:
+            raise RuntimeError, "When the input is a corrtag file," \
+                    " an output directory must be specified."
+
+        if self.info["corrtag_input"]:
+            suffix = "_corrtag"
+        else:
+            # For ACCUM data, allow suffix to be "_rawaccum", "_rawimage" or
+            # "_rawacq".
+            if input.find (suffix) < 0:
+                suffix = "_rawimage"
+            if input.find (suffix) < 0:
+                suffix = "_rawacq"
+        if input.find (suffix) < 0:
+            raise RuntimeError, "can't find suffix %s in %s" % \
+                    (suffix, input)
+
         self.filenames = self.makeFileNames (suffix, outdir)
+        # This value of info["root"] is based on the filename on disk, which
+        # could differ from the value of the rootname keyword.
+        self.info["root"] = self.filenames["root"]
         self.openTrailer (first)    # open the trailer file for this input file
         self.sanityCheck()
 
@@ -1503,6 +1651,7 @@ class Observation (object):
                         "EXPTYPE will be changed to EXTERNAL/CAL.")
                     self.info["exptype"] = "EXTERNAL/CAL"
                     self.exp_type = EXP_CALIBRATION
+                    # or should we use:  self.exp_type = EXP_SCIENCE
                 else:
                     cosutil.printWarning ("EXPTYPE = %s and TAGFLASH = %s " \
                         "for %s;" % (self.info["exptype"],
@@ -1550,12 +1699,22 @@ class Observation (object):
     def openTrailer (self, first=False):
         """Open the trailer file for this file."""
 
+        global raw_input_trailer
+
+        if raw_input_trailer:           # handled separately
+            return
+
         cosutil.openTrailer (self.filenames["trl"])
         if first:
             cosutil.writeVersionToTrailer()
 
     def closeTrailer (self):
         """Close the trailer file for this file."""
+
+        global raw_input_trailer
+
+        if raw_input_trailer:           # handled separately
+            return
 
         cosutil.closeTrailer()
 
@@ -1565,7 +1724,11 @@ class Observation (object):
         This routine gets general info from both the primary and EVENTS or SCI
         extension headers, and it gets calibration switches and reference
         file names from the primary header.
+
+        This function also adds keys "corrtag_input" and "cal_ver" to the
+        info dictionary.
         """
+
         fd = pyfits.open (self.input, mode="readonly")
         phdr = fd[0].header
         try:
@@ -1584,16 +1747,17 @@ class Observation (object):
         # check for ref file name "N/A"
         getinfo.resetSwitches (self.switches, self.reffiles)
 
-        self.info["cal_ver"] = CALCOS_VERSION
+        # Is the input a corrtag file?
+        self.info["corrtag_input"] = cosutil.isCorrtag (self.input)
 
-        fd.close()
+        self.info["cal_ver"] = CALCOS_VERSION
 
     def sanityCheck (self):
         """Check some keywords to make sure they're reasonable.
 
         For thermal vac data, this also updates opt_elem, cenwave and fpoffset
         in the info dictionary, if necessary.  Other keywords that may be
-        reset are obstype, exptype and dispaxis.
+        reset are obstype and dispaxis.
         """
 
         info = self.info
@@ -1912,6 +2076,15 @@ class Observation (object):
 
         messages = []
 
+        if self.exp_type == EXP_WAVECAL:
+            # Silently set these switches.
+            self.switches["wavecorr"] = "PERFORM"
+            self.switches["x1dcorr"] = "PERFORM"
+            self.switches["doppcorr"] = "OMIT"
+            self.switches["helcorr"] = "OMIT"
+            self.switches["fluxcorr"] = "OMIT"
+            self.switches["tdscorr"] = "OMIT"
+
         if self.info["aperture"] == "WCA" or self.info["aperture"] == "FCA":
             self.overrideSwitch ("photcorr", messages)
 
@@ -1921,21 +2094,10 @@ class Observation (object):
 
             self.overrideSwitch ("doppcorr", messages)
             self.overrideSwitch ("helcorr", messages)
-            self.overrideSwitch ("x1dcorr", messages)
-            self.overrideSwitch ("wavecorr", messages)
             self.overrideSwitch ("backcorr", messages)
             self.overrideSwitch ("fluxcorr", messages)
 
         else:                                   # spectroscopic
-
-            if self.exp_type == EXP_WAVECAL:
-                # Silently set these switches.
-                self.switches["wavecorr"] = "PERFORM"
-                self.switches["x1dcorr"] = "PERFORM"
-                self.switches["doppcorr"] = "OMIT"
-                self.switches["helcorr"] = "OMIT"
-                self.switches["fluxcorr"] = "OMIT"
-                self.switches["tdscorr"] = "OMIT"
 
             if self.info["obsmode"] == "TIME-TAG" and \
                self.info["doppmagv"] == 0.:
@@ -2123,23 +2285,22 @@ class Calibration (object):
             outflash = filenames["flash_x"]
         else:
             outflash = None
-        if self.assoc.create_csum_image:
+        if self.assoc.cl_args["create_csum_image"]:
             outcsum = filenames["csum"]
         else:
             outcsum = None
         if info["obsmode"] == "TIME-TAG":
             status = timetag.timetagBasicCalibration (input, None, outtag,
                         output, outcounts, outflash, outcsum,
+                        self.assoc.cl_args,
                         info, switches, reffiles,
-                        self.wavecal_info,
-                        self.assoc.stimfile, self.assoc.livetimefile,
-                        self.assoc.burstfile)
+                        self.wavecal_info)
         else:
             status = accum.accumBasicCalibration (input, inpha, outtag,
                         output, outcounts, outcsum,
+                        self.assoc.cl_args,
                         info, switches, reffiles,
-                        self.wavecal_info,
-                        self.assoc.stimfile, self.assoc.livetimefile)
+                        self.wavecal_info)
 
     def allWavecals (self):
         """Process all the wavecal observations in the association."""
@@ -2163,11 +2324,12 @@ class Calibration (object):
                         obs.info, obs.switches, obs.reffiles)
                 # Find spectrum in cross-dispersion direction.
                 # (xd_shifts and xd_locns are ignored.)
-                (shift2, xd_shifts, xd_locns) = wavecal.findWavecalSpectrum \
-                        (obs.filenames["corrtag"], obs.info, obs.reffiles)
-                # Update shift2[a-c] keywords.
+                (shift2, xd_shifts, xd_locns, lamp_is_on) = \
+                wavecal.findWavecalSpectrum (obs.filenames["corrtag"],
+                                             obs.info, obs.reffiles)
+                # Update shift2[a-c] keywords, and possibly lampused.
                 self.setSpectrumOffset (obs.filenames,
-                        obs.info["segment"], shift2)
+                        obs.info["segment"], shift2, lamp_is_on)
                 self.extractSpectrum (obs.filenames)
                 obs.closeTrailer()
 
@@ -2263,14 +2425,17 @@ class Calibration (object):
                     wavecal.printWavecalRef (obs.reffiles)
                     first = False
                 cosutil.printFilenames ([("Input", x1d_file)])
-                shift_dict = wavecal.findWavecalShift (x1d_file, self.wcp_info)
+                shift_dict = wavecal.findWavecalShift (x1d_file,
+                                self.assoc.cl_args["shift_file"], obs.info,
+                                self.wcp_info)
 
                 if shift_dict is not None:
                     # time is the MJD at the midpoint of the exposure.
                     time = cosutil.timeAtMidpoint (obs.info)
                     wavecal.storeWavecalInfo (self.wavecal_info,
                             time, obs.info["fpoffset"],
-                            shift_dict, obs.filenames["root"])
+                            shift_dict, obs.filenames["root"],
+                            obs.filenames["raw"])
                 obs.closeTrailer()
 
     def updateShift (self, filenames, wavecorr, info):
@@ -2291,10 +2456,10 @@ class Calibration (object):
         @type info: dictionary
         """
 
-        if info["obsmode"] == "TIME-TAG" or info["obstype"] != "SPECTROSCOPIC":
+        if info["obsmode"] == "TIME-TAG":
             return
 
-        if wavecorr != "PERFORM":
+        if wavecorr != "PERFORM" and wavecorr != "COMPLETE":
             shift_dict = None
         elif len (self.wavecal_info) < 1:
             shift_dict = None
@@ -2303,10 +2468,9 @@ class Calibration (object):
             time = cosutil.timeAtMidpoint (info)        # MJD
             shift_info = wavecal.returnWavecalShift (self.wavecal_info,
                          self.wcp_info, info["fpoffset"], time)
-            if wavecorr == "PERFORM" and len (self.wavecal_info) > 0 and \
-               shift_info is not None:
-                # only the shift will be used, not the slope
-                (shift_dict, slope_dict) = shift_info
+            if len (self.wavecal_info) > 0 and shift_info is not None:
+                # only the shift will be used, not the slope or the file name
+                (shift_dict, slope_dict, wavecal_filename) = shift_info
                 cosutil.printSwitch ("WAVECORR", {"wavecorr": "PERFORM"})
                 if cosutil.checkVerbosity (VERY_VERBOSE):
                     keywords = shift_dict.keys()
@@ -2324,13 +2488,16 @@ class Calibration (object):
         # the pseudo-corrtag table.
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
+            if info["exptype"] == "ACQ/IMAGE":
+                # Wavecal offsets are not relevant for acq/image data.
+                continue
             if os.access (fname, os.R_OK):
                 fd = pyfits.open (fname, mode="update")
                 phdr = fd[0].header
                 try:
                     hdr = fd["EVENTS"].header
                 except:
-                    hdr = fd["SCI"].header
+                    hdr = fd[("SCI",1)].header
                 if wavecorr == "PERFORM" and len (self.wavecal_info) > 0:
                     phdr.update ("WAVECORR", "COMPLETE")
                 hdr.update ("DPIXEL1A", 0.)     # dpixel1 not used for ACCUM
@@ -2348,10 +2515,11 @@ class Calibration (object):
                 else:
                     for key in shift_dict.keys():
                         shift = shift_dict[key]
+                        shift = round (shift, 4)        # round to four places
                         hdr.update (key, shift)
                 fd.close()
 
-    def setSpectrumOffset (self, filenames, segment, shift2):
+    def setSpectrumOffset (self, filenames, segment, shift2, lamp_is_on):
         """Update the shift2 keywords in corrtag, flt, counts headers.
 
         This function is called only for a wavecal, not for a science
@@ -2360,19 +2528,24 @@ class Calibration (object):
 
         @param filenames: input and output file names
         @type filenames: dictionary
-
         @param segment: FUV segment name or NUV stripe name
         @type segment: string
-
         @param shift2: offset in cross-dispersion direction, as determined
             from (conventional) wavecal data
         @type shift2: float
+        @param lamp_is_on: True if the wavecal lamp was actually on
+        @type lamp_is_on: boolean
         """
 
         if segment[0:3] == "FUV":
             keywords = ["SHIFT2"+segment[-1]]
         else:
             keywords = ["SHIFT2A", "SHIFT2B", "SHIFT2C"]
+        # flags to control printing of messages regarding keyword lampused
+        print_msg1 = False
+        print_msg2 = False
+        print_msg3 = False
+        print_msg4 = False
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
             if os.access (fname, os.R_OK):
@@ -2381,10 +2554,37 @@ class Calibration (object):
                 try:
                     hdr = fd["EVENTS"].header
                 except:
-                    hdr = fd["SCI"].header
+                    hdr = fd[("SCI",1)].header
                 for keyword in keywords:
-                    hdr.update (keyword, shift2)
+                    hdr.update (keyword, round (shift2, 4))
+                lampused = phdr.get ("lampused", "missing")
+                lampplan = phdr.get ("lampplan", "missing")
+                if lamp_is_on and lampused == "NONE":
+                    if lampplan == "missing":
+                        print_msg1 = True
+                    else:
+                        print_msg2 = True
+                        phdr["lampused"] = lampplan
+                if not lamp_is_on:
+                    print_msg3 = True
+                    if lampused != "NONE":
+                        print_msg4 = True
+                        phdr["lampused"] = "NONE"
                 fd.close()
+        if print_msg1:
+            cosutil.printWarning ("The wavecal lamp was on, but LAMPUSED = " \
+                                  "%s and LAMPPLAN is missing." % \
+                                  lampused, level=VERBOSE)
+        if print_msg2:
+            cosutil.printMsg ("LAMPUSED = %s, which is incorrect; " \
+                              "the value will be reset to %s." % \
+                              (lampused, lampplan), level=VERBOSE)
+        if print_msg3:
+            cosutil.printWarning ("The wavecal lamp was off for a wavecal!", \
+                                  level=VERBOSE)
+        if print_msg4:
+            cosutil.printMsg ("LAMPUSED = %s, and it will be reset to NONE." \
+                              % lampused, level=VERBOSE)
 
     def setWavecalShift (self, filenames):
         """Update the shift keywords in corrtag, flt, counts headers.
@@ -2410,11 +2610,11 @@ class Calibration (object):
                 try:
                     hdr = fd["EVENTS"].header
                 except:
-                    hdr = fd["SCI"].header
+                    hdr = fd[("SCI",1)].header
                 phdr.update ("WAVECORR", "COMPLETE")
                 for keyword in shift_dict.keys():
                     shift = shift_dict[keyword]
-                    hdr.update (keyword, shift)
+                    hdr.update (keyword, round (shift, 4))
                 fd.close()
 
     def mergeKeywords (self):
@@ -2430,11 +2630,15 @@ class Calibration (object):
         incl_wildcard = ["stimX_lx", "stimX_ly", "stimX_rx", "stimX_ry",
                 "stimX0lx", "stimX0ly", "stimX0rx", "stimX0ry",
                 "stimXslx", "stimXsly", "stimXsrx", "stimXsry",
-                "pha_badX", "phalowrX", "phaupprX",
+                "npha_X", "phalowrX", "phaupprX",
+                "tbrst_X", "nbrst_X", "tbadt_X", "nbadt_X",
+                "nout_X",
+                "globrt_X",
                 "sp_loc_X", "sp_slp_X",
                 "b_bkg1_X", "b_bkg2_X",
                 "b_hgt1_X", "b_hgt2_X",
-                "shift1X", "shift2X", "dpixel1X"]
+                "shift1X", "shift2X", "dpixel1X",
+                "chi_sq_X", "ndf_X"]
         a_kwds = []
         b_kwds = []
         for keyword in incl_wildcard:
@@ -2486,7 +2690,7 @@ class Calibration (object):
                         continue
                 else:
                     extract.concatenateFUVSegments (infiles, output)
-                    if not self.assoc.save_temp_files:
+                    if not self.assoc.cl_args["save_temp_files"]:
                         # Delete the _x1d_a.fits and _x1d_b.fits files.
                         for file in infiles:
                             if os.access (file, os.R_OK):

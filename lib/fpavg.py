@@ -1,5 +1,4 @@
-#! /usr/bin/env python
-
+from __future__ import division
 import math
 import numpy as N
 import pyfits
@@ -83,11 +82,10 @@ def oneInputFile (input, output):
         background[row,:] = N.where (dq_wgt[row] <= 0., 0., background[row])
 
     cosutil.updateFilename (fd[0].header, output)
-    if cosutil.isProduct (output):
-        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
-        asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
-        if asn_mtyp != "missing":
-            fd[1].header["asn_mtyp"] = asn_mtyp
+    if fd[0].header.has_key ("segment"):
+        del (fd[0].header["segment"])
+    if fd[0].header.has_key ("wavecals"):
+        del (fd[0].header["wavecals"])
     delSomeKeywords (fd[1].header)
 
     fd.writeto (output)
@@ -238,9 +236,13 @@ class OutputX1D (object):
         output table should have.
         """
 
+        # These are for averaging the global count rates.  The elements are
+        # for NUV, FUVA and FUVB respectively.
+        sum_globrate = [0., 0., 0.]     # incremented for each row in each file
+        sum_exptime = [0., 0., 0.]      # exptime is the weight for globrate
+        avg_globrate = [-1., -1., -1.]  # average values for NUV, FUVA, FUVB
+
         first = True            # true for first input file
-        sum_globrate = 0.       # incremented for each row in each file
-        sum_exptime = 0.        # exptime is the weight for globrate
         for input in self.input:
             ifd = pyfits.open (input, mode="readonly")
             phdr = ifd[0].header
@@ -273,15 +275,27 @@ class OutputX1D (object):
                     if segment not in self.segments:
                         self.segments.append (segment)
                     self.inspec.append (sp)
-                    sum_globrate += (hdr["globrate"] * sp.exptime)
-                    sum_exptime += sp.exptime
+                    if detector == "NUV":
+                        globrate = hdr.get ("globrate", -1.)
+                        if globrate >= 0.:
+                            sum_globrate[0] += (globrate * sp.exptime)
+                            sum_exptime[0] += sp.exptime
+                    elif segment == "FUVA":
+                        globrate = hdr.get ("globrt_a", -1.)
+                        if globrate >= 0.:
+                            sum_globrate[1] += (globrate * sp.exptime)
+                            sum_exptime[1] += sp.exptime
+                    elif segment == "FUVB":
+                        globrate = hdr.get ("globrt_b", -1.)
+                        if globrate >= 0.:
+                            sum_globrate[2] += (globrate * sp.exptime)
+                            sum_exptime[2] += sp.exptime
 
             ifd.close()
 
-        if sum_exptime > 0.:
-            globrate = sum_globrate / sum_exptime
-        else:
-            globrate = 0.
+        for i in range (3):
+            if sum_exptime[i] > 0.:
+                avg_globrate[i] = sum_globrate[i] / sum_exptime[i]
 
         # number of rows to be written to the output table
         self.nrows = len (self.segments)
@@ -297,7 +311,9 @@ class OutputX1D (object):
              "expstrtj": expstart + MJD_TO_JD,
              "expendj":  expend + MJD_TO_JD,
              "plantime": sum_plantime,
-             "globrate": globrate,
+             "globrate": avg_globrate[0],       # average for NUV spectra
+             "globrt_a": avg_globrate[1],       # average for FUVA spectra
+             "globrt_b": avg_globrate[2],       # average for FUVB spectra
              "statflag": statflag}
 
     def compareX1d (self):
@@ -353,6 +369,10 @@ class OutputX1D (object):
 
         primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
         cosutil.updateFilename (primary_hdu.header, self.output)
+        if primary_hdu.header.has_key ("segment"):
+            del (primary_hdu.header["segment"])
+        if primary_hdu.header.has_key ("wavecals"):
+            del (primary_hdu.header["wavecals"])
         ofd = pyfits.HDUList (primary_hdu)
 
         rpt = str (self.output_nelem)           # used for column definitions
@@ -383,7 +403,12 @@ class OutputX1D (object):
         hdu.header.update ("expstrtj", self.keywords["expstrtj"])
         hdu.header.update ("expendj", self.keywords["expendj"])
         hdu.header.update ("plantime", self.keywords["plantime"])
-        hdu.header.update ("globrate", self.keywords["globrate"])
+        if self.keywords["globrate"] >= 0.:
+            hdu.header.update ("globrate", round (self.keywords["globrate"], 4))
+        if self.keywords["globrt_a"] >= 0.:
+            hdu.header.update ("globrt_a", round (self.keywords["globrt_a"], 4))
+        if self.keywords["globrt_b"] >= 0.:
+            hdu.header.update ("globrt_b", round (self.keywords["globrt_b"], 4))
 
         # Delete some keywords because they are specific to one exposure.
         delSomeKeywords (hdu.header)
@@ -437,7 +462,10 @@ class OutputX1D (object):
         minwave = wavelength[0][nelem-1]
         maxwave = wavelength[0][0]
         for row in range (nrows):
-            good_wl = wavelength[row][dq_wgt[row] > 0.]
+            if dq_wgt[row].sum (dtype=N.float64) <= 0:
+                good_wl = wavelength[row]
+            else:
+                good_wl = wavelength[row][dq_wgt[row] > 0.]
             minwave_row = good_wl.min()
             minwave = min (minwave, minwave_row)
             maxwave_row = good_wl.max()
@@ -534,9 +562,10 @@ class OutputSpectrum (object):
     def normalizeSums (self, data, sumweight):
         """Divide the sums by the sum of the weights.
 
-        arguments:
-            data           record array for the current row of the output file
-            sumweight      sum of weights
+        @param data: the current row of the output file
+        @type data: pyfits record array
+        @param sumweight: sum of weights
+        @type sumweight: float
         """
 
         sumweight = N.where (sumweight == 0., 1., sumweight)
@@ -556,10 +585,12 @@ class OutputSpectrum (object):
         The values in data and sumweight will be modified in-place.
         This version allows for fractional-pixel offset of the input arrays.
 
-        arguments:
-            sp             current input Spectrum object
-            data           record array for the current row of the output file
-            sumweight      sum of weights
+        @param sp: current input spectrum
+        @type sp: Spectrum object
+        @param data: the current row of the output file
+        @type data: record array
+        @param sumweight: sum of weights
+        @type sumweight: float
         """
 
         input_nelem = sp.nelem
