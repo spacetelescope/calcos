@@ -78,6 +78,8 @@ def processConcurrentWavecal (events, outflash, shift_file,
         # write an empty lampflash table
         cosutil.printWarning ("No lamp flash was found.")
         cw.outFlashSetup()
+        phdr["lampused"] = "NONE"
+        cw.ofd[0].header["lampused"] = "NONE"
         cw.writeOutFlash()
         return None
 
@@ -712,14 +714,14 @@ class ConcurrentWavecal (object):
             for region in locn_list:
                 if region[0] is None:
                     shift_flags |= N.where (
-                                   self.eta_corr[i0:i1] < region[1], 1, 0)
+                                   self.eta[i0:i1] < region[1], 1, 0)
                 elif region[1] is None:
                     shift_flags |= N.where (
-                                   self.eta_corr[i0:i1] >= region[0], 1, 0)
+                                   self.eta[i0:i1] >= region[0], 1, 0)
                 else:
                     shift_flags |= N.logical_and (
-                                   self.eta_corr[i0:i1] >= region[0],
-                                   self.eta_corr[i0:i1] < region[1])
+                                   self.eta[i0:i1] >= region[0],
+                                   self.eta[i0:i1] < region[1])
 
             shift1_zero = self.shift1[n][segment]
             if extrapolate:
@@ -1112,6 +1114,9 @@ class ConcurrentWavecal (object):
         avg_dx = {}
         avg_dy = {}
         if self.numflash < 1 or self.info["exptime"] <= 0.:
+            for segment in self.segment_list:
+                avg_dx[segment] = 0.
+                avg_dy[segment] = 0.
             return (avg_dx, avg_dy)
 
         exptime = self.info["exptime"]
@@ -1188,17 +1193,17 @@ class ConcurrentWavecal (object):
             self.ofd[1].header.update (key, sum_ndf)
 
             # use self.regions for dpixel1[abc]
-            shift_flags = N.zeros (len (self.eta_corr), dtype=N.bool8)
+            shift_flags = N.zeros (len (self.eta), dtype=N.bool8)
             locn_list = self.regions[segment]
             # if NUV, take the region for the PSA (lower pixel numbers)
             region = locn_list[0]
             if region[0] is None:
-                shift_flags |= N.where (self.eta_corr < region[1], 1, 0)
+                shift_flags |= N.where (self.eta < region[1], 1, 0)
             elif region[1] is None:
-                shift_flags |= N.where (self.eta_corr >= region[0], 1, 0)
+                shift_flags |= N.where (self.eta >= region[0], 1, 0)
             else:
-                shift_flags |= N.logical_and (self.eta_corr >= region[0],
-                                              self.eta_corr < region[1])
+                shift_flags |= N.logical_and (self.eta >= region[0],
+                                              self.eta < region[1])
             xi = self.xi_corr[shift_flags]      # copy out the relevant subset
             xi_diff = xi - N.around (xi)
             dpixel1 = xi_diff.mean()
@@ -1324,15 +1329,14 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
         # limits of the region (the active area) are not adjusted by shift2.
         shift_flags = N.zeros (i1 - i0, dtype=N.bool8)
         region = self.regions[self.segment_list[0]][0]
-        shift_flags |= N.logical_and (
-                       self.eta_corr[i0:i1] >= region[0],
-                       self.eta_corr[i0:i1] < region[1])
+        shift_flags |= N.logical_and (self.eta[i0:i1] >= region[0],
+                                      self.eta[i0:i1] < region[1])
 
         shift2_zero = self.shift2[n]
         if extrapolate:
             self.eta_corr[i0:i1] = N.where (shift_flags,
-                                   self.eta_corr[i0:i1] - shift2_zero,
-                                   self.eta_corr[i0:i1])
+                                            self.eta_corr[i0:i1] - shift2_zero,
+                                            self.eta_corr[i0:i1])
         else:
             # Note that i0 & i1 do not necessarily correspond to t0 and t1,
             # because we can extrapolate to the beginning or end of the array.

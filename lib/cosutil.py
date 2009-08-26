@@ -369,7 +369,7 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
     @param at_least_one: true if there must be at least one matching row
     @type at_least_one: boolean
 
-    @return: 
+    @return: data object containing the selected row(s)
     @rtype: pyfits record array
     """
 
@@ -836,10 +836,9 @@ def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
     @rtype: tuple
     """
 
-    if doppcorr == "PERFORM":
+    if doppcorr == "PERFORM" or doppcorr == "COMPLETE":
         expstart = info["expstart"]
         exptime  = info["exptime"]
-        axis = 2 - info["dispaxis"]     # 1 --> 1,  2 --> 0
 
         # time is the time in seconds since doppzero.
         nelem = int (round (exptime))           # one element per sec

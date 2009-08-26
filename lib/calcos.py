@@ -346,6 +346,7 @@ def openTrailerForRawInput (input, outdir):
     input = os.path.basename (input)
     rootname = getRootname (input, "_raw")
     if outdir:
+        outdir = expandDirectory (outdir)
         trailer = os.path.join (outdir, rootname) + ".tra"
     else:
         trailer = rootname + ".tra"
@@ -360,6 +361,37 @@ def closeTrailerForRawInput():
 
     cosutil.closeTrailer()
     raw_input_trailer = False
+
+def expandDirectory (dirname):
+    """Get the real directory name.
+
+    @param dirname: a directory name
+    @type dirname: string
+
+    @return: the real directory name
+    @rtype: string
+    """
+
+    indir = dirname
+    done = False
+    count = 0
+    MAX_COUNT = 100
+    while not done:
+        temp = os.path.expandvars (indir)       # $stuff/dir
+        count += 1
+        if temp == indir:
+            done = True
+        indir = temp
+        if count >= MAX_COUNT:
+            break
+    if not done:
+        cosutil.printWarning ("%d iterations exceeded while expanding " \
+        "variables in directory %s" % (MAX_COUNT, dirname))
+    indir = os.path.abspath (indir)             # ../dir
+    indir = os.path.expanduser (indir)          # ~/dir
+    directory_name = os.path.normpath (indir)   # remove redundant strings
+
+    return directory_name
 
 def replaceSuffix (rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
@@ -1574,10 +1606,17 @@ class Observation (object):
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
 
+        indir = os.path.dirname (input)
+        input_directory = expandDirectory (indir)
+        if outdir:
+            output_directory = expandDirectory (outdir)
+        else:
+            output_directory = os.path.realpath (os.curdir)
+
         self.getHeaderInfo()
-        if self.info["corrtag_input"] and not outdir:
-            raise RuntimeError, "When the input is a corrtag file," \
-                    " an output directory must be specified."
+        if (input_directory == output_directory) and self.info["corrtag_input"]:
+            raise RuntimeError, "For corrtag input," \
+                    " the input and output directories must not be the same."
 
         if self.info["corrtag_input"]:
             suffix = "_corrtag"
