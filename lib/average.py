@@ -23,6 +23,15 @@ def avgImage (input, output):
 
     if nimages == 1:
         cosutil.copyFile (input[0], output)
+        if cosutil.isProduct (output):
+            fd = pyfits.open (output, mode="update")
+            asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
+            asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
+            if asn_mtyp != "missing":
+                fd[1].header["asn_mtyp"] = asn_mtyp
+                fd[2].header["asn_mtyp"] = asn_mtyp
+                fd[3].header["asn_mtyp"] = asn_mtyp
+            fd.close()
         return
 
     # Average the SCI extensions.
