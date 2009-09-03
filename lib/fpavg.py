@@ -82,6 +82,11 @@ def oneInputFile (input, output):
         background[row,:] = N.where (dq_wgt[row] <= 0., 0., background[row])
 
     cosutil.updateFilename (fd[0].header, output)
+    if cosutil.isProduct (output):
+        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
+        asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
+        if asn_mtyp != "missing":
+            fd[1].header["asn_mtyp"] = asn_mtyp
     if fd[0].header.has_key ("segment"):
         del (fd[0].header["segment"])
     if fd[0].header.has_key ("wavecals"):
