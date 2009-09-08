@@ -29,8 +29,6 @@ def avgImage (input, output):
             asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
             if asn_mtyp != "missing":
                 fd[1].header["asn_mtyp"] = asn_mtyp
-                fd[2].header["asn_mtyp"] = asn_mtyp
-                fd[3].header["asn_mtyp"] = asn_mtyp
             fd.close()
         return
 

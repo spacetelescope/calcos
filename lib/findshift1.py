@@ -701,7 +701,7 @@ class Shift1 (object):
         for key in self.keys:
             self.current_key = key
             if self.spec_found[key]:
-                sum_shifts += self.shift1_dict[key] + offset[key] * self.fp
+                sum_shifts += self.shift1_dict[key] - offset[key] * self.fp
                 ngood += 1
         if ngood == 0:
             return              # no data; can't do anything
