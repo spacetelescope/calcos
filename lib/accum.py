@@ -4,7 +4,7 @@ import math
 import shutil
 import time
 import types
-import numpy as N
+import numpy as np
 from numpy import random
 import pyfits
 
@@ -111,8 +111,8 @@ def accumBasicCalibration (input, inpha, outtag,
         return 1
 
     # Create pseudo-timetag arrays (x & y, no time) from the raw image.
-    x = N.zeros (nrows, dtype=N.float32)
-    y = N.zeros (nrows, dtype=N.float32)
+    x = np.zeros (nrows, dtype=np.float32)
+    y = np.zeros (nrows, dtype=np.float32)
     ccos.unbinaccum (sci, x, y, x_offset)
 
     hdu = cosutil.createCorrtagHDU (nrows, info["detector"], headers[1])
@@ -128,8 +128,8 @@ def accumBasicCalibration (input, inpha, outtag,
     outdata.field ("XDOPP")[:] = x
     outdata.field ("XFULL")[:] = x
     outdata.field ("YFULL")[:] = y
-    outdata.field ("EPSILON")[:] = N.ones (nrows, dtype=N.float32)
-    outdata.field ("DQ")[:] = N.zeros (nrows, dtype=N.int16)
+    outdata.field ("EPSILON")[:] = np.ones (nrows, dtype=np.float32)
+    outdata.field ("DQ")[:] = np.zeros (nrows, dtype=np.int16)
     outdata.field ("PHA")[:] = 0
 
     primary_hdu = pyfits.PrimaryHDU (header=phdr)
@@ -158,13 +158,14 @@ def acqImage (input, outflt, outcounts, outcsum, cl_args,
     nextend = len (fd) - 1
     nimsets = len (fd) // 3
     phdr = fd[0].header
+    phdr.update ("cal_ver", info["cal_ver"])
     hdr_list = []
 
     writePrimaryHDU (outcounts, phdr, nextend)
     writePrimaryHDU (outflt, phdr, nextend)
     if outcsum is not None:
         # we'll add the SCI array for each imset to this array
-        csum_array = N.zeros ((NUV_Y, NUV_X), dtype=N.float32)
+        csum_array = np.zeros ((NUV_Y, NUV_X), dtype=np.float32)
 
     for imset in range (1, nimsets+1):
 
@@ -180,10 +181,12 @@ def acqImage (input, outflt, outcounts, outcsum, cl_args,
 
         doPhotcorr (info, switches, reffiles["imphttab"], phdr, sci_hdr)
 
+        updateGlobrate (sci_hdr, counts_sci, info["exptime"])
+
         doDqicorr (info, switches, reffiles, phdr, dq_array)
 
         doDeadcorr (flt_sci, sci_hdr["exptime"], info, switches, reffiles,
-                    phdr, input, livetimefile)
+                    phdr, sci_hdr, input, livetimefile)
 
         if outcsum is not None:
             csum_array += flt_sci
@@ -206,6 +209,25 @@ def acqImage (input, outflt, outcounts, outcsum, cl_args,
         writeCsum (outcsum, info["subarray"], phdr, hdr_list, csum_array,
                    binx, biny,
                    compress_csum, compression_parameters)
+
+def updateGlobrate (hdr, data, exptime):
+    """Update the GLOBRATE keyword in the extension header.
+
+    @param hdr: the input events extension header
+    @type hdr: pyfits Header object
+    @param data: data array
+    @type data: numpy array
+    @param exptime: exposure time in seconds
+    @type exptime: float
+    """
+
+    if data is None or exptime <= 0.:
+        globrate = 0.
+    else:
+        globrate = data.sum (dtype=np.float64) / exptime
+
+    globrate = round (globrate, 4)
+    hdr.update ("globrate", globrate)
 
 def doPhotcorr (info, switches, imphttab, phdr, hdr):
     """Update photometry parameter keywords for imaging data.
@@ -260,17 +282,19 @@ def doDqicorr (info, switches, reffiles, phdr, dq_array):
         phdr["dqicorr"] = "COMPLETE"
 
 def doDeadcorr (flt_sci, exptime, info, switches, reffiles,
-                phdr, input, livetimefile):
+                phdr, hdr, input, livetimefile):
     """Correct for deadtime."""
 
     cosutil.printSwitch ("DEADCORR", switches)
 
     if switches["deadcorr"] == "PERFORM":
         cosutil.printRef ("DEADTAB", reffiles)
-        (dead_rate, dead_method) = deadtimeCorrection (flt_sci, exptime,
-                      reffiles["deadtab"], info, input, livetimefile)
-        phdr.update ("deadrt", dead_rate)
-        phdr.update ("deadmt", dead_method)
+        (dead_rate, dead_method, livetime) = \
+                deadtimeCorrection (flt_sci, exptime, reffiles["deadtab"],
+                                    info, input, livetimefile)
+        hdr.update ("deadrt", dead_rate)
+        hdr.update ("deadmt", dead_method)
+        hdr.update ("livetm", livetime)
         phdr["deadcorr"] = "COMPLETE"
 
 def deadtimeCorrection (flt_sci, exptime, deadtab, info,
@@ -294,9 +318,9 @@ def deadtimeCorrection (flt_sci, exptime, deadtab, info,
     @param livetimefile: name of output text file for livetime factors (or None)
     @type livetimefile: string
 
-    @return: the count rate used for determining the livetime factor, and
-        a string that indicates which method was used for determining the
-        livetime factor
+    @return: the count rate used for determining the livetime factor, a
+        string that indicates which method was used for determining the
+        livetime factor, and the livetime factor that was used
     @rtype: tuple
     """
 
@@ -369,7 +393,7 @@ def deadtimeCorrection (flt_sci, exptime, deadtab, info,
     if fd is not None:
         fd.close()
 
-    return (dead_rate, dead_method)
+    return (dead_rate, dead_method, livetime)
 
 def doFlatcorr (flt_sci, switches, reffiles, phdr):
     """Apply flat field correction.
@@ -447,13 +471,13 @@ def makeImages (counts_sci, flt_sci, exptime):
     C_rate = counts_sci / exptime
     E_rate = flt_sci / exptime
 
-    counts_sci_temp = N.where (counts_sci < 0., 0., counts_sci)
-    errC_rate = N.sqrt (counts_sci_temp) / exptime
+    counts_sci_temp = np.where (counts_sci < 0., 0., counts_sci)
+    errC_rate = np.sqrt (counts_sci_temp) / exptime
     del counts_sci_temp
 
     # errC_rate will likely have a number of zero values, so we set those
     # to one before dividing.
-    errC_rate_temp = N.where (errC_rate == 0., 1., errC_rate)
+    errC_rate_temp = np.where (errC_rate == 0., 1., errC_rate)
     errE_rate = E_rate / errC_rate_temp / exptime
     del errC_rate_temp
 
@@ -497,7 +521,7 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
     primary_hdu = pyfits.PrimaryHDU (header=phdr)
     fd = pyfits.HDUList (primary_hdu)
     fd[0].header.update ("nextend", 1)
-    fd[0].header.update ("counts", csum_array.sum(dtype=N.float64))
+    fd[0].header.update ("counts", csum_array.sum(dtype=np.float64))
     fd[0].header.update ("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename (fd[0].header, outcsum)
     detector = phdr["detector"]
@@ -523,7 +547,7 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
     cosutil.copySubKeywords (hdr_list[0], fd[0].header, subarray)
 
     if nx > 1 or ny > 1:
-        binned_array = N.zeros ((ny,nx), dtype=N.float32)
+        binned_array = np.zeros ((ny,nx), dtype=np.float32)
         ccos.bin2d (csum_array, binned_array)
     else:
         binned_array = csum_array
@@ -551,7 +575,7 @@ def getNcounts (sci):
     @rtype: integer
     """
 
-    ncounts = sci.sum (dtype=N.float64)
+    ncounts = sci.sum (dtype=np.float64)
     # The value returned by sum() is an "array scalar," so convert it.
     ncounts = float (ncounts)
     ncounts = int (round (ncounts))

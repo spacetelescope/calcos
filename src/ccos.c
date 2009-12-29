@@ -3131,7 +3131,7 @@ static double getBadTime (float time[], short dq[], int n_events) {
                    coordinate to get the pixel in the output array (int)
 
    optional arguments:
-    dq          i: array of data qualify flags (int16)
+    dq          i: array of data quality flags (int16)
     sdqflags    i: bit mask for the "serious" dq flags (short)
     epsilon     i: array of weights for the events (float32)
 
@@ -3325,7 +3325,7 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
     xi, eta     i: arrays of pixel coordinates of the events
                    (either float32 or int16); xi is in the dispersion
                    direction, eta is cross-dispersion
-    dq          i: array of data qualify flags (int16)
+    dq          i: array of data quality flags (int16)
     slope       i: the slope of the band (pixels per pixel, double)
     xdisp      io: a 1-D array, into which the collapsed data will be put;
                    the location of a feature in this array shows where the

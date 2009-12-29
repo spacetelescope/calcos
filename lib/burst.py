@@ -1,6 +1,6 @@
 from __future__ import division
 import math
-import numpy as N
+import numpy as np
 from calcosparam import *
 import cosutil
 import ccos
@@ -99,10 +99,10 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
 
     # istart & istop are arrays of indices for slicing up the time and y
     # columns into intervals of length delta_t seconds.
-    istart = N.zeros (nbins, dtype=N.int32)
-    istop = N.zeros (nbins, dtype=N.int32)
-    bkg_counts = N.zeros (nbins, dtype=N.int32)
-    src_counts = N.zeros (nbins, dtype=N.int32)
+    istart = np.zeros (nbins, dtype=np.int32)
+    istop = np.zeros (nbins, dtype=np.int32)
+    bkg_counts = np.zeros (nbins, dtype=np.int32)
+    src_counts = np.zeros (nbins, dtype=np.int32)
 
     # Find istart & istop for each delta_t interval.
     ccos.getstartstop (time, istart, istop, delta_t)
@@ -117,7 +117,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     bkg_counts_save = bkg_counts.copy()
 
     # Find the median of the values in the background counts array.
-    index = N.argsort (bkg_counts)
+    index = np.argsort (bkg_counts)
     mid = nbins // 2
     median = bkg_counts[index[mid]]
     del index
@@ -131,7 +131,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
                 % (median, cutoff, delta_t), VERBOSE)
     # Identify intervals where the counts are greater than median_n * median.
     b1_flags = bkg_counts > cutoff
-    index = N.nonzero (b1_flags)[0]
+    index = np.nonzero (b1_flags)[0]
     nreject = len (index)
     for k in range (nreject):
         i = index[k]
@@ -141,7 +141,7 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
         dq[istart[i]:istop[i]] |= DQ_BURST
     if nreject > 0:
         # Set bkg_counts to a negative value for each burst.
-        bkg_counts = N.where (b1_flags, LARGE_BURST, bkg_counts)
+        bkg_counts = np.where (b1_flags, LARGE_BURST, bkg_counts)
         cosutil.printMsg ("%d large bursts detected." % nreject, VERBOSE)
     else:
         cosutil.printMsg ("No large burst detected.", VERBOSE)

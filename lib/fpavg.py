@@ -1,6 +1,6 @@
 from __future__ import division
 import math
-import numpy as N
+import numpy as np
 import pyfits
 import cosutil
 from calcosparam import *       # parameter definitions
@@ -75,11 +75,11 @@ def oneInputFile (input, output):
     dq_wgt = data.field ("dq_wgt")
 
     for row in range (len (data)):
-        flux[row,:] = N.where (dq_wgt[row] <= 0., 0., flux[row])
-        error[row,:] = N.where (dq_wgt[row] <= 0., 0., error[row])
-        gross[row,:] = N.where (dq_wgt[row] <= 0., 0., gross[row])
-        net[row,:] = N.where (dq_wgt[row] <= 0., 0., net[row])
-        background[row,:] = N.where (dq_wgt[row] <= 0., 0., background[row])
+        flux[row,:] = np.where (dq_wgt[row] <= 0., 0., flux[row])
+        error[row,:] = np.where (dq_wgt[row] <= 0., 0., error[row])
+        gross[row,:] = np.where (dq_wgt[row] <= 0., 0., gross[row])
+        net[row,:] = np.where (dq_wgt[row] <= 0., 0., net[row])
+        background[row,:] = np.where (dq_wgt[row] <= 0., 0., background[row])
 
     cosutil.updateFilename (fd[0].header, output)
     if cosutil.isProduct (output):
@@ -91,6 +91,10 @@ def oneInputFile (input, output):
         del (fd[0].header["segment"])
     if fd[0].header.has_key ("wavecals"):
         del (fd[0].header["wavecals"])
+    if fd[0].header.has_key ("fppos"):
+        del (fd[0].header["fppos"])
+    if fd[0].header.has_key ("fpoffset"):
+        del (fd[0].header["fpoffset"])
     delSomeKeywords (fd[1].header)
 
     fd.writeto (output)
@@ -153,18 +157,18 @@ def pixelsFromWl (input_wavelength, output_wavelength):
 
     # x0 is a rough first estimate of the pixel numbers.
     x0 = (output_wavelength - input_wavelength[0]) / avgdisp
-    x0 = N.where (x0 < 0., 0., x0)
-    ix0 = x0.astype (N.int32)
-    ix0 = N.where (ix0 > nelem-1, nelem-1, ix0)
+    x0 = np.where (x0 < 0., 0., x0)
+    ix0 = x0.astype (np.int32)
+    ix0 = np.where (ix0 > nelem-1, nelem-1, ix0)
 
     # wavelengths in input at pixels ix0 are input_wavelength[ix0]
     diff = (output_wavelength - input_wavelength[ix0])
 
     # x1 should be very close to the correct pixel numbers.
     x1 = ix0 + diff / disp[ix0]
-    x1 = N.where (x1 < 0., 0., x1)
-    ix1 = x1.astype (N.int32)
-    ix1 = N.where (ix1 > nelem-1, nelem-1, ix1)
+    x1 = np.where (x1 < 0., 0., x1)
+    ix1 = x1.astype (np.int32)
+    ix1 = np.where (ix1 > nelem-1, nelem-1, ix1)
 
     diff = (output_wavelength - input_wavelength[ix1])
     ipixel = ix1 + diff / disp[ix1]
@@ -203,6 +207,10 @@ class OutputX1D (object):
         self.output_nelem = 0
         self.output_wl = {}
         self.output_dispersion = {}
+        # This is the index of the element of self.inspec that has the
+        # maximum value of nelem.  We'll use this spectrum as the template
+        # for column definitions for the output table.
+        self.index_max_nelem = 0
 
         # Create a list of Spectrum objects, and get info from headers.
         self.getInputInfo()
@@ -335,15 +343,27 @@ class OutputX1D (object):
         """Compute length of output arrays, and info for output wavelengths.
 
         This routine assigns values to the attributes output_nelem,
-        output_wl, and output_dispersion.
+        index_max_nelem, output_wl, and output_dispersion.
         """
 
         if len (self.inspec) < 1:
             self.output_nelem = 0
             return
 
-        # Find the required length for each segment, and take the maximum.
-        output_nelem = []
+        # Find the maximum input nelem, and set output_nelem to that value.
+        # The input nelem should really be all the same, but just in case
+        # one of them is zero, we need to be able to skip that one.
+        # Also set self.index_max_nelem, which we'll use in createOutput
+        # for getting the column definitions for the output table.
+        output_nelem = -1
+        for (k, sp) in enumerate (self.inspec):
+            if sp.nelem > output_nelem:
+                self.index_max_nelem = k
+                output_nelem = sp.nelem
+        if output_nelem >= 0:
+            self.output_nelem = output_nelem
+
+        # Find the wavelength and dispersion for each segment.
         self.output_wl = {}
         self.output_dispersion = {}
         for segment in self.segments:
@@ -358,19 +378,14 @@ class OutputX1D (object):
                     max_wl = max (max_wl, sp.wavelength[-1])
                     min_dispersion = min (min_dispersion,
                         (sp.wavelength[-1] - sp.wavelength[0]) / (sp.nelem - 1))
-            nelem = (max_wl - min_wl) / min_dispersion
-            nelem = int (math.ceil (nelem))
-            output_nelem.append (nelem)
             self.output_wl[segment] = min_wl
             self.output_dispersion[segment] = min_dispersion
-
-        self.output_nelem = max (output_nelem)
 
     def createOutput (self):
         """Create pyfits object for output file."""
 
         # Get header info from the input.
-        ifd = pyfits.open (self.input[0], mode="readonly")
+        ifd = pyfits.open (self.input[self.index_max_nelem], mode="readonly")
 
         primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
         cosutil.updateFilename (primary_hdu.header, self.output)
@@ -378,30 +393,17 @@ class OutputX1D (object):
             del (primary_hdu.header["segment"])
         if primary_hdu.header.has_key ("wavecals"):
             del (primary_hdu.header["wavecals"])
+        if primary_hdu.header.has_key ("fppos"):
+            del (primary_hdu.header["fppos"])
+        if primary_hdu.header.has_key ("fpoffset"):
+            del (primary_hdu.header["fpoffset"])
         ofd = pyfits.HDUList (primary_hdu)
 
-        rpt = str (self.output_nelem)           # used for column definitions
-        if self.output_nelem < 1:
-            tform = ifd[1].header.get ("tform4", "1D")
-            i = tform.find ("D")
-            rpt = tform[:i]
-
-        # Define output columns.
-        col = []
-        col.append (pyfits.Column (name="SEGMENT", format="4A"))
-        col.append (pyfits.Column (name="EXPTIME", format="1D"))
-        col.append (pyfits.Column (name="NELEM", format="1J"))
-        col.append (pyfits.Column (name="WAVELENGTH", format=rpt+"D"))
-        col.append (pyfits.Column (name="FLUX", format=rpt+"E"))
-        col.append (pyfits.Column (name="ERROR", format=rpt+"E"))
-        col.append (pyfits.Column (name="GROSS", format=rpt+"E"))
-        col.append (pyfits.Column (name="NET", format=rpt+"E"))
-        col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E"))
-        col.append (pyfits.Column (name="DQ", format=rpt+"I"))
-        col.append (pyfits.Column (name="DQ_WGT", format=rpt+"E"))
-        cd = pyfits.ColDefs (col)
+        # Define output columns to be the same as for the selected input table.
+        cd = ifd[1].columns
 
         hdu = pyfits.new_table (cd, header=ifd[1].header, nrows=self.nrows)
+
         hdu.header.update ("exptime", self.keywords["exptime"])
         hdu.header.update ("expstart", self.keywords["expstart"])
         hdu.header.update ("expend", self.keywords["expend"])
@@ -441,6 +443,7 @@ class OutputX1D (object):
         ofd[1].data.field ("flux")[:] = 0.
         ofd[1].data.field ("error")[:] = 0.
         ofd[1].data.field ("gross")[:] = 0.
+        ofd[1].data.field ("gcounts")[:] = 0.
         ofd[1].data.field ("net")[:] = 0.
         ofd[1].data.field ("background")[:] = 0.
         ofd[1].data.field ("dq")[:] = 0
@@ -467,7 +470,7 @@ class OutputX1D (object):
         minwave = wavelength[0][nelem-1]
         maxwave = wavelength[0][0]
         for row in range (nrows):
-            if dq_wgt[row].sum (dtype=N.float64) <= 0:
+            if dq_wgt[row].sum (dtype=np.float64) <= 0:
                 good_wl = wavelength[row]
             else:
                 good_wl = wavelength[row][dq_wgt[row] > 0.]
@@ -493,7 +496,8 @@ class Spectrum (object):
             wavelength       array of wavelengths for the current row
             flux             array of flux values
             error            array of error estimates for the flux
-            gross            array of gross values
+            gross            array of gross values (count rate)
+            gcounts          array of gross counts
             net              array of net values
             background       array of background values
             dq               array of data quality flags
@@ -509,6 +513,7 @@ class Spectrum (object):
         self.flux = ifd[1].data.field ("flux")[row]
         self.error = ifd[1].data.field ("error")[row]
         self.gross = ifd[1].data.field ("gross")[row]
+        self.gcounts = ifd[1].data.field ("gcounts")[row]
         self.net = ifd[1].data.field ("net")[row]
         self.background = ifd[1].data.field ("background")[row]
         self.dq = ifd[1].data.field ("dq")[row]
@@ -552,11 +557,11 @@ class OutputSpectrum (object):
         nelem = data.field ("nelem")[row]
 
         # Allocate space for the sum of weights.
-        sumweight = N.zeros (nelem, dtype=N.float64)
+        sumweight = np.zeros (nelem, dtype=np.float64)
 
         # Assign wavelengths for the current row.
         data.field ("wavelength")[row,:] = output_wl + \
-                output_dispersion * N.arange (nelem, dtype=N.float64)
+                output_dispersion * np.arange (nelem, dtype=np.float64)
 
         for sp in self.inspec:
             if self.segment == sp.segment:
@@ -573,7 +578,7 @@ class OutputSpectrum (object):
         @type sumweight: float
         """
 
-        sumweight = N.where (sumweight == 0., 1., sumweight)
+        sumweight = np.where (sumweight == 0., 1., sumweight)
 
         nelem = len (sumweight)
 
@@ -582,7 +587,7 @@ class OutputSpectrum (object):
         data.field ("net")[:] /= sumweight
         data.field ("background")[:] /= sumweight
         data.field ("error")[:] = \
-                        N.sqrt (data.field ("error")) / sumweight
+                        np.sqrt (data.field ("error")) / sumweight
 
     def accumulateSums (self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.
@@ -600,7 +605,6 @@ class OutputSpectrum (object):
 
         input_nelem = sp.nelem
         input_wavelength = sp.wavelength
-        output_nelem = data.field ("nelem")
         output_wavelength = data.field ("wavelength")
 
         # Find the pixel numbers (floating point) in the input array
@@ -617,21 +621,23 @@ class OutputSpectrum (object):
         # arrays, so we must find the minimum and maximum indices in the
         # output array that map (via wavelength) to points within the current
         # input array.
-        flag = N.where (N.logical_and (ipixel >= 0., ipixel <= input_nelem-1.))
+        flag = np.where (np.logical_and (ipixel >= 0.,
+                                         ipixel <= input_nelem-1.))
         min_k = flag[0][0]
         max_k = flag[0][-1]
 
         # ix is the array of pixel numbers (integer values but floating point
         # data type) in the input array that are actually within the input
         # array.  p and q are weight arrays for linear interpolation.
-        ix = N.floor (ipixel[min_k:max_k])
+        ix = np.floor (ipixel[min_k:max_k])
         q = ipixel[min_k:max_k] - ix
         p = 1. - q
-        i = ix.astype (N.int32)
+        i = ix.astype (np.int32)
 
         flux = data.field ("flux")
         error = data.field ("error")
         gross = data.field ("gross")
+        gcounts = data.field ("gcounts")
         net = data.field ("net")
         background = data.field ("background")
         dq = data.field ("dq")
@@ -659,5 +665,7 @@ class OutputSpectrum (object):
         else:
             dq[min_k:max_k] &= temp_dq
         dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i+1] * q)
+        gcounts[min_k:max_k] += (sp.gcounts[i]   * p * sp.dq_wgt[i] +
+                                 sp.gcounts[i+1] * q * sp.dq_wgt[i+1])
         error[min_k:max_k] += (sp.error[i]   * p * weight1 +
                                sp.error[i+1] * q * weight2)**2

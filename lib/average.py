@@ -1,5 +1,5 @@
 from __future__ import division
-import numpy as N
+import numpy as np
 import pyfits
 import cosutil
 from calcosparam import *       # parameter definitions
@@ -125,7 +125,7 @@ def avgImage (input, output):
     del ifd
 
     if got_data:
-        N.sqrt (err_data, err_data)
+        np.sqrt (err_data, err_data)
         err_data /= sum_exptime
     else:
         err_data = None
@@ -148,7 +148,7 @@ def avgImage (input, output):
         dq_extn = ifd["DQ"]
         if dq_extn.data is not None:
             if got_data:
-                N.bitwise_or (dq_data, dq_extn.data, dq_data)
+                np.bitwise_or (dq_data, dq_extn.data, dq_data)
             else:
                 hdr = dq_extn.header
                 dq_data = dq_extn.data

@@ -2117,8 +2117,6 @@ class Observation (object):
 
         if self.exp_type == EXP_WAVECAL:
             # Silently set these switches.
-            self.switches["wavecorr"] = "PERFORM"
-            self.switches["x1dcorr"] = "PERFORM"
             self.switches["doppcorr"] = "OMIT"
             self.switches["helcorr"] = "OMIT"
             self.switches["fluxcorr"] = "OMIT"
@@ -2379,19 +2377,29 @@ class Calibration (object):
 
         # Set the shift keywords in the corrtag, flt, and counts headers
         # (already set in x1d header) for each wavecal observation.
+        # Compute wavelengths and assign to the wavelength column in the
+        # corrtag tables.
         for obs in self.assoc.obs:
             if obs.exp_type == EXP_WAVECAL:
                 self.setWavecalShift (obs.filenames)
+                self.corrtagWavelengths (obs.filenames["corrtag"],
+                                         obs.info, obs.reffiles)
 
         cosutil.printMsg ("wavecal_info = " + repr (self.wavecal_info),
                 VERY_VERBOSE)
 
         # Update the wavelength column in the x1d table to take account of
         # the shift in the dispersion direction.
+        previous_x1d_file = " "
         for obs in self.assoc.obs:
+            x1d_file = obs.filenames["x1d"]
+            # For FUV, we expect duplicate x1d file names in the obs list.
+            if x1d_file == previous_x1d_file:
+                continue
+            previous_x1d_file = x1d_file
             if obs.exp_type == EXP_WAVECAL:
                 obs.openTrailer()
-                extract.recomputeWavelengths (obs.filenames["x1d"])
+                extract.recomputeWavelengths (x1d_file)
                 obs.closeTrailer()
 
     def allScience (self):
@@ -2401,7 +2409,9 @@ class Calibration (object):
             return
 
         cosutil.printMsg ("Begin calibration of science data.", VERY_VERBOSE)
-        tagflash = False                # initial value
+        # initial values
+        any_x1dcorr = "omit"
+        any_wavecorr = "omit"
         for obs in self.assoc.obs:
             if obs.exp_type == EXP_SCIENCE or \
                obs.exp_type == EXP_CALIBRATION or \
@@ -2413,16 +2423,19 @@ class Calibration (object):
                             obs.info)
                 if obs.switches["x1dcorr"] == "PERFORM":
                     self.extractSpectrum (obs.filenames)
+                    any_x1dcorr = "PERFORM"
                 elif obs.info["obstype"] == "SPECTROSCOPIC":
                     cosutil.printSwitch ("X1DCORR", obs.switches)
                 if obs.info["tagflash"]:
-                    tagflash = True     # there is at least one tagflash obs
+                    if obs.switches["wavecorr"] == "PERFORM" or \
+                       obs.switches["wavecorr"] == "COMPLETE":
+                        any_wavecorr = "PERFORM"
                 obs.closeTrailer()
 
-        if obs.switches["x1dcorr"] == "PERFORM":
+        if any_x1dcorr == "PERFORM":
             self.concatenateSpectra ("science")
 
-        if tagflash and obs.switches["wavecorr"] == "PERFORM":
+        if any_wavecorr == "PERFORM":
             self.concatenateSpectra ("tagflash")
 
     def extractSpectrum (self, filenames):
@@ -2497,6 +2510,8 @@ class Calibration (object):
 
         if info["obsmode"] == "TIME-TAG":
             return
+        if info["exptype"] == "ACQ/IMAGE":
+            return
 
         if wavecorr != "PERFORM" and wavecorr != "COMPLETE":
             shift_dict = None
@@ -2527,9 +2542,6 @@ class Calibration (object):
         # the pseudo-corrtag table.
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
-            if info["exptype"] == "ACQ/IMAGE":
-                # Wavecal offsets are not relevant for acq/image data.
-                continue
             if os.access (fname, os.R_OK):
                 fd = pyfits.open (fname, mode="update")
                 phdr = fd[0].header
@@ -2656,6 +2668,23 @@ class Calibration (object):
                     hdr.update (keyword, round (shift, 4))
                 fd.close()
 
+    def corrtagWavelengths (self, corrtag, info, reffiles):
+        """Compute and assign wavelengths in the corrtag table.
+
+        This function is only called for a wavecal (auto or GO).  For science
+        exposures, the wavelengths are assigned during time-tag processing.
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
+        """
+
+        if os.access (corrtag, os.R_OK):
+            fd = pyfits.open (corrtag, mode="update")
+            events = fd["EVENTS"].data
+            hdr = fd["EVENTS"].header
+            timetag.computeWavelengths (events, info, reffiles, hdr=hdr)
+            fd.close()
+
     def mergeKeywords (self):
         """Copy segment-specific keywords between FUV pairs of files.
 
@@ -2673,6 +2702,7 @@ class Calibration (object):
                 "tbrst_X", "nbrst_X", "tbadt_X", "nbadt_X",
                 "nout_X",
                 "globrt_X",
+                "deadrt_X", "deadmt_X", "livetm_X",
                 "sp_loc_X", "sp_slp_X",
                 "b_bkg1_X", "b_bkg2_X",
                 "b_hgt1_X", "b_hgt2_X",
@@ -2750,31 +2780,25 @@ class Calibration (object):
         if self.assoc.obs[i].switches["x1dcorr"] != "PERFORM":
             return
 
+        # Average all the x1d spectroscopic exposures in the association.
         self.combineAllX1D()
 
-        # If we have a combination of FP-POS and repeatobs data, average
-        # multiple x1d files that have the same fppos index.  If all of them
-        # have the same fppos index, however, skip this step.
+        # If we have more than one spectroscopic exposure in the association,
+        # average x1d files that have the same fppos index.
         if combine.has_key ("x1d"):
             x1d_list = combine["x1d"]
             fppos_list = combine["fppos"]
             fppos_list_copy = copy.copy (fppos_list)
             fppos_list_copy.sort()
             fppos_max = fppos_list_copy[-1]
-            do_subsets = False                  # initial value
-            for i in range (1, len (fppos_list)):
-                if fppos_list[i] != fppos_list[0]:
-                    do_subsets = True
-                    break
-            if do_subsets:
-                for fppos in range (1, fppos_max+1):
-                    # extract subset for current osm position
-                    x1d_subset = []
-                    for i in range (len (x1d_list)):
-                        if fppos_list[i] == fppos:
-                            x1d_subset.append (x1d_list[i])
-                    if len (x1d_subset) > 1:
-                        self.combineX1Di (x1d_subset, fppos)
+            for fppos in range (1, fppos_max+1):
+                # extract subset for current osm position
+                x1d_subset = []
+                for i in range (len (x1d_list)):
+                    if fppos_list[i] == fppos:
+                        x1d_subset.append (x1d_list[i])
+                if len (x1d_subset) > 0:
+                    self.combineX1Di (x1d_subset, fppos)
 
     def combineFlt (self):
         """Average image mode data."""

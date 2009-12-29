@@ -1,5 +1,5 @@
 from __future__ import division
-import numpy as N
+import numpy as np
 import cosutil
 
 class Dispersion (object):
@@ -173,7 +173,7 @@ class Dispersion (object):
         # initial value
         try:
             nelem = len (wavelength)
-            x = N.arange (nelem, dtype=N.float64)
+            x = np.arange (nelem, dtype=np.float64)
         except TypeError:
             nelem = 0
             x = 0.
@@ -191,7 +191,7 @@ class Dispersion (object):
             slope = self.evalDerivDisp (x)
             wl_diff = wavelength - wl
             x += wl_diff / slope
-            diff = N.abs (x - x_prev)
+            diff = np.abs (x - x_prev)
             if diff.max() < tiny:
                 done = True
 

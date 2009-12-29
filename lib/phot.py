@@ -41,45 +41,61 @@ def readImPhtTab (imphttab, obsmode):
     created yet.  The values were determined using pysynphot (and synphot
     for the bandwidth) as follows:
 
+    % setenv PYSYN_CDBS <directory>
     % python
     >>> import pysynphot as S
-    >>> sp = S.FlatSpectrum (1., fluxunits="flam")
-    >>> sp = S.FlatSpectrum (1., fluxunits="fnu")
-    >>> bp = S.ObsBandpass ("cos,nuv,mirrora,psa")
-    >>> bp = S.ObsBandpass ("cos,nuv,mirrora,boa")
-    >>> bp = S.ObsBandpass ("cos,nuv,mirrorb,psa")
-    >>> bp = S.ObsBandpass ("cos,nuv,mirrorb,boa")
-    >>> print 1. / obs.countrate()    # photflam or photfnu
-    >>> print obs.pivot()             # photplam (pivot wavelength)
+    >>> for obsmode in ["cos,nuv,mirrora,psa",
+    >>>             "cos,nuv,mirrora,boa",
+    >>>             "cos,nuv,mirrorb,psa",
+    >>>             "cos,nuv,mirrorb,boa"]:
+    >>>     for fluxunits in ["flam", "fnu"]:
+    >>>         sp = S.FlatSpectrum (1., fluxunits=fluxunits)
+    >>>         bp = S.ObsBandpass (obsmode)
+    >>>         obs = S.Observation (sp, bp)
+    >>>         print "#", fluxunits, obsmode
+    >>>         print 1. / obs.countrate()      # photflam or photfnu
+    >>>         print obs.pivot()               # photplam
 
-    The bandwidth doesn't seem to be available via pysynphot yet, so
-    the old synphot was used, e.g.:
-     --> bandpar "cos,nuv,mirrora,psa"
-                # OBSMODE          URESP          PIVWV          BANDW
-      cos,nuv,mirrora,psa     5.3957E-18         2310.1         373.71
+    obs.pivot() gave different values for flam vs fnu, so the values
+    obtained via bandpar were used instead.  The bandwidth was also
+    gotten via bandpar.  Here is an example (showing only the first lines):
+    --> bandpar "cos,nuv,mirrora,psa"
+               # OBSMODE          URESP          PIVWV          BANDW
+     cos,nuv,mirrora,psa     4.8214E-18         2319.7         382.88
     """
 
     # These values are photflam, photfnu, photbw, photplam, photzpt:
+    # photflam for mirrora,boa was 9.84441964002e-16
+    # photfnu  for mirrora,boa was 1.67911272761e-27
+    # photflam for mirrorb,boa was 1.90534694809e-14
+    # photfnu  for mirrorb,boa was 2.71134226806e-26
+    #
+    # photflam for mirrora,boa = 233. * 4.89549708817e-18
+    # photfnu  for mirrora,boa =
+    #           1.67911272761e-27 / 9.84441964002e-16 * 1.14065082154e-15
+    # photflam for mirrorb,boa = 196. * 9.84213962334e-17
+    # photfnu  for mirrorb,boa =
+    #           2.71134226806e-26 / 1.90534694809e-14 * 1.92905936617e-14
     photdict = {
-        "mirrora,psa": [5.43017143551e-18,
-                        9.62456797814e-30,
-                        373.71,
-                        2376.0957106802111,
+        "mirrora,psa": [4.89549708817e-18,
+                        8.69157674037e-30,
+                        382.88,
+                        2319.7,
                         -21.1],
-        "mirrora,boa": [1.09115778462e-15,
-                        1.85857319356e-27,
-                        361.2,
-                        2329.2062282964275,
+        "mirrora,boa": [1.14065082154e-15,
+                        1.94555025308e-27,
+                        370.65,
+                        2273.9,
                         -21.1],
-        "mirrorb,psa": [6.48688953828e-17,
-                        9.81902116625e-29,
-                        460.38,
-                        2238.2740455962849,
+        "mirrorb,psa": [9.84213962334e-17,
+                        1.49222298358e-28,
+                        466.56,
+                        2142.4,
                         -21.1],
-        "mirrorb,boa": [1.25491564392e-14,
-                        1.78345723897e-26,
-                        445.7,
-                        2171.5642072889386,
+        "mirrorb,boa": [1.92905936617e-14,
+                        2.74508545666e-26,
+                        451.56,
+                        2075.3,
                         -21.1]
         }
 

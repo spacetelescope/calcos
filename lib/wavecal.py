@@ -1,6 +1,7 @@
 from __future__ import division
+import math
 import os
-import numpy as N
+import numpy as np
 from convolve import boxcar
 import pyfits
 from calcosparam import *
@@ -52,14 +53,17 @@ def findWavecalShift (input, shift_file, info, wcp_info):
     info["x_offset"] = x_offset
 
     nrows = sci_extn.data.shape[0]
-    net = sci_extn.data.field ("net")
-    nelem = len (net[0])
+    gross = sci_extn.data.field ("gross")
+    nelem = len (gross[0])
     exptime = sci_extn.data.field ("exptime")
     segment = sci_extn.data.field ("segment")
 
     detector = info["detector"]
     xc_range = wcp_info.field ("xc_range")
     stepsize = wcp_info.field ("stepsize")
+
+    # Replace shift values in segment B with values from segment A?
+    override_segment_B = (info["opt_elem"] == "G140L")
 
     # segment will be added to the filter in the loop below.
     filter = {"opt_elem": info["opt_elem"],
@@ -73,31 +77,40 @@ def findWavecalShift (input, shift_file, info, wcp_info):
     # the initial offset should be zero.
     got_pixel_shift = cosutil.findColumn (lamptab, "fp_pixel_shift")
     if got_pixel_shift:
-        fp = 0
+        initial_offset = 0
     else:
-        fp = info["fpoffset"]
+        initial_offset = info["fpoffset"] * stepsize
 
     shift_dict = {}
 
     index = segment.argsort()
     save_spectra = {}
     save_templates = {}
+    fp_pixel_shift = {}
 
     for row in index:
         filter["segment"] = segment[row]
         lamp_info = cosutil.getTable (lamptab, filter)
         if lamp_info is None:
             continue
-        # Save net, but convert from count rate back to counts.
-        save_spectra[segment[row]] = net[row] * exptime[row]
+        # Save gross, but convert from count rate back to counts.
+        save_spectra[segment[row]] = gross[row] * exptime[row]
         raw_template = lamp_info.field ("intensity")[0]
         save_templates[segment[row]] = \
                 cosutil.getTemplate (raw_template, x_offset, nelem)
+        if got_pixel_shift:
+            fp_pixel_shift[segment[row]] = \
+                    lamp_info.field ("fp_pixel_shift")[0]
+        else:
+            fp_pixel_shift[segment[row]] = 0.
 
     # find offset in dispersion direction
     fs1 = findshift1.Shift1 (save_spectra, save_templates, info, reffiles,
-                             xc_range, stepsize, fp)
+                             xc_range, fp_pixel_shift, initial_offset)
     fs1.findShifts()
+
+    if override_segment_B:              # copy shift1 from A to B
+        fs1.setShift1 ("FUVB", fs1.getShift1 ("FUVA"))
 
     # Did the user supply a file with overrides for the shifts?
     if shift_file is None:
@@ -107,18 +120,22 @@ def findWavecalShift (input, shift_file, info, wcp_info):
                                            info["root"], info["fpoffset"])
 
     if detector == "FUV":
-        cosutil.printMsg ("segment   shift  [orig.]   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("-------  ------ --------   ----------", VERBOSE)
+        cosutil.printMsg ("segment   shift err  [orig.]   chi sq (n)", VERBOSE)
+        cosutil.printMsg ("-------  ------ ---- -------   ----------", VERBOSE)
     else:
-        cosutil.printMsg ("stripe    shift  [orig.]   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("------   ------  -------   ----------", VERBOSE)
+        cosutil.printMsg ("stripe    shift err  [orig.]   chi sq (n)", VERBOSE)
+        cosutil.printMsg ("------   ------ ---- -------   ----------", VERBOSE)
 
     # Print and save results.
     for row in index:
 
         # This is the offset in the cross-dispersion direction.
         key = "shift2" + segment[row][-1].lower()
-        shift_dict[key] = sci_extn.header.get (key, default=0.)
+        if override_segment_B and segment[row] == "FUVB":
+            shift_dict[key] = sci_extn.header.get ("shift2a", default=0.)
+        else:
+            shift_dict[key] = sci_extn.header.get (key, default=0.)
+        sci_extn.header.update (key, shift_dict[key])
 
         # Zero for dpixel1[a-c] is appropriate for auto/GO wavecals.
         key = "dpixel1" + segment[row][-1].lower()
@@ -126,40 +143,38 @@ def findWavecalShift (input, shift_file, info, wcp_info):
         shift_dict[key] = 0.
 
         key = "shift1" + segment[row][-1].lower()
-        if got_pixel_shift:
-            filter["segment"] = segment[row]
-            lamp_info = cosutil.getTable (lamptab, filter)
-            if lamp_info is None:
-                continue
-            fp_pixel_shift = lamp_info.field ("fp_pixel_shift")[0]
-        else:
-            fp_pixel_shift = 0.
         user_specified = False
         if user_shifts is not None:
             ((user_shift1, user_shift2), nfound) = \
                         user_shifts.getShifts (("any", segment[row]))
             if user_shift1 is not None:
-                fs1.setShift1 (segment[row], user_shift1-fp_pixel_shift)
+                fs1.setShift1 (segment[row], user_shift1)
                 user_specified = True
-        shift_segment = fs1.getShift1 (segment[row]) + fp_pixel_shift
-        orig_shift1 = fs1.getOrigShift1 (segment[row]) + fp_pixel_shift
+        shift_segment = fs1.getShift1 (segment[row])
+        scatter = fs1.getScatter (segment[row])
+        orig_shift1 = fs1.getOrigShift1 (segment[row])
         sci_extn.header.update (key, shift_segment)
         shift_dict[key] = shift_segment
 
-        message = " %4s    %6.1f [%6.1f]  %7.1f (%d)" % \
-                (segment[row], shift_segment, orig_shift1,
+        message = " %4s    %6.1f %4.2f [%5.1f]  %7.1f (%d)" % \
+                (segment[row], shift_segment, scatter, orig_shift1,
                  fs1.getChiSq (segment[row]), fs1.getNdf (segment[row]))
         if user_specified:
             message = message + "  # user-specified"
+        elif override_segment_B and segment[row] == "FUVB":
+            message = message + "  # based on FUVA value"
         elif not fs1.getSpecFound (segment[row]):
             message = message + "  # not found"
         cosutil.printMsg (message, VERBOSE)
 
-        # Save Chi square and the number of degrees of freedom.
+        # Save Chi square and the number of degrees of freedom in the
+        # shift dictionary, and update the keywords in the x1d header.
         key = "chi_sq_" + segment[row][-1].lower()
         shift_dict[key] = round (fs1.getChiSq (segment[row]), 1)
+        sci_extn.header.update (key, shift_dict[key])
         key = "ndf_" + segment[row][-1].lower()
         shift_dict[key] = fs1.getNdf (segment[row])
+        sci_extn.header.update (key, shift_dict[key])
 
     fd.close()
 
@@ -184,7 +199,7 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
                     _a.fits name for FUV)
     @type filename: string
 
-    shift_dict can have any of the following keys:
+    shift_dict can have any of the following keys (and others):
     "shift1a" for FUV segment A or NUV stripe A,
     "shift1b" for FUV segment B or NUV stripe B,
     "shift1c" for NUV stripe C
@@ -591,7 +606,7 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
 
 def ttFindFUV (xi, eta, dq, xd_range, box, filter, xtractab):
 
-    xdisp = N.zeros (FUV_Y, dtype=N.float32)
+    xdisp = np.zeros (FUV_Y, dtype=np.float32)
 
     shift2 = None
     xd_shifts = {}
@@ -611,7 +626,7 @@ def ttFindFUV (xi, eta, dq, xd_range, box, filter, xtractab):
 
 def ttFindImagingWavecal (xi, eta, dq, xd_range, box, filter, xtractab):
 
-    xdisp = N.zeros (NUV_Y, dtype=N.float32)
+    xdisp = np.zeros (NUV_Y, dtype=np.float32)
 
     xd_shifts = {}
     xd_locns = {}
@@ -630,7 +645,7 @@ def ttFindImagingWavecal (xi, eta, dq, xd_range, box, filter, xtractab):
 
 def ttFindNUV (xi, eta, dq, xd_range, box, filter, xtractab):
 
-    xdisp = N.zeros (NUV_Y, dtype=N.float32)
+    xdisp = np.zeros (NUV_Y, dtype=np.float32)
 
     xd_shifts = {}
     xd_locns = {}
@@ -710,11 +725,11 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
     @type box: int
 
     @return: (shift2, y)
-    @rtype: tuple of a float and an integer
+    @rtype: tuple of two floats
 
     The function value is a tuple of the shift from nominal in the
     cross-dispersion direction and the location of the spectrum.
-    The location is an integer, the nearest to the location of the maximum.
+    The location is based on fitting a quadratic to points near the maximum.
     Note that the data were collapsed to the left edge to get xdisp, so the
     location is the intercept on the edge, rather than where the spectrum
     crosses the middle of the detector.
@@ -733,8 +748,9 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
         y1 = min (y1, len (xdisp) - 1)
 
     xdisp_sm = boxcar (xdisp, (box,), mode="nearest")
+    len_xdisp_sm = len (xdisp_sm)
 
-    index = N.argsort (xdisp_sm[y0:y1])
+    index = np.argsort (xdisp_sm[y0:y1])
     y = y0 + index[-1]
     signal = xdisp_sm[y]                # value in smoothed array
     # Check for duplicate values.
@@ -742,21 +758,42 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
     y_max = y
     while y_min > 0 and xdisp_sm[y_min] == signal:
         y_min -= 1
-    while y_max < len (xdisp_sm) and xdisp_sm[y_max] == signal:
+    while y_max < len_xdisp_sm and xdisp_sm[y_max] == signal:
         y_max += 1
     y_float = float (y_min + y_max) / 2.
     y = int (round (y_float))
+
+    # Fit a quadratic to the smoothed curve near the peak.
+    fit_range = (y_max - y_min) + box
+    if fit_range < xd_range:
+        r0 = y - fit_range // 2
+        r1 = r0 + fit_range
+        r0 = max (r0, 0)
+        r1 = min (r1, len_xdisp_sm)
+        r0 = r1 - fit_range
+        x = np.arange (fit_range, dtype=np.float64)
+        (coeff, var) = cosutil.fitQuadratic (x, xdisp_sm[r0:r1])
+        (y_temp, y_float_sigma) = cosutil.centerOfQuadratic (coeff, var)
+        y_float = y_temp + r0
 
     # Find the background level.
     i = index[(y1-y0)//2]
     background = xdisp_sm[y0+i]         # median of smoothed array
 
-    if signal > 4. * background:
-        shift2 = y - y_nominal
+    sigma_s = math.sqrt (signal * box)
+    sigma_b = math.sqrt (background * box)
+    sigma_s_b = math.sqrt (sigma_s**2 + sigma_b**2)
+    if sigma_s_b > 0.:
+        signal_to_noise = (signal - background) * box / sigma_s_b
+    else:
+        signal_to_noise = 0.
+
+    if signal_to_noise >= 5.:
+        shift2 = y_float - y_nominal
     else:
         shift2 = None
 
-    return (shift2, y)
+    return (shift2, y_float)
 
 def printWavecalRef (reffiles):
     """Print the names of reference files used for wavecal processing.

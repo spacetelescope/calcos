@@ -1,6 +1,6 @@
 from __future__ import division
 import os
-import numpy as N
+import numpy as np
 from convolve import boxcar
 import pyfits
 import cosutil
@@ -11,6 +11,7 @@ import getinfo
 from calcosparam import *       # parameter definitions
 
 def extract1D (input, incounts=None, output=None,
+               update_input=True,
                location=None, find_target=False):
     """Extract 1-D spectrum from 2-D image.
 
@@ -22,6 +23,9 @@ def extract1D (input, incounts=None, output=None,
     @type incounts: string, or None
     @param output: name of the output file for 1-D extracted spectra
     @type output: string
+    @param update_input: True if the input flt and counts files should be
+        modified in-place by updating keywords regarding extraction location
+    @type update_input: boolean
     @param location: the location (or list of three locations for NUV) of
         the spectrum in the cross-dispersion direction, in pixels; this
         is where the spectrum crosses the middle of the detector (index
@@ -122,6 +126,8 @@ def extract1D (input, incounts=None, output=None,
                 unit="erg /s /cm**2 /angstrom"))
     col.append (pyfits.Column (name="GROSS", format=rpt+"E",
                 unit="count /s"))
+    col.append (pyfits.Column (name="GCOUNTS", format=rpt+"E",
+                unit="count"))
     col.append (pyfits.Column (name="NET", format=rpt+"E",
                 unit="count /s"))
     col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E",
@@ -186,7 +192,7 @@ def extract1D (input, incounts=None, output=None,
     if ifd_c is not None:
         ifd_c.close()
 
-    if nrows > 0:
+    if update_input and nrows > 0:
         copyKeywordsToInput (output, input, incounts)
 
     if switches["statflag"] == "PERFORM":
@@ -275,7 +281,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         outdata.field ("NELEM")[row] = nelem
 
         # These are pixel coordinates.
-        pixel = N.arange (nelem, dtype=N.float64)
+        pixel = np.arange (nelem, dtype=np.float64)
 
         x_offset = hdr.get ("x_offset", 0)
 
@@ -297,7 +303,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                 axis_length = FUV_EXTENDED_X
             else:
                 axis_length = NUV_EXTENDED_X
-            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i) = \
+            (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
                 extractCorrtag (xi, eta, dq, epsilon,
                                 ofd[1].header, segment,
                                 hdr["sdqflags"], axis_length, snr_ff,
@@ -314,7 +320,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                 #                x_offset, info["detector"], info["opt_elem"])
             else:
                 xd_locn = xdisp_locn    # updated by extractSegment()
-            (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i) = \
+            (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
              extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
                              ifd_e["DQ"].data, ofd[1].header, segment,
                              x_offset, hdr["sdqflags"], snr_ff,
@@ -328,6 +334,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         outdata.field ("FLUX")[row][:] = 0.
         outdata.field ("ERROR")[row][:] = ERR_i
         outdata.field ("GROSS")[row][:] = GC_i
+        outdata.field ("GCOUNTS")[row][:] = GCOUNTS_i
         outdata.field ("NET")[row][:] = N_i
         outdata.field ("BACKGROUND")[row][:] = BK_i
         outdata.field ("DQ")[row][:] = DQ_i
@@ -494,9 +501,9 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     @param find_target: search for the cross-disp location of the target?
     @type find_target: boolean
 
-    @return: net count rate, error estimate, gross count rate, background
-        count rate, data quality array, data quality weight array
-    @rtype: tuple of six 1-D arrays
+    @return: net count rate, error estimate, gross count rate, gross counts,
+        background count rate, data quality array, data quality weight array
+    @rtype: tuple of seven 1-D arrays
 
     An "_ij" suffix indicates a 2-D array; here they will all be sections
     extracted from full images.  An "_i" suffix indicates a 1-D array
@@ -506,6 +513,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
 
       e_i       effective count rate, extracted from ifd_e[1].data
       GC_i      gross count rate, extracted from ifd_c[1].data
+      GCOUNTS_i gross counts, extracted from ifd_c[1].data
       BK_i      background count rate
       N_i       net count rate
       eps_i     effective count rate / gross count rate
@@ -550,47 +558,48 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         xd_locn = xdisp_locn
 
     # Compute the data quality and data quality weight arrays.
-    DQ_i = N.zeros (axis_length, dtype=N.int16)
+    DQ_i = np.zeros (axis_length, dtype=np.int16)
     if e_dq_data is not None:
 
         # Get data quality flags within extraction region.
-        dq_ij = N.zeros ((extr_height, axis_length), dtype=N.int16)
+        dq_ij = np.zeros ((extr_height, axis_length), dtype=np.int16)
         ccos.extractband (e_dq_data, axis, slope, b_spec, x_offset, dq_ij)
         # For each i, DQ_i[i] will be the bitwise OR of dq_ij[:,i].
-        DQ_i = N.zeros (axis_length, dtype=N.int16)
+        DQ_i = np.zeros (axis_length, dtype=np.int16)
         ccos.dq_or (dq_ij, DQ_i)
 
         # In bad_ij and bad_i, 0 means OK and 1 means bad
-        bad_ij = N.zeros ((extr_height, axis_length), dtype=N.int32)
-        bad_ij[:,:] = N.where (N.bitwise_and (dq_ij, sdqflags), 1, 0)
+        bad_ij = np.zeros ((extr_height, axis_length), dtype=np.int32)
+        bad_ij[:,:] = np.where (np.bitwise_and (dq_ij, sdqflags), 1, 0)
         bad_i = bad_ij.sum (axis=0)
         # Any bad pixel in extraction region?  DQ_WGT is a weight,
         # so 0 is bad and 1 is good.
-        DQ_WGT_i = N.where (bad_i > 0, 0., 1.)
+        DQ_WGT_i = np.where (bad_i > 0, 0., 1.)
         del dq_ij, bad_ij, bad_i
     else:
-        DQ_WGT_i = N.ones (axis_length, dtype=N.float32)
+        DQ_WGT_i = np.ones (axis_length, dtype=np.float32)
 
-    e_ij = N.zeros ((extr_height, axis_length), dtype=N.float32)
+    e_ij = np.zeros ((extr_height, axis_length), dtype=np.float32)
     ccos.extractband (e_data, axis, slope, b_spec, x_offset, e_ij)
 
-    GC_ij = N.zeros ((extr_height, axis_length), dtype=N.float32)
+    GC_ij = np.zeros ((extr_height, axis_length), dtype=np.float32)
     ccos.extractband (c_data, axis, slope, b_spec, x_offset, GC_ij)
 
     e_i  = e_ij.sum (axis=0)
     GC_i = GC_ij.sum (axis=0)
+    GCOUNTS_i = GC_i * exptime          # gross counts (not count rate)
 
-    eps_i = e_i / N.where (GC_i <= 0., 1., GC_i)
+    eps_i = e_i / np.where (GC_i <= 0., 1., GC_i)
     # default value when there are no counts
-    eps_i = N.where (e_i == 0., 1., eps_i)
+    eps_i = np.where (e_i == 0., 1., eps_i)
     del e_ij, e_i
 
     bkg_norm = float (extr_height) / (float (bkg_height1 + bkg_height2))
     if backcorr == "PERFORM":
-        BK1_ij = N.zeros ((bkg_height1, axis_length), dtype=N.float32)
-        dq1_ij = N.zeros ((bkg_height1, axis_length), dtype=N.int16)
-        BK2_ij = N.zeros ((bkg_height2, axis_length), dtype=N.float32)
-        dq2_ij = N.zeros ((bkg_height2, axis_length), dtype=N.int16)
+        BK1_ij = np.zeros ((bkg_height1, axis_length), dtype=np.float32)
+        dq1_ij = np.zeros ((bkg_height1, axis_length), dtype=np.int16)
+        BK2_ij = np.zeros ((bkg_height2, axis_length), dtype=np.float32)
+        dq2_ij = np.zeros ((bkg_height2, axis_length), dtype=np.int16)
         # Get the background data from the counts image.
         ccos.extractband (c_data, axis, slope, b_bkg1, x_offset, BK1_ij)
         ccos.extractband (c_data, axis, slope, b_bkg2, x_offset, BK2_ij)
@@ -600,8 +609,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         good1_ij = dq1_ij.copy()
         good2_ij = dq2_ij.copy()
         # In good[12]_ij, 1 means OK and 0 means bad.
-        good1_ij[:,:] = N.where (N.bitwise_and (dq1_ij, sdqflags), 0, 1)
-        good2_ij[:,:] = N.where (N.bitwise_and (dq2_ij, sdqflags), 0, 1)
+        good1_ij[:,:] = np.where (np.bitwise_and (dq1_ij, sdqflags), 0, 1)
+        good2_ij[:,:] = np.where (np.bitwise_and (dq2_ij, sdqflags), 0, 1)
         # Use the good[12]_ij arrays as a mask to exclude bad data in the
         # background regions.
         BK1_ij *= good1_ij
@@ -611,12 +620,12 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         # The sum along axis=0 gives the number of good pixels in each column.
         # Use this sum to correct (rescale) the background to account for
         # pixels that are flagged as bad.
-        good_i = good1_ij.sum (axis=0, dtype=N.float32) + \
-                 good2_ij.sum (axis=0, dtype=N.float32)
+        good_i = good1_ij.sum (axis=0, dtype=np.float32) + \
+                 good2_ij.sum (axis=0, dtype=np.float32)
         # If good_i is zero, the background will also be zero, so it doesn't
         # matter what we set good_i to as long as it's not zero (we're going
         # to divide by it).
-        good_i = N.where (good_i > 0., good_i, 1.)
+        good_i = np.where (good_i > 0., good_i, 1.)
         # Correct for regions excluded because they're flagged as bad.
         BK_i *= (float (bkg_height1 + bkg_height2)) / good_i
         # Scale the background to the spectral extraction height.
@@ -636,7 +645,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         else:
             boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
     else:
-        BK_i = N.zeros (axis_length, dtype=N.float32)
+        BK_i = np.zeros (axis_length, dtype=np.float32)
 
     N_i = eps_i * (GC_i - BK_i)
 
@@ -647,7 +656,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     term2_i = eps_i**2 * exptime * \
                 (GC_i + BK_i * (bkg_norm / float (bkg_smooth)))
     if exptime > 0.:
-        ERR_i = N.sqrt (term1_i + term2_i) / exptime
+        ERR_i = np.sqrt (term1_i + term2_i) / exptime
     else:
         ERR_i = N_i * 0.
 
@@ -655,7 +664,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                               slope, extr_height, xd_locn,
                               b_bkg1, b_bkg2, bkg_height1, bkg_height2)
 
-    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i)
+    return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
 
 def extractCorrtag (xi, eta, dq, epsilon,
                     ofd_header, segment,
@@ -692,25 +701,26 @@ def extractCorrtag (xi, eta, dq, epsilon,
         b_spec = xdisp_locn - slope * (axis_length // 2)
         xd_locn = xdisp_locn
 
-    e_ij = N.zeros ((extr_height, axis_length), dtype=N.float64)
+    e_ij = np.zeros ((extr_height, axis_length), dtype=np.float64)
     ccos.xy_extract (xi, eta, e_ij, slope, b_spec,
                      zero_pixel, dq, sdqflags, epsilon)
     e_ij /= exptime
     e_i = e_ij.sum (axis=0)
 
-    GC_ij = N.zeros ((extr_height, axis_length), dtype=N.float64)
+    GC_ij = np.zeros ((extr_height, axis_length), dtype=np.float64)
     ccos.xy_extract (xi, eta, GC_ij, slope, b_spec,
                      zero_pixel, dq, sdqflags)
+    GCOUNTS_i = GC_ij.sum (axis=0)      # gross counts (not count rate)
     GC_ij /= exptime
-    GC_i = GC_ij.sum (axis=0)
+    GC_i = GC_ij.sum (axis=0)           # gross count rate
 
-    eps_i = e_i / N.where (GC_i <= 0., 1., GC_i)
+    eps_i = e_i / np.where (GC_i <= 0., 1., GC_i)
     del e_ij, e_i
 
     bkg_norm = float (extr_height) / (float (bkg_height1 + bkg_height2))
     if backcorr == "PERFORM":
-        BK1_ij = N.zeros ((bkg_height1, axis_length), dtype=N.float64)
-        BK2_ij = N.zeros ((bkg_height2, axis_length), dtype=N.float64)
+        BK1_ij = np.zeros ((bkg_height1, axis_length), dtype=np.float64)
+        BK2_ij = np.zeros ((bkg_height2, axis_length), dtype=np.float64)
         ccos.xy_extract (xi, eta, BK1_ij, slope, b_bkg1,
                          zero_pixel, dq, sdqflags)
         ccos.xy_extract (xi, eta, BK2_ij, slope, b_bkg2,
@@ -721,7 +731,7 @@ def extractCorrtag (xi, eta, dq, epsilon,
         BK_i *= bkg_norm
         boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
     else:
-        BK_i = N.zeros (axis_length, dtype=N.float64)
+        BK_i = np.zeros (axis_length, dtype=np.float64)
 
     N_i = eps_i * (GC_i - BK_i)
 
@@ -731,19 +741,19 @@ def extractCorrtag (xi, eta, dq, epsilon,
         term1_i = 0.
     term2_i = eps_i**2 * exptime * \
                 (GC_i + BK_i * (bkg_norm / float (bkg_smooth)))
-    ERR_i = N.sqrt (term1_i + term2_i) / exptime
+    ERR_i = np.sqrt (term1_i + term2_i) / exptime
 
     # dummy DQ array
-    DQ_i = N.zeros (axis_length, dtype=N.int16)
+    DQ_i = np.zeros (axis_length, dtype=np.int16)
 
     # dummy weight array
-    DQ_WGT_i = N.ones (axis_length, dtype=N.float32)
+    DQ_WGT_i = np.ones (axis_length, dtype=np.float32)
 
     updateExtractionKeywords (ofd_header, segment,
                               slope, extr_height, xd_locn,
                               b_bkg1, b_bkg2, bkg_height1, bkg_height2)
 
-    return (N_i, ERR_i, GC_i, BK_i, DQ_i, DQ_WGT_i)
+    return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
 
 def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
     """Convert net counts to flux, updating flux and error columns.
@@ -783,8 +793,13 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
               "aperture": aperture}
 
     fluxtab = reffiles["fluxtab"]
+
     for row in range (nrows):
-        factor = N.zeros (len (flux[row]), dtype=N.float32)
+        pharange = cosutil.getPulseHeightRange (ofd[1].header, segment[row])
+        # xxx this is temporary; eventually select the row based on pharange
+        ref_pharange = cosutil.tempPulseHeightRange (fluxtab)
+        cosutil.comparePulseHeightRanges (pharange, ref_pharange, fluxtab)
+        factor = np.zeros (len (flux[row]), dtype=np.float32)
         filter["segment"] = segment[row]
         flux_info = cosutil.getTable (fluxtab, filter)
         if flux_info is None:
@@ -794,7 +809,7 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
             wl_phot = flux_info.field ("wavelength")[0]
             sens_phot = flux_info.field ("sensitivity")[0]
             ccos.interp1d (wl_phot, sens_phot, wavelength[row], factor)
-            factor = N.where (factor <= 0., 1., factor)
+            factor = np.where (factor <= 0., 1., factor)
             flux[row][:] = net[row] / factor
             error[row][:] = error[row] / factor
     ofd[0].header["fluxcorr"] = "COMPLETE"
@@ -812,6 +827,10 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
         # pedigree column, assume all rows are good (i.e. not dummy).
         dummy = False           # initial value
         for row in range (nrows):
+            pharange = cosutil.getPulseHeightRange (ofd[1].header, segment[row])
+            # xxx this is temporary
+            ref_pharange = cosutil.tempPulseHeightRange (tdstab)
+            cosutil.comparePulseHeightRanges (pharange, ref_pharange, tdstab)
             filter["segment"] = segment[row]
             tds_info = cosutil.getTable (tdstab, filter, exactly_one=True)
             names = []
@@ -840,7 +859,7 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
                 except RuntimeError:    # no matching row in table
                     continue
                 (wl_tds, factor_tds) = tds_results
-                factor = N.zeros (len (flux[row]), dtype=N.float32)
+                factor = np.zeros (len (flux[row]), dtype=np.float32)
                 # Interpolate factor_tds at each wavelength.
                 ccos.interp1d (wl_tds, factor_tds, wavelength[row], factor)
                 flux[row][:] /= factor
@@ -888,8 +907,8 @@ def getTdsFactors (tdstab, filter, t_obs):
     # This section is needed because pyfits currently ignores TDIMi.
     maxt = len (time)
     maxwl = len (wl_tds)
-    slope = N.reshape (slope, (maxt, maxwl))
-    intercept = N.reshape (intercept, (maxt, maxwl))
+    slope = np.reshape (slope, (maxt, maxwl))
+    intercept = np.reshape (intercept, (maxt, maxwl))
 
     # Find the time interval that includes the time of observation.
     if nt == 1 or t_obs >= time[nt-1]:
@@ -922,7 +941,7 @@ def getTdsFactors (tdstab, filter, t_obs):
 
     return (wl_tds, factor_tds)
 
-def updateExtractionKeywords (hdr, segment, slope, height, xd__locn,
+def updateExtractionKeywords (hdr, segment, slope, height, xd_locn,
                               b_bkg1, b_bkg2, bkg_height1, bkg_height2):
     """Update keywords giving the locations of extraction regions.
 
@@ -934,9 +953,9 @@ def updateExtractionKeywords (hdr, segment, slope, height, xd__locn,
     @type slope: float
     @param height: height of extraction box
     @type height: int
-    @param xd__locn: location of the spectrum in the cross-dispersion
+    @param xd_locn: location of the spectrum in the cross-dispersion
         direction (where it crosses the middle of the detector)
-    @type xd__locn: float
+    @type xd_locn: float
     @param b_bkg1: location of first background region (at left edge, as
         read from the reference table)
     @type b_bkg1: float
@@ -950,7 +969,7 @@ def updateExtractionKeywords (hdr, segment, slope, height, xd__locn,
     """
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
-    hdr.update (key, xd__locn)
+    hdr.update (key, xd_locn)
     key = "SP_SLP_" + segment[-1]           # SP_SLP_A, SP_SLP_B, SP_SLP_C
     hdr.update (key, slope)
     hdr.update ("SP_HGT", height)
@@ -1007,7 +1026,7 @@ def updateArchiveSearch (ofd):
     for row in range (nrows):
         if dq_wgt is None:
             good_wl = wavelength[row]
-        elif dq_wgt[row].sum (dtype=N.float64) <= 0:
+        elif dq_wgt[row].sum (dtype=np.float64) <= 0:
             cosutil.printWarning ("DQ_WGT is all 0 for '%s'" % segment[row])
             good_wl = wavelength[row]
         else:
@@ -1067,7 +1086,7 @@ def concatenateFUVSegments (infiles, output):
         rename_file = infiles[1]
         missing = infiles[0]
     if rename_file:
-        cosutil.printWarning ("%s is missing.", VERY_VERBOSE)
+        cosutil.printWarning ("%s is missing." % missing, VERY_VERBOSE)
         cosutil.renameFile (rename_file, output)
         return
 
@@ -1089,7 +1108,7 @@ def concatenateFUVSegments (infiles, output):
     else:
         seg_b = None
     if seg_a is None or seg_b is None:
-        cosutil.printError ("files are " + infiles[0] + infiles[1])
+        cosutil.printError ("files are " + infiles[0] + " " + infiles[1])
         raise RuntimeError, \
             "Files to concatenate must be for segments FUVA and FUVB."
 
@@ -1118,6 +1137,7 @@ def concatenateFUVSegments (infiles, output):
                 "tbrst_b", "tbadt_b", "nbrst_b", "nbadt_b",
                 "nout_b",
                 "globrt_b",
+                "deadrt_b", "deadmt_b", "livetm_b",
                 "sp_loc_b", "sp_slp_b",
                 "b_bkg1_b", "b_bkg2_b",
                 "b_hgt1_b", "b_hgt2_b",
@@ -1244,7 +1264,7 @@ def recomputeWavelengths (input):
     fd = pyfits.open (input, mode="update")
     phdr = fd[0].header
     hdr = fd[1].header
-    if hdr["naxis2"] == 0 or phdr["wavecorr"].upper() == "COMPLETE":
+    if hdr["naxis2"] == 0:
         fd.close()
         return
     cosutil.printMsg ("Updating wavelengths in %s" % input, VERY_VERBOSE)
@@ -1277,7 +1297,7 @@ def recomputeWavelengths (input):
 
         # 'pixel' is an array of pixel coordinates.
         nelem = nelem_col[row]
-        pixel = N.arange (nelem, dtype=N.float64)
+        pixel = np.arange (nelem, dtype=np.float64)
 
         pixel -= shift1
         pixel -= x_offset

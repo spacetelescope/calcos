@@ -7,7 +7,8 @@ import shutil
 import sys
 import time
 import types
-import numpy as N
+import numpy as np
+import numpy.linalg as LA
 import pyfits
 import ccos
 from calcosparam import *       # parameter definitions
@@ -81,12 +82,13 @@ def writeOutputEvents (infile, outfile):
     outdata.field ("XCORR")[:] = indata.field ("RAWX")
     outdata.field ("YCORR")[:] = indata.field ("RAWY")
 
-    outdata.field ("XDOPP")[:] = N.zeros (nrows, dtype=N.float32)
-    outdata.field ("XFULL")[:] = N.zeros (nrows, dtype=N.float32)
-    outdata.field ("YFULL")[:] = N.zeros (nrows, dtype=N.float32)
+    outdata.field ("XDOPP")[:] = np.zeros (nrows, dtype=np.float32)
+    outdata.field ("XFULL")[:] = np.zeros (nrows, dtype=np.float32)
+    outdata.field ("YFULL")[:] = np.zeros (nrows, dtype=np.float32)
+    outdata.field ("WAVELENGTH")[:] = np.zeros (nrows, dtype=np.float32)
 
-    outdata.field ("EPSILON")[:] = N.ones (nrows, dtype=N.float32)
-    outdata.field ("DQ")[:] = N.zeros (nrows, dtype=N.int16)
+    outdata.field ("EPSILON")[:] = np.ones (nrows, dtype=np.float32)
+    outdata.field ("DQ")[:] = np.zeros (nrows, dtype=np.int16)
     if detector == "FUV":
         outdata.field ("PHA")[:] = indata.field ("PHA")
     else:
@@ -178,6 +180,8 @@ def createCorrtagHDU (nrows, detector, header):
     col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
     col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
     col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
+    col.append (pyfits.Column (name="WAVELENGTH", format="1E",
+                               unit="angstrom", disp="%9.4f"))
     col.append (pyfits.Column (name="EPSILON", format="1E"))
     col.append (pyfits.Column (name="DQ", format="1I"))
     col.append (pyfits.Column (name="PHA", format="1B"))
@@ -343,7 +347,8 @@ def findColumn (table, colname):
     else:
         return False
 
-def getTable (table, filter, exactly_one=False, at_least_one=False):
+def getTable (table, filter, extension=1,
+              exactly_one=False, at_least_one=False):
     """Return the data portion of a table.
 
     All rows that match the filter (a dictionary of column_name = value)
@@ -364,6 +369,8 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
         in that column matches the filter value for some row, that row will
         be included in the set that is returned
     @type filter: dictionary
+    @param extension: identifier for the extension containing the table
+    @type extension: tuple, string or integer
     @param exactly_one: true if there must be one and only one matching row
     @type exactly_one: boolean
     @param at_least_one: true if there must be at least one matching row
@@ -375,7 +382,7 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
 
     # fd = pyfits.open (table, mode="readonly", memmap=1)
     fd = pyfits.open (table, mode="readonly")
-    data = fd[1].data
+    data = fd[extension].data
 
     # There will be one element of select_arrays for each non-trivial
     # selection criterion.  Each element of select_arrays is an array
@@ -391,22 +398,22 @@ def getTable (table, filter, exactly_one=False, at_least_one=False):
 
         # Test for for wildcards in the table.
         wild = None
-        if isinstance (column, N.chararray):
+        if isinstance (column, np.chararray):
             wild = (column == STRING_WILDCARD)
-        #elif isinstance (column[0], N.integer):
+        #elif isinstance (column[0], np.integer):
         #    wild = (column == INT_WILDCARD)
         if wild is not None:
-            selected = N.logical_or (selected, wild)
+            selected = np.logical_or (selected, wild)
 
         select_arrays.append (selected)
 
     if len (select_arrays) > 0:
         selected = select_arrays[0]
         for sel_i in select_arrays[1:]:
-             selected = N.logical_and (selected, sel_i)
+             selected = np.logical_and (selected, sel_i)
         newdata = data[selected]
     else:
-        newdata = fd[1].data.copy()
+        newdata = data.copy()
 
     fd.close()
 
@@ -458,7 +465,7 @@ def getColCopy (filename="", column=None, extension=1, data=None):
     else:
         raise RuntimeError, "Either filename or data must be specified."
 
-    x = N.empty (temp.shape, dtype=temp.dtype.type)
+    x = np.empty (temp.shape, dtype=temp.dtype.type)
     x[...] = temp
 
     return x
@@ -479,7 +486,7 @@ def getTemplate (raw_template, x_offset, nelem):
     if x_offset == 0 and nelem == len_raw:
         return raw_template.copy()
 
-    template = N.zeros (nelem, dtype=raw_template.dtype)
+    template = np.zeros (nelem, dtype=raw_template.dtype)
     template[x_offset:len_raw+x_offset] = raw_template
 
     return template
@@ -559,18 +566,18 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
         b_bkg1 = 705.
         b_bkg2 = 505.
         b_hgt = 50
-        source = N.zeros ((height, len_spectrum), dtype=N.float64)
-        background1 = N.zeros ((b_hgt, len_spectrum), dtype=N.float64)
-        background2 = N.zeros ((b_hgt, len_spectrum), dtype=N.float64)
+        source = np.zeros ((height, len_spectrum), dtype=np.float64)
+        background1 = np.zeros ((b_hgt, len_spectrum), dtype=np.float64)
+        background2 = np.zeros ((b_hgt, len_spectrum), dtype=np.float64)
         ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
                          dq, info["sdqflags"])
         ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
                          dq, info["sdqflags"])
         ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
                          dq, info["sdqflags"])
-        ns = source.sum (dtype=N.float64)
-        nb = background1.sum (dtype=N.float64) + \
-             background2.sum (dtype=N.float64)
+        ns = source.sum (dtype=np.float64)
+        nb = background1.sum (dtype=np.float64) + \
+             background2.sum (dtype=np.float64)
         sigma_s = math.sqrt (ns)
         sigma_b = math.sqrt (nb)
         printMsg ("Counts from lamp = %.0f, background = %.1f, " \
@@ -627,15 +634,15 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
     else:
         bkg_height1 = xtract_info.field ("bheight")[0]
         bkg_height2 = bkg_height1
-    background1 = N.zeros ((bkg_height1, len_spectrum), dtype=N.float64)
-    background2 = N.zeros ((bkg_height2, len_spectrum), dtype=N.float64)
+    background1 = np.zeros ((bkg_height1, len_spectrum), dtype=np.float64)
+    background2 = np.zeros ((bkg_height2, len_spectrum), dtype=np.float64)
     ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
                      dq, info["sdqflags"])
     ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
                      dq, info["sdqflags"])
     # number of background counts
-    unscaled_nb = background1.sum (dtype=N.float64) + \
-                  background2.sum (dtype=N.float64)
+    unscaled_nb = background1.sum (dtype=np.float64) + \
+                  background2.sum (dtype=np.float64)
     sum_bkg_height = bkg_height1 + bkg_height2
     del background1, background2
 
@@ -648,10 +655,10 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
         slope  = xtract_info.field ("slope")[0]
         b_spec = xtract_info.field ("b_spec")[0] + shift2
         height = xtract_info.field ("height")[0]
-        source = N.zeros ((height, len_spectrum), dtype=N.float64)
+        source = np.zeros ((height, len_spectrum), dtype=np.float64)
         ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
                          dq, info["sdqflags"])
-        ns += source.sum (dtype=N.float64)
+        ns += source.sum (dtype=np.float64)
         sum_height += height
         del source
 
@@ -802,12 +809,12 @@ def getInputDQ (input, imset=1):
         if fd[("DQ",imset)].data.shape[1] == npix[1]:
             dq_array = fd[("DQ",imset)].data
             # undo the flagging of regions outside subarrays
-            dq_array = N.bitwise_and (dq_array, 16383-(64+128))
+            dq_array = np.bitwise_and (dq_array, 16383-(64+128))
         else:
-            dq_array = N.zeros (npix, dtype=N.int16)
+            dq_array = np.zeros (npix, dtype=np.int16)
             dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",imset)].data
     else:
-        dq_array = N.zeros (npix, dtype=N.int16)
+        dq_array = np.zeros (npix, dtype=np.int16)
         if hdr.has_key ("pixvalue"):
             pixvalue = hdr["pixvalue"]
             if pixvalue != 0:
@@ -843,11 +850,11 @@ def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
         # time is the time in seconds since doppzero.
         nelem = int (round (exptime))           # one element per sec
         nelem = max (nelem, 1)
-        time = N.arange (nelem, dtype=N.float64) + \
+        time = np.arange (nelem, dtype=np.float64) + \
                    (expstart - doppzero) * SEC_PER_DAY
 
         # shift is in pixels (wavelengths increase toward larger pixel number).
-        shift = -doppmag * N.sin (2. * N.pi * time / orbitper)
+        shift = -doppmag * np.sin (2. * np.pi * time / orbitper)
         mindopp = shift.min()
         maxdopp = shift.max()
     else:
@@ -937,11 +944,11 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
 
     if detector == "FUV":
         # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
-        indices = N.arange (4, dtype=N.int32)
+        indices = np.arange (4, dtype=np.int32)
         if segment == "FUVB":
             indices += 4
     else:
-        indices = N.arange (nsubarrays, dtype=N.int32)
+        indices = np.arange (nsubarrays, dtype=np.int32)
 
     temp = dq_array.copy()
     (ny, nx) = dq_array.shape
@@ -1079,24 +1086,24 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
         nfound += 1
         # These are arrays of pixel coordinates just inside the borders
         # of the subarray.
-        x_lower = N.arange (x0, x1, dtype=N.float32)
-        x_upper = N.arange (x0, x1, dtype=N.float32)
-        y_left  = N.arange (y0, y1, dtype=N.float32)
-        y_right = N.arange (y0, y1, dtype=N.float32)
+        x_lower = np.arange (x0, x1, dtype=np.float32)
+        x_upper = np.arange (x0, x1, dtype=np.float32)
+        y_left  = np.arange (y0, y1, dtype=np.float32)
+        y_right = np.arange (y0, y1, dtype=np.float32)
         y_lower = y0 + 0. * x_lower
         y_upper = (y1 - 1.) + 0. * x_upper
         x_left  = x0 + 0. * y_left
         x_right = (x1 - 1.) + 0. * y_right
         # These are independent variable arrays for interpolation.
-        x_lower_uniform = N.arange (nx, dtype=N.float32)
-        x_upper_uniform = N.arange (nx, dtype=N.float32)
-        y_left_uniform  = N.arange (ny, dtype=N.float32)
-        y_right_uniform = N.arange (ny, dtype=N.float32)
+        x_lower_uniform = np.arange (nx, dtype=np.float32)
+        x_upper_uniform = np.arange (nx, dtype=np.float32)
+        y_left_uniform  = np.arange (ny, dtype=np.float32)
+        y_right_uniform = np.arange (ny, dtype=np.float32)
         # These will be the arrays of interpolated edge coordinates.
-        y_lower_interp = N.arange (nx, dtype=N.float32)
-        y_upper_interp = N.arange (nx, dtype=N.float32)
-        x_left_interp  = N.arange (ny, dtype=N.float32)
-        x_right_interp = N.arange (ny, dtype=N.float32)
+        y_lower_interp = np.arange (nx, dtype=np.float32)
+        y_upper_interp = np.arange (nx, dtype=np.float32)
+        x_left_interp  = np.arange (ny, dtype=np.float32)
+        x_right_interp = np.arange (ny, dtype=np.float32)
         save_sub = (x0, x1, y0, y1)             # in case geocorr is omit
     if nfound == 0:
         printWarning (
@@ -1137,7 +1144,7 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
         (x0, x1, y0, y1) = save_sub
         clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset)
 
-    dq_array[:,:] = N.bitwise_or (dq_array, temp)
+    dq_array[:,:] = np.bitwise_or (dq_array, temp)
 
 def applyOffsets (x_left, x_right, nx, dx, x_offset=0):
 
@@ -1145,8 +1152,8 @@ def applyOffsets (x_left, x_right, nx, dx, x_offset=0):
     x_right += x_offset
     x_left -= dx
     x_right -= dx
-    x_left = N.where (x_left < 0., 0., x_left)
-    x_right = N.where (x_right > nx-1., nx-1., x_right)
+    x_left = np.where (x_left < 0., 0., x_left)
+    x_right = np.where (x_right > nx-1., nx-1., x_right)
 
     return (x_left, x_right)
 
@@ -1508,24 +1515,24 @@ def doImageStat (input):
                 b_spec = xtract_info.field ("b_spec")[0]
                 extr_height = xtract_info.field ("height")[0]
 
-                sci_band = N.zeros ((extr_height, axis_length),
-                                       dtype=N.float32)
+                sci_band = np.zeros ((extr_height, axis_length),
+                                     dtype=np.float32)
                 ccos.extractband (sci, axis, slope, b_spec, x_offset,
                                   sci_band)
 
                 if err is None:
                     err_band = None
                 else:
-                    err_band = N.zeros ((extr_height, axis_length),
-                                       dtype=N.float32)
+                    err_band = np.zeros ((extr_height, axis_length),
+                                         dtype=np.float32)
                     ccos.extractband (err, axis, slope, b_spec, x_offset,
                                       err_band)
 
                 if dq is None:
                     dq_band = None
                 else:
-                    dq_band = N.zeros ((extr_height, axis_length),
-                                          dtype=N.int16)
+                    dq_band = np.zeros ((extr_height, axis_length),
+                                        dtype=np.int16)
                     ccos.extractband (dq, axis, slope, b_spec, x_offset,
                                       dq_band)
 
@@ -1627,8 +1634,8 @@ def doTagFlashStat (fd):
     max_gross = 0.
     n = 0
     for row in range (nrows):
-        max_gross = max (max_gross, N.maximum.reduce (gross[row]))
-        sum_gross += N.sum (gross[row])
+        max_gross = max (max_gross, np.maximum.reduce (gross[row]))
+        sum_gross += np.sum (gross[row])
         n += nelem[row]
 
     sci_extn.header.update ("ngoodpix", n)
@@ -1655,35 +1662,35 @@ def computeStat (sci_band, err_band=None, dq_band=None, sdqflags=3832):
                                 "err_goodmax": 0., "err_goodmean": 0.}
 
     # Don't quit if there are numpy exceptions.
-    # xxx N.Error.setMode (all="warn", underflow="ignore")
+    # xxx np.Error.setMode (all="warn", underflow="ignore")
 
     # Compute statistics for the sci array.  Note that mask is used
     # for both the sci and err arrays (if there is a dq_band).
     if dq_band is None:
-        sci_good = N.ravel (sci_band)
+        sci_good = np.ravel (sci_band)
     else:
         serious_dq = dq_band & sdqflags
         # mask = 1 where dq == 0
-        mask = N.where (serious_dq == 0)
+        mask = np.where (serious_dq == 0)
         sci_good = sci_band[mask]
 
     ngoodpix = len (sci_good)
     stat_info["ngoodpix"] = ngoodpix
     if ngoodpix > 0:
-        stat_info["sci_goodmax"] = N.maximum.reduce (sci_good)
-        stat_info["sci_goodmean"] = N.sum (sci_good) / ngoodpix
+        stat_info["sci_goodmax"] = np.maximum.reduce (sci_good)
+        stat_info["sci_goodmean"] = np.sum (sci_good) / ngoodpix
     del sci_good
 
     # Compute statistics for the err array.
     if err_band is not None:
         if dq_band is None:
-            err_good = N.ravel (err_band)
+            err_good = np.ravel (err_band)
         else:
             err_good = err_band[mask]
         if ngoodpix > 0:
-            stat_info["err_goodmax"] = N.maximum.reduce (err_good)
+            stat_info["err_goodmax"] = np.maximum.reduce (err_good)
             stat_info["err_goodmean"] = \
-                      N.sum (err_good) / ngoodpix
+                      np.sum (err_good) / ngoodpix
 
     return stat_info
 
@@ -1784,6 +1791,88 @@ def updatePulseHeightKeywords (hdr, segment, low, high):
     hdr.update (key_low, low)
     key_high = "PHAUPPR" + segment[-1]
     hdr.update (key_high, high)
+
+def getPulseHeightRange (hdr, segment):
+    """Get the pulse height range that was used for PHACORR.
+
+    @param hdr: extension header of corrtag, counts, flt, etc
+    @type hdr: pyfits Header object
+    @param segment: segment name ("FUVA" or "FUVB")
+    @type segment: string
+
+    @return: "ll_hh", where ll is the lower limit and hh is the upper limit
+    @rtype: string, or None if keyword(s) are missing or less than 0
+    """
+
+    if segment[:3] != "FUV":
+        return None
+
+    # These keywords were assigned when PHACORR was done.
+    key_low  = "PHALOWR" + segment[-1]
+    low = hdr.get (key_low, -1)
+    key_high = "PHAUPPR" + segment[-1]
+    high = hdr.get (key_high, -1)
+
+    if low < 0:
+        low = None
+    if high < 0:
+        high = None
+
+    if low is None or high is None:
+        return None
+
+    return "%2d_%2d" % (low, high)
+
+def tempPulseHeightRange (ref):
+    """Get keyword PHARANGE from the primary header of a reference file.
+
+    @param ref: name of a reference file
+    @type ref: string
+
+    @return: value of keyword PHARANGE, or None if the keyword is missing
+    @rtype: string, or None
+    """
+
+    fd = pyfits.open (ref, "readonly")
+    ref_pharange = fd[0].header.get ("pharange", None)
+    fd.close()
+
+    return ref_pharange
+
+def comparePulseHeightRanges (pharange, ref_pharange, refname):
+    """Compare pharange with the pulse height range from the phatab.
+
+    @param pharange: pulse height range from the PHATAB, formatted "ll_hh",
+        where ll and hh are the lower and upper limits
+    @type pharange: string, or None
+    @param ref_pharange: pulse height range used when calibrating the data
+        used for creating the reference file (refname), formatted "ll_hh",
+        where ll and hh are the lower and upper limits
+    @type ref_pharange: string, or None
+    @param refname: name of reference file for comparing ranges (only used
+        for printing a warning message)
+    @type refname: string
+    """
+
+    if pharange is None or ref_pharange is None:
+        return
+
+    words = pharange.split ("_")
+    low = int (words[0])
+    high = int (words[1])
+
+    ref_words = ref_pharange.split ("_")
+    if len (ref_words) != 2:
+        printWarning ("Can't compare pulse height ranges for %s; "
+                      "PHARANGE = %s" % (refname, ref_pharange))
+        return
+    ref_low = int (ref_words[0])
+    ref_high = int (ref_words[1])
+    if ref_low != low or ref_high != high:
+        printWarning ("Pulse height ranges for %s don't agree:" % refname)
+        printContinuation ("PHATAB limits are %d to %d, "
+                           "but PHARANGE limits are %d to %d" %
+                           (low, high, ref_low, ref_high))
 
 def getSwitch (phdr, keyword):
     """Get the value of a calibration switch from a primary header.
@@ -2212,6 +2301,180 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
     else:
 
         missing[keyword] = filename
+
+def fitQuadratic (x, y):
+    """Fit a quadratic to y vs x.
+
+    @param x: array of independent values
+    @type x: ndarray
+    @param y: array of dependent values
+    @type y: ndarray
+
+    @return: (coeff, var), where coeff is an array of the coefficients
+        of the fit (coeff[0] + coeff[1]*x + coeff[2]*x**2), and var is an
+        array of the corresponding variances; coeff and var will be None if
+        there was a LinAlgError or if the second coefficient is zero.
+    @rtype: tuple
+    """
+
+    assert len (x) == len (y)
+    n = float (len (x))
+
+    y0 = y[0]
+    yp = (y - y0)
+
+    sum_x = x.sum (dtype=np.float64).item()
+    sum_x2 = (x**2).sum (dtype=np.float64).item()
+    sum_x3 = (x**3).sum (dtype=np.float64).item()
+    sum_x4 = (x**4).sum (dtype=np.float64).item()
+    sum_y = yp.sum (dtype=np.float64).item()
+    sum_yx = (yp*x).sum (dtype=np.float64).item()
+    sum_yx2 = (yp*x**2).sum (dtype=np.float64).item()
+
+    m = np.array ([[n,      sum_x,  sum_x2],
+                   [sum_x,  sum_x2, sum_x3],
+                   [sum_x2, sum_x3, sum_x4]])
+    v = np.array ([sum_y, sum_yx, sum_yx2])
+
+    succeeded = True
+    try:
+        coeff = LA.solve (m, v)
+        m_inv = LA.inv (m)
+    except LA.LinAlgError:
+        succeeded = False
+
+    if not succeeded or coeff[2] == 0.:
+        coeff = None
+        var = None
+    else:
+        coeff[0] += y0
+        (a0, a1, a2) = coeff
+        if len (x) > 3:
+            residual = y - (a0 + a1*x + a2*x**2)
+            chisq = (residual**2).sum()
+            scatter = math.sqrt (chisq / (n - 3.))
+        else:
+            scatter = 0.
+        var = np.array ([m_inv[0,0], m_inv[1,1], m_inv[2,2]]) * scatter
+
+    return (coeff, var)
+
+def centerOfQuadratic (coeff, var):
+    """Find the center of a quadratic function from its coefficients.
+
+    @param coeff: the coefficients of the fit (or None if not determined):
+           y = coeff[0] + coeff[1]*x + coeff[2]*x**2
+    @type coeff: ndarray
+    @param var: the variances of the coefficients
+    @type var: ndarray
+
+    @return: (x_min, x_min_sigma), where x is value at which y is an extremum,
+        and x_min_sigma is the error estimate for x_min, based on the scatter
+        of the values around the fitted curve; the values will be (None, 0.)
+        if coeff is None or if the second-order coefficient is zero
+    @rtype: tuple
+    """
+
+    if coeff is None or coeff[2] == 0:
+        x_min = None
+        x_min_sigma = 0.
+    else:
+        a1 = coeff[1].item()
+        a2 = coeff[2].item()
+        var1 = var[1].item()
+        var2 = var[2].item()
+        x_min = -a1 / (2. * a2)
+        x_min_sigma = 0.5 * math.sqrt (var1 / a2**2 + var2 * a1**2 / a2**4)
+
+    return (x_min, x_min_sigma)
+
+def fitQuartic (x, y):
+    """not currently used"""
+
+    assert len (x) == len (y)
+    n = float (len (x))
+
+    y0 = y[0]
+    yp = (y - y0)
+
+    sum_x = x.sum (dtype=np.float64).item()
+    sum_x2 = (x**2).sum (dtype=np.float64).item()
+    sum_x3 = (x**3).sum (dtype=np.float64).item()
+    sum_x4 = (x**4).sum (dtype=np.float64).item()
+    sum_x5 = (x**5).sum (dtype=np.float64).item()
+    sum_x6 = (x**6).sum (dtype=np.float64).item()
+    sum_x7 = (x**7).sum (dtype=np.float64).item()
+    sum_x8 = (x**8).sum (dtype=np.float64).item()
+    sum_y = yp.sum (dtype=np.float64).item()
+    sum_yx = (yp*x).sum (dtype=np.float64).item()
+    sum_yx2 = (yp*x**2).sum (dtype=np.float64).item()
+    sum_yx3 = (yp*x**3).sum (dtype=np.float64).item()
+    sum_yx4 = (yp*x**4).sum (dtype=np.float64).item()
+
+    m = np.array ([[n,      sum_x,  sum_x2,  sum_x3, sum_x4],
+                   [sum_x,  sum_x2, sum_x3,  sum_x4, sum_x5],
+                   [sum_x2, sum_x3, sum_x4,  sum_x5, sum_x6],
+                   [sum_x3, sum_x4, sum_x5,  sum_x6, sum_x7],
+                   [sum_x4, sum_x5, sum_x6,  sum_x7, sum_x8]])
+    v = np.array ([sum_y, sum_yx, sum_yx2, sum_yx3, sum_yx4])
+
+    try:
+        coeff = LA.solve (m, v)
+        m_inv = LA.inv (m)
+    except LA.LinAlgError:
+        succeeded = False
+
+    if not succeeded:
+        coeff = None
+        var = None
+    else:
+        (a0, a1, a2, a3, a4) = coeff
+        a0 += y0
+        if len (x) > 5:
+            residual = y - (a0 + a1*x + a2*x**2 + a3*x**3 + a4*x**4)
+            chisq = (residual**2).sum()
+            scatter = math.sqrt (chisq / (n - 3.))
+        else:
+            scatter = 0.
+        var = np.array ([m_inv[0,0], m_inv[1,1], m_inv[2,2],
+                         m_inv[3,3], m_inv[4,4]]) * scatter
+
+    return (coeff, var)
+
+def centerOfQuartic (x, coeff):
+    """Find the center of a quartic function from its coefficients.
+
+    not currently used
+
+    @return: the x value at which y is a minimum, or None if coeff is None
+    @rtype: float
+    """
+
+    if coeff is None:
+        return None
+
+    a0 = coeff[0].item()
+    a1 = coeff[1].item()
+    a2 = coeff[2].item()
+    a3 = coeff[3].item()
+    a4 = coeff[4].item()
+    yp = a1 + 2.*a2*x + 3.*a3*x**2 + 4.*a4*x**3
+
+    xminmax = []
+    for i in range (len (x) - 1):
+        # opposite slopes at i and i+1?
+        if yp[i] * yp[i+1] < 0.:
+            value = x[i] + abs (yp[i] / (yp[i+1] - yp[i]))
+            xminmax.append ((i, value))
+    if len (xminmax) == 0:
+        return None
+    x_min = xminmax[0][1]
+    if len (xminmax) > 1:
+        for (i, value) in enumerate (xminmax):
+            if value < minvalue:
+                x_min = xminmax[i][1]
+
+    return x_min
 
 def precess (t, target):
     """Precess target to the time of observation.
