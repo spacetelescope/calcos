@@ -2313,7 +2313,7 @@ def fitQuadratic (x, y):
     @return: (coeff, var), where coeff is an array of the coefficients
         of the fit (coeff[0] + coeff[1]*x + coeff[2]*x**2), and var is an
         array of the corresponding variances; coeff and var will be None if
-        there was a LinAlgError or if the second coefficient is zero.
+        there was a LinAlgError.
     @rtype: tuple
     """
 
@@ -2343,7 +2343,7 @@ def fitQuadratic (x, y):
     except LA.LinAlgError:
         succeeded = False
 
-    if not succeeded or coeff[2] == 0.:
+    if not succeeded:
         coeff = None
         var = None
     else:
