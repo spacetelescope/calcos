@@ -63,7 +63,7 @@ def findWavecalShift (input, shift_file, info, wcp_info):
     stepsize = wcp_info.field ("stepsize")
 
     # Replace shift values in segment B with values from segment A?
-    override_segment_B = (info["opt_elem"] == "G140L")
+    override_segment_B = (info["opt_elem"] == "G140L" and "FUVA" in segment)
 
     # segment will be added to the filter in the loop below.
     filter = {"opt_elem": info["opt_elem"],

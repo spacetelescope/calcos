@@ -219,6 +219,9 @@ class Shift1 (object):
     def setShift1 (self, key, shift1):
         """Set shift1 to the value supplied by the user."""
 
+        if key not in self.shift1_dict:
+            return
+
         shift1 -= self.fp_pixel_shift[key]
         spectrum = self.spectra[key]
         template = self.templates[key]
@@ -601,8 +604,7 @@ class Shift1 (object):
             j2 = min (j2, lenxc)
             j1 = j2 - 5
             (coeff, var) = cosutil.fitQuadratic (x, rms[j1:j2])
-            curvature = coeff[2]
-            if curvature <= 0.:
+            if coeff is None or coeff[2] <= 0.: # coeff[2] is the curvature
                 continue
             if index_of_min is None or chisq_list[k] < min_chisq:
                 min_chisq = chisq_list[k]
