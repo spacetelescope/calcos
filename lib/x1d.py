@@ -8,13 +8,13 @@ import getopt
 import numpy as np
 import pyfits
 
-from calcos import cosutil
-from calcos import timetag
-from calcos import extract
-from calcos.calcosparam import *        # parameter definitions
+import cosutil
+import timetag
+import extract
+import calcosparam                        # parameter definitions
 
-__version__ = CALCOS_VERSION_NUMBER
-__vdate__   = CALCOS_VERSION_DATE
+__version__ = calcosparam.CALCOS_VERSION_NUMBER
+__vdate__   = calcosparam.CALCOS_VERSION_DATE
 
 def main (args):
     """This is a driver to perform 1-D extraction for one file.
@@ -49,9 +49,9 @@ def main (args):
     update_input = False        # update keywords in flt and counts files?
     for i in range (len (options)):
         if options[i][0] == "-q":
-            cosutil.setVerbosity (QUIET)
+            cosutil.setVerbosity (calcosparam.QUIET)
         elif options[i][0] == "-v":
-            cosutil.setVerbosity (VERY_VERBOSE)
+            cosutil.setVerbosity (calcosparam.VERY_VERBOSE)
         elif options[i][0] == "-u":
             update_input = True
         elif options[i][0] == "-o":
@@ -82,7 +82,7 @@ def extractSpec (inlist=[], outdir=None, update_input=False, verbosity=None):
                 "Verbosity %d is out of range (0, 1, or 2)" % verbosity
         cosutil.setVerbosity (verbosity)
 
-    cal_ver = CALCOS_VERSION
+    cal_ver = calcosparam.CALCOS_VERSION
 
     if outdir:
         outdir = os.path.expandvars (outdir)
@@ -311,21 +311,21 @@ def makeReqdFiles (corrtag, flt, counts):
     epsilon = fd[1].data.field ("EPSILON")
     dq = fd[1].data.field ("DQ")
     if detector == "FUV":
-        npix = (FUV_Y, FUV_EXTENDED_X)
-        x_offset = FUV_X_OFFSET
+        npix = (calcosparam.FUV_Y, calcosparam.FUV_EXTENDED_X)
+        x_offset = calcosparam.FUV_X_OFFSET
     else:
-        npix = (NUV_Y, NUV_EXTENDED_X)
-        x_offset = NUV_X_OFFSET
+        npix = (calcosparam.NUV_Y, calcosparam.NUV_EXTENDED_X)
+        x_offset = calcosparam.NUV_X_OFFSET
 
     if dq_array is None:
         dq_array = np.zeros (npix, dtype=np.int16)
 
     if not got_counts:
         cosutil.printMsg ("%s not found, will be recreated " \
-                          "from corrtag file" % counts, VERBOSE)
+                          "from corrtag file" % counts, calcosparam.VERBOSE)
     if not got_flt:
         cosutil.printMsg ("%s not found, will be recreated " \
-                          "from corrtag file" % flt, VERBOSE)
+                          "from corrtag file" % flt, calcosparam.VERBOSE)
     timetag.writeImages (x, y, epsilon, dq,
                          phdr, headers, dq_array, npix, x_offset, exptime,
                          counts_tmp, flt_tmp)
