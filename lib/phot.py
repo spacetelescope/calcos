@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division         # confidence high
 
 def doPhot (imphttab, obsmode, hdr):
     """Update photometry parameter keywords for imaging data.

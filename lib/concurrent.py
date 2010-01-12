@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division         # confidence high
 import copy
 import math
 import os
@@ -733,14 +733,14 @@ class ConcurrentWavecal (object):
             for region in locn_list:
                 if region[0] is None:
                     shift_flags |= np.where (
-                                   self.eta[i0:i1] < region[1], 1, 0)
+                                   self.eta[i0:i1] <= region[1], True, False)
                 elif region[1] is None:
                     shift_flags |= np.where (
-                                   self.eta[i0:i1] >= region[0], 1, 0)
+                                   self.eta[i0:i1] >= region[0], True, False)
                 else:
                     shift_flags |= np.logical_and (
                                    self.eta[i0:i1] >= region[0],
-                                   self.eta[i0:i1] < region[1])
+                                   self.eta[i0:i1] <= region[1])
 
             shift1_zero = self.shift1[n][segment]
             if extrapolate:
@@ -1219,9 +1219,9 @@ class ConcurrentWavecal (object):
             # if NUV, take the region for the PSA (lower pixel numbers)
             region = locn_list[0]
             if region[0] is None:
-                shift_flags |= np.where (self.eta < region[1], 1, 0)
+                shift_flags |= np.where (self.eta < region[1], True, False)
             elif region[1] is None:
-                shift_flags |= np.where (self.eta >= region[0], 1, 0)
+                shift_flags |= np.where (self.eta >= region[0], True, False)
             else:
                 shift_flags |= np.logical_and (self.eta >= region[0],
                                                self.eta < region[1])
@@ -1464,7 +1464,7 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
         shift_flags = np.zeros (i1 - i0, dtype=np.bool8)
         region = self.regions[self.segment_list[0]][0]
         shift_flags |= np.logical_and (self.eta[i0:i1] >= region[0],
-                                       self.eta[i0:i1] < region[1])
+                                       self.eta[i0:i1] <= region[1])
 
         shift2_zero = self.shift2[n]
         if extrapolate:

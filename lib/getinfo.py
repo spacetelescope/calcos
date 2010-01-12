@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division         # confidence high
 import os
 import string
 import pyfits

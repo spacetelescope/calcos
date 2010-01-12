@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division         # confidence high
 import math
 import os
 import time
@@ -287,8 +287,6 @@ def setActiveArea (events, info, brftab):
     if info["detector"] == "FUV":
         (b_low, b_high, b_left, b_right) = \
                 cosutil.activeArea (info["segment"], brftab)
-        (b_low, b_high, b_left, b_right) = \
-                       (b_low+2, b_high-2, b_left+2, b_right-2)
         active_area = np.where (xi > b_right, False, active_area)
         active_area = np.where (xi < b_left,  False, active_area)
         active_area = np.where (eta > b_high, False, active_area)

@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division         # confidence high
 import os
 import numpy as np
 from convolve import boxcar
