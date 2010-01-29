@@ -2682,7 +2682,8 @@ class Calibration (object):
             fd = pyfits.open (corrtag, mode="update")
             events = fd["EVENTS"].data
             hdr = fd["EVENTS"].header
-            timetag.computeWavelengths (events, info, reffiles, hdr=hdr)
+            timetag.computeWavelengths (events, info, reffiles,
+                                        helcorr="OMIT", hdr=hdr)
             fd.close()
 
     def mergeKeywords (self):

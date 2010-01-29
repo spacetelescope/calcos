@@ -845,6 +845,7 @@ class ConcurrentWavecal (object):
             cutoff = self.findCutoff (hist, step)
             self.findLampOn (cutoff, time[0])
             self.findLampMedian()
+        self.lamp_is_on = (self.numflash > 0)
 
         if cosutil.checkVerbosity (VERBOSE):
             self.printInfo()

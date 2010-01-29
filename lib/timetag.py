@@ -153,8 +153,6 @@ def timetagBasicCalibration (input, inpha, outtag,
         if modified:
             saveNewGTI (ofd, gti)
 
-    doPhacorr (inpha, events, info, switches, reffiles, phdr, headers[1])
-
     doRandcorr (events, info, switches, reffiles, phdr)
 
     (stim_param, stim_countrate, stim_livetime) = initTempcorr (events,
@@ -167,6 +165,8 @@ def timetagBasicCalibration (input, inpha, outtag,
 
     # Set this array of flags again, after geometric correction.
     setActiveArea (events, info, reffiles["brftab"])
+
+    doPhacorr (inpha, events, info, switches, reffiles, phdr, headers[1])
 
     updateGlobrate (info, headers[1])
 
@@ -216,8 +216,10 @@ def timetagBasicCalibration (input, inpha, outtag,
                         cl_args["shift_file"],
                         info, switches, reffiles, phdr, headers[1])
         # Compute wavelengths for the wavelength column (except for wavecals).
-        if info["exptype"].find ("WAVE") == -1:
-            computeWavelengths (events, info, reffiles, hdr=None)
+	if info["obstype"] == "SPECTROSCOPIC" and \
+           info["exptype"].find ("WAVE") == -1:
+            computeWavelengths (events, info, reffiles,
+                                helcorr=switches["helcorr"], hdr=None)
     else:
         shift1_vs_time = None
 
@@ -1871,7 +1873,8 @@ def initHelcorr (events, info, switches, hdr):
     time = events.field ("time")
     t_mid = expstart + (time[0] + time[len(time)-1]) / 2. / SEC_PER_DAY
 
-    # Compute radial velocity and heliocentric correction factor.
+    # Compute radial velocity and heliocentric correction factor (the latter
+    # is actually not used here).
     radvel = heliocentricVelocity (t_mid, info["ra_targ"], info["dec_targ"])
     helio_factor = -radvel  / SPEED_OF_LIGHT
     hdr.update ("v_helio", radvel)
@@ -3092,7 +3095,7 @@ def updateFromWavecal (events, wavecal_info,
 
     return shift1_vs_time
 
-def computeWavelengths (events, info, reffiles, hdr=None):
+def computeWavelengths (events, info, reffiles, helcorr="OMIT", hdr=None):
     """Compute wavelengths for a corrtag table.
 
     @param events: the data unit containing the events table
@@ -3101,8 +3104,12 @@ def computeWavelengths (events, info, reffiles, hdr=None):
     @type info: dictionary
     @param reffiles: reference file names
     @type reffiles: dictionary
-    @param hdr: if not None, apply shift1[abc] and shift2[abc] to
-        the pixel coordinates
+    @param helcorr: if helcorr is PERFORM or COMPLETE, wavelengths should be
+        corrected for heliocentric velocity (helcorr in header will not be
+        modified, however); the default value is appropriate for a wavecal
+    @type helcorr: string
+    @param hdr: if not None, apply shift1[abc] and shift2[abc] to the pixel
+        coordinates; this is needed for a wavecal exposure
     @type hdr: pyfits Header object, or None
     """
 
@@ -3110,6 +3117,12 @@ def computeWavelengths (events, info, reffiles, hdr=None):
     # values to the pixel coordinates.  In that case, hdr is supplied so we
     # can read the keywords.
     use_shift_keywords = (hdr is not None)
+
+    # Heliocentric correction is not relevant for wavecals and won't be done.
+    if hdr is None:
+        message = "%-9s %s for computing wavelengths for the corrtag table" \
+                   % ("HELCORR", helcorr)
+        cosutil.printMsg (message, VERBOSE)
 
     disptab = reffiles["disptab"]
     xtractab = reffiles["xtractab"]
@@ -3175,6 +3188,10 @@ def computeWavelengths (events, info, reffiles, hdr=None):
             if use_shift_keywords:
                 xi -= shift1_dict[segment]
             psa_wavelength = psa_disp_rel.evalDisp (xi)
+            # "hdr is None" means the current exposure is not a wavecal
+            if hdr is None and (helcorr == "PERFORM" or helcorr == "COMPLETE"):
+                psa_wavelength += (psa_wavelength *
+                                   (-info["v_helio"]) / SPEED_OF_LIGHT)
             wavelength[:] = np.where (psa_region_flags,
                                       psa_wavelength, wavelength)
             del psa_wavelength
@@ -3190,6 +3207,9 @@ def computeWavelengths (events, info, reffiles, hdr=None):
             # Update the wavelength array for those events that are within
             # the PSA and WCA regions for the current stripe.
             psa_wavelength = psa_disp_rel.evalDisp (xi_full)
+            if hdr is None and (helcorr == "PERFORM" or helcorr == "COMPLETE"):
+                psa_wavelength += (psa_wavelength *
+                                   (-info["v_helio"]) / SPEED_OF_LIGHT)
             wavelength[:] = np.where (psa_region_flags_dict[segment],
                                       psa_wavelength, wavelength)
             del psa_wavelength
