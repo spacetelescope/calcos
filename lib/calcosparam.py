@@ -2,8 +2,8 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.11k"
-CALCOS_VERSION_DATE = "2010-01-29"
+CALCOS_VERSION_NUMBER = "2.11k2"
+CALCOS_VERSION_DATE = "2010-02-03"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user

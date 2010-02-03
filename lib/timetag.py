@@ -216,7 +216,7 @@ def timetagBasicCalibration (input, inpha, outtag,
                         cl_args["shift_file"],
                         info, switches, reffiles, phdr, headers[1])
         # Compute wavelengths for the wavelength column (except for wavecals).
-	if info["obstype"] == "SPECTROSCOPIC" and \
+        if info["obstype"] == "SPECTROSCOPIC" and \
            info["exptype"].find ("WAVE") == -1:
             computeWavelengths (events, info, reffiles,
                                 helcorr=switches["helcorr"], hdr=None)
