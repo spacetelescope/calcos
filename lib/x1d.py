@@ -275,9 +275,10 @@ def makeReqdFiles (cal_ver, corrtag, flt, counts):
     switches = getinfo.getSwitchValues (phdr)
     reffiles = getinfo.getRefFileNames (phdr)
     timetag.setActiveArea (events, info, reffiles["brftab"])
-    minmax_shifts = timetag.getWavecalOffsets (events)
+    minmax_shift_dict = timetag.getWavecalOffsets (events,
+                                info, reffiles["xtractab"])
     dq_array = timetag.doDqicorr (events, corrtag, info, switches, reffiles,
-                                  phdr, headers[1], minmax_shifts)
+                                  phdr, headers[1], minmax_shift_dict)
 
     timetag.serious_dq_flags = (calcosparam.DQ_BURST |
                                 calcosparam.DQ_PH_LOW |
