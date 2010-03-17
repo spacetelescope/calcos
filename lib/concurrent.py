@@ -453,9 +453,9 @@ class ConcurrentWavecal (object):
         cosutil.printMsg (
 "  segment    cross-disp           dispersion direction", VERBOSE)
         cosutil.printMsg (
-"            shift (locn)      shift err  [orig.]  chi sq (n)", VERBOSE)
+"            shift (locn)      shift err  [orig.]    FP   chi sq (n)", VERBOSE)
         cosutil.printMsg (
-"  -------   -------------     ------------------------------", VERBOSE)
+"  -------   -------------     -------------------------  ----------", VERBOSE)
         for n in range (self.numflash):
             (i0, i1) = ccos.range (self.time, self.lamp_on[n], self.lamp_off[n])
 
@@ -550,7 +550,8 @@ class ConcurrentWavecal (object):
                         fs1.setShift1 (segment, user_shift1)
                         user_specified = True
                 shift1[segment] = fs1.getShift1 (segment)
-                orig_shift1 = fs1.getOrigShift1 (segment)
+                measured_shift1 = fs1.getMeasuredShift1 (segment)
+                fp_pixel_shift_seg = fs1.getFpPixelShift (segment)
                 chi_square[segment] = fs1.getChiSq (segment)
                 n_deg_freedom[segment] = fs1.getNdf (segment)
                 filter_disp["segment"] = segment
@@ -565,17 +566,18 @@ class ConcurrentWavecal (object):
                     if xd_shifts[segment] is None:
                         # ttFindWavecalSpectrum couldn't find the spectrum
                         message = \
-"%2d %4s      ---- (%5.1f) %9.1f %4.2f [%5.1f]  %6.1f (%d)  # not found in XD" \
+"%2d %4s      ---- (%5.1f) %9.1f %4.2f [%5.1f]        %6.1f (%d)  # not found in XD" \
                             % (n+1, segment,
                                xd_locn[segment], shift1[segment],
-                               fs1.getScatter (segment), orig_shift1,
+                               fs1.getScatter (segment), measured_shift1,
                                chi_square[segment], n_deg_freedom[segment])
                     else:
                         message = \
-"%2d %4s %9.1f (%5.1f) %9.1f %4.2f [%5.1f]  %6.1f (%d)" \
+"%2d %4s %9.1f (%5.1f) %9.1f %4.2f [%5.1f] %6.1f  %6.1f (%d)" \
                             % (n+1, segment, xd_shifts[segment],
                                xd_locn[segment], shift1[segment],
-                               fs1.getScatter (segment), orig_shift1,
+                               fs1.getScatter (segment), measured_shift1,
+                               fp_pixel_shift_seg,
                                chi_square[segment], n_deg_freedom[segment])
                         if not foundit:
                             message = message + "  # not found"
@@ -733,14 +735,14 @@ class ConcurrentWavecal (object):
             for region in locn_list:
                 if region[0] is None:
                     shift_flags |= np.where (
-                                   self.eta[i0:i1] <= region[1], True, False)
+                                   self.eta[i0:i1] < region[1], True, False)
                 elif region[1] is None:
                     shift_flags |= np.where (
                                    self.eta[i0:i1] >= region[0], True, False)
                 else:
                     shift_flags |= np.logical_and (
                                    self.eta[i0:i1] >= region[0],
-                                   self.eta[i0:i1] <= region[1])
+                                   self.eta[i0:i1] < region[1])
 
             shift1_zero = self.shift1[n][segment]
             if extrapolate:
@@ -1527,6 +1529,7 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
 
         # locations will be a list of tuples, each containing the
         # segment name and nominal location.
+        middle = float (NUV_X) / 2.
         locations = []
         for segment in self.segment_list:
 
@@ -1536,14 +1539,16 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
             xtract_info = cosutil.getTable (self.reffiles["xtractab"], filter)
             if xtract_info is None:
                 continue
-            b_spec = xtract_info.field ("b_spec")[0]
+            b_spec = xtract_info.field ("b_spec")[0] + \
+                     xtract_info.field ("slope")[0] * middle
             locations.append ((segment, b_spec))
 
             filter["aperture"] = "PSA"
             xtract_info = cosutil.getTable (self.reffiles["xtractab"], filter)
             if xtract_info is None:
                 continue
-            b_spec = xtract_info.field ("b_spec")[0]
+            b_spec = xtract_info.field ("b_spec")[0] + \
+                     xtract_info.field ("slope")[0] * middle
             locations.append ((segment, b_spec))
 
         locations.sort (self.r_cmp)     # sort on b_spec, regardless of segment

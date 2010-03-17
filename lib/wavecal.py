@@ -120,11 +120,15 @@ def findWavecalShift (input, shift_file, info, wcp_info):
                                            info["root"], info["fpoffset"])
 
     if detector == "FUV":
-        cosutil.printMsg ("segment   shift err  [orig.]   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("-------  ------ ---- -------   ----------", VERBOSE)
+        cosutil.printMsg ("segment   shift err  [orig.]    FP   chi sq (n)",
+                          VERBOSE)
+        cosutil.printMsg ("-------  ------ ---- ------- ------  ----------",
+                          VERBOSE)
     else:
-        cosutil.printMsg ("stripe    shift err  [orig.]   chi sq (n)", VERBOSE)
-        cosutil.printMsg ("------   ------ ---- -------   ----------", VERBOSE)
+        cosutil.printMsg ("stripe    shift err  [orig.]    FP   chi sq (n)",
+                          VERBOSE)
+        cosutil.printMsg ("------   ------ ---- ------- ------  ----------",
+                          VERBOSE)
 
     # Print and save results.
     for row in index:
@@ -152,12 +156,14 @@ def findWavecalShift (input, shift_file, info, wcp_info):
                 user_specified = True
         shift_segment = fs1.getShift1 (segment[row])
         scatter = fs1.getScatter (segment[row])
-        orig_shift1 = fs1.getOrigShift1 (segment[row])
+        measured_shift1 = fs1.getMeasuredShift1 (segment[row])
+        fp_pixel_shift_seg = fs1.getFpPixelShift (segment[row])
         sci_extn.header.update (key, shift_segment)
         shift_dict[key] = shift_segment
 
-        message = " %4s    %6.1f %4.2f [%5.1f]  %7.1f (%d)" % \
-                (segment[row], shift_segment, scatter, orig_shift1,
+        message = " %4s    %6.1f %4.2f [%5.1f] %6.1f  %6.1f (%d)" % \
+                (segment[row], shift_segment, scatter, measured_shift1,
+                 fp_pixel_shift_seg,
                  fs1.getChiSq (segment[row]), fs1.getNdf (segment[row]))
         if user_specified:
             message = message + "  # user-specified"

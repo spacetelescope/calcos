@@ -223,10 +223,10 @@ def timetagBasicCalibration (input, inpha, outtag,
     else:
         shift1_vs_time = None
 
-    minmax_shifts = getWavecalOffsets (events)
+    minmax_shift_dict = getWavecalOffsets (events, info, reffiles["xtractab"])
 
     dq_array = doDqicorr (events, input, info, switches, reffiles,
-                          phdr, headers[1], minmax_shifts)
+                          phdr, headers[1], minmax_shift_dict)
 
     writeImages (events.field (xfull), events.field (yfull),
                  events.field ("epsilon"), events.field ("dq"),
@@ -1492,7 +1492,7 @@ def doGeocorr (events, info, switches, reffiles, phdr):
                 phdr["igeocorr"] = "COMPLETE"
 
 def doDqicorr (events, input, info, switches, reffiles,
-               phdr, hdr, minmax_shifts):
+               phdr, hdr, minmax_shift_dict):
     """Create a data quality array, initialized from the DQI table.
 
     @param events: the data unit containing the events table
@@ -1509,8 +1509,8 @@ def doDqicorr (events, input, info, switches, reffiles,
     @type phdr: pyfits Header object
     @param hdr: the input events extension header
     @type hdr: pyfits Header object
-    @param minmax_shifts: (min_shift1, max_shift1, min_shift2, max_shift2)
-    @type minmax_shifts: tuple
+    @param minmax_shift_dict: dictionary of min & max shifts in x and y
+    @type minmax_shift_dict: dictionary
 
     @return: 2-D data quality array
     @rtype: numpy array
@@ -1574,19 +1574,21 @@ def doDqicorr (events, input, info, switches, reffiles,
                                 reffiles["disptab"], switches["doppcorr"])
         minmax_doppler = cosutil.minmaxDoppler (info, switches["doppcorr"],
                                doppmag, doppzero, orbitper)
+        doppler_boundary = psaWcaBoundary (info, reffiles["xtractab"])
         cosutil.updateDQArray (bpixtab, info, dq_array,
-                               minmax_shifts, minmax_doppler)
+                               minmax_shift_dict,
+                               minmax_doppler, doppler_boundary)
 
         # Flag regions that are outside any subarray as out of bounds.
         cosutil.flagOutOfBounds (hdr, dq_array, info, switches,
                                  reffiles["brftab"], reffiles["geofile"],
-                                 minmax_shifts, minmax_doppler)
+                                 minmax_shift_dict, minmax_doppler)
 
         # Flag the region that is outside the active area.
         if info["detector"] == "FUV":
             cosutil.flagOutsideActiveArea (dq_array,
                         info["segment"], reffiles["brftab"], info["x_offset"],
-                        minmax_shifts, minmax_doppler)
+                        minmax_shift_dict, minmax_doppler)
 
         phdr["dqicorr"] = "COMPLETE"
 
@@ -1711,6 +1713,57 @@ def doDoppcorr (events, info, switches, reffiles, phdr):
 
         phdr["doppcorr"] = "COMPLETE"
 
+def psaWcaBoundary (info, xtractab):
+    """Determine the boundary between PSA and WCA.
+
+    The computation of the 'boundary' variable makes an assumption
+    about the relative locations of the PSA and WCA regions on the
+    detectors.  The PSA spectral region is at lower Y pixel numbers.
+
+    @param info: keywords and values
+    @type info: dictionary
+    @param xtractab: name of spectral extraction parameters reference table
+    @type xtractab: string
+
+    @return: the YCORR coordinate between the PSA region and the WCA region,
+        at the middle column of the detector
+    @rtype: int
+    """
+
+    if info["detector"] == "FUV":
+        middle = float (FUV_X) / 2.
+    else:
+        middle = float (NUV_X) / 2.
+
+    # Protect against the possibility that the aperture keyword is "WCA".
+    if info["aperture"] == "BOA":
+        aperture = "BOA"
+    else:
+        aperture = "PSA"
+
+    if info["detector"] == "FUV":
+        segment = info["segment"]
+    else:
+        segment = "NUVC"
+
+    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"],
+              "segment": segment, "aperture": aperture}
+
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_psa = xtract_info.field ("b_spec")[0] + \
+                 xtract_info.field ("slope")[0] * middle
+
+    filter["aperture"] = "WCA"
+    if info["detector"] == "NUV":
+        filter["segment"] = "NUVA"
+    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
+    b_spec_wca = xtract_info.field ("b_spec")[0] + \
+                 xtract_info.field ("slope")[0] * middle
+
+    boundary = int (round ((b_spec_psa + b_spec_wca) / 2.))
+
+    return boundary
+
 def fuvDopplerRegions (eta, info, xtractab):
     """Determine the region over which Doppler shift should be applied.
 
@@ -1732,29 +1785,7 @@ def fuvDopplerRegions (eta, info, xtractab):
 
     region_flags = active_area.copy()
 
-    # Protect against the possibility that the aperture keyword is "WCA".
-    if info["aperture"] == "BOA":
-        aperture = "BOA"
-    else:
-        aperture = "PSA"
-    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"],
-              "segment": info["segment"], "aperture": aperture}
-    middle = float (FUV_X) / 2.
-
-    # The computation of the 'boundary' variable makes an assumption
-    # about the relative locations of the PSA and WCA regions on the
-    # detectors.  The PSA spectral region is at lower Y pixel numbers.
-
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_psa = xtract_info.field ("b_spec")[0] + \
-                 xtract_info.field ("slope")[0] * middle
-
-    filter["aperture"] = "WCA"
-    xtract_info = cosutil.getTable (xtractab, filter, exactly_one=True)
-    b_spec_wca = xtract_info.field ("b_spec")[0] + \
-                 xtract_info.field ("slope")[0] * middle
-
-    boundary = int (round ((b_spec_psa + b_spec_wca) / 2.))
+    boundary = psaWcaBoundary (info, xtractab)
 
     region_flags &= (eta < boundary)
 
@@ -3271,10 +3302,30 @@ def fuvPsaWcaRegions (eta, info, xtractab):
 
     return (psa_region_flags, wca_region_flags)
 
-def nuvPsaRegions (eta, info, xtractab):
-    """Determine the set of events within the NUV regions for the PSA.
+def flagsFromBoundaries (eta, boundaries_dict):
+    """Given lower and upper cutoffs, return arrays of Boolean flags.
 
-    This is only used for NUV data.
+    @param eta: pixel coordinates in cross-dispersion direction
+    @type eta: array
+    @param boundaries_dict: key is a stripe name, value is a tuple with
+        the lower and upper Y boundaries for that stripe
+    @type boundaries_dict: dictionary
+
+    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
+        and an array of Boolean flags as the value, true for events for which
+        the Y coordinate is within the regions for the PSA.
+    @rtype: dictionary of Boolean arrays
+    """
+
+    region_flags_dict = {}
+    for key in boundaries_dict:
+        (lower, upper) = boundaries_dict[key]
+        region_flags_dict[key] = (eta >= lower) & (eta < upper)
+
+    return region_flags_dict
+
+def nuvPsaBoundaries (eta, info, xtractab):
+    """Determine the limits in Y for each NUV region for the PSA.
 
     @param eta: pixel coordinates in cross-dispersion direction
     @type eta: array
@@ -3284,9 +3335,10 @@ def nuvPsaRegions (eta, info, xtractab):
     @type xtractab: string
 
     @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
-        and an array of Boolean flags as the value, true for events for which
-        the Y coordinate is within the regions for the PSA.
-    @rtype: dictionary of Boolean arrays
+        and a two-element tuple as the value; the elements of the tuple are
+        the lower and upper Y coordinates (integers) of the regions for the
+        stripe for the PSA.
+    @rtype: dictionary of tuples
     """
 
     # segment will be added to the filter below.
@@ -3320,19 +3372,19 @@ def nuvPsaRegions (eta, info, xtractab):
                  xtract_info.field ("slope")[0] * middle
 
     # Set boundaries midway between adjacent stripes.
-    boundary_a_b = round ((b_spec_a + b_spec_b) / 2.)
-    boundary_b_c = round ((b_spec_b + b_spec_c) / 2.)
-    boundary_c_wca = round ((b_spec_c + b_spec_wca) / 2.)
+    boundary_a_b = int (round ((b_spec_a + b_spec_b) / 2.))
+    boundary_b_c = int (round ((b_spec_b + b_spec_c) / 2.))
+    boundary_c_wca = int (round ((b_spec_c + b_spec_wca) / 2.))
 
-    region_flags_dict = {}
-    region_flags_dict["NUVA"] = (eta < boundary_a_b)
-    region_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
-    region_flags_dict["NUVC"] = (eta >= boundary_b_c) & (eta < boundary_c_wca)
+    boundaries_dict = {}
+    boundaries_dict["NUVA"] = (0, boundary_a_b)
+    boundaries_dict["NUVB"] = (boundary_a_b, boundary_b_c)
+    boundaries_dict["NUVC"] = (boundary_b_c, boundary_c_wca)
 
-    return region_flags_dict
+    return boundaries_dict
 
-def nuvWcaRegions (eta, info, xtractab):
-    """Determine the set of events within the NUV regions for the WCA.
+def nuvPsaRegions (eta, info, xtractab):
+    """Determine the set of events within the NUV regions for the PSA.
 
     This is only used for NUV data.
 
@@ -3345,8 +3397,33 @@ def nuvWcaRegions (eta, info, xtractab):
 
     @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
         and an array of Boolean flags as the value, true for events for which
-        the Y coordinate is within the regions for the WCA.
+        the Y coordinate is within the regions for the PSA.
     @rtype: dictionary of Boolean arrays
+    """
+
+    boundaries_dict = nuvPsaBoundaries (eta, info, xtractab)
+
+    region_flags_dict = flagsFromBoundaries (eta, boundaries_dict)
+
+    return region_flags_dict
+
+def nuvWcaBoundaries (eta, info, xtractab):
+    """Determine the set of events within the NUV regions for the WCA.
+
+    This is only used for NUV data.
+
+    @param eta: pixel coordinates in cross-dispersion direction
+    @type eta: array
+    @param info: keywords and values
+    @type info: dictionary
+    @param xtractab: name of spectral extraction parameters reference table
+    @type xtractab: string
+
+    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
+        and a two-element tuple as the value; the elements of the tuple are
+        the lower and upper Y coordinates (integers) of the regions for the
+        stripe for the WCA.
+    @rtype: dictionary of tuples
     """
 
     # aperture and segment will be added to the filter below.
@@ -3381,57 +3458,106 @@ def nuvWcaRegions (eta, info, xtractab):
                    xtract_info.field ("slope")[0] * middle
 
     # Set boundaries midway between adjacent stripes.
-    boundary_c_wca = round ((b_spec_c + b_spec_wca_a) / 2.)
-    boundary_a_b = round ((b_spec_wca_a + b_spec_wca_b) / 2.)
-    boundary_b_c = round ((b_spec_wca_b + b_spec_wca_c) / 2.)
+    boundary_c_wca = int (round ((b_spec_c + b_spec_wca_a) / 2.))
+    boundary_a_b = int (round ((b_spec_wca_a + b_spec_wca_b) / 2.))
+    boundary_b_c = int (round ((b_spec_wca_b + b_spec_wca_c) / 2.))
 
-    region_flags_dict = {}
-    region_flags_dict["NUVA"] = (eta >= boundary_c_wca) & (eta < boundary_a_b)
-    region_flags_dict["NUVB"] = (eta >= boundary_a_b) & (eta < boundary_b_c)
-    region_flags_dict["NUVC"] = (eta >= boundary_b_c)
+    boundaries_dict = {}
+    boundaries_dict["NUVA"] = (boundary_c_wca, boundary_a_b)
+    boundaries_dict["NUVB"] = (boundary_a_b, boundary_b_c)
+    boundaries_dict["NUVC"] = (boundary_b_c, NUV_Y)
+
+    return boundaries_dict
+
+def nuvWcaRegions (eta, info, xtractab):
+    """Determine the set of events within the NUV regions for the WCA.
+
+    This is only used for NUV data.
+
+    @param eta: pixel coordinates in cross-dispersion direction
+    @type eta: array
+    @param info: keywords and values
+    @type info: dictionary
+    @param xtractab: name of spectral extraction parameters reference table
+    @type xtractab: string
+
+    @return: dictionary with stripe name ("NUVA", "NUVB", "NUVC") as the key
+        and an array of Boolean flags as the value, true for events for which
+        the Y coordinate is within the regions for the WCA.
+    @rtype: dictionary of Boolean arrays
+    """
+
+    boundaries_dict = nuvWcaBoundaries (eta, info, xtractab)
+
+    region_flags_dict = flagsFromBoundaries (eta, boundaries_dict)
 
     return region_flags_dict
 
-def getWavecalOffsets (events):
+def getWavecalOffsets (events, info, xtractab):
     """Get min and max values of shift1 and shift2.
 
     @param events: the data unit containing the events table
     @type events: record array
 
-    @return: (min_shift1, max_shift1, min_shift2, max_shift2), where
-        min_shift1 and max_shift1 are the minimum and maximum values
-        of the wavecal shift in the dispersion direction during the
-        exposure (positive means a feature was detected at larger pixel
-        coordinate than in the template); min_shift2 and max_shift2 are
-        the corresponding values in the cross-dispersion direction
-    @rtype: tuple
+    @return: each key is a two-element tuple, the lower and upper limits in Y;
+        the value is a list:  [min_shift1, max_shift1, min_shift2, max_shift2],
+        where min_shift1 and max_shift1 are the minimum and maximum values
+        of the wavecal shift in the dispersion direction for events with
+        lower <= Y < upper (positive means a feature was detected at larger
+        pixel coordinate than in the template), and min_shift2 and max_shift2
+        are the corresponding values in the cross-dispersion direction
+    @rtype: dictionary
     """
 
     global active_area
 
+    minmax_shift_dict = {}
+
     if active_area.any():
-        xi  = events.field (xdopp)
-        eta = events.field (ycorr)
+        xi_dopp  = events.field (xdopp)
+        eta_corr = events.field (ycorr)
         xi_full  = events.field (xfull)
         eta_full = events.field (yfull)
 
-        xdiff = xi - xi_full
-        ydiff = eta - eta_full
-        xdiff = xdiff[active_area]
-        ydiff = ydiff[active_area]
+        xdiff = xi_dopp - xi_full
+        ydiff = eta_corr - eta_full
 
-        min_shift1 = xdiff.min()
-        max_shift1 = xdiff.max()
-        min_shift2 = ydiff.min()
-        max_shift2 = ydiff.max()
+        if info["detector"] == "NUV":
+            b_dict_list = [nuvPsaBoundaries (eta_corr, info, xtractab),
+                           nuvWcaBoundaries (eta_corr, info, xtractab)]
+            # these two could be moved inside the loop, if necessary:
+            min_shift2 = ydiff.min()
+            max_shift2 = ydiff.max()
+            for boundaries_dict in b_dict_list:
+                for key in boundaries_dict.keys():
+                    (lower, upper) = boundaries_dict[key]
+                    flags = (eta_corr >= lower) & (eta_corr < upper)
+                    xdiff_subset = xdiff[flags]
+                    min_shift1 = xdiff_subset.min()
+                    max_shift1 = xdiff_subset.max()
+                    # ydiff_subset = ydiff[flags]
+                    # min_shift2 = ydiff_subset.min()
+                    # max_shift2 = ydiff_subset.max()
+                    minmax_shift_dict[(lower, upper)] = \
+                        [min_shift1, max_shift1, min_shift2, max_shift2]
+        else:
+            xdiff = xdiff[active_area]
+            ydiff = ydiff[active_area]
+
+            min_shift1 = xdiff.min()
+            max_shift1 = xdiff.max()
+            min_shift2 = ydiff.min()
+            max_shift2 = ydiff.max()
+            minmax_shift_dict[(0, FUV_Y)] = [min_shift1, max_shift1,
+                                             min_shift2, max_shift2]
     else:
         # active_area is all False.
-        min_shift1 = 0.
-        max_shift1 = 0.
-        min_shift2 = 0.
-        max_shift2 = 0.
+        if info["detector"] == "NUV":
+            minmax_shift_dict[(0, NUV_Y)] = [0., 0., 0., 0.]
+        else:
+            minmax_shift_dict[(0, FUV_Y)] = [0., 0., 0., 0.]
 
-    return (min_shift1, max_shift1, min_shift2, max_shift2)
+    return minmax_shift_dict
 
 def copyColumns (events):
     """Copy XCORR and YCORR columns to XDOPP, XFULL and YFULL.

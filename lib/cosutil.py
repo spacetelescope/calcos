@@ -864,7 +864,8 @@ def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
     return (mindopp, maxdopp)
 
 def updateDQArray (bpixtab, info, dq_array,
-                   minmax_shifts, minmax_doppler):
+                   minmax_shift_dict,
+                   minmax_doppler, doppler_boundary):
     """Apply the data quality initialization table to DQ array.
 
     dq_array is a 2-D array, to be written as the DQ extension in an
@@ -880,42 +881,69 @@ def updateDQArray (bpixtab, info, dq_array,
     @type info: dictionary
     @param dq_array: data quality image array (modified in-place)
     @type dq_array: numpy array
-    @param minmax_shifts: the min and max offsets in the dispersion direction
-        and the min and max offsets in the cross-dispersion direction during
-        the exposure
-    @type minmax_shifts: tuple
+    @param minmax_shift_dict: the min and max offsets in the dispersion
+        direction and the min and max offsets in the cross-dispersion direction
+        during the exposure
+    @type minmax_shift_dict: dictionary
     @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
         doppcorr is omit)
     @type minmax_doppler: tuple
+    @param doppler_boundary: the border between PSA and WCA regions:
+        Y < doppler_boundary is the PSA,
+        Y >= doppler_boundary is the WCA
+    @type doppler_boundary: int
     """
 
     dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
     if dq_info is None:
         return
 
-    (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
-    (mindopp, maxdopp) = minmax_doppler
-
-    # Update the 2-D data quality extension array from the DQI table info.
     lx = dq_info.field ("lx")
     ly = dq_info.field ("ly")
     dx = dq_info.field ("dx")
     dy = dq_info.field ("dy")
     ux = lx + dx - 1
     uy = ly + dy - 1
-    lx -= int (round (max_shift1))
-    ux -= int (round (min_shift1))
-    ly -= int (round (max_shift2))
-    uy -= int (round (min_shift2))
 
-    lx += int (round (mindopp))
-    ux += int (round (maxdopp))
+    (mindopp, maxdopp) = minmax_doppler
 
-    ccos.bindq (lx, ly, ux, uy, dq_info.field ("dq"),
-                dq_array, info["x_offset"])
+    if info["detector"] == "FUV":
+        # split FUV into two regions, the PSA and the WCA
+        key = minmax_shift_dict.keys()[0]
+        value = minmax_shift_dict[key]
+        (lower_y, upper_y) = key
+        minmax_dict = {(lower_y, doppler_boundary): value,
+                       (doppler_boundary, upper_y): value}
+    else:
+        minmax_dict = minmax_shift_dict
+
+    # Update the 2-D data quality extension array from the DQI table info
+    # for each slice in the minmax_shift_dict.
+    # It is explicitly assumed here that the slice is only in the cross-
+    # dispersion direction.
+    for key in minmax_dict.keys():
+        (lower_y, upper_y) = key
+        [min_shift1, max_shift1, min_shift2, max_shift2] = \
+                minmax_dict[key]
+        lx_s = lx - int (round (max_shift1))
+        ux_s = ux - int (round (min_shift1))
+        ly_s = ly - int (round (max_shift2)) - lower_y
+        uy_s = uy - int (round (min_shift2)) - lower_y
+
+        if (lower_y + upper_y) // 2 < doppler_boundary:
+            lx_s += int (round (mindopp))
+            ux_s += int (round (maxdopp))
+
+        lx_s = lx_s.astype (np.int32)
+        ux_s = ux_s.astype (np.int32)
+        ly_s = ly_s.astype (np.int32)
+        uy_s = uy_s.astype (np.int32)
+
+        ccos.bindq (lx_s, ly_s, ux_s, uy_s, dq_info.field ("dq"),
+                    dq_array[lower_y:upper_y,:], info["x_offset"])
 
 def flagOutOfBounds (hdr, dq_array, info, switches,
-                     brftab, geofile, minmax_shifts, minmax_doppler):
+                     brftab, geofile, minmax_shift_dict, minmax_doppler):
     """Flag regions that are outside all subarrays (done in-place).
 
     @param hdr: the extension header
@@ -928,10 +956,10 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
     @type switches: dictionary
     @param brftab: name of baseline reference table (for active area)
     @type brftab: string
-    @param minmax_shifts: the min and max offsets in the dispersion direction
-        and the min and max offsets in the cross-dispersion direction during
-        the exposure
-    @type minmax_shifts: tuple
+    @param minmax_shift_dict: the min and max offsets in the dispersion
+        direction and the min and max offsets in the cross-dispersion direction
+        during the exposure
+    @type minmax_shift_dict: dictionary
     @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
         doppcorr is omit)
     @type minmax_doppler: tuple
@@ -953,12 +981,13 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
     temp = dq_array.copy()
     (ny, nx) = dq_array.shape
 
-    # These are for shifting and smearing the out-of-bounds region into
-    # the subarray due to the wavecal offset and Doppler shift and their
-    # variation during the exposure.
-    (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
-    (mindopp, maxdopp) = minmax_doppler
+    # currently we don't expect subarrays for NUV, so any key in keys() will do
+    key = minmax_shift_dict.keys()[0]
 
+    # These are for shifting the out-of-bounds region into the subarray
+    # due to the wavecal offset and Doppler shift during the exposure.
+    [min_shift1, max_shift1, min_shift2, max_shift2] = minmax_shift_dict[key]
+    (mindopp, maxdopp) = minmax_doppler
     dx = min_shift1
     dy = min_shift2
     dx -= maxdopp
@@ -1174,7 +1203,7 @@ def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
     temp[y0:y1,x0:x1] = DQ_OK
 
 def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
-                           minmax_shifts, minmax_doppler):
+                           minmax_shift_dict, minmax_doppler):
     """Flag the region that is outside the active area.
 
     This is only relevant for FUV data.
@@ -1187,10 +1216,10 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
     @type brftab: string
     @param x_offset: offset of raw_template in the extended template
     @type x_offset: int
-    @param minmax_shifts: the min and max offsets in the dispersion direction
-        and the min and max offsets in the cross-dispersion direction during
-        the exposure
-    @type minmax_shifts: tuple
+    @param minmax_shift_dict: the min and max offsets in the dispersion
+        direction and the min and max offsets in the cross-dispersion
+        direction during the exposure
+    @type minmax_shift_dict: dictionary
     """
 
     (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
@@ -1198,7 +1227,8 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
     # These are for shifting and smearing the out-of-bounds region into
     # the active region due to the wavecal offset and Doppler shift and
     # their variation during the exposure.
-    (min_shift1, max_shift1, min_shift2, max_shift2) = minmax_shifts
+    key = minmax_shift_dict.keys()[0]
+    [min_shift1, max_shift1, min_shift2, max_shift2] = minmax_shift_dict[key]
     (mindopp, maxdopp) = minmax_doppler
 
     b_left -= int (round (min_shift1))

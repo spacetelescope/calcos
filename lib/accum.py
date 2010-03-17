@@ -275,10 +275,13 @@ def doDqicorr (info, switches, reffiles, phdr, dq_array):
 
         cosutil.printRef ("BPIXTAB", reffiles)
 
-        minmax_shifts = (0., 0., 0., 0.)    # update using imaging wavecal xxx
+        # update using imaging wavecal xxx
+        minmax_shift_dict = {(0, 1024): [0., 0., 0., 0.]}
         minmax_doppler = (0., 0.)
+        doppler_boundary = -10          # anywhere below 0
         cosutil.updateDQArray (reffiles["bpixtab"], info, dq_array,
-                               minmax_shifts, minmax_doppler)
+                               minmax_shift_dict,
+                               minmax_doppler, doppler_boundary)
 
         phdr["dqicorr"] = "COMPLETE"
 
