@@ -1574,7 +1574,10 @@ def doDqicorr (events, input, info, switches, reffiles,
                                 reffiles["disptab"], switches["doppcorr"])
         minmax_doppler = cosutil.minmaxDoppler (info, switches["doppcorr"],
                                doppmag, doppzero, orbitper)
-        doppler_boundary = psaWcaBoundary (info, reffiles["xtractab"])
+        if info["obstype"] == "SPECTROSCOPIC":
+            doppler_boundary = psaWcaBoundary (info, reffiles["xtractab"])
+        else:
+            doppler_boundary = -10
         cosutil.updateDQArray (bpixtab, info, dq_array,
                                minmax_shift_dict,
                                minmax_doppler, doppler_boundary)
@@ -3512,6 +3515,13 @@ def getWavecalOffsets (events, info, xtractab):
     global active_area
 
     minmax_shift_dict = {}
+
+    if info["obstype"] == "IMAGING":
+        if info["detector"] == "NUV":
+            minmax_shift_dict[(0, NUV_Y)] = [0., 0., 0., 0.]
+        else:
+            minmax_shift_dict[(0, FUV_Y)] = [0., 0., 0., 0.]
+        return minmax_shift_dict
 
     if active_area.any():
         xi_dopp  = events.field (xdopp)
