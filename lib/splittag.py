@@ -534,7 +534,7 @@ def updateKeywords (info, out_gti_hdu, t0, t1, ofd):
     @type ofd: pyfits HDUList object
 
     This function adds two HISTORY records to the output primary header and
-    updates EXPTIME and EXPEND in the EVENTS extension header.
+    updates EXPTIME, EXPEND and EXPENDJ in the EVENTS extension header.
     """
 
     phdr = ofd[0].header
@@ -560,3 +560,5 @@ def updateKeywords (info, out_gti_hdu, t0, t1, ofd):
     if expstart > 0.:
         expend = expstart + t1/SEC_PER_DAY
         hdr.update ("expend", expend)
+        expend_j = expend + 2400000.5
+        hdr.update ("expendj", expend_j)
