@@ -68,6 +68,9 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
 
     cosutil.setVerbosity (verbosity)
 
+    if not cosutil.isCorrtag (input):
+        raise RuntimeError, "%s is not a corrtag file" % input
+
     (inroot, suffix) = splitName (input)
 
     ifd = pyfits.open (input, mode="readonly")
@@ -76,11 +79,13 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
         hdr = ifd[("events")].header
     except KeyError:
         ifd.close()
-        raise RuntimeError, "%s is not a rawtag or corrtag file" % input
+        raise RuntimeError, "%s is not a corrtag file" % input
     data = ifd[("events")].data
     time_col = cosutil.getColCopy (filename="", column="time", data=data)
 
     info = getInfo (input, phdr, hdr)
+    if info["wavecorr"] != "COMPLETE":
+        cosutil.printWarning ("WAVECORR was not done for " + input)
     gti_hdu = getGTI (ifd)
     time_list = convertToSlices (time_col,
                                  starttime, increment, endtime, time_list)
@@ -124,18 +129,14 @@ def splitName (input):
     @param input: name of input file
     @type input: string
 
-    @return: root name (up to "_rawtag" or "_corrtag") and everything past
-        the root name
+    @return: root name (up to "_corrtag"), everything past the root name
     @rtype: tuple of two strings
 
-    For example, if input = "xyz_corrtag_a.fits", then rootname would be "xyz"
-    and suffix would be "_corrtag_a.fits" (that is, "suffix" includes both
-    the suffix and extension).
+    For example, if input = "xyz_corrtag_a.fits", then the returned tuple
+    would be ("xyz", "_corrtag_a.fits").
     """
 
-    i = input.find ("_rawtag")
-    if i < 0:
-        i = input.find ("_corrtag")
+    i = input.find ("_corrtag")
     if i < 0:
         i = input.find (".fit")
 
@@ -171,6 +172,7 @@ def getInfo (input, phdr, hdr):
 
     # This is a list of primary header keywords and default values.
     keylist = {
+        "wavecorr":  "omit",
         "detector":  NOT_APPLICABLE,
         "segment":   NOT_APPLICABLE,
         "obstype":   NOT_APPLICABLE,
