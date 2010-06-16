@@ -163,7 +163,6 @@ def getGeneralInfo (phdr, hdr):
         "sdqflags":  184,       # 8 + 16 + 32 + 128
         "nsubarry":  0,
         "numflash":  0,
-        "exptime":  -1.,
         "expstart": -1.,
         "expend":   -1.,
         "doppon":    False,
@@ -173,10 +172,22 @@ def getGeneralInfo (phdr, hdr):
         "doppzero": -1.,
         "dopzerot": -1.,
         "orbitper": -1.,
-        "orbtpert": -1.}
+        "orbtpert": -1.,
+        "ra_aper":   0.,
+        "dec_aper":  0.,
+        "pa_aper":   0.}
 
     for key in keylist.keys():
         info[key] = hdr.get (key, default=keylist[key])
+
+    # For FUV, the keyword for exposure time depends on segment.
+    exptime_key = cosutil.exptimeKeyword (info["segment"])
+    exptime_default = hdr.get ("exptime", default=0.)
+    info["exptime"] = hdr.get (exptime_key, default=exptime_default)
+
+    # Copy exptime to orig_exptime, so we can modify exptime but save the
+    # original value.
+    info["orig_exptime"] = info["exptime"]
 
     if info["tagflash"] and info["numflash"] < 1:
         info["tagflash"] = False
@@ -246,7 +257,7 @@ def getRefFileNames (phdr):
                 "deadtab", "phatab", "brsttab", "badttab",
                 "xtractab", "lamptab", "disptab",
                 "fluxtab", "imphttab", "phottab",
-                "wcptab", "tdstab"]:
+                "spwcstab", "wcptab", "tdstab"]:
         reffiles[key+"_hdr"] = phdr.get (key, default=NOT_APPLICABLE)
         reffiles[key] = cosutil.expandFileName (reffiles[key+"_hdr"])
 

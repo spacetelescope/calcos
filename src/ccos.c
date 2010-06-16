@@ -94,6 +94,9 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 		to accept a float or double array rather than a PyArrayObject.
 2009 May 6	Include binx and biny as arguments to csum_2d and csum_3d.
 2009 May 13	Add functions dq_or and bin2d.
+2010 Apr 2	In binarySearch, compare the first and last elements of array
+		(rather than just the first and second elements) to check
+		whether the array is increasing.
 */
 
 # include <Python.h>
@@ -1892,11 +1895,14 @@ static int binarySearch (double wl, double array[], int nelem) {
 
 	int low, high;		/* range of elements to consider */
 	int k;			/* middle element between low and high */
+        int increasing;         /* true if array is increasing */
 
 	if (nelem < 2)
 	    return 0;
 
-	if (array[0] < array[1]) {		/* array is increasing */
+	if (array[0] < array[nelem-1]) {	/* array is increasing */
+
+	    increasing = 1;
 
 	    /* check for out of range */
 	    if (wl < array[0])
@@ -1905,6 +1911,8 @@ static int binarySearch (double wl, double array[], int nelem) {
 		return nelem;
 
 	} else {				/* array is decreasing */
+
+	    increasing = 0;
 
 	    if (wl > array[0])
 		return -1;
@@ -1915,7 +1923,7 @@ static int binarySearch (double wl, double array[], int nelem) {
 	low = 0;
 	high = nelem - 1;
 
-	if (array[0] < array[1]) {
+	if (increasing) {
 
 	    while (high - low > 1) {
 		k = (low + high) / 2;

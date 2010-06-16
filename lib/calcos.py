@@ -17,6 +17,7 @@ import cosutil
 import extract
 import fpavg
 import getinfo
+import spwcs
 import timetag
 import wavecal
 from calcosparam import *       # parameter definitions
@@ -49,6 +50,7 @@ def main (args):
         -v (very verbose)
         -s (save temporary files)
         -o outdir (output directory name)
+        --find (find Y location of spectrum)
         --csum (create csum image)
         --compress parameters (compress csum image)
         --binx X_bin_factor (csum binning in X)
@@ -70,7 +72,8 @@ def main (args):
 
     try:
         (options, pargs) = getopt.getopt (args, "qvso:",
-                           ["csum", "compress=", "binx=", "biny=",
+                           ["find",
+                            "csum", "compress=", "binx=", "biny=",
                             "shift=", "stim=", "live=", "burst="])
     except Exception, error:
         cosutil.printError (str (error))
@@ -91,6 +94,7 @@ def main (args):
     create_csum_image = False
     binx = 1
     biny = 1
+    find_target = False
     compress_csum = False
     compression_parameters = "gzip,-0.01"
     # user-supplied text file to specify shift1 and shift2
@@ -110,6 +114,8 @@ def main (args):
             save_temp_files = True
         elif options[i][0] == "-o":
             outdir = options[i][1]
+        elif options[i][0] == "--find":
+            find_target = True
         elif options[i][0] == "--csum":
             create_csum_image = True
         elif options[i][0] == "--compress":
@@ -140,6 +146,7 @@ def main (args):
     status = 0
     for i in range (len (infiles)):
         status = calcos (infiles[i], outdir=outdir, verbosity=None,
+                         find_target=find_target,
                          create_csum_image=create_csum_image,
                          binx=binx, biny=biny,
                          compress_csum=compress_csum,
@@ -159,6 +166,7 @@ def prtOptions():
     cosutil.printMsg ("  -v (very verbose)")
     cosutil.printMsg ("  -s (save temporary files)")
     cosutil.printMsg ("  -o outdir (output directory name)")
+    cosutil.printMsg ("  --find (find Y location of spectrum)")
     cosutil.printMsg ("  --csum (create 'calcos sum' image)")
     cosutil.printMsg ("  --compress parameters (compress csum image)")
     cosutil.printMsg ("  --binx X_bin_factor (csum bin factor in X)")
@@ -215,6 +223,7 @@ def checkNumerix():
                               os.environ["NUMERIX"])
 
 def calcos (asntable, outdir=None, verbosity=None,
+            find_target=False,
             create_csum_image=False,
             binx=None, biny=None,
             compress_csum=False, compression_parameters="gzip,-0.01",
@@ -232,6 +241,10 @@ def calcos (asntable, outdir=None, verbosity=None,
 
     @param verbosity: if not None, set verbosity to this level (0, 1, 2)
     @type verbosity: int or None
+
+    @param find_target: if True, search for the target spectrum in the
+        Y direction, rather than relying on the wavecal offset (shift2)
+    @type find_target: boolean
 
     @param create_csum_image: if True, write an image that reflects the
         counts detected at each pixel (includes deadcorr but not flatcorr),
@@ -293,7 +306,8 @@ def calcos (asntable, outdir=None, verbosity=None,
         cosutil.setVerbosity (verbosity)
 
     # some of the command-line arguments
-    cl_args = {"create_csum_image": create_csum_image,
+    cl_args = {"find_target": find_target,
+               "create_csum_image": create_csum_image,
                "binx": binx,
                "biny": biny,
                "compress_csum": compress_csum,
@@ -1160,6 +1174,7 @@ class Association (object):
             "geofile":  ["2.0", "GEOMETRIC DISTORTION REFERENCE IMAGE"],
             "lamptab":  ["2.0", "TEMPLATE CAL LAMP SPECTRA TABLE"],
             "wcptab":   ["2.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
+            "spwcstab": ["2.0", "SPECTROSCOPIC WCS PARAMETERS TABLE"],
             "xtractab": ["2.0", "1-D EXTRACTION PARAMETERS TABLE"],
             "disptab":  ["2.0", "DISPERSION RELATION REFERENCE TABLE"],
             "fluxtab":  ["2.0", "PHOTOMETRIC SENSITIVITY REFERENCE TABLE"],
@@ -1221,6 +1236,11 @@ class Association (object):
                     missing, wrong_filetype, bad_version)
             cosutil.findRefFile (ref["disptab"],
                     missing, wrong_filetype, bad_version)
+            # xxx there's another test on N/A for spwcstab in allScience.
+            # Remove both of these tests after this table is delivered.
+            if ref["spwcstab"]["filename"] != NOT_APPLICABLE:
+                cosutil.findRefFile (ref["spwcstab"],
+                        missing, wrong_filetype, bad_version)
 
         if switches["fluxcorr"] == "PERFORM":
             cosutil.findRefFile (ref["fluxtab"],
@@ -1620,6 +1640,8 @@ class Observation (object):
 
         if self.info["corrtag_input"]:
             suffix = "_corrtag"
+            if input.find (suffix) < 0:
+                suffix = "_rawtag"
         else:
             # For ACCUM data, allow suffix to be "_rawaccum", "_rawimage" or
             # "_rawacq".
@@ -2412,6 +2434,7 @@ class Calibration (object):
         # initial values
         any_x1dcorr = "omit"
         any_wavecorr = "omit"
+        any_spectroscopic = "omit"
         for obs in self.assoc.obs:
             if obs.exp_type == EXP_SCIENCE or \
                obs.exp_type == EXP_CALIBRATION or \
@@ -2424,8 +2447,10 @@ class Calibration (object):
                 if obs.switches["x1dcorr"] == "PERFORM":
                     self.extractSpectrum (obs.filenames)
                     any_x1dcorr = "PERFORM"
+                    any_spectroscopic = "PERFORM"
                 elif obs.info["obstype"] == "SPECTROSCOPIC":
                     cosutil.printSwitch ("X1DCORR", obs.switches)
+                    any_spectroscopic = "PERFORM"
                 if obs.info["tagflash"]:
                     if obs.switches["wavecorr"] == "PERFORM" or \
                        obs.switches["wavecorr"] == "COMPLETE":
@@ -2437,6 +2462,21 @@ class Calibration (object):
 
         if any_wavecorr == "PERFORM":
             self.concatenateSpectra ("tagflash")
+
+        if any_spectroscopic == "PERFORM":
+            # xxx there's another test on N/A for spwcstab in missingRefFiles.
+            # Remove both of these tests after this table is delivered.
+            if obs.reffiles["spwcstab"] == NOT_APPLICABLE:
+                cosutil.printWarning ("SPWCSTAB = %s, so WCS keywords will"
+                        " not be updated" % obs.reffiles["spwcstab"])
+            else:
+                cosutil.printMsg ("Update WCS keywords for spectroscopic data",
+                                  VERY_VERBOSE)
+                cosutil.printRef ("spwcstab", obs.reffiles)
+                for obs in self.assoc.obs:
+                    if obs.info["obstype"] == "SPECTROSCOPIC":
+                        self.writeWCS (obs.filenames,
+                                       obs.info, obs.switches, obs.reffiles)
 
     def extractSpectrum (self, filenames):
         """Extract a 1-D spectrum from corrtag table or from 2-D images.
@@ -2451,7 +2491,35 @@ class Calibration (object):
         incounts = filenames["counts"]
         output = filenames["x1d_x"]
 
-        extract.extract1D (input, incounts, output)
+        find_target = self.assoc.cl_args["find_target"]
+        extract.extract1D (input, incounts, output, find_target=find_target)
+
+    def writeWCS (self, filenames, info, switches, reffiles):
+        """Write the WCS header keywords for spectroscopic data.
+
+        @param filenames: input and output file names
+        @type filenames: dictionary
+        @param info: values of header keywords for general information
+        @type info: dictionary
+        @param switches: calibration switches (we need helcorr)
+        @type switches: dictionary
+        @param reffiles: reference file names (we need spwcstab)
+        @type reffiles: dictionary
+        """
+
+        helcorr = switches["helcorr"]
+        spwcstab = reffiles["spwcstab"]
+        xtractab = reffiles["xtractab"]
+
+        wcs = spwcs.SpWcsCorrtag (filenames["corrtag"], info, helcorr,
+                                  spwcstab, xtractab)
+        wcs.writeWCSKeywords()
+        wcs = spwcs.SpWcsImage (filenames["flt"], info, helcorr,
+                                spwcstab, xtractab)
+        wcs.writeWCSKeywords()
+        wcs = spwcs.SpWcsImage (filenames["counts"], info, helcorr,
+                                spwcstab, xtractab)
+        wcs.writeWCSKeywords()
 
     def processWavecal (self):
         """Determine shift from wavecal observation.
@@ -2701,10 +2769,11 @@ class Calibration (object):
                 "stimXslx", "stimXsly", "stimXsrx", "stimXsry",
                 "npha_X", "phalowrX", "phaupprX",
                 "tbrst_X", "nbrst_X", "tbadt_X", "nbadt_X",
-                "nout_X",
+                "nout_X", "nbadevtX",
+                "exptimeX",
                 "globrt_X",
                 "deadrt_X", "deadmt_X", "livetm_X",
-                "sp_loc_X", "sp_slp_X",
+                "sp_loc_X", "sp_slp_X", "sp_hgt_X",
                 "b_bkg1_X", "b_bkg2_X",
                 "b_hgt1_X", "b_hgt2_X",
                 "shift1X", "shift2X", "dpixel1X",

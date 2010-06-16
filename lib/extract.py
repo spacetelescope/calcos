@@ -7,12 +7,12 @@ import cosutil
 import ccos
 import dispersion
 import getinfo
-# xxx import xd_search
+import xd_search
 from calcosparam import *       # parameter definitions
 
 def extract1D (input, incounts=None, output=None,
                update_input=True,
-               location=None, find_target=False):
+               location=None, extrsize=None, find_target=False):
     """Extract 1-D spectrum from 2-D image.
 
     @param input: name of either the flat-fielded count-rate image (in which
@@ -32,15 +32,17 @@ def extract1D (input, incounts=None, output=None,
         8192 for FUV, 512 for NUV).  None means the user did not specify
         the location.  If location was specified, that value will be used,
         regardless of the find_target switch.
-    @type location: int or float for FUV, list or tuple for NUV
+    @type location: int or float, but could be a list or tuple for NUV, or None
+    @param extrsize: the height of the extraction box (or list of three heights
+        for NUV) in the cross-dispersion direction.  None means the user did
+        not specify the extraction height.
+    @type extrsize: integer, but could be a list or tuple for NUV, or None
     @param find_target: True means that we should search for the location of
         the target in the cross-dispersion direction; False means we should
-        use the location determined from the wavecal.  find_target will be
-        locally set to False if location is not None.
+        use the location determined from the wavecal or specified by the user.
+        find_target will be locally set to False if location is not None.
     @type find_target: boolean
     """
-
-    find_target = False         # xxx not implemented yet
 
     cosutil.printIntro ("Spectral Extraction")
     names = [("Input", input), ("Incounts", incounts), ("Output", output)]
@@ -63,18 +65,16 @@ def extract1D (input, incounts=None, output=None,
     if not is_wavecal and switches["wavecorr"] != "COMPLETE":
         cosutil.printWarning ("WAVECORR was not done for " + input)
 
-    if location is not None:
-        find_target = False
-        if isinstance (location, int) or isinstance (location, float):
-            if info["detector"] == "FUV":
-                location = [location]
-            else:
-                location = [location, location, location]
-        else:
-            try:
-                test_type = location[0]
-            except TypeError:
-                raise TypeError, "location must be an int, float, or sequence"
+    if is_wavecal:
+       location = None
+       extrsize = None
+       find_target = False
+
+    # Check data types and lengths (if not scalar), and copy values for
+    # location and extrsize to dictionary entries.  Override value of
+    # find_target (set to False) if location was specified.
+    (location, extrsize, find_target) = \
+        checkLocation (info, location, extrsize, find_target)
 
     cosutil.printSwitch ("X1DCORR", switches)
     cosutil.printRef ("XTRACTAB", reffiles)
@@ -150,7 +150,7 @@ def extract1D (input, incounts=None, output=None,
         # Extract the spectrum or spectra.
         doExtract (ifd_e, ifd_c, ofd, nelem,
                    segments, info, switches, reffiles, is_wavecal,
-                   location, find_target)
+                   location, extrsize, find_target)
         if switches["fluxcorr"] == "PERFORM":
             # Convert net count rate to flux.
             doFluxCorr (ofd, info["opt_elem"], info["cenwave"],
@@ -198,9 +198,103 @@ def extract1D (input, incounts=None, output=None,
     if switches["statflag"] == "PERFORM":
         cosutil.doSpecStat (output)
 
+def checkLocation (info, location, extrsize, find_target):
+    """Check that location and height were specified correctly.
+
+    @param info: keywords and values
+    @type info: dictionary
+    @param location: location(s) at which to extract spectrum or spectra
+    @type location: integer, float, or sequence
+    @param extrsize: extraction height (or heights for NUV)
+    @type extrsize: integer or sequence
+    @param find_target: 
+    @type find_target: boolean
+
+    @return: dictionary of locations (key is segment or stripe), dictionary of
+        extraction heights (key is segment or stripe), and the find_target flag
+        (set to False if location was not None).  The elements of the
+        dictionaries may be None (i.e. if location is None or extrsize is None)
+    @rtype: tuple of two dictionaries and a boolean flag
+    """
+
+    if location is None:
+        if info["detector"] == "FUV":
+            location = {info["segment"]: None}
+        else:
+            location = {"NUVA": None, "NUVB": None, "NUVC": None}
+    else:
+        find_target = False             # override
+        if isinstance (location, int) or isinstance (location, float):
+            if info["detector"] == "FUV":
+                location = {info["segment"]: location}
+            else:
+                # This doesn't seem like a very useful case.
+                location = {"NUVA": location, "NUVB": None, "NUVC": None}
+        else:
+            try:
+                nelem = len (location)
+            except TypeError:
+                raise TypeError, "location must be an int, float, or sequence"
+            if info["detector"] == "FUV":
+                if nelem == 1:
+                    location = {info["segment"]: location[0]}
+                else:
+                    raise TypeError, \
+                    "for FUV, location may have only one element"
+            elif info["detector"] == "NUV":
+                if nelem > 3:
+                    raise TypeError, \
+                    "location may not have more than three elements"
+                segments = ["NUVA", "NUVB", "NUVC"]
+                temp = {"NUVA": None, "NUVB": None, "NUVC": None}
+                for i in range (nelem):
+                    temp[segments[i]] = location[i]
+                location = temp
+
+    if extrsize is None:
+        if info["detector"] == "FUV":
+            extrsize = {info["segment"]: None}
+        else:
+            extrsize = {"NUVA": None, "NUVB": None, "NUVC": None}
+    else:
+        if isinstance (extrsize, int):
+            if info["detector"] == "FUV":
+                extrsize = {info["segment"]: extrsize}
+            else:
+                extrsize = {"NUVA": extrsize,
+                            "NUVB": extrsize,
+                            "NUVC": extrsize}
+        else:
+            try:
+                nelem = len (extrsize)
+            except TypeError:
+                raise TypeError, "extrsize must be an integer or sequence"
+            if info["detector"] == "FUV":
+                if nelem == 1:
+                    extrsize = {info["segment"]: extrsize[0]}
+                else:
+                    raise TypeError, \
+                    "for FUV, extrsize may have only one element"
+            elif info["detector"] == "NUV":
+                if nelem == 1:
+                    extrsize = {"NUVA": extrsize[0],
+                                "NUVB": extrsize[0],
+                                "NUVC": extrsize[0]}
+                else:
+                    if nelem > 3:
+                        raise TypeError, \
+                        "extrsize may not have more than three elements"
+                    segments = ["NUVA", "NUVB", "NUVC"]
+                    temp = {"NUVA": None, "NUVB": None, "NUVC": None}
+                    for i in range (nelem):
+                        temp[segments[i]] = extrsize[i]
+                    extrsize = temp
+
+    return (location, extrsize, find_target)
+
 def doExtract (ifd_e, ifd_c, ofd, nelem,
                segments, info, switches, reffiles, is_wavecal,
-               location=None, find_target=False):
+               location, extrsize, find_target=False):
     """Extract either FUV or NUV data.
 
     This calls a routine to do the extraction for one segment, and it
@@ -226,23 +320,47 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
     @type reffiles: dictionary
     @param is_wavecal: true if the observation is a wavecal, based on exptype
     @type is_wavecal: boolean
-    @param location: location (if FUV) or locations (if NUV, in the order
-        NUVA, NUVB, NUVC), or None
-    @type location: sequence of int or float, or None
+    @param location: locations of the spectrum in the cross-dispersion
+        direction, in pixels; this is where the spectrum crosses the middle of
+        the detector (index 8192 for FUV, 512 for NUV).  A key value may be
+        None, which means the user did not specify the location.
+    @type location: dictionary with segment or stripe as key
+    @param extrsize: the height of the extraction box (or list of three heights
+        for NUV) in the cross-dispersion direction.  A key value may be None,
+        which means the user did not specify the extraction height.
+    @type extrsize: dictionary with segment or stripe as key
     @param find_target: True means that we should search for the location of
         the target in the cross-dispersion direction; False means we should
-        use the location determined from the wavecal.
+        use the location determined from the wavecal or specified by the user.
     @type find_target: boolean
     """
 
     hdr = ifd_e[1].header
     outdata = ofd[1].data
 
-    corrtag = (ifd_c is None)
-
-    # Get columns, if the input is a corrtag table.
-    if corrtag:
+    is_corrtag = (ifd_c is None)
+    if is_corrtag:              # the input is a corrtag table
         (xi, eta, dq, epsilon) = getColumns (ifd_e, info["detector"])
+        if info["detector"] == "FUV":
+            axis_height = FUV_Y
+            axis_length = FUV_EXTENDED_X
+            segment = segments[0]
+        else:
+            axis_height = NUV_Y
+            axis_length = NUV_EXTENDED_X
+            segment = "NUVB"
+        # populate the DQ array
+        # xxx temporary, should be improved
+        shift1 = hdr.get ("SHIFT1" + segment[-1], 0.)
+        shift2 = hdr.get ("SHIFT2" + segment[-1], 0.)
+        minmax_shift_dict = {}
+        minmax_shift_dict[(0, 1024)] = [shift1, shift1, shift2, shift2] # xxx
+        minmax_doppler = (0., 0.)       # xxx replace with actual values
+        doppler_boundary = 512          # xxx replace with actual value
+        dq_array = np.zeros ((axis_height,axis_length), dtype=np.int16)
+        cosutil.updateDQArray (reffiles["bpixtab"], info, dq_array,
+                               minmax_shift_dict,
+                               minmax_doppler, doppler_boundary)
 
     row = 0
     for segment in segments:
@@ -276,7 +394,11 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         if location is None:
             xdisp_locn = None
         else:
-            xdisp_locn = location[row]
+            xdisp_locn = location[segment]
+        if extrsize is None:
+            xdisp_size = None
+        else:
+            xdisp_size = extrsize[segment]
 
         outdata.field ("NELEM")[row] = nelem
 
@@ -298,38 +420,33 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         dispaxis = max (info["dispaxis"], 1)
         axis = 2 - dispaxis             # 1 --> 1,  2 --> 0
 
-        if corrtag:
-            if info["detector"] == "FUV":
-                axis_length = FUV_EXTENDED_X
-            else:
-                axis_length = NUV_EXTENDED_X
+        # For FUV, the keyword for exposure time depends on segment.
+        exptime_key = cosutil.exptimeKeyword (segment)
+        exptime = hdr.get (exptime_key, default=hdr["exptime"])
+
+        if is_corrtag:
+            key = "shift1" + segment[-1]
+            shift1 = ofd[1].header.get (key, 0.)
             (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
-                extractCorrtag (xi, eta, dq, epsilon,
-                                ofd[1].header, segment,
-                                hdr["sdqflags"], axis_length, snr_ff,
-                                hdr["exptime"], switches["backcorr"],
-                                xtract_info, shift2, xdisp_locn)
+                extractCorrtag (xi, eta, dq, epsilon, dq_array,
+                                ofd[1].header, segment, axis_length,
+                                x_offset, hdr["sdqflags"], snr_ff,
+                                exptime, switches["backcorr"], axis,
+                                xtract_info, shift1, shift2,
+                                xdisp_locn, xdisp_size, find_target)
         else:
-            if xdisp_locn is None and find_target:
-                y_nominal = xtract_info.field ("b_spec")[0] + shift2
-                # search for the target spectrum
-                # xxx not finished yet
-                #xd_locn = xd_search.xdSearch (ifd_e["SCI"].data,
-                #                ifd_e["DQ"].data, wavelength,
-                #                axis, slope, y_nominal,
-                #                x_offset, info["detector"], info["opt_elem"])
-            else:
-                xd_locn = xdisp_locn    # updated by extractSegment()
             (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
              extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
                              ifd_e["DQ"].data, ofd[1].header, segment,
                              x_offset, hdr["sdqflags"], snr_ff,
-                             hdr["exptime"], switches["backcorr"], axis,
-                             xtract_info, shift2, xd_locn, find_target)
+                             exptime, switches["backcorr"], axis,
+                             xtract_info, shift2,
+                             info, wavelength,
+                             xdisp_locn, xdisp_size, find_target)
         del xtract_info
 
         outdata.field ("SEGMENT")[row] = segment
-        outdata.field ("EXPTIME")[row] = hdr["exptime"]
+        outdata.field ("EXPTIME")[row] = exptime
         outdata.field ("WAVELENGTH")[row][:] = wavelength
         outdata.field ("FLUX")[row][:] = 0.
         outdata.field ("ERROR")[row][:] = ERR_i
@@ -463,7 +580,9 @@ def getSnrFf (switches, reffiles, segment):
 def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                     x_offset, sdqflags, snr_ff,
                     exptime, backcorr, axis,
-                    xtract_info, shift2, xdisp_locn=None, find_target=False):
+                    xtract_info, shift2,
+                    info, wavelength,
+                    xdisp_locn=None, xdisp_size=None, find_target=False):
 
     """Extract a 1-D spectrum for one segment or stripe.
 
@@ -496,8 +615,14 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     @type xtract_info: PyFITS record object
     @param shift2: offset in the cross-dispersion direction
     @type shift2: float
+    @param info: keywords and values
+    @type info: dictionary
+    @param wavelength: wavelength at each pixel (needed if find_target is True)
+    @type wavelength: array
     @param xdisp_locn: user-specified location in cross-dispersion direction
     @type xdisp_locn: int or float, or None if not specified
+    @param xdisp_size: user-specified height of extraction box
+    @type xdisp_size: int, or None if not specified
     @param find_target: search for the cross-disp location of the target?
     @type find_target: boolean
 
@@ -523,8 +648,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     """
 
     slope           = xtract_info.field ("slope")[0]
-    b_spec          = xtract_info.field ("b_spec")[0]
-    extr_height     = xtract_info.field ("height")[0]
+    b_spec          = xtract_info.field ("b_spec")[0]   # but see xdisp_locn
+    extr_height     = xtract_info.field ("height")[0]   # but see xdisp_size
     b_bkg1          = xtract_info.field ("b_bkg1")[0]
     b_bkg2          = xtract_info.field ("b_bkg2")[0]
     if cosutil.findColumn (xtract_info, "b_hgt1"):
@@ -541,9 +666,17 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     # location based on the wavecal; in either case, it's where the spectrum
     # crosses the middle of the array, not the left edge of the array.
     if xdisp_locn is None:
-        if find_target:
-            # (shift2, xd_locn) = xxx not implemented yet xxx
-            b_spec = xd_locn - slope * (axis_length // 2)
+        if find_target:         # search for the target spectrum
+            y_nominal = b_spec + shift2
+            (offset2, b_spec, b_spec_sigma) = xd_search.xdSearch (e_data,
+                                e_dq_data, wavelength,
+                                axis, slope, b_spec,
+                                x_offset, info["detector"])
+            offset_to_middle = slope * (axis_length // 2 - x_offset)
+            xd_locn = b_spec + offset_to_middle
+            message = "Spectrum found at y = %.2f (nominal y = %.2f)." % \
+                       (xd_locn, y_nominal + offset_to_middle)
+            cosutil.printMsg (message, VERBOSE)
         else:
             # add the shift to the nominal location; assign a value to xd_locn
             # (which will be used to update a header keyword)
@@ -552,10 +685,13 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
             b_bkg1 += shift2
             b_bkg2 += shift2
     else:
-        # use the user-specified value, but convert to b_spec, the intersection
-        # with the left edge of the array
+        # use the user-specified value, but convert to b_spec, the Y location
+        # of the spectrum at X = x_offset
         b_spec = xdisp_locn - slope * (axis_length // 2 - x_offset)
         xd_locn = xdisp_locn
+
+    if xdisp_size is not None:
+        extr_height = xdisp_size        # use the user-specified value
 
     # Compute the data quality and data quality weight arrays.
     DQ_i = np.zeros (axis_length, dtype=np.int16)
@@ -565,7 +701,6 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         dq_ij = np.zeros ((extr_height, axis_length), dtype=np.int16)
         ccos.extractband (e_dq_data, axis, slope, b_spec, x_offset, dq_ij)
         # For each i, DQ_i[i] will be the bitwise OR of dq_ij[:,i].
-        DQ_i = np.zeros (axis_length, dtype=np.int16)
         ccos.dq_or (dq_ij, DQ_i)
 
         # In bad_ij and bad_i, 0 means OK and 1 means bad
@@ -666,19 +801,64 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
 
     return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
 
-def extractCorrtag (xi, eta, dq, epsilon,
-                    ofd_header, segment,
-                    sdqflags, axis_length, snr_ff,
-                    exptime, backcorr,
-                    xtract_info, shift2, xdisp_locn=None):
+def extractCorrtag (xi, eta, dq, epsilon, dq_array,
+                    ofd_header, segment, axis_length,
+                    x_offset, sdqflags, snr_ff,
+                    exptime, backcorr, axis,
+                    xtract_info, shift1, shift2,
+                    xdisp_locn=None, xdisp_size=None, find_target=False):
     """Extract a 1-D spectrum for one segment or stripe.
 
-    not finished
+    @param xi: column of pixel coordinates in the dispersion direction
+    @type xi: 1-D numpy array
+    @param eta: column of pixel coordinates in the cross-dispersion direction
+    @type eta: 1-D numpy array
+    @param dq: column of data quality flags
+    @type dq: 1-D numpy array
+    @param epsilon: column of weights for flat field or nonlinearity
+    @type epsilon: 1-D numpy array
+    @param dq_array: DQ array, created from the bad pixel table
+    @type dq_array: 2-D numpy array
+    @param ofd_header: header of the output table (for updating keywords)
+    @type ofd_header: pyfits Header object, or None
+    @param segment: FUVA or FUVB, etc. (only used for updating keywords)
+    @type segment: string
+    @param axis_length: length of dispersion axis
+    @type axis_length: int
+    @param x_offset: offset of the detector in the output array
+    @type x_offset: int
+    @param sdqflags: "serious" data quality flags
+    @type sdqflags: int
+    @param snr_ff: the signal-to-noise ratio of the flat field reference file
+    @type snr_ff: float
+    @param exptime: exposure time (seconds)
+    @type exptime: float
+    @param backcorr: "PERFORM" if background subtraction is to be done
+    @type backcorr: int
+    @param axis: the dispersion axis, 0 (Y) or 1 (X)
+    @type axis: int
+    @param xtract_info: one row of the xtractab
+    @type xtract_info: PyFITS record object
+    @param shift1: offset in the dispersion direction (used for NUV in the
+        section for smoothing the background)
+    @type shift1: float
+    @param shift2: offset in the cross-dispersion direction
+    @type shift2: float
+    @param xdisp_locn: user-specified location in cross-dispersion direction
+    @type xdisp_locn: int or float, or None if not specified
+    @param xdisp_size: user-specified height of extraction box
+    @type xdisp_size: int or float, or None if not specified
+    @param find_target: search for the cross-disp location of the target?
+    @type find_target: boolean
+
+    @return: net count rate, error estimate, gross count rate, gross counts,
+        background count rate, data quality array, data quality weight array
+    @rtype: tuple of seven 1-D arrays
     """
 
     slope           = xtract_info.field ("slope")[0]
-    b_spec          = xtract_info.field ("b_spec")[0]
-    extr_height     = xtract_info.field ("height")[0]
+    b_spec          = xtract_info.field ("b_spec")[0]   # but see xdisp_locn
+    extr_height     = xtract_info.field ("height")[0]   # but see xdisp_size
     b_bkg1          = xtract_info.field ("b_bkg1")[0]
     b_bkg2          = xtract_info.field ("b_bkg2")[0]
     if cosutil.findColumn (xtract_info, "b_hgt1"):
@@ -689,47 +869,128 @@ def extractCorrtag (xi, eta, dq, epsilon,
         bkg_height2  = bkg_height1
     bkg_smooth      = xtract_info.field ("bwidth")[0]
 
-    zero_pixel = 0              # offset into output spectrum
-
+    # xd_locn is either the user-specified value (if it was specified) or the
+    # location based on the wavecal; in either case, it's where the spectrum
+    # crosses the middle of the array, not the left edge of the array.
     if xdisp_locn is None:
-        # add the shift to the nominal location; assign a value to xd_locn
-        b_spec += shift2
-        xd_locn = b_spec + slope * (axis_length // 2)
+        if find_target:
+            b_spec += shift2
+            xd_locn = b_spec + slope * (axis_length // 2 - x_offset)
+            # xxx not implemented yet xxx
+            #y_nominal = b_spec + shift2
+            # xxx need different arguments for xdSearch for corrtag xxx
+            #(shift2, b_spec, b_spec_sigma) = xd_search.xdSearch (e_data,
+            #                    e_dq_data, wavelength,
+            #                    axis, slope, b_spec,
+            #                    x_offset, info["detector"], info["opt_elem"])
+            #message = "Spectrum found at y = %.2f (nominal y = %.2f)." % \
+            #           (xd_locn, y_nominal + offset_to_middle)
+            #cosutil.printMsg (message, VERBOSE)
+        else:
+            # add the shift to the nominal location; assign a value to xd_locn
+            # (which will be used to update a header keyword)
+            b_spec += shift2
+            xd_locn = b_spec + slope * (axis_length // 2 - x_offset)
+            b_bkg1 += shift2
+            b_bkg2 += shift2
     else:
-        # use the user-specified value, but convert to the intersection
+        # use the user-specified value, but convert to b_spec, the intersection
         # with the left edge of the array
-        b_spec = xdisp_locn - slope * (axis_length // 2)
+        b_spec = xdisp_locn - slope * (axis_length // 2 - x_offset)
         xd_locn = xdisp_locn
+
+    if xdisp_size is not None:
+        extr_height = xdisp_size        # use the user-specified value
+
+    # Compute the data quality and data quality weight arrays.
+    DQ_i = np.zeros (axis_length, dtype=np.int16)
+    if dq_array is not None:
+
+        # Get data quality flags within extraction region.
+        dq_ij = np.zeros ((extr_height, axis_length), dtype=np.int16)
+        ccos.extractband (dq_array, axis, slope, b_spec, x_offset, dq_ij)
+        # For each i, DQ_i[i] will be the bitwise OR of dq_ij[:,i].
+        ccos.dq_or (dq_ij, DQ_i)
+
+        # In bad_ij and bad_i, 0 means OK and 1 means bad
+        bad_ij = np.zeros ((extr_height, axis_length), dtype=np.int32)
+        bad_ij[:,:] = np.where (np.bitwise_and (dq_ij, sdqflags), 1, 0)
+        bad_i = bad_ij.sum (axis=0)
+        # Any bad pixel in extraction region?  DQ_WGT is a weight,
+        # so 0 is bad and 1 is good.
+        DQ_WGT_i = np.where (bad_i > 0, 0., 1.)
+        del dq_ij, bad_ij, bad_i
+    else:
+        DQ_WGT_i = np.ones (axis_length, dtype=np.float64)
 
     e_ij = np.zeros ((extr_height, axis_length), dtype=np.float64)
     ccos.xy_extract (xi, eta, e_ij, slope, b_spec,
-                     zero_pixel, dq, sdqflags, epsilon)
-    e_ij /= exptime
-    e_i = e_ij.sum (axis=0)
+                     x_offset, dq, SERIOUS_DQ_FLAGS, epsilon)
 
     GC_ij = np.zeros ((extr_height, axis_length), dtype=np.float64)
     ccos.xy_extract (xi, eta, GC_ij, slope, b_spec,
-                     zero_pixel, dq, sdqflags)
+                     x_offset, dq, SERIOUS_DQ_FLAGS)
+
+    e_ij /= exptime
+    e_i = e_ij.sum (axis=0)
     GCOUNTS_i = GC_ij.sum (axis=0)      # gross counts (not count rate)
-    GC_ij /= exptime
-    GC_i = GC_ij.sum (axis=0)           # gross count rate
+    GC_i = GCOUNTS_i / exptime          # gross count rate
+    del GC_ij
 
     eps_i = e_i / np.where (GC_i <= 0., 1., GC_i)
+    # default value when there are no counts
+    eps_i = np.where (e_i == 0., 1., eps_i)
     del e_ij, e_i
 
     bkg_norm = float (extr_height) / (float (bkg_height1 + bkg_height2))
     if backcorr == "PERFORM":
         BK1_ij = np.zeros ((bkg_height1, axis_length), dtype=np.float64)
+        dq1_ij = np.zeros ((bkg_height1, axis_length), dtype=np.int16)
         BK2_ij = np.zeros ((bkg_height2, axis_length), dtype=np.float64)
-        ccos.xy_extract (xi, eta, BK1_ij, slope, b_bkg1,
-                         zero_pixel, dq, sdqflags)
-        ccos.xy_extract (xi, eta, BK2_ij, slope, b_bkg2,
-                         zero_pixel, dq, sdqflags)
-        # xxx need to correct for data excluded by sdqflags
+        dq2_ij = np.zeros ((bkg_height2, axis_length), dtype=np.int16)
+        # Get the background data.
+        ccos.xy_extract (xi, eta, BK1_ij, slope, b_bkg1, x_offset)
+        ccos.xy_extract (xi, eta, BK2_ij, slope, b_bkg2, x_offset)
+        # Get the data quality array from the flt file.
+        ccos.extractband (dq_array, axis, slope, b_bkg1, x_offset, dq1_ij)
+        ccos.extractband (dq_array, axis, slope, b_bkg2, x_offset, dq2_ij)
+        good1_ij = dq1_ij.copy()
+        good2_ij = dq2_ij.copy()
+        # In good[12]_ij, 1 means OK and 0 means bad.
+        good1_ij[:,:] = np.where (np.bitwise_and (dq1_ij, sdqflags), 0, 1)
+        good2_ij[:,:] = np.where (np.bitwise_and (dq2_ij, sdqflags), 0, 1)
+        # Use the good[12]_ij arrays as a mask to exclude bad data in the
+        # background regions.
+        BK1_ij *= good1_ij
+        BK2_ij *= good2_ij
         BK_i = BK1_ij.sum (axis=0) + BK2_ij.sum (axis=0)
         BK_i /= exptime
+
+        # The sum along axis=0 gives the number of good pixels in each column.
+        # Use this sum to correct (rescale) the background to account for
+        # pixels that are flagged as bad.
+        good_i = good1_ij.sum (axis=0, dtype=np.float64) + \
+                 good2_ij.sum (axis=0, dtype=np.float64)
+        # If good_i is zero, the background will also be zero, so it doesn't
+        # matter what we set good_i to as long as it's not zero (we're going
+        # to divide by it).
+        good_i = np.where (good_i > 0., good_i, 1.)
+        # Correct for regions excluded because they're flagged as bad.
+        BK_i *= (float (bkg_height1 + bkg_height2)) / good_i
+        # Scale the background to the spectral extraction height.
         BK_i *= bkg_norm
-        boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
+        if x_offset > 0:
+            i = x_offset - shift1
+            i = int (round (i))
+            j = i + NUV_X       # assumes x_offset only for NUV
+            i = max (i, 0)
+            j = min (j, axis_length-1)
+            temp_bk = BK_i[i:j].copy()
+            boxcar (temp_bk, (bkg_smooth,), output=temp_bk, mode='nearest')
+            BK_i[i:j] = temp_bk.copy()
+            del temp_bk
+        else:
+            boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
     else:
         BK_i = np.zeros (axis_length, dtype=np.float64)
 
@@ -741,17 +1002,16 @@ def extractCorrtag (xi, eta, dq, epsilon,
         term1_i = 0.
     term2_i = eps_i**2 * exptime * \
                 (GC_i + BK_i * (bkg_norm / float (bkg_smooth)))
-    ERR_i = np.sqrt (term1_i + term2_i) / exptime
-
-    # dummy DQ array
-    DQ_i = np.zeros (axis_length, dtype=np.int16)
-
-    # dummy weight array
-    DQ_WGT_i = np.ones (axis_length, dtype=np.float32)
-
-    updateExtractionKeywords (ofd_header, segment,
-                              slope, extr_height, xd_locn,
-                              b_bkg1, b_bkg2, bkg_height1, bkg_height2)
+    if exptime > 0.:
+        sum_terms = term1_i + term2_i
+        sum_terms = np.where (sum_terms > 0, sum_terms, 0.)
+        ERR_i = np.sqrt (sum_terms) / exptime
+    else:
+        ERR_i = N_i * 0.
+    if ofd_header is not None:
+        updateExtractionKeywords (ofd_header, segment,
+                                  slope, extr_height, xd_locn,
+                                  b_bkg1, b_bkg2, bkg_height1, bkg_height2)
 
     return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
 
@@ -972,7 +1232,8 @@ def updateExtractionKeywords (hdr, segment, slope, height, xd_locn,
     hdr.update (key, xd_locn)
     key = "SP_SLP_" + segment[-1]           # SP_SLP_A, SP_SLP_B, SP_SLP_C
     hdr.update (key, slope)
-    hdr.update ("SP_HGT", height)
+    key = "SP_HGT_" + segment[-1]           # SP_HGT_A, SP_HGT_B, SP_HGT_C
+    hdr.update (key, height)
 
     # Adjust the values of the background locations to be where the regions
     # cross the middle of the detector.
@@ -1135,10 +1396,11 @@ def concatenateFUVSegments (infiles, output):
                 "stimbslx", "stimbsly", "stimbsrx", "stimbsry",
                 "npha_b", "phalowrb", "phaupprb",
                 "tbrst_b", "tbadt_b", "nbrst_b", "nbadt_b",
-                "nout_b",
+                "nout_b", "nbadevtb",
+                "exptimeb",
                 "globrt_b",
                 "deadrt_b", "deadmt_b", "livetm_b",
-                "sp_loc_b", "sp_slp_b",
+                "sp_loc_b", "sp_slp_b", "sp_hgt_b",
                 "b_bkg1_b", "b_bkg2_b",
                 "b_hgt1_b", "b_hgt2_b",
                 "shift1b", "shift2b", "dpixel1b",
@@ -1146,9 +1408,17 @@ def concatenateFUVSegments (infiles, output):
         if seg_b[1].header.has_key (key):
             hdu.header.update (key, seg_b[1].header.get (key, -1.0))
 
-    hdu.header.update ("nbadevnt",
-                       seg_a[1].header.get ("nbadevnt", 0) +
-                       seg_b[1].header.get ("nbadevnt", 0))
+    exptimea = seg_a[1].header.get ("exptimea",
+                                    default=seg_a[1].header["exptime"])
+    exptimeb = seg_b[1].header.get ("exptimeb",
+                                    default=seg_b[1].header["exptime"])
+    hdu.header.update ("exptime", max (exptimea, exptimeb))
+
+    neventsa = seg_a[1].header.get ("neventsa",
+                                    seg_a[1].header.get ("nevents", 0))
+    neventsb = seg_b[1].header.get ("neventsb",
+                                    seg_b[1].header.get ("nevents", 0))
+    hdu.header.update ("nevents", neventsa + neventsb)
 
     # If one of the segments has no data, use the other segment for the
     # primary header.  This is so the calibration switch keywords in the
@@ -1218,7 +1488,7 @@ def copyKeywordsToInput (output, input, incounts):
     if ofd[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
                     "sp_slp_a", "sp_slp_b",
-                    "sp_hgt",
+                    "sp_hgt_a", "sp_hgt_b",
                     "b_bkg1_a", "b_bkg1_b",
                     "b_bkg2_a", "b_bkg2_b",
                     "b_hgt1_a", "b_hgt1_b",
@@ -1226,7 +1496,7 @@ def copyKeywordsToInput (output, input, incounts):
     else:
         keywords = ["sp_loc_a", "sp_loc_b", "sp_loc_c",
                     "sp_slp_a", "sp_slp_b", "sp_slp_c",
-                    "sp_hgt",
+                    "sp_hgt_a", "sp_hgt_b", "sp_hgt_c",
                     "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",
                     "b_bkg2_a", "b_bkg2_b", "b_bkg2_c",
                     "b_hgt1_a", "b_hgt1_b", "b_hgt1_c",

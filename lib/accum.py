@@ -525,9 +525,12 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
     primary_hdu = pyfits.PrimaryHDU (header=phdr)
     fd = pyfits.HDUList (primary_hdu)
     fd[0].header.update ("nextend", 1)
-    fd[0].header.update ("counts", csum_array.sum(dtype=np.float64))
     fd[0].header.update ("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename (fd[0].header, outcsum)
+
+    # used later for updating the COUNTS keyword
+    counts = csum_array.sum (dtype=np.float64)
+
     detector = phdr["detector"]
 
     shape = csum_array.shape
@@ -537,20 +540,12 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
         biny = NUV_BIN_Y
     nx = shape[1] // binx
     ny = shape[0] // biny
-    fd[0].header.update ("nuvbinx", binx)
-    fd[0].header.update ("nuvbiny", biny)
 
     # Copy the exposure time keywords to the output headers.
     hdr = hdr_list[0].copy()
-    addExptimeKeywords (hdr_list, fd[0].header, hdr)
+    addExptimeKeywords (hdr_list, hdr)
 
-    # Copy the high-voltage keywords to the output primary header.
-    cosutil.copyVoltageKeywords (hdr_list[0], fd[0].header, detector)
-
-    # Copy the subarray keywords to the output primary header.
-    cosutil.copySubKeywords (hdr_list[0], fd[0].header, subarray)
-
-    if nx > 1 or ny > 1:
+    if binx > 1 or biny > 1:
         binned_array = np.zeros ((ny,nx), dtype=np.float32)
         ccos.bin2d (csum_array, binned_array)
     else:
@@ -566,6 +561,9 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
     else:
         fd.append (pyfits.ImageHDU (data=binned_array, header=hdr, name="SCI"))
     fd[1].header.update ("BUNIT", "count")
+    fd[1].header.update ("counts", counts)
+    fd[1].header.update ("nuvbinx", binx)
+    fd[1].header.update ("nuvbiny", biny)
 
     fd.writeto (outcsum, output_verify="silentfix")
 
@@ -586,7 +584,7 @@ def getNcounts (sci):
 
     return ncounts
 
-def addExptimeKeywords (hdr_list, phdr, hdr):
+def addExptimeKeywords (hdr_list, hdr):
     """Copy the exposure time keywords to the output headers.
 
     exptime and rawtime will be the sums of those values from all (both)
@@ -595,8 +593,6 @@ def addExptimeKeywords (hdr_list, phdr, hdr):
 
     @param hdr_list: list of sci extension headers
     @type hdr_list: list of pyfits Header objects
-    @param phdr: output primary header
-    @type phdr: pyfits Header object
     @param hdr: output header
     @type hdr: pyfits Header object
     """
@@ -611,11 +607,6 @@ def addExptimeKeywords (hdr_list, phdr, hdr):
         exptime_i = hdr_i.get ("exptime", 0.)
         exptime += exptime_i
         rawtime += hdr_i.get ("rawtime", exptime_i)
-
-    phdr.update ("expstart", expstart)
-    phdr.update ("expend", expend)
-    phdr.update ("exptime", exptime)
-    phdr.update ("rawtime", rawtime)
 
     hdr.update ("expstart", expstart)
     hdr.update ("expend", expend)

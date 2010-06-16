@@ -181,7 +181,7 @@ def createCorrtagHDU (nrows, detector, header):
     col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
     col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
     col.append (pyfits.Column (name="WAVELENGTH", format="1E",
-                               unit="angstrom", disp="%9.4f"))
+                               unit="angstrom", disp="F9.4"))
     col.append (pyfits.Column (name="EPSILON", format="1E"))
     col.append (pyfits.Column (name="DQ", format="1I"))
     col.append (pyfits.Column (name="PHA", format="1B"))
@@ -900,10 +900,8 @@ def updateDQArray (bpixtab, info, dq_array,
 
     lx = dq_info.field ("lx")
     ly = dq_info.field ("ly")
-    dx = dq_info.field ("dx")
-    dy = dq_info.field ("dy")
-    ux = lx + dx - 1
-    uy = ly + dy - 1
+    ux = lx + dq_info.field ("dx") - 1
+    uy = ly + dq_info.field ("dy") - 1
 
     (mindopp, maxdopp) = minmax_doppler
 
@@ -919,20 +917,34 @@ def updateDQArray (bpixtab, info, dq_array,
 
     # Update the 2-D data quality extension array from the DQI table info
     # for each slice in the minmax_shift_dict.
+    # The flagged region (each row in the DQI table) will be expanded:
+    #   the maximum shift will be subtracted from the lower limit, and
+    #   the minimum shift will be subtracted from the upper limit.
     # It is explicitly assumed here that the slice is only in the cross-
     # dispersion direction.
     for key in minmax_dict.keys():
         (lower_y, upper_y) = key
         [min_shift1, max_shift1, min_shift2, max_shift2] = \
                 minmax_dict[key]
-        lx_s = lx - int (round (max_shift1))
-        ux_s = ux - int (round (min_shift1))
-        ly_s = ly - int (round (max_shift2)) - lower_y
-        uy_s = uy - int (round (min_shift2)) - lower_y
 
         if (lower_y + upper_y) // 2 < doppler_boundary:
-            lx_s += int (round (mindopp))
-            ux_s += int (round (maxdopp))
+            lx_s = lx - int (round (max_shift1 - mindopp))
+            ux_s = ux - int (round (min_shift1 - maxdopp))
+        else:
+            lx_s = lx - int (round (max_shift1))
+            ux_s = ux - int (round (min_shift1))
+
+        # these are the limits of a slice
+        lower_y_s = lower_y - int (round (max_shift2))
+        upper_y_s = upper_y - int (round (min_shift2))
+
+        # these are Y locations relative to the slice
+        # ly - max_shift2 - (lower_y - max_shift2)
+        #  = ly - lower_y
+        ly_s = ly - lower_y
+        # uy - min_shift2 - (lower_y - max_shift2)
+        #  = uy - min_shift2 - lower_y_s
+        uy_s = uy - int (round (min_shift2)) - lower_y_s
 
         lx_s = lx_s.astype (np.int32)
         ux_s = ux_s.astype (np.int32)
@@ -940,10 +952,11 @@ def updateDQArray (bpixtab, info, dq_array,
         uy_s = uy_s.astype (np.int32)
 
         ccos.bindq (lx_s, ly_s, ux_s, uy_s, dq_info.field ("dq"),
-                    dq_array[lower_y:upper_y,:], info["x_offset"])
+                    dq_array[lower_y_s:upper_y_s,:], info["x_offset"])
 
 def flagOutOfBounds (hdr, dq_array, info, switches,
-                     brftab, geofile, minmax_shift_dict, minmax_doppler):
+                     brftab, geofile, minmax_shift_dict,
+                     minmax_doppler, doppler_boundary):
     """Flag regions that are outside all subarrays (done in-place).
 
     @param hdr: the extension header
@@ -956,6 +969,8 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
     @type switches: dictionary
     @param brftab: name of baseline reference table (for active area)
     @type brftab: string
+    @param geofile: name of geometric correction reference file
+    @type geofile: string
     @param minmax_shift_dict: the min and max offsets in the dispersion
         direction and the min and max offsets in the cross-dispersion direction
         during the exposure
@@ -963,25 +978,38 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
     @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
         doppcorr is omit)
     @type minmax_doppler: tuple
+    @param doppler_boundary: the border between PSA and WCA regions:
+        Y < doppler_boundary is the PSA,
+        Y >= doppler_boundary is the WCA
+    @type doppler_boundary: int
     """
+
+    if info["detector"] == "FUV":
+        fuvFlagOutOfBounds (hdr, dq_array, info, switches,
+                            brftab, geofile, minmax_shift_dict,
+                            minmax_doppler)
+    else:
+        nuvFlagOutOfBounds (hdr, dq_array, info, switches,
+                            minmax_shift_dict,
+                            minmax_doppler, doppler_boundary)
+
+def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
+                        brftab, geofile, minmax_shift_dict,
+                        minmax_doppler):
 
     nsubarrays = info["nsubarry"]
     x_offset = info["x_offset"]
-    detector = info["detector"]
     segment = info["segment"]
 
-    if detector == "FUV":
-        # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
-        indices = np.arange (4, dtype=np.int32)
-        if segment == "FUVB":
-            indices += 4
-    else:
-        indices = np.arange (nsubarrays, dtype=np.int32)
+    # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
+    indices = np.arange (4, dtype=np.int32)
+    if segment == "FUVB":
+        indices += 4
 
     temp = dq_array.copy()
     (ny, nx) = dq_array.shape
 
-    # currently we don't expect subarrays for NUV, so any key in keys() will do
+    # there's only one key for FUV
     key = minmax_shift_dict.keys()[0]
 
     # These are for shifting the out-of-bounds region into the subarray
@@ -1008,9 +1036,7 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
         ysize = hdr["size"+sub_number+"y"]
         if xsize <= 0 or ysize <= 0:
             continue
-        if detector == "FUV" and (ysize, xsize) == (FUV_Y, FUV_X):
-            continue
-        if detector == "NUV" and (ysize, xsize) == (NUV_Y, NUV_X):
+        if (ysize, xsize) == (FUV_Y, FUV_X):
             continue
         x1 = x0 + xsize - xwidth
         y1 = y0 + ysize - ywidth
@@ -1025,12 +1051,8 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
         sub = {}
         x0 = 0
         y0 = 0
-        if detector == "FUV":
-            xsize = FUV_X
-            ysize = FUV_Y
-        else:
-            xsize = NUV_X
-            ysize = NUV_Y
+        xsize = FUV_X
+        ysize = FUV_Y
         x1 = x0 + xsize - xwidth
         y1 = y0 + ysize - ywidth
         sub["x0"] = x0
@@ -1041,7 +1063,7 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
 
     # Initially flag the entire image as out of bounds, then remove the
     # flag (set it to zero) for each subarray.
-    temp[:,:] = DQ_OUT_OF_BOUNDS
+    temp[:,:] = DQ_PIXEL_OUT_OF_BOUNDS
     (ny, nx) = dq_array.shape
 
     # The test on COMPLETE is for corrtag input.
@@ -1135,10 +1157,10 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
         x_right_interp = np.arange (ny, dtype=np.float32)
         save_sub = (x0, x1, y0, y1)             # in case geocorr is omit
     if nfound == 0:
-        printWarning (
-        "in flagOutOfBounds, there should be at least one full-size 'subarray'")
+        printWarning ("in fuvFlagOutOfBounds,"
+                      " there should be at least one full-size 'subarray'")
     if nfound > 1:
-        printWarning ("in flagOutOfBounds, more subarrays than expected")
+        printWarning ("in fuvFlagOutOfBounds, more subarrays than expected")
     # The test on COMPLETE is for corrtag input.
     if switches["geocorr"] == "PERFORM" or switches["geocorr"] == "COMPLETE":
         interp_flag = (switches["igeocorr"] == "PERFORM")
@@ -1202,6 +1224,123 @@ def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
     y1 = min (y1, ny)
     temp[y0:y1,x0:x1] = DQ_OK
 
+def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
+                        minmax_shift_dict, minmax_doppler, doppler_boundary):
+    """Flag regions that are outside all subarrays (done in-place).
+
+    @param hdr: the extension header
+    @type hdr: pyfits Header object
+    @param dq_array: data quality image array (modified in-place)
+    @type dq_array: numpy array
+    @param info: keywords and values
+    @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
+    @param minmax_shift_dict: the min and max offsets in the dispersion
+        direction and the min and max offsets in the cross-dispersion direction
+        during the exposure
+    @type minmax_shift_dict: dictionary
+    @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
+        doppcorr is omit)
+    @type minmax_doppler: tuple
+    @param doppler_boundary: the border between PSA and WCA regions:
+        Y < doppler_boundary is the PSA,
+        Y >= doppler_boundary is the WCA
+    @type doppler_boundary: int
+    """
+
+    nsubarrays = info["nsubarry"]
+    x_offset = info["x_offset"]
+    segment = info["segment"]
+
+    indices = np.arange (nsubarrays, dtype=np.int32)
+
+    # Initially flag the entire image as out of bounds, then remove the
+    # flag (set it to zero) for each subarray.
+    temp = dq_array.copy()
+    temp[:,:] = DQ_PIXEL_OUT_OF_BOUNDS
+    (ny, nx) = dq_array.shape
+
+    (mindopp, maxdopp) = minmax_doppler
+
+    for key in minmax_shift_dict.keys():
+
+        (lower_y, upper_y) = key
+
+        # The "good" region (not out of bounds) will be shrunk:
+        #   the minimum shift will be subtracted from the lower border, and
+        #   the maximum shift will be subtracted from the upper border.
+
+        # These are for shifting the out-of-bounds region into the subarray
+        # due to the wavecal offset and Doppler shift during the exposure.
+        [min_shift1, max_shift1, min_shift2, max_shift2] = \
+                minmax_shift_dict[key]
+
+        # get a list of subarray locations
+        subarrays = []
+        for i in indices:
+            sub = {}
+            sub_number = str (i)
+            # these keywords are 0-indexed
+            x0 = hdr["corner"+sub_number+"x"]
+            y0 = hdr["corner"+sub_number+"y"]
+            xsize = hdr["size"+sub_number+"x"]
+            ysize = hdr["size"+sub_number+"y"]
+            x1 = x0 + xsize                     # modified below
+            y1 = y0 + ysize                     # modified below
+            if xsize <= 0 or ysize <= 0:
+                continue
+            y0 = max (y0, lower_y)
+            y1 = min (y1, upper_y)
+            if y0 >= y1:
+                continue
+            if (lower_y + upper_y) // 2 < doppler_boundary:
+                x0 -= int (round (min_shift1 - maxdopp))
+                x1 -= int (round (max_shift1 - mindopp))
+            else:
+                x0 -= int (round (min_shift1))
+                x1 -= int (round (max_shift1))
+            y0 -= int (round (min_shift2))
+            y1 -= int (round (max_shift2))
+            sub["x0"] = x0
+            sub["y0"] = y0
+            sub["x1"] = x1
+            sub["y1"] = y1
+            subarrays.append (sub)
+        if not subarrays:
+            # Create one full-size "subarray" in order to account for the NUV
+            # image being larger than the detector and because of fpoffset.
+            sub = {}
+            x0 = 0
+            x1 = x0 + NUV_X
+            if (lower_y + upper_y) // 2 < doppler_boundary:
+                x0 -= int (round (min_shift1 - maxdopp))
+                x1 -= int (round (max_shift1 - mindopp))
+            else:
+                x0 -= int (round (min_shift1))
+                x1 -= int (round (max_shift1))
+            y0 = lower_y - int (round (min_shift2))
+            y1 = upper_y - int (round (max_shift2))
+            sub["x0"] = x0
+            sub["y0"] = x0
+            sub["x1"] = x1
+            sub["y1"] = y1
+            subarrays.append (sub)
+
+        # Add shifts, and set flags to zero in temp within subarrays.
+        for sub in subarrays:
+            x0 = sub["x0"] + x_offset
+            x1 = sub["x1"] + x_offset
+            y0 = sub["y0"]
+            y1 = sub["y1"]
+            x0 = max (x0, 0)
+            y0 = max (y0, 0)
+            x1 = min (x1, nx)
+            y1 = min (y1, ny)
+            temp[y0:y1,x0:x1] = DQ_OK
+
+    dq_array[:,:] = np.bitwise_or (dq_array, temp)
+
 def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
                            minmax_shift_dict, minmax_doppler):
     """Flag the region that is outside the active area.
@@ -1245,13 +1384,13 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
     (ny, nx) = dq_array.shape
 
     if b_low >= 0:
-        dq_array[0:b_low,:]    |= DQ_OUT_OF_BOUNDS
+        dq_array[0:b_low,:]    |= DQ_PIXEL_OUT_OF_BOUNDS
     if b_high < ny-1:
-        dq_array[b_high+1:,:]  |= DQ_OUT_OF_BOUNDS
+        dq_array[b_high+1:,:]  |= DQ_PIXEL_OUT_OF_BOUNDS
     if b_left >= 0:
-        dq_array[:,0:b_left]   |= DQ_OUT_OF_BOUNDS
+        dq_array[:,0:b_left]   |= DQ_PIXEL_OUT_OF_BOUNDS
     if b_right < nx-1:
-        dq_array[:,b_right+1:] |= DQ_OUT_OF_BOUNDS
+        dq_array[:,b_right+1:] |= DQ_PIXEL_OUT_OF_BOUNDS
 
 def getGeoData (geofile, segment):
     """Open and read the geofile.
@@ -1314,7 +1453,7 @@ def tableHeaderToImage (thdr):
 
     # These are the world coordinate system keywords in an events table
     # and their corresponding names for an image.  NOTE that this assumes
-    # that the XCORR and YCORR columns are 2 and 3 (one indexed).
+    # that the X and Y columns are 2 and 3 (one indexed).
     tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
             "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
     ikey = ["CTYPE1", "CRVAL1", "CRPIX1", "CDELT1", "CUNIT1", "CD1_1", "CD1_2",
@@ -1366,7 +1505,7 @@ def delCorrtagWCS (thdr):
     hdr = thdr.copy()
 
     # These are the world coordinate system keywords in an events table.
-    # NOTE that this assumes that the XCORR and YCORR columns are 2 and 3
+    # NOTE that this assumes that the X and Y columns are 2 and 3
     # (one indexed).
     tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
             "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
@@ -2196,6 +2335,23 @@ def getApertureKeyword (hdr, truncate=1):
         aperture = aperture[0:3]
 
     return aperture
+
+def exptimeKeyword (segment):
+    """Construct the keyword for the updated exposure time.
+
+    @param segment: segment or stripe name
+    @type segment: string
+
+    @return: keyword (lower case) for exposure time
+    @rtype: string
+    """
+
+    if segment[0] == "F":
+        key = "exptime" + segment[-1].lower()
+    else:
+        key = "exptime"
+
+    return key
 
 def expandFileName (filename):
     """Expand environment variable in a file name.

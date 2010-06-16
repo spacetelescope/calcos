@@ -34,7 +34,8 @@ def main (args):
         raise RuntimeError
 
     try:
-        (options, pargs) = getopt.getopt (args, "qvuo:")
+        (options, pargs) = getopt.getopt (args, "qvuo:",
+                                          ["find", "location=", "extrsize="])
     except Exception, error:
         print error
         prtOptions()
@@ -48,25 +49,57 @@ def main (args):
                 "Command-line options must precede the input file name(s)."
 
     outdir = None               # output directory name
+    find_target = False
+    location = None
+    extrsize = None
     for i in range (len (options)):
         if options[i][0] == "-q":
             cosutil.setVerbosity (calcosparam.QUIET)
         elif options[i][0] == "-v":
             cosutil.setVerbosity (calcosparam.VERY_VERBOSE)
+
         elif options[i][0] == "-o":
             outdir = options[i][1]
 
-    extractSpec (pargs, outdir)
+        elif options[i][0] == "--find":
+            find_target = True
 
-def extractSpec (inlist=[], outdir=None, verbosity=None):
+        elif options[i][0] == "--location":
+            values = options[i][1].split()
+            location = []
+            for i in range (len (values)):
+                if values[i].lower() == "none":
+                    location.append (None)
+                else:
+                    location.append (float (values[i]))
+
+        elif options[i][0] == "--extrsize":
+            values = options[i][1].split()
+            extrsize = []
+            for i in range (len (values)):
+                if values[i].lower() == "none":
+                    extrsize.append (None)
+                else:
+                    extrsize.append (int (values[i]))
+
+    extractSpec (pargs, outdir, location, extrsize, find_target)
+
+def extractSpec (inlist=[], outdir=None,
+                 location=None, extrsize=None, find_target=False,
+                 verbosity=None):
     """Extract a 1-D spectrum from each set of flt and counts images.
 
     @param inlist: names of input corrtag files
     @type inlist: list of strings
-
     @param outdir: name of output directory, or None
     @type outdir: string or None
-
+    @param location: location(s) at which to extract spectrum or spectra
+    @type location: float, or a list of floats
+    @param extrsize: extraction height(s) for spectra
+    @type extrsize: integer, or a list of integers
+    @param find_target: if True, search for the target spectrum in the
+        Y direction, rather than relying on the wavecal offset (shift2)
+    @type find_target: boolean
     @param verbosity: if not None, set verbosity to this level (0, 1, 2)
     @type verbosity: int or None
     """
@@ -119,7 +152,9 @@ def extractSpec (inlist=[], outdir=None, verbosity=None):
     for i in range (len (x1d_files)):
         is_wavecal = makeReqdFiles (cal_ver, corrtag_files[i],
                                  flt_files[i], counts_files[i])
-        extract.extract1D (flt_files[i], counts_files[i], x1d_files[i])
+        extract.extract1D (flt_files[i], counts_files[i], x1d_files[i],
+                           location=location, extrsize=extrsize
+                           find_target=find_target)
         if is_wavecal:
             extract.recomputeWavelengths (x1d_files[i])
 
@@ -280,10 +315,6 @@ def makeReqdFiles (cal_ver, corrtag, flt, counts):
     dq_array = timetag.doDqicorr (events, corrtag, info, switches, reffiles,
                                   phdr, headers[1], minmax_shift_dict)
 
-    timetag.serious_dq_flags = (calcosparam.DQ_BURST |
-                                calcosparam.DQ_PH_LOW |
-                                calcosparam.DQ_PH_HIGH |
-                                calcosparam.DQ_BAD_TIME)
     timetag.writeImages (x, y, epsilon, dq,
                          phdr, headers, dq_array, npix, x_offset, exptime,
                          counts, flt)
@@ -432,6 +463,8 @@ def prtOptions():
     print "  -v (very verbose)"
     print "  -u (update keywords in input flt and counts files)"
     print "  -o outdir (output directory name)"
+    print "  --location Y location(s) at which to extract spectra"
+    print "  --extrsize height(s) of extraction region(s)"
     print "  one or more corrtag file names"
 
 def replaceSuffix (rawname, suffix, new_suffix):

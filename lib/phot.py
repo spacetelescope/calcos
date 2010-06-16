@@ -48,13 +48,12 @@ def readImPhtTab (imphttab, obsmode):
     >>>             "cos,nuv,mirrora,boa",
     >>>             "cos,nuv,mirrorb,psa",
     >>>             "cos,nuv,mirrorb,boa"]:
-    >>>     for fluxunits in ["flam", "fnu"]:   # but see below for fnu
-    >>>         sp = S.FlatSpectrum (1., fluxunits=fluxunits)
-    >>>         bp = S.ObsBandpass (obsmode)
-    >>>         obs = S.Observation (sp, bp)
-    >>>         print "#", fluxunits, obsmode
-    >>>         print 1. / obs.countrate()      # photflam or photfnu
-    >>>         print obs.pivot()               # photplam
+    >>>     sp = S.FlatSpectrum (1., fluxunits="flam")
+    >>>     bp = S.ObsBandpass (obsmode)
+    >>>     obs = S.Observation (sp, bp)
+    >>>     print "#", fluxunits, obsmode
+    >>>     print 1. / obs.countrate()          # photflam
+    >>>     print obs.pivot()                   # photplam
 
     obs.pivot() gave different values for flam vs fnu, so the values
     obtained via bandpar were used instead.  The bandwidth was also
@@ -63,38 +62,45 @@ def readImPhtTab (imphttab, obsmode):
                # OBSMODE          URESP          PIVWV          BANDW
      cos,nuv,mirrora,psa     4.8214E-18         2319.7         382.88
 
-    The values of photfnu were gotten from photflam by using calcphot:
+    The values of photfnu were gotten from photflam as follows:
 
-    calcphot "cos,nuv,mirrora,psa" "unit(4.816554456084e-18,flam)" fnu
-        calcphot.result = 8.64552509911e-30
-    calcphot "cos,nuv,mirrora,boa" "unit(1.107251346369e-15,flam)" fnu
-        calcphot.result = 1.90977928847e-27
-    calcphot "cos,nuv,mirrorb,psa" "unit(9.720215320058e-17,flam)" fnu
-        calcphot.result = 1.48816366062e-28
-    calcphot "cos,nuv,mirrorb,boa" "unit(1.866877735677e-14,flam)" fnu
-        calcphot.result = 2.68190644322e-26
+    bp = S.ObsBandpass ("cos,nuv,mirrora,psa")
+    sp = S.FlatSpectrum (4.816554456084e-18, fluxunits="flam")
+    photfnu = 8.64540709538e-30
+
+    bp = S.ObsBandpass ("cos,nuv,mirrora,boa")
+    sp = S.FlatSpectrum (1.107251346369e-15, fluxunits="flam")
+    photfnu = 1.90968620531e-27
+
+    bp = S.ObsBandpass ("cos,nuv,mirrorb,psa")
+    sp = S.FlatSpectrum (9.720215320058e-17, fluxunits="flam")
+    photfnu = 1.48789056193e-28
+
+    bp = S.ObsBandpass ("cos,nuv,mirrorb,boa")
+    sp = S.FlatSpectrum (1.866877735677e-14, fluxunits="flam")
+    photfnu = 2.68068135014e-26
     """
 
     # These values are photflam, photfnu, photbw, photplam, photzpt:
 
     photdict = {
         "mirrora,psa": [4.816554456084e-18,
-                        8.64552509911e-30,
+                        8.64540709538e-30,
                         382.88,
                         2319.7,
                         -21.1],
         "mirrora,boa": [1.107251346369e-15,
-                        1.90977928847e-27,
+                        1.90968620531e-27,
                         370.65,
                         2273.9,
                         -21.1],
         "mirrorb,psa": [9.720215320058e-17,
-                        1.48816366062e-28,
+                        1.48789056193e-28,
                         466.56,
                         2142.4,
                         -21.1],
         "mirrorb,boa": [1.866877735677e-14,
-                        2.68190644322e-26,
+                        2.68068135014e-26,
                         451.56,
                         2075.3,
                         -21.1]

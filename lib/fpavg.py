@@ -252,8 +252,10 @@ class OutputX1D (object):
         # These are for averaging the global count rates.  The elements are
         # for NUV, FUVA and FUVB respectively.
         sum_globrate = [0., 0., 0.]     # incremented for each row in each file
-        sum_exptime = [0., 0., 0.]      # exptime is the weight for globrate
+        sum_exptime = [0., 0., 0.]      # exptime from the column
         avg_globrate = [-1., -1., -1.]  # average values for NUV, FUVA, FUVB
+        # This is for updating the exptime, exptimea, exptimeb keywords.
+        sum_exptime_kwd = [0., 0., 0.]  # exptime from the header keywords
 
         first = True            # true for first input file
         for input in self.input:
@@ -268,17 +270,15 @@ class OutputX1D (object):
                 aperture = cosutil.getApertureKeyword (phdr, truncate=1)
                 statflag = phdr.get ("statflag", False)
                 sum_plantime = hdr["plantime"]
-                sum_exptime_kwd = hdr["exptime"]
                 expstart = hdr["expstart"]
                 expend = hdr["expend"]
                 first = False
             else:
                 sum_plantime += hdr["plantime"]
-                # sum of header EXPTIME keywords, not column values
-                sum_exptime_kwd += hdr["exptime"]
                 expstart = min (expstart, hdr["expstart"])
                 expend = max (expend, hdr["expend"])
             fpoffset = phdr["fpoffset"]
+
             if ifd[1].data is not None:
                 nrows = len (ifd[1].data)
                 # for each row in the current input table
@@ -289,16 +289,21 @@ class OutputX1D (object):
                         self.segments.append (segment)
                     self.inspec.append (sp)
                     if detector == "NUV":
+                        sum_exptime_kwd[0] += hdr.get ("exptime", default=0.)
                         globrate = hdr.get ("globrate", -1.)
                         if globrate >= 0.:
                             sum_globrate[0] += (globrate * sp.exptime)
                             sum_exptime[0] += sp.exptime
                     elif segment == "FUVA":
+                        sum_exptime_kwd[1] += hdr.get ("exptimea",
+                                              default=hdr.get ("exptime", 0.))
                         globrate = hdr.get ("globrt_a", -1.)
                         if globrate >= 0.:
                             sum_globrate[1] += (globrate * sp.exptime)
                             sum_exptime[1] += sp.exptime
                     elif segment == "FUVB":
+                        sum_exptime_kwd[2] += hdr.get ("exptimeb",
+                                              default=hdr.get ("exptime", 0.))
                         globrate = hdr.get ("globrt_b", -1.)
                         if globrate >= 0.:
                             sum_globrate[2] += (globrate * sp.exptime)
@@ -313,12 +318,18 @@ class OutputX1D (object):
         # number of rows to be written to the output table
         self.nrows = len (self.segments)
 
+        if detector == "NUV":
+            exptime = sum_exptime_kwd[0]
+        else:
+            exptime = max (sum_exptime_kwd[1], sum_exptime_kwd[2])
         self.keywords = {
              "detector": detector,
              "opt_elem": opt_elem,
              "cenwave":  cenwave,
              "aperture": aperture,
-             "exptime":  sum_exptime_kwd,
+             "exptime":  exptime,
+             "exptimea": sum_exptime_kwd[1],
+             "exptimeb": sum_exptime_kwd[2],
              "expstart": expstart,
              "expend":   expend,
              "expstrtj": expstart + MJD_TO_JD,
@@ -386,6 +397,7 @@ class OutputX1D (object):
 
         # Get header info from the input.
         ifd = pyfits.open (self.input[self.index_max_nelem], mode="readonly")
+        detector = ifd[0].header["detector"]
 
         primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
         cosutil.updateFilename (primary_hdu.header, self.output)
@@ -405,6 +417,10 @@ class OutputX1D (object):
         hdu = pyfits.new_table (cd, header=ifd[1].header, nrows=self.nrows)
 
         hdu.header.update ("exptime", self.keywords["exptime"])
+        if detector == "FUV":
+            hdu.header.update ("exptimea", self.keywords["exptimea"])
+            hdu.header.update ("exptimeb", self.keywords["exptimeb"])
+
         hdu.header.update ("expstart", self.keywords["expstart"])
         hdu.header.update ("expend", self.keywords["expend"])
         hdu.header.update ("expstrtj", self.keywords["expstrtj"])

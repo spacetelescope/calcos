@@ -2,8 +2,8 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.12"
-CALCOS_VERSION_DATE = "2010-03-19"
+CALCOS_VERSION_NUMBER = "2.12.1"
+CALCOS_VERSION_DATE = "2010-06-16"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
@@ -80,17 +80,20 @@ INT_WILDCARD = -1
 # These are the data quality flags.
 DQ_OK = 0                       # no anomalous condition noted
 DQ_SOFTERR = 1                  # Reed-Solomon error
-DQ_BRUSH_MARK = 2               # brush mark > TBD percent
-DQ_GRID_SHADOW = 4              # grid shadow mark > TBD percent
+DQ_DETECTOR_FLAW = 2            # detector flaw
+DQ_DETECTOR_SHADOW = 4          # FUV grid shadow mark or NUV vignetting
 DQ_NEAR_EDGE = 8                # spectrum near an edge of the detector
 DQ_DEAD = 16                    # dead spot
 DQ_HOT = 32                     # hot spot
-DQ_BURST = 64                   # count rate implies a burst (FUV only)
-DQ_OUT_OF_BOUNDS = 128          # pixel is outside the subarray
-DQ_DATA_FILL = 256              # data fill due to telemetry drop-out
-DQ_PH_LOW = 512                 # pulse height is below cutoff
-DQ_PH_HIGH = 1024               # pulse height is above cutoff
-DQ_BAD_TIME = 2048              # time is inside a bad time interval
-DQ_BAD_WAVELENGTH = 4096        # wavelength is below MIN_WAVELENGTH
-DQ_DIVOTS = 8192                # wrinkled appearance from detector flat field
-DQ_SDISTORTION = 16384          # vertical S distortion seen on FUVA
+DQ_BURST = 64                   # count rate implies a burst (FUV)
+DQ_PIXEL_OUT_OF_BOUNDS = 128    # pixel out of bounds
+DQ_DATA_FILL = 256              # data fill
+DQ_PHA_OUT_OF_BOUNDS = 512      # pulse height is either too low or too high
+DQ_UNUSED = 1024                # [currently unused]
+DQ_BAD_TIME = 2048              # time is within a bad time interval
+DQ_BACKGROUND_FEATURE = 4096    # background feature
+DQ_LOW_GAIN = 8192              # low gain area
+DQ_UNUSED = 16384               # [currently unused]
+
+# Use this when extracting data.
+SERIOUS_DQ_FLAGS = (DQ_BURST | DQ_BAD_TIME | DQ_PHA_OUT_OF_BOUNDS)

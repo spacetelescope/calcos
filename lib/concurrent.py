@@ -6,6 +6,7 @@ import numpy as np
 import pyfits
 import cosutil
 import dispersion
+import extract
 import shiftfile
 import wavecal
 import ccos
@@ -69,14 +70,16 @@ def processConcurrentWavecal (events, outflash, shift_file,
     # This test allows processing to continue if wavecorr is either
     # PERFORM or COMPLETE.
     if switches["wavecorr"] == "OMIT" or switches["wavecorr"] == "SKIPPED":
-        cw = initWavecal (events, outflash, info, reffiles, phdr, hdr)
+        cw = initWavecal (events, outflash, shift_file,
+                          info, switches, reffiles, phdr, hdr)
         return None
 
     cosutil.printMsg ("Process tagflash wavecal")
     wavecal.printWavecalRef (reffiles)
     cosutil.printRef ("disptab", reffiles)
 
-    cw = initWavecal (events, outflash, shift_file, info, reffiles, phdr, hdr)
+    cw = initWavecal (events, outflash, shift_file, info, switches, reffiles,
+                      phdr, hdr)
     if cw.override_segment_B:
         # Copy the lampflash for segment A to lampflash_b.fits, and modify
         # the shift info in the latter based on the offset between segments.
@@ -118,7 +121,8 @@ def processConcurrentWavecal (events, outflash, shift_file,
 
     return shift1_vs_time
 
-def initWavecal (events, outflash, shift_file, info, reffiles, phdr, hdr):
+def initWavecal (events, outflash, shift_file, info, switches, reffiles,
+                 phdr, hdr):
     """Return a ConcurrentWavecal object, depending on detector.
 
     @param events: data block for an events table corrtag file
@@ -129,6 +133,8 @@ def initWavecal (events, outflash, shift_file, info, reffiles, phdr, hdr):
     @type shift_file: string
     @param info: keywords and values
     @type info: dictionary
+    @param switches: calibration switches
+    @type switches: dictionary
     @param reffiles: reference file names
     @type reffiles: dictionary
     @param phdr: primary header of corrtag file
@@ -139,13 +145,13 @@ def initWavecal (events, outflash, shift_file, info, reffiles, phdr, hdr):
 
     if info["detector"] == "FUV":
         cw = FUVConcurrentWavecal (events, outflash, shift_file,
-                                   info, reffiles, phdr, hdr)
+                                   info, switches, reffiles, phdr, hdr)
     elif info["obstype"] == "IMAGING":
         cw = NUVImagingWavecal (events, outflash, shift_file,
-                                info, reffiles, phdr, hdr)
+                                info, switches, reffiles, phdr, hdr)
     else:
         cw = NUVConcurrentWavecal (events, outflash, shift_file,
-                                   info, reffiles, phdr, hdr)
+                                   info, switches, reffiles, phdr, hdr)
 
     return cw
 
@@ -164,6 +170,9 @@ class ConcurrentWavecal (object):
     @ivar info: dictionary of header keywords and values
     @type info: dictionary
 
+    @ivar switches: calibration switches
+    @type switches: dictionary
+
     @ivar reffiles: dictionary of reference file names
     @type reffiles: dictionary
 
@@ -175,13 +184,14 @@ class ConcurrentWavecal (object):
     """
 
     def __init__ (self, events, outflash, shift_file,
-                  info, reffiles, phdr, hdr,
+                  info, switches, reffiles, phdr, hdr,
                   delta_t=0.2, buffer_on=2.0, buffer_off=4.0):
 
         self.events = events
         self.outflash = outflash
         self.shift_file = shift_file
         self.info = info
+        self.switches = switches
         self.reffiles = reffiles
         self.phdr = phdr
         self.hdr = hdr
@@ -277,7 +287,11 @@ class ConcurrentWavecal (object):
                                    disp="I6"))
         col.append (pyfits.Column (name="WAVELENGTH", format=rpt+"D",
                                    unit="angstrom"))
+        col.append (pyfits.Column (name="NET", format=rpt+"E",
+                                   unit="count /s"))
         col.append (pyfits.Column (name="GROSS", format=rpt+"E",
+                                   unit="count /s"))
+        col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E",
                                    unit="count /s"))
         col.append (pyfits.Column (name="SHIFT_DISP", format="1E",
                                    unit="pixel"))
@@ -448,6 +462,21 @@ class ConcurrentWavecal (object):
         else:
             initial_offset = self.info["fpoffset"] * stepsize
 
+        # Create a data quality array, and assign values from the bpixtab.
+        if self.info["detector"] == "FUV":
+            axis_height = FUV_Y
+            axis_length = FUV_EXTENDED_X
+        else:
+            axis_height = NUV_Y
+            axis_length = NUV_EXTENDED_X
+        # create and populate a DQ array
+        dq_array = np.zeros ((axis_height,axis_length), dtype=np.int16)
+        cosutil.updateDQArray (self.reffiles["bpixtab"], self.info, dq_array,
+                               {(0, 1024): [0., 0., 0., 0.]},
+                               (0., 0.), -10)
+        # weights from flat field or nonlinearity
+        epsilon = self.events.field ("epsilon")
+
         # Find the offsets in both axes, for each wavecal exposure.
         row = 0         # incremented in the second loop over segments
         cosutil.printMsg (
@@ -477,7 +506,9 @@ class ConcurrentWavecal (object):
             shift1 = {}                 # to be saved in an attribute
             chi_square = {}             # to be saved in an attribute
             n_deg_freedom = {}          # to be saved in an attribute
-            save_spectra = {}   # save, but just within this function
+            save_spectra = {}   # save, but just within this loop
+            save_net = {}       # save net counts, within this loop
+            save_bkg = {}       # save background counts, within this loop
             save_templates = {}
             fp_pixel_shift = {}
             spec_found = {}     # true if spectrum was found
@@ -502,14 +533,20 @@ class ConcurrentWavecal (object):
                 extr_height = xtract_info.field ("height")[0]
                 slope       = xtract_info.field ("slope")[0]
                 intercept   = xtract_info.field ("b_spec")[0]
-                # The spectrum will first be extracted into this 2-D band.
-                spectrum_band = np.zeros ((extr_height, len (self.spectrum)),
-                                          dtype=np.float64)
-                ccos.xy_extract (self.xi[i0:i1], self.eta[i0:i1],
-                        spectrum_band, slope, intercept+shift2,
-                        x_offset, self.dq[i0:i1], sdqflags)
-                self.spectrum = np.sum (spectrum_band, 0)
+                snr_ff = 0.             # ignore error array
+                axis = 1                # dispersion is along X axis
+                dummy_exptime = 1.
+                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
+                    extract.extractCorrtag (self.xi[i0:i1], self.eta[i0:i1],
+                                self.dq[i0:i1], epsilon[i0:i1], dq_array,
+                                self.ofd[1].header, segment, axis_length,
+                                x_offset, sdqflags, snr_ff,
+                                dummy_exptime, self.switches["backcorr"],
+                                axis, xtract_info, 0., shift2)
+                self.spectrum = GCOUNTS_i       # gross counts
                 save_spectra[segment] = self.spectrum.copy()
+                save_net[segment] = N_i         # net counts
+                save_bkg[segment] = BK_i        # background counts
                 lamp_found[segment] = True      # default
                 lamp_info = cosutil.getTable (lamptab, filter_lamp)
                 if lamp_info is None:           # no row matched the filter
@@ -586,14 +623,15 @@ class ConcurrentWavecal (object):
                 cosutil.printMsg (message, VERBOSE)
                 # copy to outflash table data
                 if lamp_found[segment]:
-                    self.saveSpectrum (disptab, filter_disp,
-                                       n, row, save_spectra[segment],
+                    self.saveSpectrum (disptab, filter_disp, n, row,
+                                       save_spectra[segment],
+                                       save_net[segment], save_bkg[segment],
                                        shift1[segment], xd_shifts[segment],
                                        foundit, chi_square[segment],
                                        n_deg_freedom[segment])
                 else:
                     self.saveSpectrum (disptab, filter_disp,
-                                       n, row, None, None, None,
+                                       n, row, None, None, None, None, None,
                                        foundit, chi_square[segment],
                                        n_deg_freedom[segment])
                 row += 1
@@ -603,8 +641,8 @@ class ConcurrentWavecal (object):
             self.chi_square.append (chi_square)
             self.n_deg_freedom.append (n_deg_freedom)
 
-    def saveSpectrum (self, disptab, filter,
-                      n, row, spectrum,
+    def saveSpectrum (self, disptab, filter, n, row,
+                      spectrum, net_spectrum, bkg_spectrum,
                       shift1, shift2, spec_found,
                       chi_square, n_deg_freedom):
         """Copy the spectrum to the record array for the outflash table.
@@ -617,8 +655,15 @@ class ConcurrentWavecal (object):
         @type n: int
         @param row: row index (zero indexed) in output table
         @type row: int
-        @param spectrum: spectrum for current segment or stripe (may be None)
+        @param spectrum: gross counts for current segment or stripe
+            (may be None)
         @type spectrum: array
+        @param net_spectrum: net counts for current segment or stripe
+            (may be None)
+        @type net_spectrum: array
+        @param bkg_spectrum: background counts for current segment or stripe
+            (may be None)
+        @type bkg_spectrum: array
         @param shift1: shift in dispersion direction (may be None)
         @type shift1: float
         @param shift2: shift in cross-dispersion direction (may be None)
@@ -660,9 +705,13 @@ class ConcurrentWavecal (object):
             exptime = 1.
         if spectrum is None:
             self.ofd[1].data.field ("gross")[row][:] = 0.
+            self.ofd[1].data.field ("net")[row][:] = 0.
+            self.ofd[1].data.field ("background")[row][:] = 0.
             self.ofd[1].data.field ("shift_disp")[row] = 0.
         else:
             self.ofd[1].data.field ("gross")[row] = spectrum / exptime
+            self.ofd[1].data.field ("net")[row] = net_spectrum / exptime
+            self.ofd[1].data.field ("background")[row] = bkg_spectrum / exptime
             self.ofd[1].data.field ("shift_disp")[row] = shift1
         if shift2 is None:
             self.ofd[1].data.field ("shift_xdisp")[row] = 0.
@@ -775,7 +824,6 @@ class ConcurrentWavecal (object):
         """
 
         detector = self.info["detector"]
-        exptime = self.info["exptime"]
 
         xtractab = self.reffiles["xtractab"]
 
@@ -1315,10 +1363,10 @@ class ConcurrentWavecal (object):
 class FUVConcurrentWavecal (ConcurrentWavecal):
 
     def __init__ (self, events, outflash, shift_file,
-                  info, reffiles, phdr, hdr):
+                  info, switches, reffiles, phdr, hdr):
 
         ConcurrentWavecal.__init__ (self, events, outflash, shift_file,
-                                    info, reffiles, phdr, hdr)
+                                    info, switches, reffiles, phdr, hdr)
         self.xi  = events.field ("XDOPP")
         self.eta = events.field ("YCORR")
         self.dq  = events.field ("DQ")
@@ -1491,10 +1539,10 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
 class NUVConcurrentWavecal (ConcurrentWavecal):
 
     def __init__ (self, events, outflash, shift_file,
-                  info, reffiles, phdr, hdr):
+                  info, switches, reffiles, phdr, hdr):
 
         ConcurrentWavecal.__init__ (self, events, outflash, shift_file,
-                                    info, reffiles, phdr, hdr)
+                                    info, switches, reffiles, phdr, hdr)
         self.xi  = events.field ("XDOPP")
         self.eta = events.field ("RAWY")
         self.dq  = events.field ("DQ")
@@ -1630,13 +1678,13 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
 class NUVImagingWavecal (ConcurrentWavecal):
 
     def __init__ (self, events, outflash, shift_file,
-                  info, reffiles, phdr, hdr):
+                  info, switches, reffiles, phdr, hdr):
 
         info_copy = copy.deepcopy (info)
         info_copy["cenwave"] = 0
 
         ConcurrentWavecal.__init__ (self, events, outflash, shift_file,
-                                    info_copy, reffiles, phdr, hdr)
+                                    info_copy, switches, reffiles, phdr, hdr)
         self.xi  = events.field ("XDOPP")
         self.eta = events.field ("RAWY")
         self.dq  = events.field ("DQ")
