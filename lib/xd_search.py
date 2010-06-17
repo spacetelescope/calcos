@@ -60,10 +60,7 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
                                      axis, slope, y_nominal,
                                      x_offset, detector)
 
-    if detector == "FUV":
-        box = 6
-    else:
-        box = 3
+    box = 3
 
     (y_locn, y_locn_sigma) = findPeak (e_j, box)
 
@@ -203,16 +200,14 @@ def findPeak (e_j, box):
     """
 
     e_j_sm = boxcar (e_j, (box,), mode="nearest")
-    e_j_sm = boxcar (e_j_sm, (box,), mode="nearest")
-    e_j_sm = boxcar (e_j_sm, (box,), mode="nearest")
 
     index = np.argsort (e_j_sm)
     ymax = index[-1]
 
     nelem = len (e_j)
 
-    # fit a quadratic to nine points centered on ymax
-    NPTS = 9
+    # fit a quadratic to five points centered on ymax
+    NPTS = 5
     x = np.arange (nelem, dtype=np.float64)
     j1 = ymax - NPTS // 2
     j1 = max (j1, 0)
