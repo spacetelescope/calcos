@@ -153,7 +153,7 @@ def extractSpec (inlist=[], outdir=None,
         is_wavecal = makeReqdFiles (cal_ver, corrtag_files[i],
                                  flt_files[i], counts_files[i])
         extract.extract1D (flt_files[i], counts_files[i], x1d_files[i],
-                           location=location, extrsize=extrsize
+                           location=location, extrsize=extrsize,
                            find_target=find_target)
         if is_wavecal:
             extract.recomputeWavelengths (x1d_files[i])
