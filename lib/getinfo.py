@@ -186,7 +186,8 @@ def getGeneralInfo (phdr, hdr):
     info["exptime"] = hdr.get (exptime_key, default=exptime_default)
 
     # Copy exptime to orig_exptime, so we can modify exptime but save the
-    # original value.
+    # original value.  NOTE:  for TIME-TAG data this value will be replaced
+    # with the difference between the first and last values in the TIME column.
     info["orig_exptime"] = info["exptime"]
 
     if info["tagflash"] and info["numflash"] < 1:

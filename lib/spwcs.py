@@ -16,11 +16,11 @@ class SpWCS (object):
 
         wcs = spwcs.SpWcsCorrtag (corrtag_filename, info, helcorr,
                                   spwcstab, xtractab)
-        wcs.writeWCSKeywords()
+        flag = wcs.writeWCSKeywords()
 
         wcs = spwcs.SpWcsImage (image_filename, info, helcorr,
                                 spwcstab, xtractab)
-        wcs.writeWCSKeywords()
+        flag = wcs.writeWCSKeywords()
     """
 
     def __init__ (self, filename, info, helcorr, spwcstab, xtractab):
@@ -66,7 +66,12 @@ class SpWCS (object):
         self.v_helio = 0.               # assigned later
 
     def writeWCSKeywords (self):
-        """Update keywords in-place in the extension header."""
+        """Update keywords in-place in the extension header.
+
+        @return: True if keywords were actually written.  False for
+            wavecals or FCA exposures.
+        @rtype: boolean
+        """
 
         if self.detector == "FUV":
             segment_list = [self.info["segment"]]
@@ -76,7 +81,7 @@ class SpWCS (object):
 
         aperture = self.info["aperture"]
         if aperture not in ["PSA", "BOA"]:
-            return
+            return False
 
         fd = pyfits.open (self.filename, mode="update")
         hdr = fd[self.extension].header
@@ -106,6 +111,7 @@ class SpWCS (object):
             self.addKeywords (hdr, wcs_dict)
 
         fd.close()
+        return True
 
     def computeKeywordValues (self, wcs_info, alt):
         """Defined in a subclass."""

@@ -429,6 +429,8 @@ def copyKeywords (x1d, file_list):
 
     if fd1[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
+                    "sp_off_a", "sp_off_b",
+                    "sp_nom_a", "sp_nom_b",
                     "sp_slp_a", "sp_slp_b",
                     "sp_hgt",
                     "b_bkg1_a", "b_bkg1_b",
@@ -437,6 +439,8 @@ def copyKeywords (x1d, file_list):
                     "b_hgt2_a", "b_hgt2_b"]
     else:
         keywords = ["sp_loc_a", "sp_loc_b", "sp_loc_c",
+                    "sp_off_a", "sp_off_b", "sp_off_c",
+                    "sp_nom_a", "sp_nom_b", "sp_nom_c",
                     "sp_slp_a", "sp_slp_b", "sp_slp_c",
                     "sp_hgt",
                     "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",
@@ -463,6 +467,7 @@ def prtOptions():
     print "  -v (very verbose)"
     print "  -u (update keywords in input flt and counts files)"
     print "  -o outdir (output directory name)"
+    print "  --find (find Y location of spectrum)"
     print "  --location Y location(s) at which to extract spectra"
     print "  --extrsize height(s) of extraction region(s)"
     print "  one or more corrtag file names"

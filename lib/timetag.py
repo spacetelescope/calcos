@@ -559,7 +559,7 @@ def recomputeExptime (input, bursts, badt, events, hdr, info):
     @type events: pyfits record array
     @param hdr: the events extension header (exptime keyword can be updated)
     @type hdr: pyfits Header object
-    @param info: keywords and values (exptime can be updated)
+    @param info: keywords and values (exptime and orig_exptime can be updated)
     @type info: dictionary
 
     @return: a flag indicating whether there was actually any change
@@ -570,11 +570,15 @@ def recomputeExptime (input, bursts, badt, events, hdr, info):
     @rtype: tuple:  (boolean, list of two-element lists)
     """
 
+    time = events.field ("time")
+
+    # Change orig_exptime to be the range of times in the TIME column.
+    info["orig_exptime"] = time[-1] - time[0]
+
     modified_0 = False
     gti = cosutil.returnGTI (input)
     if len (gti) <= 0:
         cosutil.printWarning ("No GTI table found in raw file.", VERBOSE)
-        time = events.field ("time")
         gti = [[time[0], time[-1]]]
         modified_0 = True
 
@@ -586,15 +590,15 @@ def recomputeExptime (input, bursts, badt, events, hdr, info):
     for (start, stop) in gti:
         exptime += (stop - start)
 
-    key = cosutil.exptimeKeyword (info["segment"])
-    orig_exptime = info["orig_exptime"]
-    if exptime != orig_exptime:
+    old_exptime = hdr.get ("exptime", 0.)
+    if exptime != old_exptime:
         hdr.update ("exptime", exptime)
+        key = cosutil.exptimeKeyword (info["segment"])
         hdr.update (key, exptime)
-        info["exptime"] = exptime       # info["orig_exptime"] is unchanged
-        if abs (exptime - orig_exptime) > 1.:
+        info["exptime"] = exptime
+        if abs (exptime - old_exptime) > 1.:
             cosutil.printWarning ("exposure time in header was %.3f" % \
-                    orig_exptime, VERBOSE)
+                    old_exptime, VERBOSE)
             cosutil.printContinuation ("exptime has been corrected to %.3f" % \
                     exptime, VERBOSE)
 

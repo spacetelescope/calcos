@@ -69,6 +69,19 @@ def extract1D (input, incounts=None, output=None,
        location = None
        extrsize = None
        find_target = False
+    if location is None:
+        if find_target:
+            cosutil.printMsg ("Info:  Spectrum will be extracted where"
+                              " one is found.", VERBOSE)
+        else:
+            cosutil.printMsg ("Info:  Spectrum will be extracted at location"
+                              " based on XTRACTAB.", VERBOSE)
+    else:
+        cosutil.printMsg ("Info:  Spectrum will be extracted"
+                          " at user-specified location.", VERBOSE)
+    if extrsize is not None:
+        cosutil.printMsg ("Info:  User-specified extraction height"
+                          " will be used.", VERBOSE)
 
     # Check data types and lengths (if not scalar), and copy values for
     # location and extrsize to dictionary entries.  Override value of
@@ -441,7 +454,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                              x_offset, hdr["sdqflags"], snr_ff,
                              exptime, switches["backcorr"], axis,
                              xtract_info, shift2,
-                             info, wavelength,
+                             info, wavelength, is_wavecal,
                              xdisp_locn, xdisp_size, find_target)
         del xtract_info
 
@@ -581,7 +594,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                     x_offset, sdqflags, snr_ff,
                     exptime, backcorr, axis,
                     xtract_info, shift2,
-                    info, wavelength,
+                    info, wavelength, is_wavecal,
                     xdisp_locn=None, xdisp_size=None, find_target=False):
 
     """Extract a 1-D spectrum for one segment or stripe.
@@ -619,6 +632,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     @type info: dictionary
     @param wavelength: wavelength at each pixel (needed if find_target is True)
     @type wavelength: array
+    @param is_wavecal: true if the observation is a wavecal, based on exptype
+    @type is_wavecal: boolean
     @param xdisp_locn: user-specified location in cross-dispersion direction
     @type xdisp_locn: int or float, or None if not specified
     @param xdisp_size: user-specified height of extraction box
@@ -648,7 +663,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     """
 
     slope           = xtract_info.field ("slope")[0]
-    b_spec          = xtract_info.field ("b_spec")[0]   # but see xdisp_locn
+    b_spec          = xtract_info.field ("b_spec")[0]   # may be changed below
     extr_height     = xtract_info.field ("height")[0]   # but see xdisp_size
     b_bkg1          = xtract_info.field ("b_bkg1")[0]
     b_bkg2          = xtract_info.field ("b_bkg2")[0]
@@ -662,21 +677,35 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
 
     axis_length = e_data.shape[axis]
 
-    # xd_locn is either the user-specified value (if it was specified) or the
-    # location based on the wavecal; in either case, it's where the spectrum
-    # crosses the middle of the array, not the left edge of the array.
+    if is_wavecal:
+        xd_offset = -999.
+    else:
+        # Search for the target spectrum.
+        (offset2, found_locn, found_locn_sigma) = \
+                xd_search.xdSearch (e_data,
+                                    e_dq_data, wavelength,
+                                    axis, slope, b_spec,
+                                    x_offset, info["detector"])
+        offset_to_middle = slope * (axis_length // 2 - x_offset)
+        # offset from found location to nominal location
+        xd_offset = offset2
+        # nominal location of spectrum, where it crosses the middle of the
+        # flt or counts image
+        xd_nominal = b_spec + shift2 + offset_to_middle
+        message = "%s spectrum was found at y = %.2f vs. nominal y = %.2f" % \
+                   (segment,
+                    found_locn + offset_to_middle,
+                    xd_nominal)
+        cosutil.printMsg (message, VERBOSE)
+
+    # b_spec is where the spectrum crosses the left edge of the array.
+    # xd_locn will be set to either the user-specified value (if it was
+    # specified) or the location based on the wavecal.  In either case,
+    # xd_locn is where the spectrum crosses the middle of the array.
     if xdisp_locn is None:
-        if find_target:         # search for the target spectrum
-            y_nominal = b_spec + shift2
-            (offset2, b_spec, b_spec_sigma) = xd_search.xdSearch (e_data,
-                                e_dq_data, wavelength,
-                                axis, slope, b_spec,
-                                x_offset, info["detector"])
-            offset_to_middle = slope * (axis_length // 2 - x_offset)
-            xd_locn = b_spec + offset_to_middle
-            message = "Spectrum found at y = %.2f (nominal y = %.2f)." % \
-                       (xd_locn, y_nominal + offset_to_middle)
-            cosutil.printMsg (message, VERBOSE)
+        if find_target:         # use the location we found above
+            b_spec = found_locn
+            xd_locn = found_locn + offset_to_middle
         else:
             # add the shift to the nominal location; assign a value to xd_locn
             # (which will be used to update a header keyword)
@@ -689,6 +718,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         # of the spectrum at X = x_offset
         b_spec = xdisp_locn - slope * (axis_length // 2 - x_offset)
         xd_locn = xdisp_locn
+    cosutil.printMsg ("Spectrum will be extracted at y = %.2f" % xd_locn,
+                      VERBOSE)
 
     if xdisp_size is not None:
         extr_height = xdisp_size        # use the user-specified value
@@ -796,7 +827,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         ERR_i = N_i * 0.
 
     updateExtractionKeywords (ofd_header, segment,
-                              slope, extr_height, xd_locn,
+                              slope, extr_height,
+                              xd_nominal, xd_locn, xd_offset,
                               b_bkg1, b_bkg2, bkg_height1, bkg_height2)
 
     return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
@@ -1009,8 +1041,11 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
     else:
         ERR_i = N_i * 0.
     if ofd_header is not None:
+        xd_offset = -999.               # not implemented yet
+        xd_nominal = -999.              # not implemented yet
         updateExtractionKeywords (ofd_header, segment,
-                                  slope, extr_height, xd_locn,
+                                  slope, extr_height,
+                                  xd_nominal, xd_locn, xd_offset,
                                   b_bkg1, b_bkg2, bkg_height1, bkg_height2)
 
     return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
@@ -1201,7 +1236,8 @@ def getTdsFactors (tdstab, filter, t_obs):
 
     return (wl_tds, factor_tds)
 
-def updateExtractionKeywords (hdr, segment, slope, height, xd_locn,
+def updateExtractionKeywords (hdr, segment, slope, height,
+                              xd_nominal, xd_locn, xd_offset,
                               b_bkg1, b_bkg2, bkg_height1, bkg_height2):
     """Update keywords giving the locations of extraction regions.
 
@@ -1213,9 +1249,16 @@ def updateExtractionKeywords (hdr, segment, slope, height, xd_locn,
     @type slope: float
     @param height: height of extraction box
     @type height: int
+    @param xd_nominal: expected location of the spectrum in the cross-
+        dispersion direction (where it crosses the middle of the detector)
+    @type xd_nominal: float
     @param xd_locn: location of the spectrum in the cross-dispersion
         direction (where it crosses the middle of the detector)
     @type xd_locn: float
+    @param xd_offset: difference between where the spectrum was found in the
+        cross-dispersion direction and where it was expected (in the sense
+        found - expected)
+    @type xd_offset: float
     @param b_bkg1: location of first background region (at left edge, as
         read from the reference table)
     @type b_bkg1: float
@@ -1230,6 +1273,10 @@ def updateExtractionKeywords (hdr, segment, slope, height, xd_locn,
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
     hdr.update (key, xd_locn)
+    key = "SP_OFF_" + segment[-1]           # SP_OFF_A, SP_OFF_B, SP_OFF_C
+    hdr.update (key, xd_offset)
+    key = "SP_NOM_" + segment[-1]           # SP_NOM_A, SP_NOM_B, SP_NOM_C
+    hdr.update (key, xd_nominal)
     key = "SP_SLP_" + segment[-1]           # SP_SLP_A, SP_SLP_B, SP_SLP_C
     hdr.update (key, slope)
     key = "SP_HGT_" + segment[-1]           # SP_HGT_A, SP_HGT_B, SP_HGT_C
@@ -1400,7 +1447,7 @@ def concatenateFUVSegments (infiles, output):
                 "exptimeb",
                 "globrt_b",
                 "deadrt_b", "deadmt_b", "livetm_b",
-                "sp_loc_b", "sp_slp_b", "sp_hgt_b",
+                "sp_loc_b", "sp_off_b", "sp_nom_b", "sp_slp_b", "sp_hgt_b",
                 "b_bkg1_b", "b_bkg2_b",
                 "b_hgt1_b", "b_hgt2_b",
                 "shift1b", "shift2b", "dpixel1b",
@@ -1487,6 +1534,8 @@ def copyKeywordsToInput (output, input, incounts):
 
     if ofd[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
+                    "sp_off_a", "sp_off_b",
+                    "sp_nom_a", "sp_nom_b",
                     "sp_slp_a", "sp_slp_b",
                     "sp_hgt_a", "sp_hgt_b",
                     "b_bkg1_a", "b_bkg1_b",
@@ -1495,6 +1544,8 @@ def copyKeywordsToInput (output, input, incounts):
                     "b_hgt2_a", "b_hgt2_b"]
     else:
         keywords = ["sp_loc_a", "sp_loc_b", "sp_loc_c",
+                    "sp_off_a", "sp_off_b", "sp_off_c",
+                    "sp_nom_a", "sp_nom_b", "sp_nom_c",
                     "sp_slp_a", "sp_slp_b", "sp_slp_c",
                     "sp_hgt_a", "sp_hgt_b", "sp_hgt_c",
                     "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",

@@ -1634,13 +1634,14 @@ class Observation (object):
             output_directory = os.path.realpath (os.curdir)
 
         self.getHeaderInfo()
-        if (input_directory == output_directory) and self.info["corrtag_input"]:
-            raise RuntimeError, "For corrtag input," \
-                    " the input and output directories must not be the same."
 
         if self.info["corrtag_input"]:
             suffix = "_corrtag"
-            if input.find (suffix) < 0:
+            if input.find (suffix) >= 0:
+                if input_directory == output_directory:
+                    raise RuntimeError, "For corrtag input," \
+                    " the input and output directories must not be the same."
+            else:
                 suffix = "_rawtag"
         else:
             # For ACCUM data, allow suffix to be "_rawaccum", "_rawimage" or
@@ -2470,13 +2471,14 @@ class Calibration (object):
                 cosutil.printWarning ("SPWCSTAB = %s, so WCS keywords will"
                         " not be updated" % obs.reffiles["spwcstab"])
             else:
-                cosutil.printMsg ("Update WCS keywords for spectroscopic data",
-                                  VERY_VERBOSE)
-                cosutil.printRef ("spwcstab", obs.reffiles)
+                updated = False
                 for obs in self.assoc.obs:
                     if obs.info["obstype"] == "SPECTROSCOPIC":
-                        self.writeWCS (obs.filenames,
-                                       obs.info, obs.switches, obs.reffiles)
+                        flag = self.writeWCS (obs.filenames, obs.info,
+                                              obs.switches, obs.reffiles)
+                        updated = flag or updated
+                if updated:
+                    cosutil.printRef ("spwcstab", obs.reffiles)
 
     def extractSpectrum (self, filenames):
         """Extract a 1-D spectrum from corrtag table or from 2-D images.
@@ -2505,21 +2507,42 @@ class Calibration (object):
         @type switches: dictionary
         @param reffiles: reference file names (we need spwcstab)
         @type reffiles: dictionary
+
+        @return: True if keywords were actually written.
+        @rtype: boolean
         """
 
         helcorr = switches["helcorr"]
         spwcstab = reffiles["spwcstab"]
         xtractab = reffiles["xtractab"]
 
+        updated = False
+
         wcs = spwcs.SpWcsCorrtag (filenames["corrtag"], info, helcorr,
                                   spwcstab, xtractab)
-        wcs.writeWCSKeywords()
+        flag = wcs.writeWCSKeywords()
+        if flag:
+            updated = True
+            cosutil.printMsg ("WCS keywords were written for %s" %
+                              (filenames["corrtag"]), VERY_VERBOSE)
+
         wcs = spwcs.SpWcsImage (filenames["flt"], info, helcorr,
                                 spwcstab, xtractab)
-        wcs.writeWCSKeywords()
+        flag = wcs.writeWCSKeywords()
+        if flag:
+            updated = True
+            cosutil.printMsg ("WCS keywords were written for %s" %
+                              (filenames["flt"]), VERY_VERBOSE)
+
         wcs = spwcs.SpWcsImage (filenames["counts"], info, helcorr,
                                 spwcstab, xtractab)
-        wcs.writeWCSKeywords()
+        flag = wcs.writeWCSKeywords()
+        if flag:
+            updated = True
+            cosutil.printMsg ("WCS keywords were written for %s" %
+                              (filenames["counts"]), VERY_VERBOSE)
+
+        return updated
 
     def processWavecal (self):
         """Determine shift from wavecal observation.
@@ -2773,7 +2796,7 @@ class Calibration (object):
                 "exptimeX",
                 "globrt_X",
                 "deadrt_X", "deadmt_X", "livetm_X",
-                "sp_loc_X", "sp_slp_X", "sp_hgt_X",
+                "sp_loc_X", "sp_off_X", "sp_nom_X", "sp_slp_X", "sp_hgt_X",
                 "b_bkg1_X", "b_bkg2_X",
                 "b_hgt1_X", "b_hgt2_X",
                 "shift1X", "shift2X", "dpixel1X",
