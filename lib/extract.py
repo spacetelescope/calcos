@@ -677,6 +677,11 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
 
     axis_length = e_data.shape[axis]
 
+    offset_to_middle = slope * (axis_length // 2 - x_offset)
+    # nominal location of spectrum, where it crosses the middle of the
+    # flt or counts image
+    xd_nominal = b_spec + shift2 + offset_to_middle
+
     if is_wavecal:
         xd_offset = -999.
     else:
@@ -686,12 +691,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                                     e_dq_data, wavelength,
                                     axis, slope, b_spec,
                                     x_offset, info["detector"])
-        offset_to_middle = slope * (axis_length // 2 - x_offset)
         # offset from found location to nominal location
         xd_offset = offset2
-        # nominal location of spectrum, where it crosses the middle of the
-        # flt or counts image
-        xd_nominal = b_spec + shift2 + offset_to_middle
         message = "%s spectrum was found at y = %.2f vs. nominal y = %.2f" % \
                    (segment,
                     found_locn + offset_to_middle,
@@ -901,6 +902,11 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
         bkg_height2  = bkg_height1
     bkg_smooth      = xtract_info.field ("bwidth")[0]
 
+    offset_to_middle = slope * (axis_length // 2 - x_offset)
+    # nominal location of spectrum, where it crosses the middle of the
+    # flt or counts image
+    xd_nominal = b_spec + shift2 + offset_to_middle
+
     # xd_locn is either the user-specified value (if it was specified) or the
     # location based on the wavecal; in either case, it's where the spectrum
     # crosses the middle of the array, not the left edge of the array.
@@ -1042,7 +1048,6 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
         ERR_i = N_i * 0.
     if ofd_header is not None:
         xd_offset = -999.               # not implemented yet
-        xd_nominal = -999.              # not implemented yet
         updateExtractionKeywords (ofd_header, segment,
                                   slope, extr_height,
                                   xd_nominal, xd_locn, xd_offset,

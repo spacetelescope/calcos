@@ -146,16 +146,18 @@ def findPixelNumber (wl, wavelength):
     @rtype: int
     """
 
-    dispersion = (wl[-1] - wl[0]) / float (len (wl))
+    nelem = len (wl)
+
+    dispersion = (wl[-1] - wl[0]) / float (nelem)
     if wavelength < wl[0]:
         x = (wavelength - wl[0]) / dispersion
         return int (round (x))
     elif wavelength >= wl[-1]:
-        x = (wavelength - wl[-1]) / dispersion + float (len (wl)) - 1.
+        x = (wavelength - wl[-1]) / dispersion + float (nelem) - 1.
         return int (round (x))
 
     i0 = 0
-    i1 = len (wl) - 1
+    i1 = nelem - 1
     while (i1 - i0) >= 5:
         if i0 == i1:
             break
@@ -165,8 +167,10 @@ def findPixelNumber (wl, wavelength):
         mid = (i1 + i0) // 2
         x = int (round ((wavelength - wl[mid]) / slope)) + mid
         dx = i1 - i0
-        i0 = x - dx // 8
-        i1 = x + dx // 8
+        i0 = x - dx // 16
+        i1 = x + dx // 16
+        i0 = max (i0, 0)
+        i1 = min (i1, nelem-1)
 
     x = i0
     diff = abs (wavelength - wl[x])
