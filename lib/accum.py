@@ -203,13 +203,11 @@ def acqImage (input, outflt, outcounts, outcsum, cl_args,
     doStatflag (switches, outflt, outcounts)
 
     if outcsum is not None:
-        binx = cl_args["binx"]
-        biny = cl_args["biny"]
-        compress_csum = cl_args["compress_csum"]
-        compression_parameters = cl_args["compression_parameters"]
-        writeCsum (outcsum, info["subarray"], phdr, hdr_list, csum_array,
-                   binx, biny,
-                   compress_csum, compression_parameters)
+        writeCsum (outcsum, phdr, hdr_list, csum_array,
+                   cl_args["raw_csum_coords"],
+                   cl_args["binx"], cl_args["biny"],
+                   cl_args["compress_csum"],
+                   cl_args["compression_parameters"])
 
 def updateGlobrate (hdr, data, exptime):
     """Update the GLOBRATE keyword in the extension header.
@@ -487,7 +485,8 @@ def makeImages (counts_sci, flt_sci, exptime):
 
     return (C_rate, errC_rate, E_rate, errE_rate)
 
-def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
+def writeCsum (outcsum, phdr, hdr_list, csum_array,
+               raw_csum_coords,
                binx=None, biny=None,
                compress_csum=False,
                compression_parameters="gzip,-0.1"):
@@ -495,14 +494,14 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
 
     @param outcsum: name of output calcos sum image file
     @type outcsum: string
-    @param subarray: True if the exposure used one or more subarrays
-    @type subarray: boolean
     @param phdr: primary header
     @type phdr: pyfits Header object
     @param hdr_list: list of sci extension headers
     @type hdr_list: list of pyfits Header objects
     @param csum_array: data array for SCI extension
     @type csum_array: numpy array
+    @param raw_csum_coords: this only affects the COORDFRM keyword value
+    @type raw_csum_coords: boolean
     @param binx: binning factor in the dispersion direction (or None for
         the default binning)
     @type binx: int
@@ -527,6 +526,10 @@ def writeCsum (outcsum, subarray, phdr, hdr_list, csum_array,
     fd[0].header.update ("nextend", 1)
     fd[0].header.update ("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename (fd[0].header, outcsum)
+    if raw_csum_coords:
+        fd[0].header.update ("coordfrm", "raw")
+    else:
+        fd[0].header.update ("coordfrm", "corrected")
 
     # used later for updating the COUNTS keyword
     counts = csum_array.sum (dtype=np.float64)

@@ -52,6 +52,7 @@ def main (args):
         -o outdir (output directory name)
         --find (find Y location of spectrum)
         --csum (create csum image)
+        --raw (use raw coordinates for csum image)
         --compress parameters (compress csum image)
         --binx X_bin_factor (csum binning in X)
         --biny Y_bin_factor (csum binning in Y)
@@ -73,7 +74,7 @@ def main (args):
     try:
         (options, pargs) = getopt.getopt (args, "qvso:",
                            ["find",
-                            "csum", "compress=", "binx=", "biny=",
+                            "csum", "raw", "compress=", "binx=", "biny=",
                             "shift=", "stim=", "live=", "burst="])
     except Exception, error:
         cosutil.printError (str (error))
@@ -92,6 +93,7 @@ def main (args):
     cosutil.setVerbosity (VERBOSE)
     # parameters pertaining to the "calcos sum" file
     create_csum_image = False
+    raw_csum_coords = False
     binx = 1
     biny = 1
     find_target = False
@@ -118,6 +120,8 @@ def main (args):
             find_target = True
         elif options[i][0] == "--csum":
             create_csum_image = True
+        elif options[i][0] == "--raw":
+            raw_csum_coords = True
         elif options[i][0] == "--compress":
             compress_csum = True
             compression_parameters = options[i][1]
@@ -134,6 +138,8 @@ def main (args):
         elif options[i][0] == "--burst":
             burstfile = options[i][1]
 
+    if raw_csum_coords and not create_csum_image:
+        raw_csum_coords = False
     if outdir:
         outdir = os.path.expandvars (outdir)
         if not os.path.isdir (outdir):
@@ -148,6 +154,7 @@ def main (args):
         status = calcos (infiles[i], outdir=outdir, verbosity=None,
                          find_target=find_target,
                          create_csum_image=create_csum_image,
+                         raw_csum_coords=raw_csum_coords,
                          binx=binx, biny=biny,
                          compress_csum=compress_csum,
                          compression_parameters=compression_parameters,
@@ -168,6 +175,7 @@ def prtOptions():
     cosutil.printMsg ("  -o outdir (output directory name)")
     cosutil.printMsg ("  --find (find Y location of spectrum)")
     cosutil.printMsg ("  --csum (create 'calcos sum' image)")
+    cosutil.printMsg ("  --raw (use raw coordinates for csum image)")
     cosutil.printMsg ("  --compress parameters (compress csum image)")
     cosutil.printMsg ("  --binx X_bin_factor (csum bin factor in X)")
     cosutil.printMsg ("  --biny Y_bin_factor (csum bin factor in Y)")
@@ -225,6 +233,7 @@ def checkNumerix():
 def calcos (asntable, outdir=None, verbosity=None,
             find_target=False,
             create_csum_image=False,
+            raw_csum_coords=False,
             binx=None, biny=None,
             compress_csum=False, compression_parameters="gzip,-0.01",
             shift_file=None,
@@ -250,6 +259,10 @@ def calcos (asntable, outdir=None, verbosity=None,
         counts detected at each pixel (includes deadcorr but not flatcorr),
         for OPUS to add to cumulative image
     @type create_csum_image: boolean
+
+    @param raw_csum_coords: if True, use raw pixel coordinates (rather than
+        thermally and geometrically corrected) to create the csum image
+    @type raw_csum_coords: boolean
 
     @param binx: binning factor for the X axis (or None, which means that
         the default binning should be used)
@@ -308,6 +321,7 @@ def calcos (asntable, outdir=None, verbosity=None,
     # some of the command-line arguments
     cl_args = {"find_target": find_target,
                "create_csum_image": create_csum_image,
+               "raw_csum_coords": raw_csum_coords,
                "binx": binx,
                "biny": biny,
                "compress_csum": compress_csum,

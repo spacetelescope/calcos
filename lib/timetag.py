@@ -148,6 +148,10 @@ def timetagBasicCalibration (input, inpha, outtag,
         if modified:
             saveNewGTI (ofd, gti)
 
+    if info["detector"] == "FUV":       # update keyword EXPTIMEA or EXPTIMEB
+        key = cosutil.exptimeKeyword (info["segment"])
+        headers[1].update (key, info["exptime"])
+
     doRandcorr (events, info, switches, reffiles, phdr)
 
     (stim_param, stim_countrate, stim_livetime) = initTempcorr (events,
@@ -180,16 +184,11 @@ def timetagBasicCalibration (input, inpha, outtag,
 
     # Write the calcos sum image.
     if outcsum is not None:
-        if info["detector"] == "FUV" and info["obsmode"] == "TIME-TAG":
-            pha = events.field ("pha")
-        else:
-            pha = None
-        writeCsum (outcsum, events.field (xcorr), events.field (ycorr),
-                   events.field ("epsilon"), pha,
-                   info["detector"], info["subarray"],
+        writeCsum (outcsum, events,
+                   info["detector"], info["obsmode"],
                    phdr, headers[1],
-                   cl_args["binx"],
-                   cl_args["biny"],
+                   cl_args["raw_csum_coords"],
+                   cl_args["binx"], cl_args["biny"],
                    cl_args["compress_csum"],
                    cl_args["compression_parameters"])
 
@@ -593,8 +592,6 @@ def recomputeExptime (input, bursts, badt, events, hdr, info):
     old_exptime = hdr.get ("exptime", 0.)
     if exptime != old_exptime:
         hdr.update ("exptime", exptime)
-        key = cosutil.exptimeKeyword (info["segment"])
-        hdr.update (key, exptime)
         info["exptime"] = exptime
         if abs (exptime - old_exptime) > 1.:
             cosutil.printWarning ("exposure time in header was %.3f" % \
@@ -1142,7 +1139,9 @@ def computeThermalParam (time, x, y, dq,
     avg_s2 = [-1., -1.]
     rms_s1 = [-1., -1.]
     rms_s2 = [-1., -1.]
-    if sumstim[0] > 0:
+    total_counts1 = sumstim[0]
+    total_counts2 = sumstim[5]
+    if total_counts1 > 0:
         avg_s1[0] = sumstim[1] / sumstim[0]             # y
         avg_s1[1] = sumstim[2] / sumstim[0]             # x
         if sumstim[0] > 1:
@@ -1151,7 +1150,7 @@ def computeThermalParam (time, x, y, dq,
         else:
             rms_s1[0] = math.sqrt (sumstim[3])
             rms_s1[1] = math.sqrt (sumstim[4])
-    if sumstim[5] > 0:
+    if total_counts2 > 0:
         avg_s2[0] = sumstim[6] / sumstim[5]
         avg_s2[1] = sumstim[7] / sumstim[5]
         if sumstim[5] > 1:
@@ -1161,12 +1160,12 @@ def computeThermalParam (time, x, y, dq,
             rms_s2[0] = math.sqrt (sumstim[8])
             rms_s2[1] = math.sqrt (sumstim[9])
 
-    if counts1 > 0 and counts2 > 0:
-        stim_countrate = (counts1 + counts2) / (2. * exptime)
-    elif counts1 > 0:
-        stim_countrate = counts1 / exptime
-    elif counts2 > 0:
-        stim_countrate = counts2 / exptime
+    if total_counts1 > 0 and total_counts2 > 0:
+        stim_countrate = (total_counts1 + total_counts2) / (2. * exptime)
+    elif total_counts1 > 0:
+        stim_countrate = total_counts1 / exptime
+    elif total_counts2 > 0:
+        stim_countrate = total_counts2 / exptime
     else:
         stim_countrate = None
     if stim_countrate is not None and stimrate > 0.:
@@ -2586,12 +2585,11 @@ def writeNull (input, output, outcounts, outcsum,
     makeImage (outcounts, phdr, headers, None, None, None)
     makeImage (output, phdr, headers, None, None, None)
     if outcsum is not None:
-        # pha has to be not None to get the correct dimensions for FUV.
-        writeCsum (outcsum, None, None, None, np.zeros (1, dtype=np.int8),
-                   info["detector"], info["subarray"],
+        writeCsum (outcsum, None,
+                   info["detector"], info["obsmode"],
                    phdr, headers[1],
-                   cl_args["binx"],
-                   cl_args["biny"],
+                   cl_args["raw_csum_coords"],
+                   cl_args["binx"], cl_args["biny"],
                    cl_args["compress_csum"],
                    cl_args["compression_parameters"])
 
@@ -2746,8 +2744,10 @@ def makeImageHDU (fd, table_hdr, data_array, name="SCI"):
     hdu = pyfits.ImageHDU (data=data_array, header=imhdr, name=name)
     fd.append (hdu)
 
-def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
+def writeCsum (outcsum, events,
+               detector, obsmode,
                phdr, hdr,
+               raw_csum_coords,
                binx=None, biny=None,
                compress_csum=False,
                compression_parameters="gzip,-0.1"):
@@ -2755,22 +2755,19 @@ def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
 
     @param outcsum: name of output "calcos sum" file
     @type outcsum: string
-    @param xcorr: column for X coordinates of events
-    @type xcorr: numpy array
-    @param ycorr: column for Y coordinates of events
-    @type ycorr: numpy array
-    @param epsilon: column of weights for events
-    @type epsilon: numpy array
-    @param pha: column for pulse height amplitudes, or None if detector is NUV
-    @type pha: numpy array
+    @param events: the data unit containing the events table
+    @type events: record array
     @param detector: "FUV" or "NUV"
     @type detector: string
-    @param subarray: True if the exposure used one or more subarrays
-    @type subarray: boolean
+    @param obsmode: TIME-TAG or ACCUM, used for determining whether to write
+        a third dimension with PHA for FUV data
+    @type obsmode: string
     @param phdr: primary header from input file
     @type phdr: pyfits Header object
     @param hdr: first extension (EVENTS) header from input file
     @type hdr: pyfits Header object
+    @param raw_csum_coords: use raw pixel coordinates?
+    @type raw_csum_coords: boolean
     @param binx: binning factor in the dispersion direction (or None for
         the default binning)
     @type binx: int
@@ -2800,6 +2797,30 @@ def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
     fd[0].header.update ("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename (fd[0].header, outcsum)
 
+    if events is None:
+        xcoord = None
+        ycoord = None
+        epsilon = None
+        pha = None
+        if raw_csum_coords:
+            fd[0].header.update ("coordfrm", "raw")
+        else:
+            fd[0].header.update ("coordfrm", "corrected")
+    else:
+        if raw_csum_coords:
+            xcoord = events.field ("rawx")
+            ycoord = events.field ("rawy")
+            fd[0].header.update ("coordfrm", "raw")
+        else:
+            xcoord = events.field (xcorr)
+            ycoord = events.field (ycorr)
+            fd[0].header.update ("coordfrm", "corrected")
+        epsilon = events.field ("epsilon")
+        if detector == "FUV" and obsmode == "TIME-TAG":
+            pha = events.field ("pha")
+        else:
+            pha = None
+
     if detector == "FUV":
         if binx is None or binx <= 0:
             binx = FUV_BIN_X
@@ -2822,17 +2843,17 @@ def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
         if detector == "FUV":
             if pha is None:
                 data = np.zeros ((ny, nx), dtype=np.float32)
-                if xcorr is not None:
-                    ccos.csum_2d (data, xcorr, ycorr, epsilon, binx, biny)
+                if xcoord is not None:
+                    ccos.csum_2d (data, xcoord, ycoord, epsilon, binx, biny)
             else:
                 data = np.zeros ((PHA_RANGE, ny, nx), dtype=np.float32)
-                if xcorr is not None:
-                    ccos.csum_3d (data, xcorr, ycorr, epsilon,
+                if xcoord is not None:
+                    ccos.csum_3d (data, xcoord, ycoord, epsilon,
                                pha.astype(np.int16), binx, biny)
         else:
             data = np.zeros ((ny, nx), dtype=np.float32)
-            if xcorr is not None:
-                ccos.csum_2d (data, xcorr, ycorr, epsilon, binx, biny)
+            if xcoord is not None:
+                ccos.csum_2d (data, xcoord, ycoord, epsilon, binx, biny)
         fd.append (pyfits.CompImageHDU (data, header=hdr, name="SCI",
                                         compressionType=compType,
                                         quantizeLevel=quantLevel))
@@ -2852,21 +2873,22 @@ def writeCsum (outcsum, xcorr, ycorr, epsilon, pha, detector, subarray,
                 fd.append (pyfits.ImageHDU (data=np.zeros ((ny, nx),
                                                            dtype=np.float32),
                                             header=hdr, name="SCI"))
-                if xcorr is not None:
-                    ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon, binx, biny)
+                if xcoord is not None:
+                    ccos.csum_2d (fd[1].data, xcoord, ycoord, epsilon,
+                                  binx, biny)
             else:
                 fd.append (pyfits.ImageHDU (data=np.zeros ((PHA_RANGE, ny, nx),
                                                            dtype=np.float32),
                                             header=hdr, name="SCI"))
-                if xcorr is not None:
-                    ccos.csum_3d (fd[1].data, xcorr, ycorr, epsilon,
+                if xcoord is not None:
+                    ccos.csum_3d (fd[1].data, xcoord, ycoord, epsilon,
                                   pha.astype(np.int16), binx, biny)
         else:
             fd.append (pyfits.ImageHDU (data=np.zeros ((ny, nx),
                                                        dtype=np.float32),
                                         header=hdr, name="SCI"))
-            if xcorr is not None:
-                ccos.csum_2d (fd[1].data, xcorr, ycorr, epsilon, binx, biny)
+            if xcoord is not None:
+                ccos.csum_2d (fd[1].data, xcoord, ycoord, epsilon, binx, biny)
         fd[1].header.update ("counts", fd[1].data.sum(dtype=np.float64))
 
     if detector == "FUV":
