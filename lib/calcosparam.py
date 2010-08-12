@@ -2,8 +2,8 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.12.5"
-CALCOS_VERSION_DATE = "2010-07-14"
+CALCOS_VERSION_NUMBER = "2.12.6"
+CALCOS_VERSION_DATE = "2010-08-09"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
@@ -61,6 +61,24 @@ TAGFLASH_UNIFORMLY_SPACED = "UNIFORMLY SPACED"
 TAGFLASH_TYPE_NONE = 0
 TAGFLASH_TYPE_AUTO = 1
 TAGFLASH_TYPE_UNIFORMLY_SPACED = 2
+
+# This is the list of segment-specific (or in some cases stripe-specific)
+# keywords, with "X" (case sensitive) replaced by "a", "b" or "c".
+segment_specific_keywords = \
+    ["stimX_lx", "stimX_ly", "stimX_rx", "stimX_ry",
+     "stimX0lx", "stimX0ly", "stimX0rx", "stimX0ry",
+     "stimXslx", "stimXsly", "stimXsrx", "stimXsry",
+     "npha_X", "phalowrX", "phaupprX",
+     "tbrst_X", "nbrst_X", "tbadt_X", "nbadt_X",
+     "nout_X", "nbadevtX",
+     "exptimeX", "neventsX",
+     "globrt_X",
+     "deadrt_X", "deadmt_X", "livetm_X",
+     "sp_loc_X", "sp_off_X", "sp_nom_X", "sp_slp_X", "sp_hgt_X",
+     "b_bkg1_X", "b_bkg2_X",
+     "b_hgt1_X", "b_hgt2_X",
+     "shift1X", "shift2X", "dpixel1X",
+     "chi_sq_X", "ndf_X"]
 
 # The pulse height values range from 0 to 127.  The values in the PHA
 # column of an EVENTS table, however, come from a five-bit value, i.e.

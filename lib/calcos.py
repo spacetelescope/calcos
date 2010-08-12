@@ -610,8 +610,10 @@ class Association (object):
                 concat_these = []               # x1d_a and x1d_b names
                 concat_info_flash = {}          # another element of concat
                 concat_these_flash = []         # flash_a and flash_b names
-                # merge_flt and merge_counts (only used for FUV) are pairs of
-                # names between which segment-specific keywords will be copied
+                # merge_corrtag, merge_flt, merge_counts (only used for FUV)
+                # are pairs of names between which segment-specific keywords
+                # will be copied
+                merge_corrtag = []              # corrtag_a and corrtag_b names
                 merge_flt = []                  # flt_a and flt_b names
                 merge_counts = []               # counts_a and counts_b names
                 first = True                    # first of a pair for FUV
@@ -623,6 +625,7 @@ class Association (object):
                         concat_these.append (obs.filenames["x1d_x"])
                         if obs.info["tagflash"]:
                             concat_these_flash.append (obs.filenames["flash_x"])
+                        merge_corrtag.append (obs.filenames["corrtag"])
                         merge_flt.append (obs.filenames["flt"])
                         merge_counts.append (obs.filenames["counts"])
                     if first:
@@ -653,6 +656,7 @@ class Association (object):
                     concat_info_flash["input"] = concat_these_flash
                     self.concat.append (concat_info_flash)
                 if len (merge_flt) == 2:
+                    self.merge_kwds.append (merge_corrtag)
                     self.merge_kwds.append (merge_flt)
                     self.merge_kwds.append (merge_counts)
 
@@ -2505,10 +2509,14 @@ class Calibration (object):
 
         input = filenames["flt"]
         incounts = filenames["counts"]
+        corrtag = filenames["corrtag"]
         output = filenames["x1d_x"]
 
         find_target = self.assoc.cl_args["find_target"]
         extract.extract1D (input, incounts, output, find_target=find_target)
+
+        # Copy keywords from input (the flt file) to corrtag.
+        extract.updateCorrtagKeywords (input, corrtag)
 
     def writeWCS (self, filenames, info, switches, reffiles):
         """Write the WCS header keywords for spectroscopic data.
@@ -2799,25 +2807,12 @@ class Calibration (object):
         counts files.
         """
 
-        # The strings in this list use "X" as a character to be replaced
-        # by "a" or "b" to get lists a_kwds and b_kwds respectively.
-        incl_wildcard = ["stimX_lx", "stimX_ly", "stimX_rx", "stimX_ry",
-                "stimX0lx", "stimX0ly", "stimX0rx", "stimX0ry",
-                "stimXslx", "stimXsly", "stimXsrx", "stimXsry",
-                "npha_X", "phalowrX", "phaupprX",
-                "tbrst_X", "nbrst_X", "tbadt_X", "nbadt_X",
-                "nout_X", "nbadevtX",
-                "exptimeX",
-                "globrt_X",
-                "deadrt_X", "deadmt_X", "livetm_X",
-                "sp_loc_X", "sp_off_X", "sp_nom_X", "sp_slp_X", "sp_hgt_X",
-                "b_bkg1_X", "b_bkg2_X",
-                "b_hgt1_X", "b_hgt2_X",
-                "shift1X", "shift2X", "dpixel1X",
-                "chi_sq_X", "ndf_X"]
+        # segment_specific_keywords is in calcosparam.py.  The strings in
+        # this list use "X" as a character to be replaced by "a" or "b" to
+        # get lists a_kwds and b_kwds respectively.
         a_kwds = []
         b_kwds = []
-        for keyword in incl_wildcard:
+        for keyword in segment_specific_keywords:
             a_kwds.append (keyword.replace ("X", "a"))
             b_kwds.append (keyword.replace ("X", "b"))
 

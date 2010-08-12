@@ -111,9 +111,7 @@ def timetagBasicCalibration (input, inpha, outtag,
         # pseudo-corrtag table will be updated
         headers[1] = events_hdu.header
     else:
-        headers = [phdr]
-        for i in range (3):
-            headers.append (events_hdu.header)
+        headers = mkHeaders (phdr, events_hdu.header)
 
     # Update the switches and reference file names, so the output header
     # will reflect what was actually used.
@@ -289,6 +287,77 @@ def setActiveArea (events, info, brftab):
         active_area = np.where (eta < b_low,  False, active_area)
         # Make sure the data type is still boolean.
         active_area = active_area.astype (np.bool8)
+
+def mkHeaders (phdr, events_header, extver=1):
+    """Create a list of four headers for creating the flt and counts files.
+
+    @param phdr: primary header from input file
+    @type phdr: pyfits Header object
+    @param events_header: EVENTS extension header from input file
+    @type events_header: pyfits Header object
+
+    @return: primary, SCI, ERR and DQ headers
+    @rtype: list
+
+    The following keywords will be assigned or copied from events_header to
+    the ERR extension header:
+        EXTNAME
+        EXTVER
+        ROOTNAME
+        EXPNAME
+        RA_APER
+        DEC_APER
+        PA_APER
+        DISPAXIS
+        NGOODPIX
+        GOODMEAN
+        GOODMAX
+    The following keywords will be assigned or copied from events_header to
+    the DQ extension header:
+        EXTNAME
+        EXTVER
+        ROOTNAME
+        EXPNAME
+    """
+
+    headers = [phdr]
+    headers.append (events_header)
+    headers[1].update ("extname", "SCI")
+    headers[1].update ("extver", extver)
+
+    err_hdr = pyfits.Header()
+    dq_hdr = pyfits.Header()
+    err_hdr.update ("extname", "ERR")
+    dq_hdr.update ("extname", "DQ")
+    err_hdr.update ("extver", extver)
+    dq_hdr.update ("extver", extver)
+    if events_header.has_key ("rootname"):
+        rootname = events_header["rootname"]
+        err_hdr.update ("rootname", rootname)
+        dq_hdr.update ("rootname", rootname)
+    if events_header.has_key ("expname"):
+        expname = events_header["expname"]
+        err_hdr.update ("expname", expname)
+        dq_hdr.update ("expname", expname)
+    if events_header.has_key ("ra_aper"):
+        err_hdr.update ("ra_aper", events_header["ra_aper"])
+    if events_header.has_key ("dec_aper"):
+        err_hdr.update ("dec_aper", events_header["dec_aper"])
+    if events_header.has_key ("pa_aper"):
+        err_hdr.update ("pa_aper", events_header["pa_aper"])
+    if events_header.has_key ("dispaxis"):
+        err_hdr.update ("dispaxis", events_header["dispaxis"])
+    if events_header.has_key ("ngoodpix"):
+        err_hdr.update ("ngoodpix", -999)
+    if events_header.has_key ("goodmean"):
+        err_hdr.update ("goodmean", -999.)
+    if events_header.has_key ("goodmax"):
+        err_hdr.update ("goodmax", -999.)
+
+    headers.append (err_hdr)
+    headers.append (dq_hdr)
+
+    return headers
 
 def doPhotcorr (info, switches, imphttab, phdr, hdr):
     """Update photometry parameter keywords for imaging data.

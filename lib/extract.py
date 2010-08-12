@@ -1305,6 +1305,90 @@ def updateExtractionKeywords (hdr, segment, slope, height,
     key = "B_HGT2_" + segment[-1]
     hdr.update (key, bkg_height2)
 
+def copyKeywordsToInput (output, input, incounts):
+    """Copy extraction location keywords to the input headers.
+
+    @param output: name of the output file for 1-D extracted spectra
+    @type output: string
+    @param input: name of either the flat-fielded count-rate image, or the
+        corrtag table
+    @type input: string
+    @param incounts: name of the file containing the count-rate image,
+        or None if input is the corrtag table
+    @type incounts: string, or None
+    """
+
+    ofd = pyfits.open (output, mode="readonly")
+    ifd_e = pyfits.open (input, mode="update")
+    if incounts is not None:
+        ifd_c = pyfits.open (incounts, mode="update")
+
+    if ofd[0].header["detector"] == "FUV":
+        keywords = ["sp_loc_a", "sp_loc_b",
+                    "sp_off_a", "sp_off_b",
+                    "sp_nom_a", "sp_nom_b",
+                    "sp_slp_a", "sp_slp_b",
+                    "sp_hgt_a", "sp_hgt_b",
+                    "b_bkg1_a", "b_bkg1_b",
+                    "b_bkg2_a", "b_bkg2_b",
+                    "b_hgt1_a", "b_hgt1_b",
+                    "b_hgt2_a", "b_hgt2_b"]
+    else:
+        keywords = ["sp_loc_a", "sp_loc_b", "sp_loc_c",
+                    "sp_off_a", "sp_off_b", "sp_off_c",
+                    "sp_nom_a", "sp_nom_b", "sp_nom_c",
+                    "sp_slp_a", "sp_slp_b", "sp_slp_c",
+                    "sp_hgt_a", "sp_hgt_b", "sp_hgt_c",
+                    "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",
+                    "b_bkg2_a", "b_bkg2_b", "b_bkg2_c",
+                    "b_hgt1_a", "b_hgt1_b", "b_hgt1_c",
+                    "b_hgt2_a", "b_hgt2_b", "b_hgt2_c"]
+
+    for key in keywords:
+        value = ofd[1].header.get (key, -999.)
+        ifd_e[1].header.update (key, value)
+        if incounts is not None:
+            ifd_c[1].header.update (key, value)
+
+    ofd.close()
+    ifd_e.close()
+    if incounts is not None:
+        ifd_c.close()
+
+def updateCorrtagKeywords (flt, corrtag):
+    """Update extraction-location keywords in a corrtag file.
+
+    @param flt: name of an flt file
+    @type flt: string
+    @param corrtag: name of a corrtag file, to be modified in-place
+    @type corrtag: string
+    """
+
+    ifd = pyfits.open (flt, mode="readonly")
+    ofd = pyfits.open (corrtag, mode="update")
+
+    iphdr = ifd[0].header
+    detector = iphdr.get ("detector", "missing")
+    if detector == "FUV":
+        segment_list = [iphdr["segment"]]
+    elif detector == "NUV":
+        segment_list = ["NUVA", "NUVB", "NUVC"]
+    else:
+        segment_list = []
+
+    ihdr = ifd[1].header
+    ohdr = ofd[1].header
+
+    for segment in segment_list:
+        for key in ["SP_LOC_", "SP_OFF_", "SP_NOM_", "SP_SLP_", "SP_HGT_",
+                    "B_BKG1_", "B_BKG2_", "B_HGT1_", "B_HGT2_"]:
+            keyword = key + segment[-1]
+            if ihdr.has_key (keyword):
+                ohdr.update (keyword, ihdr[keyword])
+
+    ofd.close()
+    ifd.close()
+
 def updateArchiveSearch (ofd):
     """Update the keywords giving min & max wavelengths, etc.
 
@@ -1442,23 +1526,14 @@ def concatenateFUVSegments (infiles, output):
     # Copy data from input to output.
     copySegments (seg_a[1].data, nrows_a, seg_b[1].data, nrows_b, hdu.data)
 
-    # Include segment-specific keywords from segment B.
-    for key in ["stimb_lx", "stimb_ly", "stimb_rx", "stimb_ry",
-                "stimb0lx", "stimb0ly", "stimb0rx", "stimb0ry",
-                "stimbslx", "stimbsly", "stimbsrx", "stimbsry",
-                "npha_b", "phalowrb", "phaupprb",
-                "tbrst_b", "tbadt_b", "nbrst_b", "nbadt_b",
-                "nout_b", "nbadevtb",
-                "exptimeb",
-                "globrt_b",
-                "deadrt_b", "deadmt_b", "livetm_b",
-                "sp_loc_b", "sp_off_b", "sp_nom_b", "sp_slp_b", "sp_hgt_b",
-                "b_bkg1_b", "b_bkg2_b",
-                "b_hgt1_b", "b_hgt2_b",
-                "shift1b", "shift2b", "dpixel1b",
-                "chi_sq_b", "ndf_b"]:
-        if seg_b[1].header.has_key (key):
-            hdu.header.update (key, seg_b[1].header.get (key, -1.0))
+    # Include segment-specific keywords from segment B.  The strings in
+    # segment_specific_keywords (which is defined in calcosparam.py) use "X"
+    # as the character to be replaced by "b" to get the actual keyword name
+    # for segment B.
+    for key in segment_specific_keywords:
+        keyword = key.replace ("X", "b")
+        if seg_b[1].header.has_key (keyword):
+            hdu.header.update (keyword, seg_b[1].header.get (keyword, -1.0))
 
     exptimea = seg_a[1].header.get ("exptimea",
                                     default=seg_a[1].header["exptime"])
@@ -1518,56 +1593,6 @@ def copySegments (data_a, nrows_a, data_b, nrows_b, outdata):
     for i in range (nrows_b):
         outdata[n] = data_b[i]
         n += 1
-
-def copyKeywordsToInput (output, input, incounts):
-    """Copy extraction location keywords to the input headers.
-
-    @param output: name of the output file for 1-D extracted spectra
-    @type output: string
-    @param input: name of either the flat-fielded count-rate image, or the
-        corrtag table
-    @type input: string
-    @param incounts: name of the file containing the count-rate image,
-        or None if input is the corrtag table
-    @type incounts: string, or None
-    """
-
-    ofd = pyfits.open (output, mode="readonly")
-    ifd_e = pyfits.open (input, mode="update")
-    if incounts is not None:
-        ifd_c = pyfits.open (incounts, mode="update")
-
-    if ofd[0].header["detector"] == "FUV":
-        keywords = ["sp_loc_a", "sp_loc_b",
-                    "sp_off_a", "sp_off_b",
-                    "sp_nom_a", "sp_nom_b",
-                    "sp_slp_a", "sp_slp_b",
-                    "sp_hgt_a", "sp_hgt_b",
-                    "b_bkg1_a", "b_bkg1_b",
-                    "b_bkg2_a", "b_bkg2_b",
-                    "b_hgt1_a", "b_hgt1_b",
-                    "b_hgt2_a", "b_hgt2_b"]
-    else:
-        keywords = ["sp_loc_a", "sp_loc_b", "sp_loc_c",
-                    "sp_off_a", "sp_off_b", "sp_off_c",
-                    "sp_nom_a", "sp_nom_b", "sp_nom_c",
-                    "sp_slp_a", "sp_slp_b", "sp_slp_c",
-                    "sp_hgt_a", "sp_hgt_b", "sp_hgt_c",
-                    "b_bkg1_a", "b_bkg1_b", "b_bkg1_c",
-                    "b_bkg2_a", "b_bkg2_b", "b_bkg2_c",
-                    "b_hgt1_a", "b_hgt1_b", "b_hgt1_c",
-                    "b_hgt2_a", "b_hgt2_b", "b_hgt2_c"]
-
-    for key in keywords:
-        value = ofd[1].header.get (key, -999.)
-        ifd_e[1].header.update (key, value)
-        if incounts is not None:
-            ifd_c[1].header.update (key, value)
-
-    ofd.close()
-    ifd_e.close()
-    if incounts is not None:
-        ifd_c.close()
 
 def recomputeWavelengths (input):
     """Update the wavelength column in a wavecal x1d table.
