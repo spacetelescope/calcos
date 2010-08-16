@@ -64,12 +64,14 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
 
     (y_locn, y_locn_sigma) = findPeak (e_j, box)
 
-    # Shift y_locn to account for the offset of e_j from Y = 0 in 'data',
-    # and shift y_locn to where the spectrum crosses X = x_offset.
-    y_locn += zero_point
-    y_locn += slope * float (x_offset)
-
-    offset2 = y_locn - y_nominal
+    if y_locn is None:
+        offset2 = 0.
+    else:
+        # Shift y_locn to account for the offset of e_j from Y = 0 in 'data',
+        # and shift y_locn to where the spectrum crosses X = x_offset.
+        y_locn += zero_point
+        y_locn += slope * float (x_offset)
+        offset2 = y_locn - y_nominal
 
     return (offset2, y_locn, y_locn_sigma)
 

@@ -691,12 +691,19 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                                     e_dq_data, wavelength,
                                     axis, slope, b_spec,
                                     x_offset, info["detector"])
-        # offset from found location to nominal location
-        xd_offset = offset2
-        message = "%s spectrum was found at y = %.2f vs. nominal y = %.2f" % \
-                   (segment,
-                    found_locn + offset_to_middle,
-                    xd_nominal)
+        if found_locn is None:
+            xd_offset = 0.
+            find_target = False         # turn off for this segment/stripe
+            message = "%s spectrum was not found; nominal y = %.2f" % \
+                        (segment, xd_nominal)
+        else:
+            # offset from found location to nominal location
+            xd_offset = offset2
+            message = "%s spectrum was found at y = %.2f" \
+                      " vs. nominal y = %.2f" % \
+                                (segment,
+                                 found_locn + offset_to_middle,
+                                 xd_nominal)
         cosutil.printMsg (message, VERBOSE)
 
     # b_spec is where the spectrum crosses the left edge of the array.
@@ -921,6 +928,7 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
             #                    e_dq_data, wavelength,
             #                    axis, slope, b_spec,
             #                    x_offset, info["detector"], info["opt_elem"])
+            # xxx check whether b_spec is None
             #message = "Spectrum found at y = %.2f (nominal y = %.2f)." % \
             #           (xd_locn, y_nominal + offset_to_middle)
             #cosutil.printMsg (message, VERBOSE)

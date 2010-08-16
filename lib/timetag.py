@@ -321,9 +321,10 @@ def mkHeaders (phdr, events_header, extver=1):
     """
 
     headers = [phdr]
+    # This is a reference, not a copy.  Keywords will be updated (in other
+    # functions) in headers[1], and the output corrtag header as well as the
+    # flt and counts headers will contain the updated values.
     headers.append (events_header)
-    headers[1].update ("extname", "SCI")
-    headers[1].update ("extver", extver)
 
     err_hdr = pyfits.Header()
     dq_hdr = pyfits.Header()
@@ -3193,7 +3194,10 @@ def updateFromWavecal (events, wavecal_info,
         else:
             xi_psa = xi_full[psa_region_flags_dict[segment]]
             xi_diff = xi_psa - np.around (xi_psa)
-        dpixel1 = xi_diff.mean()
+        if len (xi_diff) > 0:
+            dpixel1 = xi_diff.mean()
+        else:
+            dpixel1 = 0.
         key = "DPIXEL1" + segment[-1]
         hdr.update (key, round (dpixel1, 4))
 
@@ -3621,13 +3625,16 @@ def getWavecalOffsets (events, info, xtractab):
                     (lower, upper) = boundaries_dict[key]
                     flags = (eta_corr >= lower) & (eta_corr < upper)
                     xdiff_subset = xdiff[flags]
-                    min_shift1 = xdiff_subset.min()
-                    max_shift1 = xdiff_subset.max()
-                    # ydiff_subset = ydiff[flags]
-                    # min_shift2 = ydiff_subset.min()
-                    # max_shift2 = ydiff_subset.max()
-                    minmax_shift_dict[(lower, upper)] = \
-                        [min_shift1, max_shift1, min_shift2, max_shift2]
+                    if len (xdiff_subset) > 0:
+                        min_shift1 = xdiff_subset.min()
+                        max_shift1 = xdiff_subset.max()
+                        # ydiff_subset = ydiff[flags]
+                        # min_shift2 = ydiff_subset.min()
+                        # max_shift2 = ydiff_subset.max()
+                        minmax_shift_dict[(lower, upper)] = \
+                            [min_shift1, max_shift1, min_shift2, max_shift2]
+                    else:
+                        minmax_shift_dict[(lower, upper)] = [0., 0., 0., 0.]
         else:
             xdiff = xdiff[active_area]
             ydiff = ydiff[active_area]

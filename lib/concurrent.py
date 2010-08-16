@@ -1277,10 +1277,13 @@ class ConcurrentWavecal (object):
                 shift_flags |= np.logical_and (self.eta >= region[0],
                                                self.eta < region[1])
             xi = self.xi_corr[shift_flags]      # copy out the relevant subset
-            xi_diff = xi - np.around (xi)
-            dpixel1 = xi_diff.mean()
+            if len (xi) > 0:
+                xi_diff = xi - np.around (xi)
+                dpixel1 = xi_diff.mean()
+                value = round (dpixel1, 4)
+            else:
+                value = 0.
             key = "DPIXEL1" + segment[-1]
-            value = round (dpixel1, 4)
             self.hdr.update (key, value)
             self.ofd[1].header.update (key, value)
 
