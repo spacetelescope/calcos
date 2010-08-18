@@ -328,32 +328,40 @@ def mkHeaders (phdr, events_header, extver=1):
 
     err_hdr = pyfits.Header()
     dq_hdr = pyfits.Header()
-    err_hdr.update ("extname", "ERR")
-    dq_hdr.update ("extname", "DQ")
-    err_hdr.update ("extver", extver)
-    dq_hdr.update ("extver", extver)
+    err_hdr.update ("extname", "ERR", comment="extension name")
+    dq_hdr.update ("extname", "DQ", comment="extension name")
+    err_hdr.update ("extver", extver, comment="extension version number")
+    dq_hdr.update ("extver", extver, comment="extension version number")
     if events_header.has_key ("rootname"):
         rootname = events_header["rootname"]
-        err_hdr.update ("rootname", rootname)
-        dq_hdr.update ("rootname", rootname)
+        err_hdr.update ("rootname", rootname,
+                        comment="rootname of the observation")
+        dq_hdr.update ("rootname", rootname,
+                       comment="rootname of the observation")
     if events_header.has_key ("expname"):
         expname = events_header["expname"]
-        err_hdr.update ("expname", expname)
-        dq_hdr.update ("expname", expname)
+        err_hdr.update ("expname", expname, comment="exposure identifier")
+        dq_hdr.update ("expname", expname, comment="exposure identifier")
     if events_header.has_key ("ra_aper"):
-        err_hdr.update ("ra_aper", events_header["ra_aper"])
+        err_hdr.update ("ra_aper", events_header["ra_aper"],
+                        comment="RA of reference aperture center")
     if events_header.has_key ("dec_aper"):
-        err_hdr.update ("dec_aper", events_header["dec_aper"])
+        err_hdr.update ("dec_aper", events_header["dec_aper"],
+                        comment="Declination of reference aperture center")
     if events_header.has_key ("pa_aper"):
-        err_hdr.update ("pa_aper", events_header["pa_aper"])
+        err_hdr.update ("pa_aper", events_header["pa_aper"],
+                    comment="Position Angle of reference aperture center (de")
     if events_header.has_key ("dispaxis"):
-        err_hdr.update ("dispaxis", events_header["dispaxis"])
+        err_hdr.update ("dispaxis", events_header["dispaxis"],
+                        comment="dispersion axis; 1 = axis 1, 2 = axis2, none")
     if events_header.has_key ("ngoodpix"):
-        err_hdr.update ("ngoodpix", -999)
+        err_hdr.update ("ngoodpix", -999, comment="number of good pixels")
     if events_header.has_key ("goodmean"):
-        err_hdr.update ("goodmean", -999.)
+        err_hdr.update ("goodmean", -999.,
+                        comment="mean value of good pixels")
     if events_header.has_key ("goodmax"):
-        err_hdr.update ("goodmax", -999.)
+        err_hdr.update ("goodmax", -999.,
+                        comment="maximum value of good pixels")
 
     headers.append (err_hdr)
     headers.append (dq_hdr)
