@@ -1109,17 +1109,14 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
         cosutil.comparePulseHeightRanges (pharange, ref_pharange, fluxtab)
         factor = np.zeros (len (flux[row]), dtype=np.float32)
         filter["segment"] = segment[row]
-        flux_info = cosutil.getTable (fluxtab, filter)
-        if flux_info is None:
-            flux[row][:] = 0.
-        else:
-            # Interpolate sensitivity at each wavelength.
-            wl_phot = flux_info.field ("wavelength")[0]
-            sens_phot = flux_info.field ("sensitivity")[0]
-            ccos.interp1d (wl_phot, sens_phot, wavelength[row], factor)
-            factor = np.where (factor <= 0., 1., factor)
-            flux[row][:] = net[row] / factor
-            error[row][:] = error[row] / factor
+        flux_info = cosutil.getTable (fluxtab, filter, exactly_one=True)
+        # Interpolate sensitivity at each wavelength.
+        wl_phot = flux_info.field ("wavelength")[0]
+        sens_phot = flux_info.field ("sensitivity")[0]
+        ccos.interp1d (wl_phot, sens_phot, wavelength[row], factor)
+        factor = np.where (factor <= 0., 1., factor)
+        flux[row][:] = net[row] / factor
+        error[row][:] = error[row] / factor
     ofd[0].header["fluxcorr"] = "COMPLETE"
 
     # Compute an array of time-dependent correction factors (a potentially

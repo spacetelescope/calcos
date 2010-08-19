@@ -335,9 +335,9 @@ def mkHeaders (phdr, events_header, extver=1):
     if events_header.has_key ("rootname"):
         rootname = events_header["rootname"]
         err_hdr.update ("rootname", rootname,
-                        comment="rootname of the observation")
+                        comment="rootname of the observation set")
         dq_hdr.update ("rootname", rootname,
-                       comment="rootname of the observation")
+                       comment="rootname of the observation set")
     if events_header.has_key ("expname"):
         expname = events_header["expname"]
         err_hdr.update ("expname", expname, comment="exposure identifier")
@@ -353,7 +353,7 @@ def mkHeaders (phdr, events_header, extver=1):
                     comment="Position Angle of reference aperture center (de")
     if events_header.has_key ("dispaxis"):
         err_hdr.update ("dispaxis", events_header["dispaxis"],
-                        comment="dispersion axis; 1 = axis 1, 2 = axis2, none")
+                        comment="dispersion axis; 1 = axis 1, 2 = axis 2, none")
     if events_header.has_key ("ngoodpix"):
         err_hdr.update ("ngoodpix", -999, comment="number of good pixels")
     if events_header.has_key ("goodmean"):
