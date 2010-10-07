@@ -784,12 +784,12 @@ def doPhacorr (inpha, events, info, switches, reffiles, phdr, hdr):
             if info["obsmode"] == "TIME-TAG":
                 cosutil.printRef ("PHATAB", reffiles)
                 filterByPulseHeight (events.field ("pha"), events.field ("dq"),
-                        reffiles["phatab"], info["segment"], hdr)
+                                     reffiles["phatab"], info, hdr)
             else:
                 checkPulseHeight (inpha, reffiles["phatab"], info, hdr)
             phdr["phacorr"] = "COMPLETE"
 
-def filterByPulseHeight (pha, dq, phatab, segment, hdr):
+def filterByPulseHeight (pha, dq, phatab, info, hdr):
     """Flag events that have a pulse height outside an allowed range.
 
     This is only called for TIME-TAG mode data.
@@ -800,8 +800,8 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
     @type dq: numpy array
     @param phatab: name of PHA thresholds table
     @type phatab: string
-    @param segment: segment name (FUVA or FUVB)
-    @type segment: string
+    @param info: header keywords and values
+    @type info: dictionary
     @param hdr: header for events table extension (keywords for screening
         limits and number of rejected events will be assigned)
     @type hdr: pyfits Header object
@@ -809,8 +809,12 @@ def filterByPulseHeight (pha, dq, phatab, segment, hdr):
 
     global active_area
 
-    pha_info = cosutil.getTable (phatab, filter={"segment": segment},
-                   exactly_one=True)
+    segment = info["segment"]
+    filter = {"segment": segment}
+    if cosutil.findColumn (phatab, "opt_elem"):
+        filter["opt_elem"] = info["opt_elem"]
+
+    pha_info = cosutil.getTable (phatab, filter, exactly_one=True)
 
     low = pha_info.field ("llt")[0]
     high = pha_info.field ("ult")[0]
@@ -873,8 +877,11 @@ def checkPulseHeight (inpha, phatab, info, hdr):
     @type hdr: pyfits Header object
     """
 
-    pha_info = cosutil.getTable (phatab, filter={"segment": info["segment"]},
-                   exactly_one=True)
+    filter = {"segment": info["segment"]}
+    if cosutil.findColumn (phatab, "opt_elem"):
+        filter["opt_elem"] = info["opt_elem"]
+
+    pha_info = cosutil.getTable (phatab, filter, exactly_one=True)
 
     low = pha_info.field ("llt")[0]
     high = pha_info.field ("ult")[0]

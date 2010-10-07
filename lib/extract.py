@@ -1397,7 +1397,7 @@ def updateCorrtagKeywords (flt, corrtag):
 def updateArchiveSearch (ofd):
     """Update the keywords giving min & max wavelengths, etc.
 
-    @param ofd: output, table header will be modified in-place
+    @param ofd: output, primary header will be modified in-place
     @type ofd: pyfits HDUList object
     """
 
@@ -1412,11 +1412,28 @@ def updateArchiveSearch (ofd):
     else:
         dq_wgt = None
 
-    #phdr.update ("SPECRES", 20000.)
-    #if detector == "FUV":
-    #    phdr.update ("PLATESC", 0.094)  # arcsec / pixel, cross-disp direction
-    #elif detector == "NUV":
-    #    phdr.update ("PLATESC", 0.026)
+    # First update PLATESC and SPECRES (even if there's no data).
+    spwcstab = phdr.get ("spwcstab", "N/A")
+    if spwcstab != "N/A":
+        opt_elem = phdr.get ("opt_elem", "missing")
+        cenwave = phdr.get ("cenwave", "missing")
+        aperture = phdr.get ("aperture", "PSA")
+        if aperture not in ["PSA", "BOA"]:
+            aperture = "PSA"    # override aperture = "WCA" or "FCA"
+        filter = {"opt_elem": opt_elem,
+                  "cenwave":  cenwave,
+                  "segment":  segment[0],
+                  "aperture": aperture}
+        wcs_info = cosutil.getTable (spwcstab, filter, exactly_one=True)
+        cdelt2 = wcs_info.field ("cdelt2")[0] * 3600
+        if detector == "NUV":
+            cdelt3 = wcs_info.field ("cdelt3")[0] * 3600
+            platesc = (cdelt2 + cdelt3) / 2.
+        else:
+            platesc = cdelt2
+        phdr.update ("platesc", platesc)
+        specres = wcs_info.field ("specres")
+        phdr.update ("specres", specres[0])
 
     if nrows <= 0 or len (wavelength[0]) < 1:
         return

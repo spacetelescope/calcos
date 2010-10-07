@@ -2470,17 +2470,17 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
             wrong_filetype[keyword] = (filename, filetype)
 
         if min_ver != "ANY":
-            phdr_ver = phdr.get ("VCALCOS", "1.0")
-            if type (phdr_ver) is not types.StringType:
-                phdr_ver = str (phdr_ver)
-            compare = cmpVersion (min_ver, phdr_ver, calcos_ver)
+            vcalcos = phdr.get ("VCALCOS", "1.0")
+            if type (vcalcos) is not types.StringType:
+                vcalcos = str (vcalcos)
+            compare = cmpVersion (min_ver, vcalcos, calcos_ver)
             if compare < 0:
                 bad_version[keyword] = (filename,
                 "  the reference file must be at least version " + min_ver)
             elif compare > 0:
                 bad_version[keyword] = (filename,
                 "  to use this reference file you must have calcos version " + \
-                 phdr_ver + " or later.")
+                 vcalcos + " or later.")
 
         fd.close()
 
@@ -2722,28 +2722,25 @@ def precess (t, target):
 
     return targ
 
-def cmpVersion (min_ver, phdr_ver, calcos_ver):
+def cmpVersion (min_ver, vcalcos, calcos_ver):
     """Compare version strings.
 
     arguments:
     min_ver      calcos requires the reference file to be at least this
                    version
-    phdr_ver     version of the reference file, read from its primary header
+    vcalcos      VCALCOS from the primary header of the reference file
     calcos_ver   version of calcos
 
-    This function returns 0 if the 'phdr_ver' is compatible with
-    'calcos_ver' and 'min_ver', i.e. that the following conditions are met:
+    The test passes if min_ver <= vcalcos <= calcos_ver, in which case
+    this function will return 0.
 
-        min_ver <= phdr_ver <= calcos_ver
-
-    If min_ver > phdr_ver, this function returns -1.
-    If phdr_ver > calcos_ver, this function returns +1.
+    If min_ver > vcalcos, this function returns -1; otherwise,
+    if vcalcos > calcos_ver, this function returns +1.
 
     Each string is first separated into a list of substrings, splitting
-    on ".", and comparisons are made on the substrings one at a time.
-    A comparison between min_ver="1a" and phdr_ver="1.0a" will fail,
-    for example, because the strings will be separated into parts before
-    comparing, and "1a" > "1".
+    on ".", and then those substrings are split into an integer part and
+    a part starting with a letter (if any).  Then comparisons are made on
+    the substrings one at a time.
 
     >>> print cmpVersion ("1", "1", "1.1")
     0
@@ -2757,129 +2754,151 @@ def cmpVersion (min_ver, phdr_ver, calcos_ver):
     1
     >>> print cmpVersion ("1.2", "1.1", "1.1")
     -1
-    >>> print cmpVersion ("1.0", "1", "1a")
+    >>> print cmpVersion ("1.0", "1.7", "2.3")
     0
-    >>> print cmpVersion ("1.0", "1.0a", "1")
+    >>> print cmpVersion ("2.7", "2.8", "2.8a")
+    0
+    >>> print cmpVersion ("2.0", "2.13.1", "2.13")
     1
-    >>> print cmpVersion ("1.0a", "1", "1")
-    -1
-    >>> print cmpVersion ("1.0a", "1.0a", "1b")
+    >>> print cmpVersion ("2.9", "2.9", "2.13.1")
     0
-    >>> print cmpVersion ("1a", "1.0a", "1b")
+    >>> print cmpVersion ("2.12d", "2.13b", "2.13a")
+    1
+    >>> print cmpVersion ("2.13d", "2.13b", "2.13a")
     -1
+    >>> print cmpVersion ("2.13", "2.13b", "2.13c")
+    0
     """
 
     minv = min_ver.split ('.')
-    phdrv = phdr_ver.split ('.')
+    phdrv = vcalcos.split ('.')
     calv = calcos_ver.split ('.')
 
+    # Replace any element that ends with one or more letters by two
+    # elements, the integer part and the string part.
+    splitIntLetter (minv)
+    splitIntLetter (phdrv)
+    splitIntLetter (calv)
+
+    len_minv = len (minv)
+    len_phdrv = len (phdrv)
+    len_calv = len (calv)
+
+    # Pad these lists with "0" to make them all the same length.
+    maxlength = max (len (minv), len (phdrv), len (calv))
+    for i in range (len_minv, maxlength):
+        minv.append ("0")
+    for i in range (len_phdrv, maxlength):
+        phdrv.append ("0")
+    for i in range (len_calv, maxlength):
+        calv.append ("0")
     length = min (len (minv), len (phdrv), len (calv))
 
     # These are initial values.  They'll be reset if either test passes
     # (because of an inequality in a part of the version string), in which
     # case tests on subsequent parts of the version strings will be omitted.
-    passed_min_test = 0
-    passed_calcos_test = 0
+    # For example, "2.3" is later than "1.7" because 2 > 1, and we ignore
+    # the fact that the second parts 3 and 7 compare in the opposite sense.
+    passed_min_test = False
+    passed_calcos_test = False
 
     for i in range (length):
         if not passed_min_test:
             cmp = cmpPart (minv[i], phdrv[i])
             if cmp < 0:
-                passed_min_test = 1
+                passed_min_test = True
             elif cmp > 0:
                 return -1
         if not passed_calcos_test:
             cmp = cmpPart (phdrv[i], calv[i])
             if cmp < 0:
-                passed_calcos_test = 1
+                passed_calcos_test = True
             elif cmp > 0:
                 return 1
 
     if passed_min_test or passed_calcos_test:
         return 0
 
-    if len (minv) > len (phdrv):
-        return -1
-    if len (phdrv) > len (calv):
-        return 1
-
     return 0
+
+def splitIntLetter (x):
+    """Split each part of x that has an appended letter or letters.
+
+    Parameters
+    ----------
+    x: list of strings
+        List of the parts of a version string, previously split on '.'.
+        This may be modified in-place, by splitting each element that has an
+        integer part followed by a string.  For example, x = ["2", "13b"]
+        would be modified to x = ["2", "13", "b"].
+    """
+
+    nine = ord ("9")
+    nelem = len (x)
+    mixed_parts = []
+    breakpoint = []
+    for i in range (nelem):
+        part = x[i]
+        for j in range (len (part)):
+            if ord (part[j]) > nine:
+                mixed_parts.append (i)
+                breakpoint.append (j)
+                break
+
+    for n in range (len (mixed_parts) - 1, -1, -1):
+        k = mixed_parts[n]
+        j = breakpoint[n]
+        part = x[k]
+        p1 = part[0:j]
+        if len (p1) < 1:
+            p1 = "0"
+        p2 = part[j:]
+        x[k] = p2
+        x.insert (k, p1)
 
 def cmpPart (s1, s2):
     """Compare two strings.
 
-    s1 and s2 are "parts" of version strings, i.e. each is a simple integer,
-    possibly with one or more appended letters.  The function value will be
-    -1, 0, or +1, depending on whether s1 is less than, equal to, or greater
-    than s2 respectively.  Comparison is done first on the numerical part,
-    and any appended string is used to break a tie.
-
-    >>> print cmpPart ("1", "01")
-    0
-    >>> print cmpPart ("14", "104")
-    -1
-    >>> print cmpPart ("9", "13a")
-    -1
-    >>> print cmpPart ("13", "13a")
-    -1
-    >>> print cmpPart ("13a", "14")
-    -1
-    >>> print cmpPart ("13a", "13b")
-    -1
+    s1 and s2 are "parts" of version strings; each is expected to be an
+    integer or a letter.  The function value will be -1, 0, or +1,
+    depending on whether s1 is less than, equal to, or greater than s2
+    respectively.
+        +1 --> s1 > s2
+         0 --> s1 == s2
+        -1 --> s1 < s2
     """
 
     if s1 == s2:
         return 0
 
-    nine = ord ('9')
+    s1_is_int = True            # initial values
+    s2_is_int = True
+    try:
+        int_s1 = int (s1)
+    except ValueError:
+        s1_is_int = False
+    try:
+        int_s2 = int (s2)
+    except ValueError:
+        s2_is_int = False
 
-    int1 = 0
-    str1 = ""
-    for i in range (len (s1)):
-        ich = ord (s1[i])
-        if ich > nine:
-            if i > 0:
-                int1 = int (s1[0:i])
-            str1 = s1[i:]
-            break
-        int1 = int (s1[0:i+1])
-
-    int2 = 0
-    str2 = ""
-    for i in range (len (s2)):
-        ich = ord (s2[i])
-        if ich > nine:
-            if i > 0:
-                int2 = int (s2[0:i])
-            str2 = s2[i:]
-            break
-        int2 = int (s2[0:i+1])
-
-    if int1 < int2:
-        return -1
-    elif int1 > int2:
-        return 1
-    else:
-        # The numerical parts are identical; use the letter(s) to break the tie.
-        if str1 == str2:
-            return 0
-        elif str1 == "":
-            return -1                   # the first string is "smaller"
-        elif str2 == "":
-            return 1                    # the first string is "larger"
+    if s1_is_int and s2_is_int:
+        # integer comparison
+        if int_s1 < int_s2:
+            value = -1
+        elif int_s1 > int_s2:
+            value = 1
         else:
-            length = min (len (str1), len (str2))
-            for i in range (length):
-                ich1 = ord (str1[i])
-                ich2 = ord (str2[i])
-                if ich1 < ich2:
-                    return -1
-                elif ich1 > ich2:
-                    return 1
-            if len (str1) < len (str2):
-                return -1
-            else:
-                return 1
+            value = 0
+    else:
+        # string comparison
+        if s1 < s2:
+            value = -1
+        elif s1 > s2:
+            value = 1
+        else:
+            value = 0
+    return value
 
 
 def _test():
