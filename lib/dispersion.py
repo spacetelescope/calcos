@@ -14,13 +14,17 @@ class Dispersion (object):
         disprel.info()
         disprel.close()
 
-    @ivar disptab: name of table containing dispersion relations
-    @type disptab: string
-    @ivar filter: parameters for selecting a row from the disptab
-    @type filter: dictionary
-    @ivar use_fpoffset: if True, include fpoffset in the filter; if False,
-        exclude it from the filter
-    @type use_fpoffset: boolean
+    Parameters
+    ----------
+    disptab: str
+        name of table containing dispersion relations
+
+    filter: dictionary
+        parameters for selecting a row from the disptab
+
+    use_fpoffset: boolean
+        if True, include fpoffset in the filter;
+        if False, exclude it from the filter
     """
 
     def __init__ (self, disptab, filter, use_fpoffset=True):

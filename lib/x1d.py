@@ -96,21 +96,52 @@ def extractSpec (inlist=[], outdir=None, update_input=False,
                  verbosity=None):
     """Extract a 1-D spectrum from each set of flt and counts images.
 
-    @param inlist: names of input corrtag files
-    @type inlist: list of strings
-    @param outdir: name of output directory, or None
-    @type outdir: string or None
-    @param update_input: if True, update keywords in the input corrtag files
-    @type update_input: boolean
-    @param location: location(s) at which to extract spectrum or spectra
-    @type location: float, or a list of floats
-    @param extrsize: extraction height(s) for spectra
-    @type extrsize: integer, or a list of integers
-    @param find_target: if True, search for the target spectrum in the
-        Y direction, rather than relying on the wavecal offset (shift2)
-    @type find_target: boolean
-    @param verbosity: if not None, set verbosity to this level (0, 1, 2)
-    @type verbosity: int or None
+    The input is a corrtag file name (the complete name, e.g.
+    rootname_corrtag_a.fits, not just a rootname).  One or more input
+    files may be specified.
+    The suffixes _corrtag, _flt and _counts are assumed by the code,
+    so the files on disk must have these suffixes.
+
+    If `location` or `extrsize` is specified and there is more than one
+    name in `inlist`, note that the same location or extraction size will
+    be used for every input file.  For FUV data, only one location or
+    extraction size is specified; for NUV data, from one to three values
+    may be specified, but these are for the three spectral stripes, not
+    for separate input files.
+
+    Parameters
+    ----------
+    inlist: list of str
+        Names of input corrtag files.
+
+    outdir: str or None
+        Name of output directory, or None if output files are to be
+        written to the default directory.
+
+    update_input: boolean
+        If True, update keywords in the input corrtag file or files.
+
+    location: int or float, or list of integers or floats, or None
+        The location (or list of three locations for NUV) of the spectrum
+        in the cross-dispersion direction, in pixels; this is where the
+        spectrum crosses the middle of the detector (index 8192 for FUV,
+        512 for NUV).  None means the user did not specify the location.
+        If `location` was specified, that value will be used, regardless
+        of the `find_target` switch.
+
+    extrsize: int, or list of int, or None
+        The height of the extraction box (or list of three heights for NUV)
+        in the cross-dispersion direction.  None means the user did not
+        specify the extraction height.
+
+    find_target: boolean
+        True means that we should search for the location of the target
+        in the cross-dispersion direction; False means we should use the
+        location determined from the wavecal or specified by the user.
+        `find_target` will be locally set to False if location is not None.
+
+    verbosity: int {0, 1, 2} or None
+        If not None, set verbosity to this level.
     """
 
     if verbosity is not None:

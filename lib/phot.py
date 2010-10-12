@@ -3,18 +3,22 @@ from __future__ import division         # confidence high
 def doPhot (imphttab, obsmode, hdr):
     """Update photometry parameter keywords for imaging data.
 
-    @param imphttab: the name of the imaging photometric parameters table
-    @type imphttab: string
-    @param obsmode: observation mode (e.g. "cos,nuv,mirrora,psa")
-    @type obsmode: string
-    @param hdr: the first extension header, updated in-place
-    @type hdr: pyfits Header object
-
     PHOTFLAM, inverse sensitivity, ergs/s/cm2/Ang per count/s
     PHOTFNU,  inverse sensitivity, ergs/s/cm2/Hz per count/s
     PHOTBW,   RMS bandwidth of filter plus detector (Angstroms)
     PHOTPLAM, Pivot wavelength (Angstroms)
     PHOTZPT = -21.10, ST magnitude system zero point
+
+    Parameters
+    ----------
+    imphttab: str
+        The name of the imaging photometric parameters table.
+
+    obsmode: str
+        Observation mode (e.g. "cos,nuv,mirrora,psa").
+
+    hdr: pyfits Header object
+        The first extension header, updated in-place.
     """
 
     (photflam, photfnu, photbw, photplam, photzpt) = \
@@ -28,14 +32,6 @@ def doPhot (imphttab, obsmode, hdr):
 
 def readImPhtTab (imphttab, obsmode):
     """Read the photometry parameters for imaging data from the imphttab.
-
-    @param imphttab: the name of the imaging photometry parameters table
-    @type imphttab: string
-    @param obsmode: observation mode
-    @type obsmode: string
-
-    @return: photflam, photfnu, photbw, photplam, photpzt
-    @rtype: tuple of floats
 
     This version has hardcoded values, since the imphttab hasn't been
     created yet.  The values were determined using pysynphot (and synphot
@@ -79,6 +75,19 @@ def readImPhtTab (imphttab, obsmode):
     bp = S.ObsBandpass ("cos,nuv,mirrorb,boa")
     sp = S.FlatSpectrum (1.866877735677e-14, fluxunits="flam")
     photfnu = 2.68068135014e-26
+
+    Parameters
+    ----------
+    imphttab: str
+        The name of the imaging photometry parameters table.
+
+    obsmode: str
+        Observation mode.
+
+    Returns
+    -------
+    param: tuple of floats
+        Photflam, photfnu, photbw, photplam, photpzt.
     """
 
     # These values are photflam, photfnu, photbw, photplam, photzpt:

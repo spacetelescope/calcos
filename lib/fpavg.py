@@ -8,11 +8,6 @@ from calcosparam import *       # parameter definitions
 def fpAvgSpec (input, output):
     """Average 1-D extracted FP-POS spectra.
 
-    @param input: name(s) of the input x1d files
-    @type input: list of strings
-    @param output: name of a file for the averaged spectra
-    @type output: string
-
     It is assumed that the arrays in all the input tables have the same
     length, but the output spectra will in general be longer than the
     input spectra.  The wavelengths in the input spectra will cover
@@ -36,6 +31,14 @@ def fpAvgSpec (input, output):
     proportional to the area of overlap.  This is equivalent to linear
     interpolation, since the area of overlap (actually the length, since
     this is 1-D) is linearly related to the pixel shift.
+
+    Parameters
+    ----------
+    input: str
+        Name(s) of the input x1d files.
+
+    output: str
+        Name of a file for the averaged spectra.
     """
 
     nfiles = len (input)

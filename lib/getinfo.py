@@ -8,8 +8,16 @@ from calcosparam import *
 def initialInfo (filename):
     """Get DETECTOR, OBSMODE, and EXPTYPE from the primary header.
 
-    @param filename: name of input file
-    @type filename: string
+    Parameters
+    ----------
+    filename: str
+        Name of the input file.
+
+    Returns
+    -------
+    info: dictionary
+        Keywords and values (just a few) from the headers of the input
+        file.
     """
 
     fd = pyfits.open (filename, mode="readonly")
@@ -66,10 +74,18 @@ def getGeneralInfo (phdr, hdr):
     detector, rather than being read directly from the header.  The
     heliocentric velocity will be initialized to zero.
 
-    @param phdr: primary header
-    @type phdr: pyfits Header object
-    @param hdr: extension header
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        Primary header.
+
+    hdr: pyfits Header object
+        Extension header.
+
+    Returns
+    -------
+    info: dictionary
+        Keywords and values from the headers of the input file.
     """
 
     info = {}
@@ -221,8 +237,16 @@ def getSwitchValues (phdr):
     keyword is missing from the header, it will still be included in the
     dictionary, but its value will be set to the NOT_APPLICABLE string.
 
-    @param phdr: primary header
-    @type phdr: pyfits Header object
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        Primary header.
+
+    Returns
+    -------
+    switches: dictionary
+        Calibration switch keywords and their values from the primary
+        header of the input file.
     """
 
     switches = {}
@@ -248,8 +272,16 @@ def getRefFileNames (phdr):
     header, while keys of the form "bpixtab" have been translated to full
     path names (operating system dependent).
 
-    @param phdr: primary header
-    @type phdr: pyfits Header object
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        Primary header.
+
+    Returns
+    -------
+    reffiles: dictionary
+        Reference file keywords and their values from the primary
+        header of the input file.
     """
 
     reffiles = {}
@@ -281,10 +313,13 @@ def resetSwitches (switches, reffiles):
     step cannot be done.  This function checks some steps and resets the
     switch from PERFORM to SKIPPED if a required reference file is "N/A".
 
-    @param switches: keyword and value for calibration switches
-    @type switches: dictionary
-    @param reffiles: keyword and value for reference file names
-    @type reffiles: dictionary
+    Parameters
+    ----------
+    switches: dictionary
+        Keyword and value for calibration switches.
+
+    reffiles: dictionary
+        Keyword and value for reference file names.
     """
 
     check_these = {"badtcorr": ["badttab"],

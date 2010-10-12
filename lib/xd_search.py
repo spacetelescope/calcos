@@ -31,29 +31,41 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
               x_offset, detector):
     """Find the cross-dispersion location of the target spectrum.
 
-    @param data: SCI data from the flt file
-    @type data: 2-D numpy array
-    @param dq_data: DQ data from the flt file
-    @type dq_data: 2-D numpy array
-    @param wavelength: wavelength at each pixel (only needed for FUV)
-    @type wavelength: array
-    @param axis: the dispersion axis, 0 (Y) or 1 (X)
-    @type axis: int
-    @param slope: slope of spectrum, pixels per pixel
-    @type slope: float
-    @param y_nominal: location of spectrum at left edge of detector,
-        i.e. at X = x_offset
-    @type y_nominal: float
-    @param x_offset: offset of the detector in the data array
-    @type x_offset: int
-    @param detector: detector name ("FUV" or "NUV")
-    @type detector: string
+    Parameters
+    ----------
+    data: array_like, 2-D
+        SCI data from the flt file.
 
-    @return: offset of the spectrum from y_nominal (positive if the spectrum
-        was found at a larger Y pixel number); the Y pixel number at which
-        the spectrum was found (at pixel x_offset from the left edge of
-        'data'); the error estimate for y_locn
-    @rtype: tuple of three floats
+    dq_data: array_like, 2-D
+        DQ data from the flt file.
+
+    wavelength: array_like, 1-D
+        Wavelength at each pixel (only needed for FUV).
+
+    axis: int
+        The dispersion axis, 0 (Y) or 1 (X).
+
+    slope: float
+        Slope of spectrum, pixels per pixel.
+
+    y_nominal: float
+        Location of spectrum at left edge of detector, i.e. at
+        X = `x_offset`.
+
+    x_offset: int
+        Offset of the detector in the data array.
+
+    detector: str
+        Detector name ("FUV" or "NUV").
+
+    Returns
+    -------
+    (offset2, y_locn, y_locn_sigma): tuple of three floats
+        `offset2` is the offset of the spectrum from `y_nominal` (positive
+        if the spectrum was found at a larger Y pixel number).  `y_locn`
+        is the Y pixel number at which the spectrum was found (at pixel
+        `x_offset` from the left edge of `data`).  `y_locn_sigma` is the
+        error estimate for `y_locn`.
     """
 
     (e_j, zero_point) = extractBand (data, dq_data, wavelength,

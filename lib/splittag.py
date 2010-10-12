@@ -13,29 +13,33 @@ def splittag (infiles, outroot, starttime=None, increment=None, endtime=None,
               time_list=None, verbosity=1):
     """Split TIME-TAG files into multiple files.
 
-    @param infiles: name of input file, possibly including a wildcard character
-    @type infiles: string
-    @param outroot: root name with which to construct output file names
-    @type outroot: string
-    @param starttime: time at beginning of first interval, or None if
-        time_list was specified
-    @type starttime: float, or None
-    @param increment: length of each time interval, or None if time_list
-        was specified
-    @type increment: float, or None
-    @param endtime: time at end of last interval, or None if time_list is
-        specified
-    @type endtime: float, or None
-    @param time_list: string containing explicit times of beginning of each
-        time interval and end of the last interval; the first time may be
-        given as "start" (time=0, i.e. at EXPSTART), and the last time may be
-        given as either "stop" or "end" (time of last event in TIME column)
-    @type time_list: string
-    @param verbosity: 0 --> print almost nothing, 1 --> print some info,
-        2 --> print more info
-    @type verbosity: int
-
     All times are in seconds, and the zero point is EXPSTART.
+
+    infiles: str
+        Name of input file, possibly including a wildcard character.
+
+    outroot: str
+        Root name with which to construct output file names.
+
+    starttime: float or None
+        Time at beginning of first interval, or None if time_list was
+        specified.
+
+    increment: float or None
+        Length of each time interval, or None if time_list was specified.
+
+    endtime: float or None
+        Time at end of last interval, or None if time_list is specified.
+
+    time_list: str
+        String containing explicit times of beginning of each time
+        interval and end of the last interval; the first time may be given
+        as "start" (time=0, i.e. at EXPSTART), and the last time may be
+        given as either "stop" or "end" (time of last event in TIME column).
+
+    verbosity: int {0, 1, 2}
+        0 --> print almost nothing, 1 --> print some info,
+        2 --> print more info
     """
 
     infiles = os.path.expandvars (infiles)

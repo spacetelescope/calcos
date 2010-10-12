@@ -15,33 +15,42 @@ def extract1D (input, incounts=None, output=None,
                location=None, extrsize=None, find_target=False):
     """Extract 1-D spectrum from 2-D image.
 
-    @param input: name of either the flat-fielded count-rate image (in which
-        case incounts must also be specified) or the corrtag table
-    @type input: string
-    @param incounts: name of the file containing the count-rate image,
-        or None if input is the corrtag table
-    @type incounts: string, or None
-    @param output: name of the output file for 1-D extracted spectra
-    @type output: string
-    @param update_input: True if the input flt and counts files should be
-        modified in-place by updating keywords regarding extraction location
-    @type update_input: boolean
-    @param location: the location (or list of three locations for NUV) of
-        the spectrum in the cross-dispersion direction, in pixels; this
-        is where the spectrum crosses the middle of the detector (index
-        8192 for FUV, 512 for NUV).  None means the user did not specify
-        the location.  If location was specified, that value will be used,
-        regardless of the find_target switch.
-    @type location: int or float, but could be a list or tuple for NUV, or None
-    @param extrsize: the height of the extraction box (or list of three heights
-        for NUV) in the cross-dispersion direction.  None means the user did
-        not specify the extraction height.
-    @type extrsize: integer, but could be a list or tuple for NUV, or None
-    @param find_target: True means that we should search for the location of
-        the target in the cross-dispersion direction; False means we should
-        use the location determined from the wavecal or specified by the user.
-        find_target will be locally set to False if location is not None.
-    @type find_target: boolean
+    Parameters
+    ----------
+    input: str
+        Name of either the flat-fielded count-rate image (in which
+        case `incounts` must also be specified) or the corrtag table.
+
+    incounts: str or None
+        Name of the file containing the count-rate image, or None if
+        `input` is a corrtag table.
+
+    output: str
+        Name of the output file for 1-D extracted spectra.
+
+    update_input: boolean
+        True if the input flt and counts files should be modified in-place
+        by updating keywords regarding extraction location.
+
+    location: int or float, or list of integers or floats, or None
+        The location (or list of three locations for NUV) of the spectrum
+        in the cross-dispersion direction, in pixels; this is where the
+        spectrum crosses the middle of the detector (index 8192 for FUV,
+        512 for NUV).  None means the user did not specify the location.
+        If `location` was specified, that value will be used, regardless
+        of the `find_target` switch.
+
+    extrsize: int, or list of int, or None
+        The height of the extraction box (or list of three heights for NUV)
+        in the cross-dispersion direction.  None means the user did not
+        specify the extraction height.
+
+    find_target: boolean
+        True means that we should search for the location of the target
+        in the cross-dispersion direction; False means we should use the
+        location determined from the wavecal or specified by the user.
+        `find_target` will be locally set to False if `location` is not
+        None.
     """
 
     cosutil.printIntro ("Spectral Extraction")

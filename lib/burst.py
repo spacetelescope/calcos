@@ -15,25 +15,35 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
     data quality column for each event within that time interval.
     This is based on cf_screen_burst.c for FUSE.
 
-    @param time: the time column in the events table
-    @type time: numpy array
-    @param y: the column of cross dispersion locations of events
-    @type y: numpy array
-    @param dq: the data quality column in the events table (updated in-place)
-    @type dq: numpy array
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param info: header keywords and values
-    @type info: dictionary
-    @param burstfile: name of output text file for burst info (or None)
-    @type burstfile: string
-    @param high_countrate: this flag can be set to true to force the time
-        interval to be short, as if the data were high count rate
-    @type high_countrate: boolean
+    Parameters
+    ----------
+    time: array_like
+        The time column in the events table.
 
-    @return: list of [bad_start, bad_stop] intervals during which a burst
-        was detected (seconds since expstart)
-    @rtype: list of two-element lists, or None
+    y: array_like
+        The column of cross dispersion locations of events.
+
+    dq: array_like
+        The data quality column in the events table (updated in-place).
+
+    reffiles: dictionary
+        Reference file names.
+
+    info: dictionary
+        Header keywords and values.
+
+    burstfile: str or None
+        Name of output text file for burst info.
+
+    high_countrate: boolean
+        This flag can be set to true to force the time interval to be
+        short, as if the data were high count rate.
+
+    Returns
+    -------
+    bursts: list of two floats
+        List of [bad_start, bad_stop] intervals during which a burst
+        was detected (seconds since expstart).
     """
 
     bursts = None
@@ -179,12 +189,18 @@ def burstFilter (time, y, dq, reffiles, info, burstfile=None,
 def getBurstParam (brsttab, segment):
     """Read parameters from burst reference table.
 
-    @param brsttab: the name of the burst reference table
-    @type brsttab: string
-    @param segment: FUVA or FUVB
-    @type segment: string
+    Parameters
+    ----------
+    brsttab: str
+        The name of the burst reference table.
 
-    The function value is a tuple with the parameter values.
+    segment: str {"FUVA", "FUVB"}
+        FUV segment name.
+
+    Returns
+    -------
+    tuple
+        The parameters read from the brsttab.
     """
 
     burst_info = cosutil.getTable (brsttab, filter={"segment": segment},
@@ -212,14 +228,20 @@ def getRegionLocations (reffiles, info):
     table, and these will be used to define the source and background
     regions.
 
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param info: header keywords and values
-    @type info: dictionary
+    Parameters
+    ----------
+    reffiles: dictionary
+        Reference file names.
 
-    The function value is a tuple with the lower and upper limits
-    (in the cross-dispersion direction) of the active area, the
-    source extraction region, and the two background regions.
+    info: dictionary
+        Header keywords and values.
+
+    Returns
+    -------
+    tuple
+        A tuple with the lower and upper limits (in the cross-dispersion
+        direction) of the active area, the source extraction region, and
+        the two background regions.
     """
 
     (active_low, active_high, active_left, active_right) = \
@@ -258,18 +280,24 @@ def getRegionLocations (reffiles, info):
 def extractIntervals (time, istart, bkg_counts):
     """Construct list of bad time intervals.
 
-    @param time: time column from events table
-    @type time: numpy array
-    @param istart: array of indices; time[istart[i]] is the time at the
-        start of bin i
-    @type istart: numpy array
-    @param bkg_counts: negative values are used to flag bursts (otherwise,
-        this is the array of background counts within each time bin)
-    @type bkg_counts: numpy array
+    Parameters
+    ----------
+    time: array_like
+        Time column from events table.
 
-    @return: list of [bad_start, bad_stop] intervals during which a burst
-        was detected (seconds since expstart)
-    @rtype: list of two-element lists, or None
+    istart: array_like
+        Array of indices; time[istart[i]] is the time at the start of bin i.
+
+    bkg_counts: array_like
+        Negative values are used to flag bursts (otherwise, this is the
+        array of background counts within each time bin).
+
+    Returns
+    -------
+    list of two-element lists, or None
+        List of [bad_start, bad_stop] intervals during which a burst was
+        detected (seconds since expstart).  The function value will be
+        None of no burst was detected.
     """
 
     if bkg_counts.min() >= 0:

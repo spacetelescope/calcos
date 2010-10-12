@@ -45,32 +45,41 @@ class Shift1 (object):
         spectrum = fs1.getSpec (key)    # a slice, normalized to the template
         template = fs1.getTmpl (key)    # a slice
 
-    @ivar spectra: the 1-D extracted spectra; these should be in counts,
-        not counts/s, because Poisson statistics will be assumed
-    @type spectra: dictionary of arrays
-    @ivar templates: template spectra (same keys as for spectra) from lamptab
-    @type templates: dictionary of arrays
-    @ivar info: keywords and values
-    @type info: dictionary
-    @ivar reffiles: reference file names
-    @type reffiles: dictionary
-    @ivar xc_range: the maximum offset (lag) for the cross correlation;
-        this is from column XC_RANGE in the WCPTAB
-    @type xc_range: int
-    @ivar fp_pixel_shift: from the FP_PIXEL_SHIFT column of the lamptab,
-        with an entry (same keys as for spectra) for each segment or stripe;
-        if that column is not present in the lamptab, the values should be 0
-    @type fp_pixel_shift: dictionary
-    @ivar initial_offset: 0 if the lamptab contains both the FPOFFSET and
-        FP_PIXEL_SHIFT columns (this is the normal case, no initial offset
-        should be applied); if those columns are not in the lamptab,
-        initial_offset is the nominal offset (FPOFFSET * STEPSIZE) between
-        the wavecal spectrum and the template spectrum from the lamptab
-    @type initial_offset: int
-    @ivar spec_found: True for each spectrum that was found (same keys as
-        for spectra); this is a set of initial values which will be saved as
-        an attribute, updated, and may be gotten via method getSpecFound.
-    @type spec_found: dictionary of boolean flags
+    Parameters
+    ----------
+    spectra: dictionary of array_like
+        The 1-D extracted spectra; these should be in counts, not counts/s,
+        because Poisson statistics will be assumed.
+
+    templates: dictionary of array_like
+        Template spectra (same keys as for `spectra`) from the lamptab.
+
+    info: dictionary
+        Header keywords and values.
+
+    reffiles: dictionary
+        Reference file names.
+
+    xc_range: int
+        The maximum offset (lag) for the cross correlation; this is from
+        column XC_RANGE in the WCPTAB.
+
+    fp_pixel_shift: dictionary
+        From the FP_PIXEL_SHIFT column of the lamptab, with an entry (same
+        keys as for `spectra`) for each segment or stripe; if that column
+        is not present in the lamptab, the values should be 0.
+
+    initial_offset: int
+        0 if the lamptab contains both the FPOFFSET and FP_PIXEL_SHIFT
+        columns (this is the normal case, no initial offset should be
+        applied); if those columns are not in the lamptab, `initial_offset`
+        is the nominal offset (FPOFFSET * STEPSIZE) between the wavecal
+        spectrum and the template spectrum from the lamptab.
+
+    spec_found: dictionary of boolean flags
+        True for each spectrum that was found (same keys as for spectra);
+        this is a set of initial values which will be saved as an
+        attribute, updated, and may be gotten via method getSpecFound.
     """
 
     def __init__ (self, spectra, templates,

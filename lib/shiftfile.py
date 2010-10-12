@@ -27,12 +27,16 @@ class ShiftFile (object):
         ((shift1, shift2), nfound) = user_shifts.getShifts (key)
     key is a tuple of flash number (or "any") and segment/stripe name.
 
-    @ivar shift_file: name of text file supplied by user
-    @type shift_file: string
-    @ivar rootname: rootname of the current exposure
-    @type rootname: string
-    @ivar fpoffset: fpoffset of the current exposure
-    @type fpoffset: int
+    Parameters
+    ----------
+    shift_file: str
+        Name of text file supplied by user.
+
+    rootname: str
+        Rootname of the current exposure.
+
+    fpoffset: int
+        Fpoffset of the current exposure.
     """
 
     def __init__ (self, shift_file, rootname, fpoffset):

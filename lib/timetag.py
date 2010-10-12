@@ -40,34 +40,51 @@ def timetagBasicCalibration (input, inpha, outtag,
     The function value will be zero if there was no problem,
     and it will be one if there was no input data.
 
-    @param input: name of the input file
-    @type input: string
-    @param inpha: name of the input file containing the pulse height
-        histogram (FUV ACCUM only)
-    @type inpha: string
-    @param outtag: name of the output file for corrected time-tag data
-    @type outtag: string
-    @param output: name of the output file for flat-fielded count-rate image
-    @type output: string
-    @param outcounts: name of the output file for count-rate image
-    @type outcounts: string
-    @param outflash: name of the output file for tagflash wavecal spectra
-        (or None)
-    @type outflash: string
-    @param outcsum: name of the output image for OPUS to add to cumulative
-        image (or None)
-    @type outcsum: string
-    @param cl_args: some of the command-line arguments
-    @type cl_args: dictionary
-    @param info: header keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param wavecal_info: when wavecal exposures were processed, the results
-        were stored in dictionaries in this list
-    @type wavecal_info: list of dictionaries
+    Parameters
+    ----------
+    input: str
+        Name of the input file.
+
+    inpha: str
+        Name of the input file containing the pulse height histogram (FUV
+        ACCUM only).
+
+    outtag: str
+        Name of the output file for corrected time-tag data.
+
+    output: str
+        Name of the output file for flat-fielded count-rate image.
+
+    outcounts: str
+        Name of the output file for count-rate image.
+
+    outflash: str or None
+        Name of the output file for tagflash wavecal spectra.
+
+    outcsum: str or None
+        Name of the output image for OPUS to add to cumulative image.
+
+    cl_args: dictionary
+        Some of the command-line arguments.
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    wavecal_info: list of dictionaries
+        When wavecal exposures were processed, the results were stored in
+        dictionaries in this list.
+
+    Returns
+    -------
+    status: int
+        0 is OK
+        1 means there were no rows in the input table
     """
 
     if info["obsmode"] == "TIME-TAG":
@@ -189,6 +206,8 @@ def timetagBasicCalibration (input, inpha, outtag,
                    cl_args["binx"], cl_args["biny"],
                    cl_args["compress_csum"],
                    cl_args["compression_parameters"])
+        if cl_args["only_raw_csum"]:
+            return 0                    # don't write flt and counts
 
     doFlatcorr (events, info, switches, reffiles, phdr, headers[1])
 

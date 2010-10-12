@@ -17,24 +17,30 @@ import shiftfile
 def findWavecalShift (input, shift_file, info, wcp_info):
     """Find the shift from a wavecal image.
 
-    @param input: name of an x1d FITS file containing a wavecal observation
-    @type input: string
-    @param shift_file: name of a user-supplied file to override shifts, or None
-    @type shift_file: string
-    @param info: keywords and values
-    @type info: dictionary
-    @param wcp_info: data (one row) from the wavecal parameters table
-    @type wcp_info: pyfits record
+    Note that the input file will be opened read-write, and several
+    keywords (e.g. SHIFT1A, SHIFT1B, and SHIFT1C if NUV) will be updated
+    in the header.
 
-    The function value is a dictionary of shifts, with keys shift1a,
-    shift1b, shift1c.  The shift is the value for that segment or stripe
-    only.  For FUV, there may be only one element in the dictionary.
+    Parameters
+    ----------
+    input: str
+        Name of an x1d FITS file containing a wavecal observation.
 
-    Note that the input file will be opened read-write, the SHIFT1A, SHIFT1B
-    (and SHIFT1C if NUV) keywords will be updated with the shift of each
-    individual segment or stripe.
+    shift_file: str
+        Name of a user-supplied file to override shifts, or None.
 
-    None will be returned if there is no data in the first extension of input.
+    info: dictionary
+        Keywords and values from the headers of the input file.
+
+    wcp_info: array_like
+        Data (one row) from the wavecal parameters table.
+
+    Returns
+    -------
+    shift_dict: dictionary or None
+        Keys are header keywords (but lower case) for wavecal information,
+        values are the values for the header; None will be returned if
+        there is no data in the first extension of input.
     """
 
     # Note that we open the x1d table read-write, so we can update keywords.
@@ -483,27 +489,31 @@ def interpolateWavecal (wavecal_info, time):
 def findWavecalSpectrum (corrtag, info, reffiles):
     """Find the offset of a wavecal spectrum in the cross-dispersion direction.
 
-    @param corrtag: name of the corrtag FITS file containing a wavecal
-    @type corrtag: string
-    @param info: header keywords and values
-    @type info: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-
-    @return: (shift2, xd_shifts, xd_locns, lamp_is_on)
-    @rtype: tuple of a float, two dictionaries, and a boolean flag
-
-    The function value is a tuple of four items:  shift2, two dictionaries
-    (xc_shifts, xd_locns), and a boolean flag.  shift2 is the offset (average
-    of those found, if NUV) from nominal in the cross-dispersion direction,
-    in pixels; this value will be zero if the offset could not be determined.
-    xd_shifts and xd_locns use the segment or stripe name as the key; the
-    value for xd_shifts is the shift from nominal, and the value for xd_locns
-    is the location where the spectrum was found (projected onto the left
-    edge).  lamp_is_on is a flag that indicates whether the lamp was actually
-    on.
-
     Note that it is assumed that all wavecals are taken in time-tag mode.
+
+    Parameters
+    ----------
+    corrtag: str
+        Name of the corrtag FITS file containing a wavecal.
+
+    info: dictionary
+        Keywords and values from the headers of the input file.
+
+    reffiles: dictionary
+        Reference file names.
+
+    Returns
+    -------
+    (shift2, xd_shifts, xd_locns, lamp_is_on): tuple of a float, two
+    dictionaries, and a boolean flag
+        `shift2` is the offset (average of those found, if NUV) from
+        nominal in the cross-dispersion direction, in pixels; this value
+        will be zero if the offset could not be determined.  Dictionaries
+        `xd_shifts` and `xd_locns` use the segment or stripe name as the
+        key; the value for `xd_shifts` is the shift from nominal, and the
+        value for `xd_locns` is the location where the spectrum was found
+        (projected onto the left edge).  `lamp_is_on` is a flag that
+        indicates whether the lamp was actually on.
     """
 
     fd = pyfits.open (corrtag, mode="readonly", memmap=0)
@@ -512,7 +522,7 @@ def findWavecalSpectrum (corrtag, info, reffiles):
     sci_extn = fd["EVENTS"]
     if sci_extn.data is None:
         fd.close()
-        return (0., {}, {})
+        return (0., {}, {}, False)
     xtractab = reffiles["xtractab"]
 
     wcp_info = cosutil.getTable (reffiles["wcptab"],
@@ -552,34 +562,43 @@ def findWavecalSpectrum (corrtag, info, reffiles):
 def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     """Find the offset of a wavecal spectrum in cross-dispersion direction.
 
-    @param xi: corrected pixel coordinates in the dispersion direction
-    @type xi: numpy array
-    @param eta: corrected pixel coords in the cross-dispersion direction
-    @type eta: numpy array
-    @param dq: data quality flags
-    @type dq: numpy array
-    @param info: header keywords and values
-    @type info: dictionary
-    @param xd_range: search within + or - xd_range from the nominal location
-        for the peak in the cross-dispersion direction
-    @type xd_range: int
-    @param box: smooth the cross-dispersion profile with a box of this
-        width before looking for the maximum
-    @type box: float
-    @param xtractab: name of the 1-D extraction parameters table
-    @type xtractab: string
+    Parameters
+    ----------
+    xi: array_like
+        Corrected pixel coordinates in the dispersion direction.
 
-    @return: (shift2, xd_shifts, xd_locns, lamp_is_on)
-    @rtype: tuple of a float, two dictionaries, and a boolean flag
+    eta: array_like
+        Corrected pixel coordinates in the cross-dispersion direction.
 
-    The function value is a tuple of four items:  shift2, two dictionaries
-    (xc_shifts, xd_locns), and a boolean flag.  shift2 is the offset (average
-    of those found, if NUV) from nominal in the cross-dispersion direction,
-    in pixels; this value will be zero if the offset could not be determined.
-    xd_shifts and xd_locns use the segment or stripe name as the key; the
-    value for xd_shifts is the shift from nominal, and the value for xd_locns
-    is the location where the spectrum was found.  lamp_is_on is a flag that
-    indicates whether the lamp was actually on.
+    dq: array_like
+        Data quality flags.
+
+    info: dictionary
+        Header keywords and values.
+
+    xd_range: int
+        Search within + or - `xd_range` from the nominal location for the
+        peak in the cross-dispersion direction.
+
+    box: int
+        Smooth the cross-dispersion profile with a box of this width before
+        looking for the maximum.
+
+    xtractab: str
+        Name of the 1-D extraction parameters table.
+
+    Returns
+    -------
+    (shift2, xd_shifts, xd_locns, lamp_is_on):  tuple of a float, two
+    dictionaries, and a boolean flag
+        `shift2` is the offset (average of those found, if NUV) from
+        nominal in the cross-dispersion direction, in pixels; this value
+        will be zero if the offset could not be determined.  Dictionaries
+        `xd_shifts` and `xd_locns` use the segment or stripe name as the
+        key; the value for `xd_shifts` is the shift from nominal, and the
+        value for `xd_locns` is the location where the spectrum was found
+        (projected onto the left edge).  `lamp_is_on` is a flag that
+        indicates whether the lamp was actually on.
     """
 
     if len (xi) < 1:
@@ -718,27 +737,33 @@ def ttFindNUV (xi, eta, dq, xd_range, box, filter, xtractab):
 def ttFindSpec (xdisp, xtract_info, xd_range, box):
     """Find the location in the cross-dispersion direction.
 
-    @param xdisp: 1-D array of time-tag data collapsed along dispersion
-        axis, but taking into account the tilt of the spectrum
-    @type xdisp: numpy array
-    @param xtract_info: data block (but just one row) from the xtractab
-    @type xtract_info: pyfits record array
-    @param xd_range: search within + or - xd_range from the nominal location
-        for the peak in xdisp
-    @type xd_range: int
-    @param box: smooth xdisp with a box of this width before looking
-        for the maximum
-    @type box: int
+    Parameters
+    ----------
+    xdisp: array_like
+        The cross-dispersion profile, 1-D array of time-tag data collapsed
+        along the dispersion axis, but taking into account the tilt of the
+        spectrum.
 
-    @return: (shift2, y)
-    @rtype: tuple of two floats
+    xtract_info: array_like
+        Data block (but just one row) from the xtractab.
 
-    The function value is a tuple of the shift from nominal in the
-    cross-dispersion direction and the location of the spectrum.
-    The location is based on fitting a quadratic to points near the maximum.
-    Note that the data were collapsed to the left edge to get xdisp, so the
-    location is the intercept on the edge, rather than where the spectrum
-    crosses the middle of the detector.
+    xd_range: int
+        Search within + or - `xd_range` from the nominal location for the
+        peak in xdisp.
+
+    box: int
+        Smooth `xdisp` with a box of this width before looking for the
+        maximum.
+
+    Returns
+    -------
+    (shift2, y): tuple of two floats
+        `shift2` is the shift from nominal in the cross-dispersion
+        direction, and `y` is the location of the spectrum.  The
+        location is based on fitting a quadratic to points near the
+        maximum.  Note that the data were collapsed to the left edge to
+        get `xdisp`, so the location is the intercept on the edge, rather
+        than where the spectrum crosses the middle of the detector.
     """
 
     y_nominal = xtract_info.field ("b_spec")[0]

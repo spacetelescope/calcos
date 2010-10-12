@@ -24,31 +24,48 @@ def accumBasicCalibration (input, inpha, outtag,
 
     The function value will be zero if there was no problem.
 
-    @param input: name of the input file
-    @type input: string
-    @param inpha: name of the input file containing the pulse height
-        histogram (FUV only)
-    @type inpha: string
-    @param outtag: name of the output file for pseudo time-tag data
-    @type outtag: string
-    @param outflt: name of the output file for flat-fielded count-rate image
-    @type outflt: string
-    @param outcounts: name of the output file for count-rate image
-    @type outcounts: string
-    @param outcsum: name of the output image for OPUS to add to cumulative
-        image (or None)
-    @type outcsum: string
-    @param cl_args: some of the command-line arguments
-    @type cl_args: dictionary
-    @param info: header keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param wavecal_info: when wavecal exposures were processed, the results
-        were stored in dictionaries in this list
-    @type wavecal_info: list of dictionaries
+    Parameters
+    ----------
+    input: str
+        Name of the input file.
+
+    inpha: str
+        Name of the input file containing the pulse height histogram
+        (FUV only).
+
+    outtag: str
+        Name of the output file for pseudo time-tag data.
+
+    outflt: str
+        Name of the output file for the flat-fielded count-rate image.
+
+    outcounts: str
+        Name of the output file for the count-rate image.
+
+    outcsum: str or None
+        Name of the output image for OPUS to add to cumulative image.
+
+    cl_args: dictionary
+        Some of the command-line arguments.
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    wavecal_info: list of dictionaries
+        When wavecal exposures were processed, the results were stored in
+        dictionaries in this list.
+
+    Returns
+    -------
+    status: int
+        0 is OK
+        1 means there were no rows in the input table
     """
 
     cosutil.printIntro ("ACCUM calibration")
@@ -212,12 +229,16 @@ def acqImage (input, outflt, outcounts, outcsum, cl_args,
 def updateGlobrate (hdr, data, exptime):
     """Update the GLOBRATE keyword in the extension header.
 
-    @param hdr: the input events extension header
-    @type hdr: pyfits Header object
-    @param data: data array
-    @type data: numpy array
-    @param exptime: exposure time in seconds
-    @type exptime: float
+    Parameters
+    ----------
+    hdr: pyfits Header object
+        The input events extension header.
+
+    data: array_like
+        Data array.
+
+    exptime: float
+        Exposure time in seconds.
     """
 
     if data is None or exptime <= 0.:
@@ -231,16 +252,22 @@ def updateGlobrate (hdr, data, exptime):
 def doPhotcorr (info, switches, imphttab, phdr, hdr):
     """Update photometry parameter keywords for imaging data.
 
-    @param info: header keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param imphttab: the name of the imaging photometric parameters table
-    @type imphttab: string
-    @param phdr: the primary header, photcorr keyword updated in-place
-    @type phdr: pyfits Header object
-    @param hdr: the first extension header, updated in-place
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    imphttab: str
+        The name of the imaging photometric parameters table.
+
+    phdr: pyfits Header object
+        The primary header, photcorr keyword updated in-place.
+
+    hdr: pyfits Header object
+        The first extension header, updated in-place.
     """
 
     if info["obstype"] == "IMAGING" and info["detector"] == "NUV":
@@ -254,17 +281,23 @@ def doPhotcorr (info, switches, imphttab, phdr, hdr):
 def doDqicorr (info, switches, reffiles, phdr, dq_array):
     """Update the DQ array using the DQI table.
 
-    @param info: header keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param phdr: primary header from input file
-    @type phdr: pyfits Header object
-    @param dq_array: DQ array from input file, or an array of zeros;
-        this will be modified in-place
-    @type dq_array: numpy array
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    phdr: pyfits Header object
+        Primary header from input file.
+
+    dq_array: array_like
+        DQ array from input file, or an array of zeros; this will be
+        modified in-place.
     """
 
     cosutil.printSwitch ("DQICORR", switches)
@@ -307,23 +340,33 @@ def deadtimeCorrection (flt_sci, exptime, deadtab, info,
     event counter.  If there are no subarrays, the livetime factor is based
     on the actual count rate.
 
-    @param flt_sci: the SCI image array, to be corrected in-place
-    @type flt_sci: numpy array
-    @param exptime: exposure time for current imset
-    @type exptime: float
-    @param deadtab: name of reference table of count rates and livetime factors
-    @type deadtab: string
-    @param info: header keywords and values
-    @type info: dictionary
-    @param input: name of input raw file (for writing to livetimefile)
-    @type input: string
-    @param livetimefile: name of output text file for livetime factors (or None)
-    @type livetimefile: string
+    Parameters
+    ----------
+    flt_sci: array_like
+        The SCI image array, to be corrected in-place.
 
-    @return: the count rate used for determining the livetime factor, a
-        string that indicates which method was used for determining the
-        livetime factor, and the livetime factor that was used
-    @rtype: tuple
+    exptime: float
+        Exposure time for current imset.
+
+    deadtab: str
+        Name of reference table of count rates and livetime factors.
+
+    info: dictionary
+        Header keywords and values.
+
+    input: str
+        Name of input raw file (for writing to livetimefile).
+
+    livetimefile: str or None
+        Name of output text file for livetime factors.
+
+    Returns
+    -------
+    (dead_rate, dead_method, livetime): tuple of float, str, float
+        `dead_rate` is the count rate used for determining the livetime
+        factor.  `dead_method` is a string that indicates which method was
+        used for determining the livetime factor.  `livetime` is the
+        livetime factor that was used.
     """
 
     if exptime <= 0.:
@@ -400,14 +443,19 @@ def deadtimeCorrection (flt_sci, exptime, deadtab, info,
 def doFlatcorr (flt_sci, switches, reffiles, phdr):
     """Apply flat field correction.
 
-    @param flt_sci: the image array, modified in-place
-    @type flt_sci: numpy array
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param phdr: the input primary header
-    @type phdr: pyfits Header object
+    Parameters
+    ----------
+    flt_sci: array_like
+        The image array, modified in-place.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    phdr: pyfits Header object
+        The input primary header.
     """
 
     cosutil.printSwitch ("FLATCORR", switches)
@@ -432,12 +480,16 @@ def doFlatcorr (flt_sci, switches, reffiles, phdr):
 def doStatflag (switches, outflt, outcounts):
     """Compute statistics and update keywords.
 
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param outflt: name of the output file for flat-fielded count-rate image
-    @type outflt: string
-    @param outcounts: name of the output file for count-rate image
-    @type outcounts: string
+    Parameters
+    ----------
+    switches: dictionary
+        Calibration switches.
+
+    outflt: str
+        Name of the output file for flat-fielded count-rate image.
+
+    outcounts: str
+        Name of the output file for count-rate image.
     """
 
     cosutil.printSwitch ("STATFLAG", switches)
@@ -448,17 +500,24 @@ def doStatflag (switches, outflt, outcounts):
 def makeImages (counts_sci, flt_sci, exptime):
     """Create the count rate and error arrays.
 
-    @param counts_sci: the SCI image array, counts
-    @type counts_sci: numpy array
-    @param flt_sci: the SCI image array, after deadcorr and flatcorr
-    @type flt_sci: numpy array
-    @param exptime: the exposure time
-    @type exptime: float
+    Parameters
+    ----------
+    counts_sci: array_like
+        The SCI image array, counts.
 
-    @return: count rate array, error estimate for count rate array,
-        flat-fielded count rate array, error estimate for flat fielded
-        count-rate array
-    @rtype: tuple
+    flt_sci: array_like
+        The SCI image array, after deadcorr and flatcorr.
+
+    exptime: float
+        The exposure time.
+
+    Returns
+    -------
+    (C_rate, errC_rate, E_rate, errE_rate): tuple of floats
+        `C_rate` is the count rate array; `errC_rate` is the error estimate
+        for the count rate array; `E_rate` is the flat-fielded count rate
+        array; `errE_rate` is the error estimate for the flat fielded
+        count-rate array.
     """
 
     if exptime <= 0:
@@ -492,31 +551,41 @@ def writeCsum (outcsum, phdr, hdr_list, csum_array,
                compression_parameters="gzip,-0.1"):
     """Write the "calcos sum" (csum) image.
 
-    @param outcsum: name of output calcos sum image file
-    @type outcsum: string
-    @param phdr: primary header
-    @type phdr: pyfits Header object
-    @param hdr_list: list of sci extension headers
-    @type hdr_list: list of pyfits Header objects
-    @param csum_array: data array for SCI extension
-    @type csum_array: numpy array
-    @param raw_csum_coords: this only affects the COORDFRM keyword value
-    @type raw_csum_coords: boolean
-    @param binx: binning factor in the dispersion direction (or None for
-        the default binning)
-    @type binx: int
-    @param biny: binning factor in the cross-dispersion direction (or None
-        for the default binning)
-    @type biny: int
-    @param compress_csum: compress the csum image?
-    @type compress_csum: boolean
-    @param compression_parameters: compressionType and quantizeLevel (separated
-        by a comma) for the call to pyfits.CompImageHDU; compressionType can
-        be "rice", "gzip", or "hcompress", and quantizeLevel can be e.g. -0.1,
-        which means the floating point values will be scaled to integers with
-        spacing that corresponds to 0.1 dn (see the doc string for
-        pyfits.CompImageHDU for more details)
-    @type compression_parameters: string
+    Parameters
+    ----------
+    outcsum: str
+        Name of output calcos sum image file.
+
+    phdr: pyfits Header object
+        Primary header.
+
+    hdr_list: list of pyfits Header objects
+        List of sci extension headers.
+
+    csum_array: array_like
+        Data array for SCI extension.
+
+    raw_csum_coords: boolean
+        This only affects the COORDFRM keyword value.
+
+    binx: int or None
+        Binning factor in the dispersion direction (or None for
+        the default binning).
+
+    biny: int or None
+        Binning factor in the cross-dispersion direction (or None
+        for the default binning).
+
+    compress_csum: boolean
+        Compress the csum image?
+
+    compression_parameters: str
+        `compressionType` and `quantizeLevel` (separated by a comma) for
+        the call to pyfits.CompImageHDU; `compressionType` can be "rice",
+        "gzip", or "hcompress", and `quantizeLevel` can be e.g. -0.1,
+        which means the floating point values will be scaled to integers
+        with spacing that corresponds to 0.1 dn (see the doc string for
+        pyfits.CompImageHDU for more details).
     """
 
     cosutil.printMsg ("writing file %s ..." % outcsum, VERY_VERBOSE)
@@ -573,11 +642,15 @@ def writeCsum (outcsum, phdr, hdr_list, csum_array,
 def getNcounts (sci):
     """Return the total number of counts in an array.
 
-    @param sci: image data array, in counts
-    @type sci: numpy array
+    Parameters
+    ----------
+    sci: array_like
+        Image data array, in counts.
 
-    @return: sum of values in sci, rounded to an int
-    @rtype: integer
+    Returns
+    -------
+    ncounts: int
+        Sum of values in sci, rounded to an int.
     """
 
     ncounts = sci.sum (dtype=np.float64)
@@ -594,10 +667,13 @@ def addExptimeKeywords (hdr_list, hdr):
     of the input headers, and expstart and expend will be taken from
     the first and last headers.
 
-    @param hdr_list: list of sci extension headers
-    @type hdr_list: list of pyfits Header objects
-    @param hdr: output header
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    hdr_list: list of pyfits Header objects
+        List of sci extension headers.
+
+    hdr: pyfits Header object
+        Output header, modified in-place
     """
 
     # The headers in hdr_list are assumed to be in chronological order.
@@ -619,14 +695,19 @@ def addExptimeKeywords (hdr_list, hdr):
 def writeNull (input, outflt, outcounts, headers):
     """Write output files with null data blocks.
 
-    @param input: name of the input file
-    @type input: string
-    @param outflt: name of the output file for flat-fielded count-rate image
-    @type outflt: string
-    @param outcounts: name of the output file for count-rate image
-    @type outcounts: string
-    @param headers: list of headers (primary, sci, err, dq)
-    @type headers: list of pyfits Header objects
+    Parameters
+    ----------
+    input: str
+        Name of the input file.
+
+    outflt: str
+        Name of the output file for flat-fielded count-rate image.
+
+    outcounts: str
+        Name of the output file for count-rate image.
+
+    headers: list of pyfits Header objects
+        List of headers (primary, sci, err, dq).
     """
 
     cosutil.printWarning ("No data in " + input)
@@ -645,12 +726,16 @@ def writeNull (input, outflt, outcounts, headers):
 def writePrimaryHDU (output, phdr, nextend):
     """Write an output file containing just a primary header.
 
-    @param output: name of the output file (flt or counts)
-    @type output: string
-    @param phdr: primary header of input file
-    @type phdr: pyfits Header object
-    @param nextend: number of extensions
-    @type nextend: int
+    Parameters
+    ----------
+    output: str
+        Name of the output file (flt or counts).
+
+    phdr: pyfits Header object
+        Primary header of input file.
+
+    nextend: int
+        Number of extensions.
     """
 
     cosutil.printMsg ("writing file %s ..." % output, VERY_VERBOSE)
@@ -668,22 +753,31 @@ def appendImset (output, imset, sci_array, err_array, dq_array,
 
     This function appends one image set to an output file.
 
-    @param output: name of the output file (flt or counts)
-    @type output: string
-    @param imset: image set number (one indexed, to match EXTVER)
-    @type imset: int
-    @param sci_array: data array for the SCI extension
-    @type sci_array: numpy array, or None
-    @param err_array: data array for the ERR extension
-    @type err_array: numpy array, or None
-    @param dq_array: data array for the DQ extension
-    @type dq_array: numpy array, or None
-    @param sci_hdr: header for SCI extension
-    @type sci_hdr: pyfits Header object
-    @param err_hdr: header for ERR extension
-    @type err_hdr: pyfits Header object
-    @param dq_hdr: header for DQ extension
-    @type dq_hdr: pyfits Header object
+    Parameters
+    ----------
+    output: str
+        Name of the output file (flt or counts).
+
+    imset: int
+        Image set number (one indexed, to match EXTVER).
+
+    sci_array: array_like or None
+        Data array for the SCI extension.
+
+    err_array: array_like or None
+        Data array for the ERR extension.
+
+    dq_array: array_like or None
+        Data array for the DQ extension.
+
+    sci_hdr: pyfits Header object
+        Header for SCI extension.
+
+    err_hdr: pyfits Header object
+        Header for ERR extension.
+
+    dq_hdr: pyfits Header object
+        Header for DQ extension.
     """
 
     fd = pyfits.open (output, mode="append")

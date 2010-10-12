@@ -53,6 +53,7 @@ def main (args):
         --find (find Y location of spectrum)
         --csum (create csum image)
         --raw (use raw coordinates for csum image)
+        --only_raw_csum (create raw csum image, and do almost nothing else)
         --compress parameters (compress csum image)
         --binx X_bin_factor (csum binning in X)
         --biny Y_bin_factor (csum binning in Y)
@@ -74,7 +75,8 @@ def main (args):
     try:
         (options, pargs) = getopt.getopt (args, "qvso:",
                            ["find",
-                            "csum", "raw", "compress=", "binx=", "biny=",
+                            "csum", "raw", "only_raw_csum",
+                            "compress=", "binx=", "biny=",
                             "shift=", "stim=", "live=", "burst="])
     except Exception, error:
         cosutil.printError (str (error))
@@ -94,6 +96,7 @@ def main (args):
     # parameters pertaining to the "calcos sum" file
     create_csum_image = False
     raw_csum_coords = False
+    only_raw_csum = False
     binx = 1
     biny = 1
     find_target = False
@@ -122,6 +125,8 @@ def main (args):
             create_csum_image = True
         elif options[i][0] == "--raw":
             raw_csum_coords = True
+        elif options[i][0] == "--only_raw_csum":
+            only_raw_csum = True
         elif options[i][0] == "--compress":
             compress_csum = True
             compression_parameters = options[i][1]
@@ -138,6 +143,13 @@ def main (args):
         elif options[i][0] == "--burst":
             burstfile = options[i][1]
 
+    if only_raw_csum:
+        create_csum_image = True
+        raw_csum_coords = True
+        shift_file = None
+        stimfile = None
+        livetimefile = None
+        burstfile = None
     if raw_csum_coords and not create_csum_image:
         raw_csum_coords = False
     if outdir:
@@ -155,6 +167,7 @@ def main (args):
                          find_target=find_target,
                          create_csum_image=create_csum_image,
                          raw_csum_coords=raw_csum_coords,
+                         only_raw_csum=only_raw_csum,
                          binx=binx, biny=biny,
                          compress_csum=compress_csum,
                          compression_parameters=compression_parameters,
@@ -190,11 +203,15 @@ def prtOptions():
 def uniqueInput (infiles):
     """Remove effective duplicates from list of files to process.
 
-    @param infiles: list of input files
-    @type infiles: list
+    Parameters
+    ----------
+    infiles: list of strings
+        List of input file names.
 
-    @return: the list of input files but with duplicates removed
-    @rtype: list
+    Returns
+    -------
+    unique_files: list of strings
+        The list of input files but with duplicates removed.
     """
 
     if len (infiles) <= 1:
@@ -234,6 +251,7 @@ def calcos (asntable, outdir=None, verbosity=None,
             find_target=False,
             create_csum_image=False,
             raw_csum_coords=False,
+            only_raw_csum=False,
             binx=None, biny=None,
             compress_csum=False, compression_parameters="gzip,-0.01",
             shift_file=None,
@@ -241,66 +259,76 @@ def calcos (asntable, outdir=None, verbosity=None,
             stimfile=None, livetimefile=None, burstfile=None):
     """Calibrate COS data.
 
-    @param asntable: the rootname (with "_asn") of an association file, or
-        the rootname (with "_raw") of a raw file (or pair of files if FUV)
-    @type asntable: string
+    This is the main module for calibrating COS data.
 
-    @param outdir: name of output directory, or None
-    @type outdir: string
+    Parameters
+    ----------
+    asntable: str
+        The rootname (with "_asn") of an association file, or the rootname
+        (with "_raw") of a raw file.  If the value of a raw FUV file is
+        specified and files for both segments are present, then both of
+        those files will be calibrated (i.e. without having to explicitly
+        list both files).
 
-    @param verbosity: if not None, set verbosity to this level (0, 1, 2)
-    @type verbosity: int or None
+    Returns
+    -------
+    status: int
+        0 is OK; 5 means no file was found that could be calibrated.
 
-    @param find_target: if True, search for the target spectrum in the
-        Y direction, rather than relying on the wavecal offset (shift2)
-    @type find_target: boolean
+    Other parameters
+    ----------------
+    outdir: str or None, optional
+        Name of output directory.
 
-    @param create_csum_image: if True, write an image that reflects the
-        counts detected at each pixel (includes deadcorr but not flatcorr),
-        for OPUS to add to cumulative image
-    @type create_csum_image: boolean
+    verbosity: int {0, 1, 2} or None, optional
+        If not None, set verbosity to this level.
 
-    @param raw_csum_coords: if True, use raw pixel coordinates (rather than
-        thermally and geometrically corrected) to create the csum image
-    @type raw_csum_coords: boolean
+    find_target: boolean, optional
+        If True, search for the target spectrum in the Y direction, rather
+        than relying on the wavecal offset (shift2).
 
-    @param binx: binning factor for the X axis (or None, which means that
-        the default binning should be used)
-    @type binx: int or None
+    create_csum_image: boolean, optional
+        If True, write an image that reflects the counts detected at each
+        pixel (includes deadcorr but not flatcorr), for OPUS to add to the
+        cumulative image.
 
-    @param biny: binning factor for the Y axis (or None, which means that
-        the default binning should be used)
-    @type biny: int or None
+    raw_csum_coords: boolean, optional
+        If True, use raw pixel coordinates (rather than thermally and
+        geometrically corrected) to create the csum image.
 
-    @param compress_csum: if True, compress the "calcos sum" image
-    @type compress_csum: boolean
+    binx, biny: int or None, optional
+        Binning factor for the X and Y axes, or None, which means that
+        the default binning (currently 1) should be used.
 
-    @param compression_parameters: two values separated by a comma; the first
-        is the compression type (rice, gzip or hcompress), and the second is
-        the quantization level
-    @type compression_parameters: string
+    compress_csum: boolean, optional
+        If True, compress the "calcos sum" image.
 
-    @param shift_file: if specified, this text file contains values of
-        shift1 (and possibly shift2) to override the values found via
-        wavecal processing
-    @type shift_file: string
+    compression_parameters: string, optional
+        Two values separated by a comma; the first is the compression type
+        (rice, gzip or hcompress), and the second is the quantization
+        level.  The default is "gzip,-0.01".
 
-    @param save_temp_files: By default, the _x1d_a.fits and _x1d_b.fits files
-        (if FUV) will be deleted after concatenating to the _x1d.fits file.
-        Specify save_temp_files=True to keep these files.
-    @type save_temp_files: boolean
+    shift_file: str, optional
+        If specified, this text file contains values of shift1 (and
+        possibly shift2) to override the values found via wavecal
+        processing.
 
-    @param stimfile: if specified, the stim positions will be written to
-        (or appended to) a text file with this name
-    @type stimfile: string
+    save_temp_files: boolean, optional
+        By default, the _x1d_a.fits and _x1d_b.fits files (if FUV) will
+        be deleted after concatenating to the _x1d.fits file.  Specify
+        `save_temp_files`=True to keep these files.
 
-    @param livetimefile: if specified, the livetime factors will be written
-        to (or appended to) a text file with this name
-    @type livetimefile: string
+    stimfile: str, optional
+        If specified, the stim positions will be written to (or
+        appended to) a text file with this name.
 
-    @param burstfile: if specified, burst information will be written to
-        (or appended to) a text file with this name
-    @type burstfile: string
+    livetimefile: str, optional
+        If specified, the livetime factors will be written to (or
+        appended to) a text file with this name.
+
+    burstfile: str, optional
+        If specified, burst information will be written to (or appended to)
+        a text file with this name.
     """
 
     t0 = time.time()
@@ -322,6 +350,7 @@ def calcos (asntable, outdir=None, verbosity=None,
     cl_args = {"find_target": find_target,
                "create_csum_image": create_csum_image,
                "raw_csum_coords": raw_csum_coords,
+               "only_raw_csum": only_raw_csum,
                "binx": binx,
                "biny": biny,
                "compress_csum": compress_csum,
@@ -393,11 +422,15 @@ def closeTrailerForRawInput():
 def expandDirectory (dirname):
     """Get the real directory name.
 
-    @param dirname: a directory name
-    @type dirname: string
+    Parameters
+    ----------
+    dirname: str
+        A directory name.
 
-    @return: the real directory name
-    @rtype: string
+    Returns
+    -------
+    directory_name: str
+        The real directory name.
     """
 
     indir = dirname
@@ -424,21 +457,28 @@ def expandDirectory (dirname):
 def replaceSuffix (rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
 
-    @param rawname: name of a raw input file
-    @type rawname: string
+    Parameters
+    ----------
+    rawname: str
+        Name of a raw input file.
 
-    @param suffix: suffix (last part of root name) that is expected to be
-        found in the raw file name
-    @type suffix: string
+    suffix: str
+        Suffix (last part of root name) that is expected to be found in
+        the raw file name.
 
-    @param new_suffix: string to replace 'suffix' to create an output file name
-    @type new_suffix: string
+    new_suffix: str
+        String to replace `suffix` to create an output file name.
 
-    @return: 'rawname' with 'suffix' replaced by 'new_suffix'
-    @rtype: string
+    Returns
+    -------
+    newname: str
+        `rawname` with `suffix` replaced by `new_suffix`.
 
+    Examples
+    --------
     >>> print replaceSuffix ("rootname_rawtag.fits", "_rawtag", "_flt")
     rootname_flt.fits
+
     >>> print replaceSuffix ("rootname_rawtag_a.fits", "_rawtag", "_flt")
     rootname_flt_a.fits
     """
@@ -457,30 +497,41 @@ def replaceSuffix (rawname, suffix, new_suffix):
 def getRootname (input, suffix):
     """Return the root of a file name.
 
-    If 'suffix' is found in 'input', return the portion of input
-    that precedes 'suffix'.  Otherwise, if 'input' ends in ".fits",
-    return everything from 'input' that precedes ".fits".
+    If `suffix` is found in `input`, return the portion of input
+    that precedes `suffix`.  Otherwise, if `input` ends in ".fits",
+    return everything from `input` that precedes ".fits".
 
-    @param input: name of a raw input file
-    @type input: string
+    Parameters
+    ----------
+    input: str
+        Name of a raw input file.
 
-    @param suffix: suffix that might be found in 'input'
-    @type suffix: string
+    suffix: str
+        Suffix that might be found in `input`.
 
-    @return: 'input' truncated before 'suffix', or truncated before ".fits"
-        if 'suffix' is not found
-    @rtype: string
+    Returns
+    -------
+    root: str
+        `input` truncated before `suffix`, or truncated before ".fits"
+        if `suffix` is not found.
 
+    Examples
+    --------
     >>> print getRootname ("abc_asn.fits", "_asn")
     abc
+
     >>> print getRootname ("abc_rawtag_b.fits", "_asn")
     abc_rawtag_b
+
     >>> print getRootname ("abc_rawtag_b.fits", "_raw")
     abc
+
     >>> print getRootname ("abc_rawtag_b.fits", "_rawtag")
     abc
+
     >>> print getRootname ("abc_rawtag_b.fits", "_rawtag_b")
     abc
+
     >>> print getRootname ("abc", "_asn")
     abc
     """
@@ -503,53 +554,22 @@ def getRootname (input, suffix):
 class Association (object):
     """Read and interpret the association table.
 
-    Some of the attributes are:
-        asntable           full name of the association file, or None if the
-                             name (or rootname) of a raw file was specified
-        cl_args            some of the command-line arguments
-        asn_info           a dictionary of the contents of the association table
-        indir              name of input directory, or an empty string; if a
-                             directory was specified, it will be added as a
-                             prefix to the memnames in asn_info
-        outdir             name of output directory, or an empty string
-        combine            a dictionary of lists of file names to be
-                             averaged (i.e. individual repeatobs or fp-pos
-                             exposures)
-        concat             pairs of files of 1-D extracted FUV spectra for
-                             segments A and B that need to be concatenated;
-                             this is a list of dictionaries with info about
-                             files to be concatenated
-        merge_kwds         list of pairs of file names for FUV flt or counts
-                             files; segment-specific keywords will be copied
-                             from one to the other so all will be populated
-        product            rootname of the product (rootname portion is lower
-                             case; includes outdir)
-        product_type       memtype of the product (case unchanged from asn
-                             table)
-        global_switches    dictionary of the global calibration switches
-        rawfiles           a list of all rawtag or rawaccum files
-        obs                a list of Observation instances, one for each raw
-                             file
-        first_science_tuple indexes of first science observations in obs list
-                             (the first is time-tag and the second is accum)
-        first_science      index of first science observation (either time-tag
-                             or accum, whichever is not None)
+    Parameters
+    ----------
+    asntable: str
+        The rootname (with "_asn") of an association file, or
+        the rootname (with "_raw") of a raw file (or pair of files if FUV).
+
+    outdir: str or None
+        Name of output directory.
+
+    cl_args: dictionary
+        Some of the command-line arguments, or their defaults.
     """
 
     def __init__ (self, asntable, outdir, cl_args):
 
-        """Constructor.
-
-        @param asntable: the rootname (with "_asn") of an association file, or
-            the rootname (with "_raw") of a raw file (or pair of files if FUV)
-        @type asntable: string
-
-        @param outdir: name of output directory, or None
-        @type outdir: string
-
-        @param cl_args: some of the command-line arguments, or their defaults
-        @type cl_args: dictionary
-        """
+        """Constructor."""
 
         self.asntable = None
         self.cl_args = None
@@ -674,6 +694,7 @@ class Association (object):
         self.first_science = i
 
         self.compareConfig()
+        self.resetSwitches()    # set switches to OMIT if only_raw_csum is True
         self.compareRefFiles()
         self.compareSwitches()
         self.missingRefFiles()
@@ -733,15 +754,17 @@ class Association (object):
 
         This function will be called for the case that the user specified
         the name of a raw (or corrtag) file instead of an association table.
-        The 'asntable' argument is the name as given by the user; we will
+        The `asntable` argument is the name as given by the user; we will
         assign that full name (not just the rootname) to asn_info["memname"].
         There will only be this one row; product will be set to None.  The
         memtype will be set to "none", even though it might actually be a
         wavecal.
 
-        @param asntable: the name of an input raw file (not really an
-            association table name)
-        @type asntable: string
+        Parameters
+        ----------
+        asntable: str
+            The name of an input raw file (not really an association table
+            name).
         """
 
         cosutil.printMsg ("Input file = " + asntable, VERBOSE)
@@ -779,16 +802,20 @@ class Association (object):
         dictionary of keywords and values will be returned without using
         wildcards or other checks on suffix.
 
-        @param memname: a value in the MEMNAME (member name) column of an
-            association table, converted to lower case; if the user specified
-            an explicit file name rather than an association table name,
-            memname should be the full file name
-        @type memname: string
+        Parameters
+        ----------
+        memname: str
+            A value in the MEMNAME (member name) column of an association
+            table, converted to lower case; if the user specified an
+            explicit file name rather than an association table name,
+            memname should be the full file name.
 
-        @return: dictionary of keywords and values; the value will be None
-            if there are no files that match the template, or if the input
-            is an ACQ other than ACQ/IMAGE.
-        @rtype: dictionary, or None
+        Returns
+        -------
+        basic_info: dictionary or None
+            Dictionary of keywords and values; the value will be None if
+            there are no files that match the template, or if the input is
+            an ACQ other than ACQ/IMAGE.
         """
 
         # Did the user specify a particular input file?  If so, this is
@@ -897,11 +924,15 @@ class Association (object):
     def isAcqImage (self, rawacq):
         """Check whether rawacq is an ACQ/IMAGE.
 
-        @param rawacq: name of an acq file
-        @type rawacq: string
+        Parameters
+        ----------
+        rawacq: str
+            Name of an acq file.
 
-        @return: True if exptype for rawacq is "ACQ/IMAGE", False otherwise
-        @rtype: boolean
+        Returns
+        -------
+        flag: boolean
+            True if exptype for rawacq is "ACQ/IMAGE", False otherwise
         """
 
         fd = pyfits.open (rawacq, mode="readonly")
@@ -916,11 +947,13 @@ class Association (object):
     def updateCombineFlt (self, filenames, obstype):
         """Add the flt name to the input lists in self.combine.
 
-        @param filenames: dictionary of input and output file names
-        @type filenames: dictionary
+        Parameters
+        ----------
+        filenames: dictionary
+            Dictionary of input and output file names.
 
-        @param obstype: observation type, "SPECTROSCOPIC" or "IMAGING"
-        @type obstype: string
+        obstype: str {"SPECTROSCOPIC", "IMAGING"}
+            Observation type.
         """
 
         if obstype != "IMAGING":
@@ -935,14 +968,16 @@ class Association (object):
     def updateCombineX1d (self, filenames, fppos, obstype):
         """Add the x1d name and fppos index to 'combine'.
 
-        @param filenames: dictionary of input and output file names
-        @type filenames: dictionary
+        Parameters
+        ----------
+        filenames: dictionary
+            Dictionary of input and output file names.
 
-        @param fppos: focal plane position index (1, 2, 3, or 4)
-        @type fppos: integer
+        fppos: int {1, 2, 3, 4}
+            Focal plane position index.
 
-        @param obstype: observation type, "SPECTROSCOPIC" or "IMAGING"
-        @type obstype: string
+        obstype: str
+            Observation type, "SPECTROSCOPIC" or "IMAGING".
         """
 
         if obstype != "SPECTROSCOPIC":
@@ -969,9 +1004,11 @@ class Association (object):
         (0, None) or (None, 0), depending on whether the first observation
         (of any kind) is time-tag or accum, respectively.
 
-        @return: indexes of the first time-tag and the first accum science
-            observations
-        @rtype: tuple of two integers
+        Returns
+        -------
+        (i_timetag, i_accum): tuple of two integers
+            Indexes of the first time-tag and the first accum science
+            observations.
         """
 
         i_timetag = None
@@ -1043,6 +1080,17 @@ class Association (object):
                 else:
                     errmess += " and opt_elem."
                 raise RuntimeError, errmess
+
+    def resetSwitches (self):
+        """Reset all switches to OMIT if only_raw_csum is True."""
+
+        if not self.cl_args["only_raw_csum"]:
+            return
+
+        for obs in self.obs:
+            for key in obs.switches:
+                obs.switches[key] = "OMIT"
+            obs.reffiles["spwcstab"] = "N/A"
 
     def compareRefFiles (self):
         """Compare reference file names.
@@ -1463,12 +1511,14 @@ class Association (object):
     def checkExists (self, fname, already_exists):
         """If fname exists, append the name to already_exists.
 
-        @param fname: the name of the file
-        @type fname: string
+        Parameters
+        ----------
+        fname: str
+            The name of the file.
 
-        @param already_exists: a list of names of files that currently
-            exist; may be modified in-place by appending 'fname'
-        @type already_exists: list
+        already_exists: list of strings
+            A list of names of files that currently exist; may be modified
+            in-place by appending `fname`.
         """
 
         if os.access (fname, os.R_OK):
@@ -1578,24 +1628,33 @@ class Association (object):
 def initObservation (input, outdir, memtype, detector, obsmode, first=False):
     """Construct an Observation object for the current mode.
 
-    @param input: the name of an input raw file
-    @type input: string
-    @param outdir: either an empty string or the name of the output directory
-    @type outdir: string
-    @param memtype: from association table; used to distinguish between
-        wavecal and science observation
-    @type memtype: string
-    @param detector: FUV or NUV
-    @type detector: string
-    @param obsmode: TIME-TAG or ACCUM
-    @type obsmode: string
-    @param first: True if the current file is the first for a given rootname
-        (this is for writing the calcos version string to the trailer, so
-        that it won't be written for both FUV segments A and B)
-    @type first: boolean
+    Parameters
+    ----------
+    input: str
+        The name of an input raw file.
 
-    @return: an Observation object
-    @rtype: instance
+    outdir: str
+        Either an empty string or the name of the output directory.
+
+    memtype: str
+        From association table; used to distinguish between wavecal and
+        science observation.
+
+    detector: str {"FUV", "NUV"}
+        The detector name.
+
+    obsmode: str {"TIME-TAG", "ACCUM"}
+        The observation mode.
+
+    first: boolean
+        True if the current file is the first for a given rootname (this
+        is for writing the calcos version string to the trailer, so that
+        it won't be written for both FUV segments A and B).
+
+    Returns
+    -------
+    obs: instance
+        An Observation object.
     """
 
     if detector == "FUV":
@@ -1616,26 +1675,31 @@ class Observation (object):
 
     This base class is not directly used; one of its subclasses will
     be invoked, depending on DETECTOR and OBSMODE.
+
+    Parameters
+    ----------
+    input: str
+        The name of an input raw file.
+
+    outdir: str
+        An empty string or the name of the output directory.
+
+    memtype: str
+        Read from the association table; used to distinguish between
+        wavecal and science observation.
+
+    suffix: str
+        Suffix to the rootname, but just "_rawtag" or "_rawaccum" (i.e.
+        excluding "_a" or "_b" if the data were taken with the FUV
+        detector); this may be reset internally to "_corrtag" or
+        "_rawimage" or "_rawacq".
+
+    first: boolean
+        True if the current file is the first of two for FUV.
     """
 
     def __init__ (self, input, outdir, memtype, suffix, first):
-        """Invoked by a subclass.
-
-        @param input: the name of an input raw file
-        @type input: string
-        @param outdir: an empty string or the name of the output directory
-        @type outdir: string
-        @param memtype: from association table; used to distinguish between
-            wavecal and science observation
-        @type memtype: string
-        @param suffix: suffix to the rootname, but just "_rawtag" or
-            "_rawaccum" (i.e. excluding "_a" or "_b" if the data were taken
-            with the FUV detector); this can be reset to "_corrtag" or
-            "_rawimage" or "_rawacq"
-        @type suffix: string
-        @param first: True if the current file is the first of two for FUV
-        @type first: boolean
-        """
+        """Invoked by a subclass."""
 
         self.input = input              # name of a raw input file
         self.exp_type = EXP_SCIENCE     # science, wavecal, target acq
@@ -1946,12 +2010,14 @@ class Observation (object):
         these three keywords will be compared with the values determined from
         the OSM positions, and discrepancies will be noted and corrected.
 
-        @param sptfile: name of support file
-        @type sptfile: string
+        Parameters
+        ----------
+        sptfile: str
+            Name of support file.
 
-        @param info: dictionary of keywords and values; values may be
-            updated in-place by this function
-        @type info: dictionary
+        info: dictionary
+            Header keywords and values; values may be updated in-place by
+            this function.
         """
 
         if info["targname"] != "Thermal_Vac":
@@ -2022,17 +2088,19 @@ class Observation (object):
             info, opt_elem_osm, cenwave_osm, fpoffset_osm):
         """Update keyword values in info dictionary.
 
-        @param info: dictionary of keywords and values, modified in-place
-        @type info: dictionary
+        Parameters
+        ----------
+        info: dictionary
+            Header keywords and values, modified in-place.
 
-        @param opt_elem_osm: value of OPM_ELEM as determined from OSM position
-        @type opt_elem_osm: string
+        opt_elem_osm: str
+            Value of OPM_ELEM as determined from OSM position.
 
-        @param cenwave_osm: value of CENWAVE as determined from OSM position
-        @type cenwave_osm: integer
+        cenwave_osm: int
+            Value of CENWAVE as determined from OSM position.
 
-        @param fpoffset_osm: value of FPOFFSET as determined from OSM position
-        @type fpoffset_osm: integer
+        fpoffset_osm: int
+            Value of FPOFFSET as determined from OSM position.
         """
 
         if info["opt_elem"] == "RelMvReq":
@@ -2064,21 +2132,10 @@ class Observation (object):
     def makeFileNames (self, suffix, outdir):
         """Create names of input and output files from input raw file names.
 
-        @param suffix: an obsmode-specific string, either "_rawtag" or
-            "_rawaccum" (or "_rawimage"); note that 'suffix' excludes
-            "_a" or "_b", in the case that we have FUV data
-        @type suffix: string
-
-        @param outdir: the name of the output directory (or an empty string)
-        @type outdir: string
-
-        @return: dictionary of the input and output names
-        @rtype: dictionary
-
         These are the keys for the dictionary of file names:
 
-          root     rootname (not including suffix or directory); note that this
-                     is from the file name, not the header keyword
+          root     rootname (not including suffix or directory); note that
+                     this is from the file name, not the header keyword
           trl      name (including output directory) of the trailer file
           raw      name of input (raw) file (including directory)
           spt      name of input support file
@@ -2096,6 +2153,21 @@ class Observation (object):
           flash    output 1-D extracted tagflash wavecal spectrum (the file
                      that includes all segments or stripes)
           csum     output image for OPUS to add to cumulative image
+
+        Parameters
+        ----------
+        suffix: str
+            An obsmode-specific string, either "_rawtag" or "_rawaccum"
+            (or "_rawimage").  Note that 'suffix' excludes "_a" or "_b",
+            in the case that we have FUV data.
+
+        outdir: str
+            The name of the output directory (or an empty string).
+
+        Returns
+        -------
+        filenames: dictionary
+            The input and output names.
         """
 
         input = os.path.basename (self.input)
@@ -2199,15 +2271,17 @@ class Observation (object):
     def overrideSwitch (self, keyword, messages, reset_to="OMIT"):
         """If switch for keyword is "PERFORM", reset it to "OMIT".
 
-        @param keyword: a calibration switch keyword
-        @type keyword: string
+        Parameters
+        ----------
+        keyword: str
+            A calibration switch keyword.
 
-        @param messages: tells what keywords have been changed; modified
-            in-place
-        @type messages: string
+        messages: str
+            Tells what keywords have been changed; modified in-place.
 
-        @param reset_to: value to assign to keyword (e.g. "OMIT" or "SKIPPED")
-        @type reset_to: string
+        reset_to: str
+            Value to assign to keyword (e.g. "OMIT" or "SKIPPED") in the
+            `switches` attribute.
         """
 
         key_lower = keyword.lower()
@@ -2221,12 +2295,14 @@ class Observation (object):
     def printSwitchMessages (self, messages, input):
         """Print info about which calibration switches are being reset.
 
-        @param messages: tells what keywords have been changed
-        @type messages: string
+        Parameters
+        ----------
+        messages: str
+            Tells what keywords have been changed.
 
-        @param input: name of an input file (to be included in the text
-            that is printed)
-        @type input: string
+        input: str
+            Name of an input file (to be included in the text that is
+            printed).
         """
 
         if len (messages) > 0:
@@ -2325,14 +2401,15 @@ class Calibration (object):
                                rootname
         wcp_info           matching row (just one) from the wavecal
                              parameters table
+
+    Parameters
+    ----------
+    assoc: instance
+        An Association object.
     """
 
     def __init__ (self, assoc):
-        """Constructor
-
-        @param assoc: an Association object
-        @type assoc: instance
-        """
+        """Constructor."""
 
         self.assoc = assoc
         self.wavecal_info = []
@@ -2341,17 +2418,19 @@ class Calibration (object):
     def basicCal (self, filenames, info, switches, reffiles):
         """Do the "basic" calibration.
 
-        @param filenames: input and output file names
-        @type filenames: dictionary
+        Parameters
+        ----------
+        filenames: dictionary
+            Input and output file names.
 
-        @param info: values of header keywords for general information
-        @type info: dictionary
+        info: dictionary
+            Values of header keywords for general information.
 
-        @param switches: values of header keywords for calibration switches
-        @type switches: dictionary
+        switches: dictionary
+            Values of header keywords for calibration switches.
 
-        @param reffiles: values of header keywords for reference file names
-        @type reffiles: dictionary
+        reffiles: dictionary
+            Values of header keywords for reference file names.
         """
 
         input = filenames["raw"]
@@ -2388,6 +2467,8 @@ class Calibration (object):
 
         cosutil.printMsg ("Begin calibration of wavecals.", VERY_VERBOSE)
 
+        # initial value
+        any_x1dcorr = "omit"
         # First calibrate all the wavecals.
         for obs in self.assoc.obs:
             if obs.exp_type == EXP_WAVECAL:
@@ -2400,48 +2481,52 @@ class Calibration (object):
                     self.wcp_info = wcp_info[0]
                 self.basicCal (obs.filenames,
                         obs.info, obs.switches, obs.reffiles)
-                # Find spectrum in cross-dispersion direction.
-                # (xd_shifts and xd_locns are ignored.)
-                (shift2, xd_shifts, xd_locns, lamp_is_on) = \
-                wavecal.findWavecalSpectrum (obs.filenames["corrtag"],
+                if obs.switches["x1dcorr"] == "PERFORM":
+                    any_x1dcorr = "PERFORM"
+                    # Find spectrum in cross-dispersion direction.
+                    # (xd_shifts and xd_locns are ignored.)
+                    (shift2, xd_shifts, xd_locns, lamp_is_on) = \
+                    wavecal.findWavecalSpectrum (obs.filenames["corrtag"],
+                                                 obs.info, obs.reffiles)
+                    # Update shift2[a-c] keywords, and possibly lampused.
+                    self.setSpectrumOffset (obs.filenames,
+                            obs.info["segment"], shift2, lamp_is_on)
+                    self.extractSpectrum (obs.filenames)
+                obs.closeTrailer()
+
+        if any_x1dcorr == "PERFORM":
+
+            self.concatenateSpectra ("wavecal")
+
+            # Now find the shift of each wavecal.
+            self.processWavecal()
+
+            # Set the shift keywords in the corrtag, flt, and counts headers
+            # (already set in x1d header) for each wavecal observation.
+            # Compute wavelengths and assign to the wavelength column in the
+            # corrtag tables.
+            for obs in self.assoc.obs:
+                if obs.exp_type == EXP_WAVECAL:
+                    self.setWavecalShift (obs.filenames)
+                    self.corrtagWavelengths (obs.filenames["corrtag"],
                                              obs.info, obs.reffiles)
-                # Update shift2[a-c] keywords, and possibly lampused.
-                self.setSpectrumOffset (obs.filenames,
-                        obs.info["segment"], shift2, lamp_is_on)
-                self.extractSpectrum (obs.filenames)
-                obs.closeTrailer()
 
-        self.concatenateSpectra ("wavecal")
+            cosutil.printMsg ("wavecal_info = " + repr (self.wavecal_info),
+                    VERY_VERBOSE)
 
-        # Now find the shift of each wavecal.
-        self.processWavecal()
-
-        # Set the shift keywords in the corrtag, flt, and counts headers
-        # (already set in x1d header) for each wavecal observation.
-        # Compute wavelengths and assign to the wavelength column in the
-        # corrtag tables.
-        for obs in self.assoc.obs:
-            if obs.exp_type == EXP_WAVECAL:
-                self.setWavecalShift (obs.filenames)
-                self.corrtagWavelengths (obs.filenames["corrtag"],
-                                         obs.info, obs.reffiles)
-
-        cosutil.printMsg ("wavecal_info = " + repr (self.wavecal_info),
-                VERY_VERBOSE)
-
-        # Update the wavelength column in the x1d table to take account of
-        # the shift in the dispersion direction.
-        previous_x1d_file = " "
-        for obs in self.assoc.obs:
-            x1d_file = obs.filenames["x1d"]
-            # For FUV, we expect duplicate x1d file names in the obs list.
-            if x1d_file == previous_x1d_file:
-                continue
-            previous_x1d_file = x1d_file
-            if obs.exp_type == EXP_WAVECAL:
-                obs.openTrailer()
-                extract.recomputeWavelengths (x1d_file)
-                obs.closeTrailer()
+            # Update the wavelength column in the x1d table to take account of
+            # the shift in the dispersion direction.
+            previous_x1d_file = " "
+            for obs in self.assoc.obs:
+                x1d_file = obs.filenames["x1d"]
+                # For FUV, we expect duplicate x1d file names in the obs list.
+                if x1d_file == previous_x1d_file:
+                    continue
+                previous_x1d_file = x1d_file
+                if obs.exp_type == EXP_WAVECAL:
+                    obs.openTrailer()
+                    extract.recomputeWavelengths (x1d_file)
+                    obs.closeTrailer()
 
     def allScience (self):
         """Process all the science observations in the association."""
@@ -2501,10 +2586,12 @@ class Calibration (object):
     def extractSpectrum (self, filenames):
         """Extract a 1-D spectrum from corrtag table or from 2-D images.
 
-        @param filenames: input and output file names
-        @type filenames: dictionary
-
         The 1-D spectrum will be extracted from the 2-D flt and counts images.
+
+        Parameters
+        ----------
+        filenames: dictionary
+            Input and output file names.
         """
 
         input = filenames["flt"]
@@ -2521,17 +2608,24 @@ class Calibration (object):
     def writeWCS (self, filenames, info, switches, reffiles):
         """Write the WCS header keywords for spectroscopic data.
 
-        @param filenames: input and output file names
-        @type filenames: dictionary
-        @param info: values of header keywords for general information
-        @type info: dictionary
-        @param switches: calibration switches (we need helcorr)
-        @type switches: dictionary
-        @param reffiles: reference file names (we need spwcstab)
-        @type reffiles: dictionary
+        Parameters
+        ----------
+        filenames: dictionary
+            Input and output file names.
 
-        @return: True if keywords were actually written.
-        @rtype: boolean
+        info: dictionary
+            Header keywords and values for general information.
+
+        switches: dictionary
+            Calibration switches (we need helcorr).
+
+        reffiles: dictionary
+            reference file names (we need spwcstab).
+
+        Returns
+        -------
+        updated: boolean
+            True if keywords were actually written.
         """
 
         helcorr = switches["helcorr"]
@@ -2611,14 +2705,16 @@ class Calibration (object):
         (or interpolated) from the list of wavecal information to the
         keywords SHIFT1A, SHIFT1B, SHIFT1C, SHIFT2A, SHIFT2B, SHIFT2C.
 
-        @param filenames: input and output file names
-        @type filenames: dictionary
+        Parameters
+        ----------
+        filenames: dictionary
+            Input and output file names.
 
-        @param wavecorr: "PERFORM" if wavecal processing is being done
-        @type wavecorr: string
+        wavecorr: str
+            "PERFORM" if wavecal processing is being done.
 
-        @param info: values of header keywords for general information
-        @type info: dictionary
+        info: dictionary
+            Header keywords and values for general information.
         """
 
         if info["obsmode"] == "TIME-TAG":
@@ -2690,15 +2786,20 @@ class Calibration (object):
         observation.  (For science data, the shift2 keyword(s) will be
         updated by updateShift.)
 
-        @param filenames: input and output file names
-        @type filenames: dictionary
-        @param segment: FUV segment name or NUV stripe name
-        @type segment: string
-        @param shift2: offset in cross-dispersion direction, as determined
-            from (conventional) wavecal data
-        @type shift2: float
-        @param lamp_is_on: True if the wavecal lamp was actually on
-        @type lamp_is_on: boolean
+        Parameters
+        ----------
+        filenames: dictionary
+            Input and output file names.
+
+        segment: str
+            FUV segment name or NUV stripe name.
+
+        shift2: float
+            Offset in cross-dispersion direction, as determined from
+            (conventional) wavecal data.
+
+        lamp_is_on: boolean
+            True if the wavecal lamp was actually on.
         """
 
         if segment[0:3] == "FUV":
@@ -2757,8 +2858,10 @@ class Calibration (object):
         observation.  There must be an exact match with the rootname of the
         observation.
 
-        @param filenames: input and output file names
-        @type filenames: dictionary
+        Parameters
+        ----------
+        filenames: dictionary
+            Input and output file names.
         """
 
         shift_dict = wavecal.returnExactMatch (self.wavecal_info,
@@ -2787,8 +2890,10 @@ class Calibration (object):
         This function is only called for a wavecal (auto or GO).  For science
         exposures, the wavelengths are assigned during time-tag processing.
 
-        @param filenames: input and output file names
-        @type filenames: dictionary
+        Parameters
+        ----------
+        filenames: dictionary
+            Input and output file names.
         """
 
         if os.access (corrtag, os.R_OK):
@@ -2818,6 +2923,10 @@ class Calibration (object):
 
         for files in self.assoc.merge_kwds:
             assert len (files) == 2
+            # If either file doesn't exist, there's nothing to do.
+            if not os.access (files[0], os.R_OK) or \
+               not os.access (files[1], os.R_OK):
+                return
             files.sort()
             fd_a = pyfits.open (files[0], mode="update")
             fd_b = pyfits.open (files[1], mode="update")
@@ -2841,8 +2950,10 @@ class Calibration (object):
         science files.  The input _x1d_a and _x1d_b will then be deleted,
         if save_temp_files = False.
 
-        @param type: "science", "wavecal" or "tagflash" (ignore if "unknown")
-        @type type: string
+        Parameters
+        ----------
+        type: str {"science", "wavecal", "tagflash", "unknown"}
+            Type of file to be concatenated, used as a dictionary key.
         """
 
         for one_set in self.assoc.concat:
@@ -2923,11 +3034,13 @@ class Calibration (object):
     def combineX1Di (self, input, fppos):
         """Average the x1d data for one specified FPPOS position.
 
-        @param input: name of input file
-        @type input: string
+        Parameters
+        ----------
+        input: str
+            Name of input file.
 
-        @param fppos: value of header keyword FPPOS
-        @type fppos: integer
+        fppos: int {1, 2, 3, 4}
+            Value of header keyword FPPOS.
         """
 
         output = self.x1dProductName (fppos)
@@ -2937,8 +3050,10 @@ class Calibration (object):
     def fltProductName (self):
         """Construct the product name for the flt file.
 
-        @return: name of output flt file
-        @rtype: string
+        Returns
+        -------
+        output: str
+            Name of output flt file.
         """
 
         output = self.assoc.product + "_fltsum.fits"
@@ -2952,11 +3067,15 @@ class Calibration (object):
         the form "rootname_x1dsum1.fits", where the number appended to "x1dsum"
         will be the value of fppos.
 
-        @param fppos: FPPOS index (0 or 1-4)
-        @type fppos: integer
+        Parameters
+        ----------
+        fppos: int {0, 1, 2, 3, 4}
+            Value of header keyword FPPOS.
 
-        @return: name of output x1d file
-        @rtype: string
+        Returns
+        -------
+        output: str
+            Name of output x1d file.
         """
 
         output = self.assoc.product + "_x1dsum"

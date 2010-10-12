@@ -12,33 +12,38 @@ class SpWCS (object):
     """Base class for spectroscopic coordinate parameters.
 
     usage:
-        import spwcs
 
-        wcs = spwcs.SpWcsCorrtag (corrtag_filename, info, helcorr,
-                                  spwcstab, xtractab)
-        flag = wcs.writeWCSKeywords()
+    import spwcs
 
-        wcs = spwcs.SpWcsImage (image_filename, info, helcorr,
-                                spwcstab, xtractab)
-        flag = wcs.writeWCSKeywords()
+    wcs = spwcs.SpWcsCorrtag (corrtag_filename, info, helcorr,
+                              spwcstab, xtractab)
+    flag = wcs.writeWCSKeywords()
+
+    wcs = spwcs.SpWcsImage (image_filename, info, helcorr,
+                            spwcstab, xtractab)
+    flag = wcs.writeWCSKeywords()
+
+    Parameters
+    ----------
+    filename: str
+        Name of file within which keywords will be updated.
+
+    info: dictionary
+        Header keywords and values.
+
+    helcorr: str
+        PERFORM or COMPLETE if heliocentric correction should be applied
+        to the wavelengths (CRVAL1).
+
+    spwcstab: str
+        Name of reference table containing spectroscopic WCS parameters.
+
+    xtractab: str
+        Name of reference table for extraction parameters.
     """
 
     def __init__ (self, filename, info, helcorr, spwcstab, xtractab):
-        """Constructor.
-
-        @param filename: name of file within which keywords will be updated
-        @type filename: string
-        @param info: keywords and values
-        @type info: dictionary
-        @param helcorr: PERFORM or COMPLETE if heliocentric correction should
-            be applied to the wavelengths (CRVAL1)
-        @type helcorr: string
-        @param spwcstab: name of reference table containing spectroscopic WCS
-            parameters
-        @type spwcstab: string
-        @param xtractab: name of reference table for extraction parameters
-        @type xtractab: string
-        """
+        """Constructor."""
 
         self.filename = filename
         self.info = info
@@ -120,16 +125,21 @@ class SpWCS (object):
     def computeCrpix2 (self, wcs_info):
         """Determine the value of the crpix2 keyword.
 
-        @param wcs_info: one row from the spwcstab
-        @type wcs_info: pyfits record object
+        crpix2 should be the location of the spectrum, at the point where
+        it crosses the middle (crpix1) of the detector.  This depends on
+        the segment or stripe.
 
-        @return: the value for the crpix2 keyword (one indexed)
-        @rtype: float
+        Parameters
+        ----------
+        wcs_info: array_like
+            One row from the spwcstab.
+
+        Returns
+        -------
+        crpix2: float
+            The value for the crpix2 keyword (one indexed).
         """
 
-        # crpix2 should be the location of the spectrum, at the point where
-        # it crosses the middle (crpix1) of the detector.  This depends on
-        # the segment or stripe.
         segment = wcs_info.field ("segment")
         filter = {"segment": segment,
                   "opt_elem": self.info["opt_elem"],
@@ -202,24 +212,29 @@ class SpWCS (object):
                 hdr.update (actual_keyword, value)
 
 class SpWcsImage (SpWCS):
-    """Spectroscopic WCS for image data."""
+    """Spectroscopic WCS for image data.
+
+    Parameters
+    ----------
+    filename: str
+        Name of image file.
+
+    info: dictionary
+        Header keywords and values.
+
+    helcorr: str
+        PERFORM or COMPLETE if heliocentric correction should be applied
+        to the wavelengths (CRVAL1).
+
+    spwcstab: str
+        Name of reference table containing spectroscopic WCS parameters.
+
+    xtractab: str
+        Name of reference table for extraction parameters.
+    """
 
     def __init__ (self, filename, info, helcorr, spwcstab, xtractab):
-        """Constructor.
-
-        @param filename: name of image file
-        @type filename: string
-        @param info: keywords and values
-        @type info: dictionary
-        @param helcorr: PERFORM or COMPLETE if heliocentric correction should
-            be applied to the wavelengths (CRVAL1)
-        @type helcorr: string
-        @param spwcstab: name of reference table containing spectroscopic WCS
-            parameters
-        @type spwcstab: string
-        @param xtractab: name of reference table for extraction parameters
-        @type xtractab: string
-        """
+        """Constructor."""
 
         SpWCS.__init__ (self, filename, info, helcorr, spwcstab, xtractab)
 
@@ -323,24 +338,30 @@ class SpWcsImage (SpWCS):
         del (hdr["cd2_2"])
 
 class SpWcsCorrtag (SpWCS):
-    """Spectroscopic WCS for pixel list (corrtag) data."""
+    """Spectroscopic WCS for pixel list (corrtag) data.
+
+    Parameters
+    ----------
+    filename: str
+        Name of corrtag file.
+
+    info: dictionary
+        Header keywords and values.
+
+    helcorr: str
+        PERFORM or COMPLETE if heliocentric correction should
+        be applied to the wavelengths (CRVAL1).
+
+    spwcstab: str
+        Name of reference table containing spectroscopic WCS
+        parameters.
+
+    xtractab: str
+        Name of reference table for extraction parameters.
+    """
 
     def __init__ (self, filename, info, helcorr, spwcstab, xtractab):
-        """Constructor.
-
-        @param filename: name of corrtag file
-        @type filename: string
-        @param info: keywords and values
-        @type info: dictionary
-        @param helcorr: PERFORM or COMPLETE if heliocentric correction should
-            be applied to the wavelengths (CRVAL1)
-        @type helcorr: string
-        @param spwcstab: name of reference table containing spectroscopic WCS
-            parameters
-        @type spwcstab: string
-        @param xtractab: name of reference table for extraction parameters
-        @type xtractab: string
-        """
+        """Constructor."""
 
         SpWCS.__init__ (self, filename, info, helcorr, spwcstab, xtractab)
 

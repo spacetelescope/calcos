@@ -32,36 +32,43 @@ def processConcurrentWavecal (events, outflash, shift_file,
     If tagflash mode was not used or the wavecorr switch is "OMIT" or
     "SKIPPED", this function will return without doing anything.
 
-    @param events: data block for a corrtag table
-    @type events: record array
+    Parameters
+    ----------
+    events: array_like
+        Data block for a corrtag table.
 
-    @param outflash: name of output file for extracted wavecal spectra
-    @type outflash: string
+    outflash: str
+        Name of output file for extracted wavecal spectra.
 
-    @param shift_file: if not None, this text file contains values of
-        shift1 (and possibly shift2) to override the values found via
-        wavecal processing
-    @type shift_file: string
+    shift_file: str or None
+        If not None, this text file contains values of `shift1` (and
+        possibly `shift2`) to override the values found via wavecal
+        processing.
 
-    @param info: dictionary of header keywords and values
+    info: dictionary
+        Header keywords and values.
     @type info: dictionary
 
-    @param switches: dictionary of calibration switch keywords and values
+    switches: dictionary
+        Calibration switch keywords and values.
     @type switches: dictionary
 
-    @param reffiles: dictionary of reference file names
+    reffiles: dictionary
+        Reference file names.
     @type reffiles: dictionary
 
-    @param phdr: primary header of corrtag file
-    @type phdr: pyfits header object
+    phdr: pyfits Header object
+        Primary header of corrtag file.
 
-    @param hdr: events extension header of corrtag file
-    @type hdr: pyfits header object
+    hdr: pyfits Header object
+        Events extension header of corrtag file.
 
-    @return: the shifts in the dispersion direction at one-second intervals,
+    Returns
+    -------
+    shift1_vs_time: array_like or None
+        The shifts in the dispersion direction at one-second intervals,
         or None if wavecorr is not perform (or complete) or the input data
         are not tagflash or there are no flashes.
-    @rtype: array, or None
     """
 
     if not info["tagflash"]:
@@ -125,22 +132,31 @@ def initWavecal (events, outflash, shift_file, info, switches, reffiles,
                  phdr, hdr):
     """Return a ConcurrentWavecal object, depending on detector.
 
-    @param events: data block for an events table corrtag file
-    @type events: pyfits record array
-    @param outflash: name of output file for table of extracted wavecal spectra
-    @type outflash: string
-    @param shift_file: name of user-supplied file to override shifts (or None)
-    @type shift_file: string
-    @param info: keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param phdr: primary header of corrtag file
-    @type phdr: pyfits Header object
-    @param hdr: events extension header
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    events: array_like
+        Data block for an events table corrtag file.
+
+    outflash: str
+        Name of output file for table of extracted wavecal spectra.
+
+    shift_file: str or None
+        Name of user-supplied file to override shifts (or None).
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    phdr: pyfits Header object
+        Primary header of corrtag file.
+
+    hdr: pyfits Header object
+        Events extension header.
     """
 
     if info["detector"] == "FUV":
@@ -323,9 +339,11 @@ class ConcurrentWavecal (object):
     def deleteCoordinateKeywords (self, hdu):
         """Delete keywords that are not relevant for extracted spectra.
 
-        @param hdu: HDU for table of extracted wavecal spectra (will be
-            modified in-place)
-        @type hdu: pyfits header/data unit object
+        Parameters
+        ----------
+        hdu: pyfits header/data unit object
+            HDU for table of extracted wavecal spectra (will be modified
+            in-place).
         """
 
         ikey = ["TCTYP2", "TCTYP3", "TCRVL2", "TCRVL3", "TCRPX2", "TCRPX3",
@@ -647,33 +665,43 @@ class ConcurrentWavecal (object):
                       chi_square, n_deg_freedom):
         """Copy the spectrum to the record array for the outflash table.
 
-        @param disptab: name of the dispersion relation table
-        @type disptab: string
-        @param filter: for extracting the row from the disptab
-        @type filter: dictionary
-        @param n: index of current lamp flash
-        @type n: int
-        @param row: row index (zero indexed) in output table
-        @type row: int
-        @param spectrum: gross counts for current segment or stripe
-            (may be None)
-        @type spectrum: array
-        @param net_spectrum: net counts for current segment or stripe
-            (may be None)
-        @type net_spectrum: array
-        @param bkg_spectrum: background counts for current segment or stripe
-            (may be None)
-        @type bkg_spectrum: array
-        @param shift1: shift in dispersion direction (may be None)
-        @type shift1: float
-        @param shift2: shift in cross-dispersion direction (may be None)
-        @type shift2: float
-        @param spec_found: was the wavecal spectrum actually found?
-        @type spec_found: boolean
-        @param chi_square: Chi square for the current flash
-        @type chi_square: float
-        @param n_deg_freedom: number of degrees of freedom for current flash
-        @type n_deg_freedom: int
+        Parameters
+        ----------
+        disptab: str
+            Name of the dispersion relation table.
+
+        filter: dictionary
+            For extracting the row from the disptab.
+
+        n: int
+            Index of current lamp flash.
+
+        row: int
+            Row index (zero indexed) in output table.
+
+        spectrum: array_like or None
+            Gross counts for current segment or stripe (may be None).
+
+        net_spectrum: array_like or None
+            Net counts for current segment or stripe (may be None).
+
+        bkg_spectrum: array_like or None
+            Background counts for current segment or stripe (may be None).
+
+        shift1: float
+            Shift in dispersion direction.
+
+        shift2: float or None
+            Shift in cross-dispersion direction (may be None).
+
+        spec_found: boolean
+            Was the wavecal spectrum actually found?
+
+        chi_square: float
+            Chi square for the current flash.
+
+        n_deg_freedom: int
+            Number of degrees of freedom for current flash.
         """
 
         if self.ofd is None:
@@ -733,15 +761,19 @@ class ConcurrentWavecal (object):
     def getInterval (self, n):
         """Get the slice for times between wavecal exposures n and n+1.
 
-        @param n: index of flash at left end of time interval; the valid
-            range for n is from 0 to the number of flashes minus one, inclusive
-        @type n: integer
+        Parameters
+        ----------
+        n: int
+            Index of flash at left end of time interval; the valid range
+            for n is from 0 to the number of flashes minus one, inclusive.
 
-        @return: (i0, i1, extrapolate), where i0 and i1 are the indices in
-            the time array (Python slice indices) over which to apply the
-            shift based on flashes n and n+1 (unless n is the last), and
-            extrapolate is True if n is the last flash
-        @rtype: tuple
+        Returns
+        -------
+        (i0, i1, extrapolate): tuple of int, int, boolean
+            `i0` and `i1` are the indices in the time array (Python slice
+            indices) over which to apply the shift based on flashes `n` and
+            `n`+1 (unless `n` is the last), and `extrapolate` is True if
+            `n` is the last flash.
         """
 
         if n == 0:
@@ -763,17 +795,16 @@ class ConcurrentWavecal (object):
     def shift1Corr (self, n, i0, i1, extrapolate=False):
         """Correct the pixel coordinates in the dispersion direction.
 
-        @param n: apply shift1 for the nth time interval between wavecals
-        @type n: int
+        Parameters
+        ----------
+        n: int
+            Apply `shift1` for the `n`th time interval between wavecals.
 
-        @param i0: [i0:i1] is the slice of event numbers to be corrected
-        @type i0: int
+        i0, i1: int
+            [i0:i1] is the slice of event numbers to be corrected.
 
-        @param i1: [i0:i1] is the slice of event numbers to be corrected
-        @type i1: int
-
-        @param extrapolate: True if n is the last flash
-        @type extrapolate: boolean
+        extrapolate: boolean
+            True if `n` is the last flash.
         """
 
         for segment in self.segment_list:
@@ -815,12 +846,14 @@ class ConcurrentWavecal (object):
     def findFlash (self, output=None, update=True):
         """Find tagflash wavecals in science data.
 
-        @param output: if specified, write array of count rates to this file
-            (for testing)
-        @type output: string, or None
+        Parameters
+        ----------
+        output: str or None
+            If specified, write array of count rates to this file
+            (for testing).
 
-        @param update: if true, keywords in input file will be updated
-        @type update: boolean
+        update: boolean
+            If True, keywords in input file will be updated.
         """
 
         detector = self.info["detector"]
@@ -912,8 +945,10 @@ class ConcurrentWavecal (object):
         lamp turned on or off, and (None, None) will be returned to
         indicate this case.
 
-        @return: the histogram (array) and step size (float)
-        @rtype: tuple
+        Returns
+        -------
+        tuple of array_like and float
+            The histogram (array) and step size (float).
         """
 
         maxval = np.maximum.reduce (self.src_counts)
@@ -944,17 +979,21 @@ class ConcurrentWavecal (object):
         (higher count rates) of the histogram.  Then the cutoff is set
         to half the count rate corresponding to that peak.
 
-        @param hist: histogram of count rates src_counts.  hist[i] is the
-            number of elements of src_counts with count rates between
+        Parameters
+        ----------
+        hist: array_like
+            Histogram of count rates `src_counts`.  hist[i] is the
+            number of elements of `src_counts` with count rates between
             i*step and (i+1)*step.
-        @type hist: array
 
-        @param step: step size for histogram, i.e. change in count rate
-            from hist[i] to hist[i+1]
-        @type step: float
+        step: float
+            Step size for histogram, i.e. change in count rate
+            from hist[i] to hist[i+1].
 
-        @return: the cutoff count rate
-        @rtype: float
+        Returns
+        -------
+        float
+            The cutoff count rate.
         """
 
         n = len (hist)
@@ -981,12 +1020,14 @@ class ConcurrentWavecal (object):
         the time intervals specified in the header.  The attributes
         lamp_on and lamp_off are then updated.
 
-        @param cutoff: a count rate (in src_counts array) greater than this
-            indicates that the wavecal lamp was on
-        @type cutoff: float
+        Parameters
+        ----------
+        cutoff: float
+            A count rate (in `src_counts` array) greater than this
+            indicates that the wavecal lamp was on.
 
-        @param t0: time of first photon event (first element of TIME column)
-        @type t0: float
+        t0: float
+            Time of first photon event (first element of TIME column).
         """
 
         nbins = len (self.src_counts)
@@ -1101,22 +1142,26 @@ class ConcurrentWavecal (object):
     def getIndices (self, nbins, t0, lamp_on_i, lamp_off_i):
         """Compute indices in src_counts corresponding to given times.
 
-        @param nbins: number of elements in src_counts array
-        @type nbins: int
+        Parameters
+        ----------
+        nbins: int
+            Number of elements in `src_counts` array.
 
-        @param t0: time of first photon event
-        @type t0: float
+        t0: float
+            Time of first photon event.
 
-        @param lamp_on_i: one element of lamp_on array (minus buffer_on)
-        @type lamp_on_i: float
+        lamp_on_i: float
+            One element of `lamp_on` array (minus `buffer_on`).
 
-        @param lamp_off_i: one element of lamp_off array (plus buffer_off)
-        @type lamp_off_i: float
+        lamp_off_i: float
+            One element of `lamp_off` array (plus `buffer_off`).
 
-        @return: the indices corresponding to lamp_on_i and lamp_off_i;
+        Returns
+        -------
+        tuple of two ints
+            The indices corresponding to `lamp_on_i` and `lamp_off_i`;
             both values will be None if these times are outside the
-            interval (t0, t0+delta_t)
-        @rtype: tuple
+            interval (t0, t0+delta_t).
         """
 
         k_on = (lamp_on_i - t0) / self.delta_t
@@ -1175,10 +1220,12 @@ class ConcurrentWavecal (object):
     def avgShift (self):
         """Compute the shift1 and shift2 offsets averaged over time.
 
-        @return: a tuple of dictionaries (key is segment or stripe name)
-            containing the shifts in the dispersion and cross-dispersion
-            directions averaged over the exposure
-        @rtype: tuple of dictionaries
+        Returns
+        -------
+        tuple of two dictionaries
+            The key is the segment or stripe name.  The dictionaries
+            contain the shifts in the dispersion and cross-dispersion
+            directions averaged over the exposure.
         """
 
         avg_dx = {}
@@ -1232,12 +1279,15 @@ class ConcurrentWavecal (object):
         lamp happened to be off.  If the lamp really was on, the keyword
         will be set to the value of LAMPPLAN.
 
-        @param avg_dx: dictionary of the average shift in the dispersion
-            direction
-        @type avg_dx: dictionary
-        @param avg_dy: dictionary of the average shift in the cross-dispersion
-            direction
-        @type avg_dy: dictionary
+        Parameters
+        ----------
+        avg_dx: dictionary
+            The average shift in the dispersion direction; the key is the
+            segment or stripe name.
+
+        avg_dy: dictionary
+            The average shift in the cross-dispersion direction; the key is
+            the segment or stripe name.
         """
 
         for segment in self.segment_list:
@@ -1317,9 +1367,12 @@ class ConcurrentWavecal (object):
     def shift1VsTime (self):
         """Interpolate shift1 at one-second intervals.
 
-        @return: an array of the shifts in the dispersion direction at
-            one-second intervals
-        @rtype: array, or None if there are either no flashes or no data
+        Returns
+        -------
+        array_like or None
+            The shifts in the dispersion direction at one-second intervals.
+            The value will be None if there are no flashes or if the
+            exposure time is zero.
         """
 
         if self.numflash < 1 or self.info["exptime"] <= 0.:
@@ -1500,17 +1553,19 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
         The difference between this version and the one for NUV is that this
         one limits the shift to the active area.
 
-        @param n: apply shift2 for the nth time interval between wavecals
-        @type n: int
+        Parameters
+        ----------
+        n: int
+            Apply `shift2` for the `n`th time interval between wavecals.
 
-        @param i0: [i0:i1] is the slice of event numbers to be corrected
-        @type i0: int
+        i0: int
+            [i0:i1] is the slice of event numbers to be corrected.
 
-        @param i1: [i0:i1] is the slice of event numbers to be corrected
-        @type i1: int
+        i1: int
+            [i0:i1] is the slice of event numbers to be corrected.
 
-        @param extrapolate: True if n is the last flash
-        @type extrapolate: boolean
+        extrapolate: boolean
+            True if `n` is the last flash.
         """
 
         # Restrict the correction to the applicable region.  Note that the
@@ -1650,17 +1705,19 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
     def shift2Corr (self, n, i0, i1, extrapolate=False):
         """Correct the pixel coordinates in the cross-dispersion direction.
 
-        @param n: apply shift2 for the nth time interval between wavecals
-        @type n: int
+        Parameters
+        ----------
+        n: int
+            Apply `shift2` for the `n`th time interval between wavecals.
 
-        @param i0: [i0:i1] is the slice of event numbers to be corrected
-        @type i0: int
+        i0: int
+            [i0:i1] is the slice of event numbers to be corrected.
 
-        @param i1: [i0:i1] is the slice of event numbers to be corrected
-        @type i1: int
+        i1: int
+            [i0:i1] is the slice of event numbers to be corrected.
 
-        @param extrapolate: True if n is the last flash
-        @type extrapolate: boolean
+        extrapolate: boolean
+            True if `n` is the last flash.
         """
 
         shift2_zero = self.shift2[n]
@@ -1720,17 +1777,17 @@ class NUVImagingWavecal (ConcurrentWavecal):
     def shift2Corr (self, n, i0, i1, extrapolate=False):
         """Correct the pixel coordinates in the cross-dispersion direction.
 
-        @param n: apply shift2 for the nth time interval between wavecals
-        @type n: int
+        n: int
+            Apply `shift2` for the `n`th time interval between wavecals.
 
-        @param i0: [i0:i1] is the slice of event numbers to be corrected
-        @type i0: int
+        i0: int
+            [i0:i1] is the slice of event numbers to be corrected.
 
-        @param i1: [i0:i1] is the slice of event numbers to be corrected
-        @type i1: int
+        i1: int
+            [i0:i1] is the slice of event numbers to be corrected.
 
-        @param extrapolate: True if n is the last flash
-        @type extrapolate: boolean
+        extrapolate: boolean
+            True if `n` is the last flash.
         """
 
         shift2_zero = self.shift2[n]
@@ -1821,16 +1878,22 @@ class NUVImagingWavecal (ConcurrentWavecal):
     def saveSpectrum (self, n, row, shift1, shift2, spec_found):
         """Copy the spectrum to the record array for the outflash table.
 
-        @param n: index of current lamp flash
-        @type n: int
-        @param row: row index (zero indexed) in output table
-        @type row: int
-        @param shift1: shift in X direction
-        @type shift1: float
-        @param shift2: shift in Y direction
-        @type shift2: float
-        @param spec_found: was the wavecal spectrum actually found?
-        @type spec_found: boolean
+        Parameters
+        ----------
+        n: int
+            Index of current lamp flash.
+
+        row: int
+            Row index (zero indexed) in output table.
+
+        shift1: float
+            Shift in X direction.
+
+        shift2: float
+            Shift in Y direction.
+
+        spec_found: boolean
+            Was the wavecal spectrum actually found?
         """
 
         if self.ofd is None:

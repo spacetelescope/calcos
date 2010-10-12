@@ -32,11 +32,14 @@ def writeOutputEvents (infile, outfile):
     extension contains the column XFULL), then the file will be copied
     to output without change.
 
-    @param infile: name of the input FITS file containing an EVENTS table
-        and optionally a GTI table
-    @type infile: string
-    @param outfile: name of file for output EVENTS table (and GTI table)
-    @type outfile: string
+    Parameters
+    ----------
+    infile: str
+        Name of the input FITS file containing an EVENTS table and
+        optionally a GTI table.
+
+    outfile: str
+        Name of file for output EVENTS table (and GTI table).
     """
 
     # ifd = pyfits.open (infile, mode="readonly", memmap=1)
@@ -114,11 +117,15 @@ def isCorrtag (filename):
     A corrtag file contains a table in the first extension, and there
     will be a column with the name "XFULL".
 
-    @param filename: name of a file
-    @type filename: string
+    Parameters
+    ----------
+    filename: str
+        Name of a file.
 
-    @return: True if the first extension of 'filename' is a corrtag table
-    @rtype: boolean
+    Returns
+    -------
+    boolean
+        True if the first extension of 'filename' is a corrtag table.
     """
 
     fd = pyfits.open (filename, mode="readonly")
@@ -160,15 +167,21 @@ def isCorrtag (filename):
 def createCorrtagHDU (nrows, detector, header):
     """Create the output events HDU.
 
-    @param nrows: number of rows to allocate (may be zero)
-    @type nrows: int
-    @param detector: FUV or NUV
-    @type detector: string
-    @param header: events extension header
-    @type header: pyfits Header object
+    Parameters
+    ----------
+    nrows: int
+        Number of rows to allocate (may be zero).
 
-    @return: header/data unit for a corrtag table
-    @rtype: pyfits BinTableHDU object
+    detector: {"FUV", "NUV"}
+        Detector name.
+
+    header: pyfits Header object
+        Events extension header.
+
+    Returns
+    -------
+    pyfits BinTableHDU object
+        Header/data unit for a corrtag table.
     """
 
     col = []
@@ -197,10 +210,13 @@ def copyExptimeKeywords (inhdr, outhdr):
     This is for copying the exposure time keywords from the input extension
     header to the primary header of the csum file.
 
-    @param inhdr: input header
-    @type inhdr: pyfits Header object
-    @param outhdr: output header
-    @type outhdr: pyfits Header object
+    Parameters
+    ----------
+    inhdr: pyfits Header object
+        Input header.
+
+    outhdr: pyfits Header object
+        Output header.
     """
 
     outhdr.update ("expstart", inhdr.get ("expstart", -999.))
@@ -215,12 +231,16 @@ def copyVoltageKeywords (inhdr, outhdr, detector):
     This is for copying the high voltage keywords from the input extension
     header to the primary header of the csum file.
 
-    @param inhdr: input header
-    @type inhdr: pyfits Header object
-    @param outhdr: output header
-    @type outhdr: pyfits Header object
-    @param detector: FUV or NUV
-    @type detector: string
+    Parameters
+    ----------
+    inhdr: pyfits Header object
+        Input header.
+
+    outhdr: pyfits Header object
+        Output header.
+
+    detector: {"FUV", "NUV"}
+        Detector name.
     """
 
     if detector == "FUV":
@@ -240,12 +260,16 @@ def copySubKeywords (inhdr, outhdr, subarray):
     This is for copying the subarray keywords from the input extension
     header to the primary header of the csum file.
 
-    @param inhdr: input header
-    @type inhdr: pyfits Header object
-    @param outhdr: output header
-    @type outhdr: pyfits Header object
-    @param subarray: True if the exposure used one or more subarrays
-    @type subarray: boolean
+    Parameters
+    ----------
+    inhdr: pyfits Header Object
+        Input header.
+
+    outhdr: pyfits Header Object
+        Output header.
+
+    subarray: boolean
+        True if the exposure used one or more subarrays.
     """
 
     if subarray:
@@ -265,11 +289,15 @@ def copySubKeywords (inhdr, outhdr, subarray):
 def dummyGTI (exptime):
     """Return a GTI table.
 
-    @param exptime: exposure time in seconds
-    @type exptime: float
+    Parameters
+    ----------
+    exptime: float
+        Exposure time in seconds.
 
-    @return: header/data unit for a GTI table covering the entire exposure
-    @rtype: pyfits BinTableHDU object
+    Returns
+    -------
+    pyfits BinTableHDU object
+        Header/data unit for a GTI table covering the entire exposure.
     """
 
     col = []
@@ -287,8 +315,10 @@ def dummyGTI (exptime):
 def returnGTI (infile):
     """Return a list of (start, stop) good time intervals.
 
-    @param infile: name of the input FITS file containing a GTI table
-    @type infile: string
+    Parameters
+    ----------
+    infile: str
+        Name of the input FITS file containing a GTI table.
     """
 
     fd = pyfits.open (infile, mode="readonly")
@@ -322,13 +352,18 @@ def returnGTI (infile):
 def findColumn (table, colname):
     """Return True if colname is found (case-insensitive) in table.
 
-    @param table: name of table or data block for a FITS table
-    @type table: string (if name of table) or FITS record object
-    @param colname: name to test for existence in table
-    @type colname: string
+    Parameters
+    ----------
+    table: string (if name of table) or FITS record object
+        Name of table or data block for a FITS table.
 
-    @return: True if colname is in the table (without regard to case)
-    @rtype: boolean
+    colname: str
+        Name of column to test for existence in `table`.
+
+    Returns
+    -------
+    boolean
+        True if `colname` is in the table (without regard to case).
     """
 
     if type (table) is str:
@@ -363,21 +398,29 @@ def getTable (table, filter, extension=1,
     matches the filter.  A warning will be printed if exactly_one is true
     but more than one row matches the filter.
 
-    @param table: name of the reference table
-    @type table: string
-    @param filter: dictionary; each key is a column name, and if the value
-        in that column matches the filter value for some row, that row will
-        be included in the set that is returned
-    @type filter: dictionary
-    @param extension: identifier for the extension containing the table
-    @type extension: tuple, string or integer
-    @param exactly_one: true if there must be one and only one matching row
-    @type exactly_one: boolean
-    @param at_least_one: true if there must be at least one matching row
-    @type at_least_one: boolean
+    Parameters
+    ----------
+    table: str
+        Name of the reference table.
 
-    @return: data object containing the selected row(s)
-    @rtype: pyfits record array
+    filter: dictionary
+        Key is a column name, and if the value in that column matches the
+        filter value for some row, that row will be included in the array
+        that is returned.
+
+    extension: tuple, str, or int
+        Identifier for the extension containing the table.
+
+    exactly_one: boolean
+        True to indicate that there must be one and only one matching row.
+
+    at_least_one: boolean
+        True to indicate that there must be at least one matching row.
+
+    Returns
+    -------
+    array_like
+        Pyfits table data object containing the selected row(s).
     """
 
     # fd = pyfits.open (table, mode="readonly", memmap=1)
@@ -438,19 +481,27 @@ def getTable (table, filter, extension=1,
 def getColCopy (filename="", column=None, extension=1, data=None):
     """Return the specified column in native format.
 
-    @param filename: the name of the FITS file
-    @type filename: string
-    @param column: column name or number
-    @type column: string or integer
-    @param extension: number of extension containing the table
-    @type extension: integer
-    @param data: the data portion of a table
-    @type data: pyfits record object
+    Specify either the data block (`data`) or the name of a file
+    (`filename`), but not both.
 
-    @return: the column data
-    @rtype: array
+    Parameters
+    ----------
+    filename: str
+        The name of the FITS file.
 
-    Specify either the name of the file or the data block, but not both.
+    column: str or int
+        Column name or number.
+
+    extension: int
+        Number of extension containing the table.
+
+    data: array_like
+        The data portion of a table.
+
+    Returns
+    -------
+    array_like
+        The column data.
     """
 
     if filename and data is not None:
@@ -473,12 +524,22 @@ def getColCopy (filename="", column=None, extension=1, data=None):
 def getTemplate (raw_template, x_offset, nelem):
     """Return the template spectrum embedded in a possibly larger array.
 
-    @param raw_template: template spectrum as read from the lamptab
-    @type raw_template: numpy array
-    @param x_offset: offset of raw_template in the extended template
-    @type x_offset: int
-    @param nelem: length of template spectrum to return
-    @type nelem: int
+    Parameters
+    ----------
+    raw_template: array_like
+        Template spectrum as read from the lamptab.
+
+    x_offset: int
+        Offset of raw_template in the extended template.
+
+    nelem: int
+        Length of template spectrum to return.
+
+    Returns
+    -------
+    array_like
+        A copy of `raw_template`, possibly padded with zeros on the left
+        and right.
     """
 
     len_raw = len (raw_template)
@@ -496,15 +557,21 @@ def determineLivetime (countrate, obs_rate, live_factor):
 
     This is just linear interpolation in live_factor vs obs_rate.
 
-    @param countrate: observed count rate
-    @type countrate: float
-    @param obs_rate: observed count rate column from deadtab
-    @type obs_rate: array
-    @param live_factor: livetime factor column from deadtab
-    @type live_factor: array
+    Parameters
+    ----------
+    countrate: float
+        Observed count rate.
 
-    @return: the interpolated livetime factor.
-    @rtype: float
+    obs_rate: array_like
+        Observed count rate column from deadtab.
+
+    live_factor: array_like
+        Livetime factor column from deadtab.
+
+    Returns
+    -------
+    float
+        The interpolated livetime factor.
     """
 
     n = len (obs_rate)
@@ -535,23 +602,32 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
     counts through the wavecal aperture were significantly greater than
     the background counts.
 
-    @param xi: pixel coordinates of events, in dispersion direction
-    @type xi: numpy array
-    @param eta: pixel coordinates of events, in cross-dispersion direction
-    @type eta: numpy array
-    @param dq: data quality column
-    @type dq: numpy array
-    @param info: header keywords and values
-    @type info: dictionary
-    @param xtractab: name of the 1-D extraction parameters table
-    @type xtractab: string
-    @param shift2: offset of spectrum in cross-dispersion direction
-    @type shift2: float
+    Parameters
+    ----------
+    xi: array_like
+        Pixel coordinates of events, in dispersion direction.
 
-    @return: True if the background-subtracted wavecal source spectrum is
+    eta: array_like
+        Pixel coordinates of events, in cross-dispersion direction.
+
+    dq: array_like
+        Data quality column.
+
+    info: dictionary
+        Header keywords and values.
+
+    xtractab: str
+        Name of the 1-D extraction parameters table.
+
+    shift2: float
+        Offset of spectrum in cross-dispersion direction.
+
+    Returns
+    -------
+    boolean
+        True if the background-subtracted wavecal source spectrum is
         more than five times the standard deviation of the difference
-        between the source counts and the background counts
-    @rtype: boolean
+        between the source counts and the background counts.
     """
 
     # Use hard-coded numbers for imaging data.  Delete this section if
@@ -688,8 +764,15 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
 def getHeaders (input):
     """Return a list of all the headers in the file.
 
-    argument:
-    input       name of an input file
+    Parameters
+    ----------
+    input: str
+        Name of an input file.
+
+    Returns
+    -------
+    list of pyfits Header objects
+        A list of all the headers in the input FITS file.
     """
 
     fd = pyfits.open (input, mode="readonly")
@@ -711,10 +794,22 @@ def timeAtMidpoint (info):
 def geometricDistortion (x, y, geofile, segment, igeocorr):
     """Apply geometric (INL) correction.
 
-    x, y          arrays of pixel coordinates of events
-    geofile       name of geometric correction reference file
-    segment       FUVA or FUVB
-    igeocorr      "PERFORM" if interpolation should be used within the geofile
+    Parameters
+    ----------
+    x: array_like
+        Array of X pixel coordinates of events.
+
+    y: array_like
+        Array of Y pixel coordinates of events.
+
+    geofile: str
+        Name of geometric correction reference file.
+
+    segment: {"FUVA", "FUVB"}
+        FUV segment name.
+
+    igeocorr: str
+        "PERFORM" if interpolation should be used within the geofile.
     """
 
     fd = pyfits.open (geofile, mode="readonly", memmap=0)
@@ -744,13 +839,20 @@ def geometricDistortion (x, y, geofile, segment, igeocorr):
 def activeArea (segment, brftab):
     """Return the limits of the FUV active area.
 
-    @param segment: for finding the appropriate row in the brftab
-    @type segment: string
-    @param brftab: name of the baseline reference frame table (ignored for NUV)
-    @type brftab: string
-    @return: the low and high limits and the left and right limits of the
-        active area of the detector.  For NUV this will be (0, 1023, 0, 1023).
-    @rtype: tuple
+    Parameters
+    ----------
+    segment: {"FUVA", "FUVB", "N/A"}
+        Segment name, for finding the appropriate row in the brftab.
+
+    brftab: str
+        Name of the baseline reference frame table (ignored for NUV).
+
+    Returns
+    -------
+    tuple of int
+        The low and high limits and the left and right limits of the
+        active area of the detector.  For NUV this will be the full
+        detector size, (0, 1023, 0, 1023).
     """
 
     if segment[0] == "N":
@@ -774,14 +876,19 @@ def getInputDQ (input, imset=1):
     in this case the size will be taken from keywords NPIX1 and NPIX2, and
     the data value will be the value of the PIXVALUE keyword.
 
-    @param input: name of a FITS file containing an image set (SCI, ERR, DQ);
-                  only the DQ extension will be read
-    @type input: string
-    @param imset: image set number (one indexed)
-    @type imset: int
+    Parameters
+    ----------
+    input: str
+        Name of a FITS file containing an image set (SCI, ERR, DQ);
+        only the DQ extension will be read.
 
-    @return: data quality array read from input file, or array of zeros
-    @rtype: numpy array
+    imset: int
+        Image set number (one indexed).
+
+    Returns
+    -------
+    array_like
+        Data quality array read from input file, or array of zeros.
     """
 
     fd = pyfits.open (input, mode="readonly")
