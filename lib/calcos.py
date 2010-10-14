@@ -959,6 +959,9 @@ class Association (object):
         if obstype != "IMAGING":
             return
 
+        if self.cl_args["only_raw_csum"]:       # there won't be any flt files
+            return
+
         if not self.combine.has_key ("flt"):
             self.combine["flt"] = []
 
@@ -981,6 +984,9 @@ class Association (object):
         """
 
         if obstype != "SPECTROSCOPIC":
+            return
+
+        if self.cl_args["only_raw_csum"]:       # there won't be any x1d files
             return
 
         if not self.combine.has_key ("x1d"):
