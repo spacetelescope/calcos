@@ -1433,6 +1433,7 @@ def updateArchiveSearch (ofd):
                   "cenwave":  cenwave,
                   "segment":  segment[0],
                   "aperture": aperture}
+        spwcstab = cosutil.expandFileName (spwcstab)
         wcs_info = cosutil.getTable (spwcstab, filter, exactly_one=True)
         cdelt2 = wcs_info.field ("cdelt2")[0] * 3600
         if detector == "NUV":
