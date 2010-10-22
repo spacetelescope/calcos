@@ -1429,9 +1429,19 @@ def updateArchiveSearch (ofd):
         aperture = phdr.get ("aperture", "PSA")
         if aperture not in ["PSA", "BOA"]:
             aperture = "PSA"    # override aperture = "WCA" or "FCA"
+        if nrows > 0:
+            current_segment = segment[0]
+        else:
+            if detector == "FUV":
+                if phdr["segment"][0:3] == "FUV":
+                    current_segment = phdr["segment"]
+                else:
+                    current_segment = "FUVA"
+            else:
+                current_segment = "NUVA"
         filter = {"opt_elem": opt_elem,
                   "cenwave":  cenwave,
-                  "segment":  segment[0],
+                  "segment":  current_segment,
                   "aperture": aperture}
         spwcstab = cosutil.expandFileName (spwcstab)
         wcs_info = cosutil.getTable (spwcstab, filter, exactly_one=True)
