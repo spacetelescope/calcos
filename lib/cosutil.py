@@ -1005,6 +1005,7 @@ def updateDQArray (bpixtab, info, dq_array,
     if dq_info is None:
         return
 
+    dq_shape = dq_array.shape
     lx = dq_info.field ("lx")
     ly = dq_info.field ("ly")
     ux = lx + dq_info.field ("dx") - 1
@@ -1012,7 +1013,7 @@ def updateDQArray (bpixtab, info, dq_array,
 
     (mindopp, maxdopp) = minmax_doppler
 
-    if info["detector"] == "FUV":
+    if doppler_boundary > 0. and info["detector"] == "FUV":
         # split FUV into two regions, the PSA and the WCA
         key = minmax_shift_dict.keys()[0]
         value = minmax_shift_dict[key]
@@ -1034,7 +1035,8 @@ def updateDQArray (bpixtab, info, dq_array,
         [min_shift1, max_shift1, min_shift2, max_shift2] = \
                 minmax_dict[key]
 
-        if (lower_y + upper_y) // 2 < doppler_boundary:
+        if doppler_boundary > 0. and \
+           ((lower_y + upper_y) // 2 < doppler_boundary):
             lx_s = lx - int (round (max_shift1 - mindopp))
             ux_s = ux - int (round (min_shift1 - maxdopp))
         else:
@@ -1044,6 +1046,14 @@ def updateDQArray (bpixtab, info, dq_array,
         # these are the limits of a slice
         lower_y_s = lower_y - int (round (max_shift2))
         upper_y_s = upper_y - int (round (min_shift2))
+        if upper_y_s < 0:
+            continue
+        if lower_y_s >= dq_shape[0]:
+            continue
+        if lower_y_s < 0:
+            lower_y_s = 0
+        if upper_y_s >= dq_shape[0]:
+            upper_y_s = dq_shape[0] - 2
 
         # these are Y locations relative to the slice
         # ly - max_shift2 - (lower_y - max_shift2)
