@@ -32,7 +32,7 @@ class Shift1 (object):
     The public methods are:
         fs1.findShifts()
         shift1 = fs1.getShift1 (key)
-        fs1.setShift1 (key, shift1)
+        fs1.setShift1 (key, shift1, fp=True)
         user_specified = fs1.getUserSpecified (key)
         orig_shift1 = fs1.getOrigShift1 (key)
         measured_shift1 = getMeasuredShift1 (key)
@@ -49,10 +49,12 @@ class Shift1 (object):
     ----------
     spectra: dictionary of array_like
         The 1-D extracted spectra; these should be in counts, not counts/s,
-        because Poisson statistics will be assumed.
+        because Poisson statistics will be assumed.  Key is segment or
+        stripe name.
 
     templates: dictionary of array_like
         Template spectra (same keys as for `spectra`) from the lamptab.
+        Key is segment or stripe name.
 
     info: dictionary
         Header keywords and values.
@@ -64,7 +66,7 @@ class Shift1 (object):
         The maximum offset (lag) for the cross correlation; this is from
         column XC_RANGE in the WCPTAB.
 
-    fp_pixel_shift: dictionary
+     fp_pixel_shift: dictionary
         From the FP_PIXEL_SHIFT column of the lamptab, with an entry (same
         keys as for `spectra`) for each segment or stripe; if that column
         is not present in the lamptab, the values should be 0.
@@ -225,16 +227,16 @@ class Shift1 (object):
         else:
             return 0.
 
-    def setShift1 (self, key, shift1):
+    def setShift1 (self, key, shift1, fp=True):
         """Set shift1 to the value supplied by the user."""
 
         if key not in self.shift1_dict:
             return
 
-        shift1 -= self.fp_pixel_shift[key]
         spectrum = self.spectra[key]
         template = self.templates[key]
-        self.computeNormalization (spectrum, template, shift1)
+        self.computeNormalization (spectrum, template,
+                                   shift1 - self.fp_pixel_shift[key])
         if self.factor is None:
             self.chisq_dict[key] = 0.
             self.ndf_dict[key] = 0
@@ -248,7 +250,11 @@ class Shift1 (object):
             self.spec_dict[key] = spec.copy()
             self.tmpl_dict[key] = tmpl.copy()
 
-        self.shift1_dict[key] = shift1
+        # the default is to include the fp_pixel_shift offset
+        if fp:
+            self.shift1_dict[key] = shift1 - self.fp_pixel_shift[key]
+        else:
+            self.shift1_dict[key] = shift1
         self.spec_found[key] = True
         self.user_specified_dict[key] = True
         self.scatter_dict[key] = 0.
@@ -459,8 +465,10 @@ class Shift1 (object):
     def globalShift (self):
         """Return the shift of the sum of all NUV stripes.
 
-        @return: the shift of the sum of all (nominally three) NUV stripes
-        @rtype: float
+        Returns
+        -------
+        float
+            The shift of the sum of all (nominally three) NUV stripes
         """
 
         key = self.keys[0]
@@ -492,17 +500,22 @@ class Shift1 (object):
     def findShift (self, spectrum, template):
         """Find a shift in the dispersion direction.
 
-        @param spectrum: a 1-D extracted wavecal spectrum
-        @type spectrum: array
-        @param template: template spectrum
-        @type template: array
+        Parameters
+        ----------
+        spectrum: array_like
+            A 1-D extracted wavecal spectrum
 
-        @return: (shift, orig_shift1, scatter, foundit), where shift is the
-            shift in the dispersion direction, orig_shift1 is the shift even
-            if it wasn't well determined, scatter is an estimate of the
-            uncertainty in shift1, and foundit is True if we think the shift
-            was actually found
-        @rtype: tuple
+        template: array_like
+            Template spectrum
+
+        Returns
+        -------
+        tuple
+            (shift, orig_shift1, scatter, foundit), where shift is the
+            shift in the dispersion direction, orig_shift1 is the shift
+            even if it wasn't well determined, scatter is an estimate of
+            the uncertainty in shift1, and foundit is True if we think the
+            shift was actually found
         """
 
         # xxx need to improve the comments in this function
@@ -630,19 +643,25 @@ class Shift1 (object):
     def findMinimum (self, imin, maxlag, chisq):
         """Fit a quadratic to points near the minimum of chisq.
 
-        @param imin: index to use as a starting point
-        @type imin: int
-        @param maxlag: half the search range, i.e. maximum offset from nominal
-        @type maxlag: int
-        @param chisq: array of reduced chi square, one for each offset
-        @type chisq: array
+        Parameters
+        ----------
+        imin: int
+            Index to use as a starting point
 
-        @return: (shift, orig_shift1, scatter), where shift is the shift
-            in the dispersion direction (or zero if not found), orig_shift1
-            will be the same value if the shift was found (but will be the
-            shift based on imin if not found), and scatter is a measure of
-            the uncertainty in the shift
-        @rtype: tuple of three floats
+        maxlag: int
+            Half the search range, i.e. maximum offset from nominal
+
+        chisq: array_like
+            Reduced chi square, one for each offset
+
+        Returns
+        -------
+        tuple of three floats
+            (shift, orig_shift1, scatter), where shift is the shift in the
+            dispersion direction (or zero if not found), orig_shift1 will
+            be the same value if the shift was found (but will be the shift
+            based on imin if not found), and scatter is a measure of the
+            uncertainty in the shift
         """
 
         lenxc = self.lenxc
@@ -678,13 +697,6 @@ class Shift1 (object):
     def computeNormalization (self, spectrum, template, shift):
         """Compute a normalization factor between spectrum and template.
 
-        @param spectrum: the 1-D extracted wavecal spectrum
-        @type spectrum: array
-        @param template: template spectrum
-        @type template: array
-        @param shift: the pixel shift in the dispersion direction
-        @type shift: float, or None if shift was not found successfully
-
         The following attributes are assigned, to be used by computeChiSquare:
             self.factor
             self.baseline
@@ -699,6 +711,18 @@ class Shift1 (object):
             no non-zero data (overlap region could not be found)
             singularity in the fit between template and spectrum
             factor is zero or negative
+
+        Parameters
+        ----------
+        spectrum: array_like
+            The 1-D extracted wavecal spectrum
+
+        template: array_like
+            Template spectrum
+
+        shift: float or None
+            The pixel shift in the dispersion direction, or None if the
+            shift was not found successfully
         """
 
         self.factor = None
@@ -776,21 +800,26 @@ class Shift1 (object):
     def computeChiSquare (self, spectrum, template):
         """Compute chi square for spectrum and template.
 
-        @param spectrum: the 1-D extracted wavecal spectrum
-        @type spectrum: array
-        @param template: template spectrum
-        @type template: array
-
-        @return: Chi square, the number of degrees of freedom, the overlapping
-            slice of the spectrum and normalized template
-        @rtype: tuple
-
-        This makes use of the following attributes that were assigned by
-        computeNormalization:
+        This method makes use of the following attributes that were
+        assigned by computeNormalization:
             self.factor
             self.baseline
             self.spec_slice
             self.tmpl_slice
+
+        Parameters
+        ----------
+        spectrum: array_like
+            The 1-D extracted wavecal spectrum
+
+        template: array_like
+            Template spectrum
+
+        Returns
+        -------
+        tuple
+            Chi square, the number of degrees of freedom, the overlapping
+            slice of the spectrum and normalized template
         """
 
         (s0, s1) = self.spec_slice
@@ -896,10 +925,15 @@ class Shift1 (object):
     def evalPoly (self, x, coeff):
         """Evaluate a polynomial in x.
 
-        @param x: argument
-        @type x: float
-        @return: coeff[0] + coeff[1] * x + coeff[2] * x**2 + ...
-        @rtype: float
+        Parameters
+        ----------
+        x: float
+            Argument
+
+        Returns
+        -------
+        float
+            coeff[0] + coeff[1] * x + coeff[2] * x**2 + ...
         """
 
         ncoeff = len (coeff)

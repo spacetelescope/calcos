@@ -1243,6 +1243,7 @@ class Association (object):
             "deadtab":  ["2.0", "DEADTIME REFERENCE TABLE"],
             "brftab":   ["2.0", "BASELINE REFERENCE FRAME TABLE"],
             "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
+            "phafile":  ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE IMAGE"],
             "geofile":  ["2.0", "GEOMETRIC DISTORTION REFERENCE IMAGE"],
             "lamptab":  ["2.0", "TEMPLATE CAL LAMP SPECTRA TABLE"],
             "wcptab":   ["2.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
@@ -1289,8 +1290,21 @@ class Association (object):
                     missing, wrong_filetype, bad_version)
 
         if switches["phacorr"] == "PERFORM":
-            cosutil.findRefFile (ref["phatab"],
-                    missing, wrong_filetype, bad_version)
+            (i_pha, j_pha) = self.first_science_tuple
+            if i_pha is not None:
+                # there is a TIME-TAG exposure
+                if reffiles["phafile"] != NOT_APPLICABLE:
+                    # phafile was specified
+                    cosutil.findRefFile (ref["phafile"],
+                            missing, wrong_filetype, bad_version)
+                else:
+                    # no phafile; use phatab instead
+                    cosutil.findRefFile (ref["phatab"],
+                            missing, wrong_filetype, bad_version)
+            if j_pha is not None:
+                # there is an ACCUM exposure, so we need phatab
+                cosutil.findRefFile (ref["phatab"],
+                        missing, wrong_filetype, bad_version)
 
         if switches["geocorr"] == "PERFORM":
             cosutil.findRefFile (ref["geofile"],

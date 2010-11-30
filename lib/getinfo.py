@@ -287,7 +287,8 @@ def getRefFileNames (phdr):
     reffiles = {}
 
     for key in ["flatfile", "bpixtab", "brftab", "geofile",
-                "deadtab", "phatab", "brsttab", "badttab",
+                "deadtab", "phafile", "phatab",
+                "brsttab", "badttab",
                 "xtractab", "lamptab", "disptab",
                 "fluxtab", "imphttab", "phottab",
                 "spwcstab", "wcptab", "tdstab"]:

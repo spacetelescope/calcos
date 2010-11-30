@@ -91,27 +91,39 @@ def extractBand (data, dq_data, wavelength, axis, slope, y_nominal,
                  x_offset, detector):
     """Extract a 2-D stripe centered on the nominal location of the target.
 
-    @param data: SCI data from the flt file
-    @type data: 2-D numpy array
-    @param dq_data: DQ data from the flt file
-    @type dq_data: 2-D numpy array
-    @param wavelength: wavelength at each pixel (needed if find_target is True)
-    @type wavelength: array
-    @param axis: the dispersion axis, 0 (Y) or 1 (X)
-    @type axis: int
-    @param slope: slope of spectrum, pixels per pixel
-    @type slope: float
-    @param y_nominal: intercept of spectrum at left edge of detector
-    @type y_nominal: float
-    @param x_offset: offset of the detector in the data array
-    @type x_offset: int
-    @param detector: detector name ("FUV" or "NUV")
-    @type detector: string
+    Parameters
+    ----------
+    data: array_like
+        SCI data from the flt file
 
-    @return: e_j, a 1-D array containing a section of 'data' collapsed along
-        the dispersion direction; zero_point, the Y pixel number at the left
-        edge of 'data' corresponding to pixel 0 of e_j
-    @rtype: tuple
+    dq_data: array_like
+        DQ data from the flt file
+
+    wavelength: array_like
+        Wavelength at each pixel (to locate the airglow lines)
+
+    axis: int
+        The dispersion axis, 0 (Y) or 1 (X)
+
+    slope: float
+        Slope of spectrum, pixels per pixel
+
+    y_nominal: float
+        Intercept of spectrum at left edge of detector
+
+    x_offset: int
+        Offset of the detector in the data array
+
+    detector: str
+        Detector name ("FUV" or "NUV")
+
+    Returns
+    -------
+    tuple
+        (e_j, zero_point), where e_j is a 1-D array containing a section of
+        `data` collapsed along the dispersion direction and `zero_point` is
+        the Y pixel number at the left edge of `data` corresponding to
+        pixel 0 of `e_j`
     """
 
     extr_height = SEARCH_Y
@@ -151,13 +163,18 @@ def extractBand (data, dq_data, wavelength, axis, slope, y_nominal,
 def findPixelNumber (wl, wavelength):
     """Find the nearest pixel to 'wavelength'.
 
-    @param wl: wavelength at each pixel, assumed to be increasing
-    @type wl: array of float64
-    @param wavelength: a particular wavelength
-    @type wavelength: float
+    Parameters
+    ----------
+    wl: array_like, float64
+        Wavelength at each pixel, assumed to be increasing
 
-    @return: pixel number closest to 'wavelength' in the array 'wl'
-    @rtype: int
+    wavelength: float
+        A particular wavelength
+
+    Returns
+    -------
+    int
+        Pixel number closest to `wavelength` in the array `wl`
     """
 
     nelem = len (wl)
@@ -198,23 +215,29 @@ def findPixelNumber (wl, wavelength):
 def findPeak (e_j, box):
     """Find the location of the maximum within the subset.
 
-    @param e_j: 1-D array of data collapsed along dispersion axis,
-        taking into account the tilt of the spectrum
-    @type e_j: array
-    @param box: smooth e_j with a box of this width before looking
-        for the maximum
-    @type box: int
+    Note that the data were collapsed to the left edge to get `e_j`, so
+    the location is the intercept on the edge, rather than where the
+    spectrum crosses the middle of the detector or where it crosses
+    X = x_offset.
+    Also, `e_j` is not the full height of the detector, just a subset
+    centered on the nominal Y location of the spectrum.
 
-    @return: The location (float) in the cross-dispersion direction
-        relative to the first pixel in e_j, and an estimate of the
-        uncertainty in that location
-    @rtype: tuple
+    Parameters
+    ----------
+    e_j: array_like
+        1-D array of data collapsed along dispersion axis, taking into
+        account the tilt of the spectrum
 
-    Note that the data were collapsed to the left edge to get e_j, so the
-    location is the intercept on the edge, rather than where the spectrum
-    crosses the middle of the detector or where it crosses X = x_offset.
-    Also, e_j is not the full height of the detector, just a subset centered
-    on the nominal Y location of the spectrum.
+    box: int
+        Smooth `e_j` with a box of this width before looking for the
+        maximum
+
+    Returns
+    -------
+    tuple
+        The location (float) in the cross-dispersion direction relative
+        to the first pixel in `e_j`, and an estimate of the uncertainty in
+        that location
     """
 
     e_j_sm = boxcar (e_j, (box,), mode="nearest")

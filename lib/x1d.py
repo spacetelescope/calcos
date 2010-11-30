@@ -200,11 +200,15 @@ def extractSpec (inlist=[], outdir=None, update_input=False,
 def checkMissing (filenames):
     """Check for missing input files.
 
-    @param filenames: names of input and output files
-    @type filenames: dictionary
+    Parameters
+    ----------
+    filenames: dictionary
+        Names of input and output files; key is an x1d file name
 
-    @return: list of input corrtag files that are not present
-    @rtype: list
+    Returns
+    -------
+    list of str
+        List of input corrtag files that are not present
     """
 
     missing = []
@@ -227,11 +231,15 @@ def checkMissing (filenames):
 def checkExists (filenames):
     """Check for output files that already exist.
 
-    @param filenames: names of input and output files
-    @type filenames: dictionary
+    Parameters
+    ----------
+    filenames: dictionary
+        Names of input and output files; key is an x1d file name
 
-    @return: list of output files that already exist
-    @rtype: list
+    Returns
+    -------
+    list
+        List of output files that already exist
     """
 
     already_exists = []
@@ -303,13 +311,18 @@ def makeFileNames (inlist, outdir=""):
     The flt, counts, x1d_ab, and x1d file names all include the output
     directory name (if any).
 
-    @param inlist: list of input corrtag file names
-    @type inlist: list
-    @param outdir: name of the directory for output files, or ""
-    @type outdir: string
+    Parameters
+    ----------
+    inlist: list of str
+        List of input corrtag file names
 
-    @return: the names of the input and output files
-    @rtype: dictionary
+    outdir: str
+        Name of the directory for output files, or ""
+
+    Returns
+    -------
+    filenames: dictionary
+        The names of the input and output files
     """
 
     filenames = {}
@@ -358,17 +371,24 @@ def makeFileNames (inlist, outdir=""):
 def makeFltCounts (cal_ver, corrtag, flt, counts):
     """Create the flt and counts files.
 
-    @param cal_ver: calcos version number and date
-    @type cal_ver: string
-    @param corrtag: name of corrected events table
-    @type corrtag: string
-    @param flt: name of effective count rate file
-    @type flt: string
-    @param counts: name of count rate file
-    @type counts: string
+    Parameters
+    ----------
+    cal_ver: str
+        Calcos version number and date
 
-    @return: True if the current exposure is a wavecal, based on EXPTYPE
-    @rtype: boolean
+    corrtag: str
+        Name of corrected events table
+
+    flt: str
+        Name of effective count rate file
+
+    counts: str
+        Name of count rate file
+
+    Returns
+    -------
+    boolean
+        True if the current exposure is a wavecal, based on EXPTYPE
     """
 
     fd = pyfits.open (corrtag, mode="readonly")
@@ -422,10 +442,13 @@ def concatenateSegments (x1d_ab_list, x1d):
     If the list contains just one file name, the file will be renamed;
     otherwise, the files will be concatenated into one file, given by `x1d`.
 
-    @param x1d_ab_list: rootname_x1d_a.fits, rootname_x1d_b.fits file names
-    @type x1d_ab_list: list
-    @param x1d: rootname_x1d.fits file name
-    @type x1d: string
+    Parameters
+    ----------
+    x1d_ab_list: list of str
+        rootname_x1d_a.fits, rootname_x1d_b.fits file names
+
+    x1d: str
+        rootname_x1d.fits file name
     """
 
     nfiles = len (x1d_ab_list)
@@ -442,12 +465,16 @@ def concatenateSegments (x1d_ab_list, x1d):
 def updateSomeKeywords (x1d, filenames, update_input=False):
     """Copy extraction location keywords from x1d.fits to other files.
 
-    @param x1d: name of the rootname_x1d.fits file
-    @type x1d: string
-    @param filenames: names of input and output files
-    @type filenames: dictionary
-    @param update_input: True if we should update keywords in the corrtag files
-    @type update_input: boolean
+    Parameters
+    ----------
+    x1d: str
+        Name of the rootname_x1d.fits file
+
+    filenames: dictionary
+        Names of input and output files
+
+    update_input: boolean
+        True if we should update keywords in the corrtag files
     """
 
     file_list = []
@@ -464,11 +491,14 @@ def updateSomeKeywords (x1d, filenames, update_input=False):
 def copyKeywords (x1d, file_list):
     """Copy extraction location keywords to other headers.
 
-    @param x1d: name of the x1d.fits file (containing both segments, if FUV)
-    @type x1d: string
-    @param file_list: names of the files (e.g. x1d_a.fits, x1d_b.fits)
-        in which header keywords should be updated
-    @type file_list: list
+    Parameters
+    ----------
+    x1d: str
+        Name of the x1d.fits file (containing both segments, if FUV)
+
+    file_list: list of str
+        Names of the files (e.g. x1d_a.fits, x1d_b.fits) in which header
+        keywords should be updated
     """
 
     fd1 = pyfits.open (x1d, mode="readonly")
@@ -521,15 +551,21 @@ def prtOptions():
 def replaceSuffix (rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
 
-    @param rawname: a file name
-    @type rawname: string
-    @param suffix: suffix part of rootname to be replaced
-    @type suffix: string
-    @param new_suffix: the string to replace suffix in rawname
-    @type new_suffix: string
+    Parameters
+    ----------
+    rawname: str
+        A file name
 
-    @return: rawname with suffix replaced by new_suffix
-    @rtype: string
+    suffix: str
+        Suffix part of `rootname` to be replaced
+
+    new_suffix: str
+        The string to replace `suffix` in `rawname`
+
+    Returns
+    -------
+    string
+        `rawname` with `suffix` replaced by `new_suffix`
     """
 
     lenraw = len (rawname)

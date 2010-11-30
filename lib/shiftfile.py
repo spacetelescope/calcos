@@ -40,6 +40,7 @@ class ShiftFile (object):
     """
 
     def __init__ (self, shift_file, rootname, fpoffset):
+        """Constructor."""
 
         # This is a dictionary of shifts for the current exposure, with
         # keys (flash_number, segment) and values (shift1, shift2).
@@ -91,16 +92,21 @@ class ShiftFile (object):
     def getShifts (self, key):
         """Return the shifts corresponding to key, if any.
 
-        @param key: flash number (one indexed) and segment; if flash number
+        Parameters
+        ----------
+        key: tuple
+            Flash number (one indexed) and segment; if flash number
             is "any" it matches any flash number (use "any" for auto/GO
             wavecals), and if segment is "any" it matches any segment or
             stripe (strings are case insensitive)
-        @type key: tuple
 
-        @return: (shift1, shift2) and nfound (the number of elements--which
-            should be either 0 or 1--that match key); either shift1 or shift2
-            may be None, and they will both be None if nfound is 0
-        @rtype: tuple
+        Returns
+        -------
+        tuple
+            ((shift1, shift2), nfound), where nfound is the number of
+            elements--which should be either 0 or 1--that match key;
+            either shift1 or shift2 may be None, and they will both be
+            None if nfound is 0
         """
 
         (flash_number, segment) = key

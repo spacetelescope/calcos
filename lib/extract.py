@@ -223,20 +223,33 @@ def extract1D (input, incounts=None, output=None,
 def checkLocation (info, location, extrsize, find_target):
     """Check that location and height were specified correctly.
 
-    @param info: keywords and values
-    @type info: dictionary
-    @param location: location(s) at which to extract spectrum or spectra
-    @type location: integer, float, or sequence
-    @param extrsize: extraction height (or heights for NUV)
-    @type extrsize: integer or sequence
-    @param find_target: 
-    @type find_target: boolean
+    Parameters
+    ----------
+    info: dictionary
+        Keywords and values
 
-    @return: dictionary of locations (key is segment or stripe), dictionary of
-        extraction heights (key is segment or stripe), and the find_target flag
-        (set to False if location was not None).  The elements of the
-        dictionaries may be None (i.e. if location is None or extrsize is None)
-    @rtype: tuple of two dictionaries and a boolean flag
+    location: integer, float, or array_like
+        Location(s) at which to extract spectrum or spectra
+
+    extrsize: integer or array_like
+        Extraction height (or heights for NUV)
+
+    find_target: boolean
+        This flag is included in the tuple that is returned.  If `location`
+        is None, the returned value of this flag will not be modified.  If
+        `location` was specified, however, `find_target` will be set to
+        False.  That is, if the user specified both a location for the
+        spectrum and that we should search for the location, the location
+        takes precedence.
+
+    Returns
+    -------
+    tuple of two dictionaries and a boolean flag
+        Dictionary of locations (key is segment or stripe), dictionary of
+        extraction heights (key is segment or stripe), and the find_target
+        flag (set to False if location was not None).  The elements of the
+        dictionaries may be None (i.e. if location is None or extrsize is
+        None)
     """
 
     if location is None:
@@ -322,39 +335,52 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
     This calls a routine to do the extraction for one segment, and it
     assigns the results to one row of the output table.
 
-    @param ifd_e: HDUList for either the effective count-rate image or for
+    Parameters
+    ----------
+    ifd_e: pyfits ImageHDU object
+        Header/data unit for either the effective count-rate image or for
         the corrtag events table
-    @type ifd_e: PyFITS HDUList object
-    @param ifd_c: HDUList for the count-rate image, or None if the input is
+
+    ifd_c: pyfits ImageHDU object
+        Header/data unit for the count-rate image, or None if the input is
         a corrtag events table
-    @type ifd_c: PyFITS HDUList object, or None
-    @param ofd: HDUList for the output table, modified in-place
-    @type ofd: PyFITS HDUList object
-    @param nelem: number of elements in current segment of output data
-    @type nelem: int
-    @param segments: the segment names, one for FUV, three for NUV
-    @type segments: list
-    @param info: keywords and values
-    @type info: dictionary
-    @param switches: calibration switch values
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param is_wavecal: true if the observation is a wavecal, based on exptype
-    @type is_wavecal: boolean
-    @param location: locations of the spectrum in the cross-dispersion
-        direction, in pixels; this is where the spectrum crosses the middle of
-        the detector (index 8192 for FUV, 512 for NUV).  A key value may be
+
+    ofd: pyfits HDUList object
+        List of header/data units for the output file, modified in-place
+
+    nelem: int
+        Number of elements in current segment of output data
+
+    segments: list of strings
+        The segment names, one for FUV, three for NUV
+
+    info: dictionary
+        Header keywords and values
+
+    switches: dictionary
+        Calibration switch values
+
+    reffiles: dictionary
+        Reference file names
+
+    is_wavecal: boolean
+        True if the observation is a wavecal, based on exptype
+
+    location: dictionary with segment or stripe as key
+        Locations of the spectrum in the cross-dispersion direction, in
+        pixels; this is where the spectrum crosses the middle of the
+        detector (index 8192 for FUV, 512 for NUV).  A key value may be
         None, which means the user did not specify the location.
-    @type location: dictionary with segment or stripe as key
-    @param extrsize: the height of the extraction box (or list of three heights
-        for NUV) in the cross-dispersion direction.  A key value may be None,
-        which means the user did not specify the extraction height.
-    @type extrsize: dictionary with segment or stripe as key
-    @param find_target: True means that we should search for the location of
-        the target in the cross-dispersion direction; False means we should
-        use the location determined from the wavecal or specified by the user.
-    @type find_target: boolean
+
+    extrsize: dictionary with segment or stripe as key
+        The height of the extraction box (or list of three heights for NUV)
+        in the cross-dispersion direction.  A key value may be None, which
+        means the user did not specify the extraction height.
+
+    find_target: boolean
+        True means that we should search for the location of the target in
+        the cross-dispersion direction; False means we should use the
+        location determined from the wavecal or specified by the user.
     """
 
     hdr = ifd_e[1].header
@@ -496,15 +522,21 @@ def postargOffset (phdr, dispaxis):
         shift2 = 0.              # cross-dispersion direction
         shift2 += postargOffset (ifd_e[0].header, hdr["dispaxis"])
 
-    @param phdr: primary header
-    @type phdr: pyfits Header object
-    @param dispaxis: dispersion axis (1 or 2)
-    @type dispaxis: int
-    @return: offset in pixels to be added to cross-dispersion location
-    @rtype: float
+    The plate scale should be gotten from a header keyword.
+    The sign of the offset needs to be checked.
 
-    xxx The plate scale should be gotten from a header keyword.
-    xxx The sign of the offset needs to be checked.
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        Primary header
+
+    dispaxis: int
+        Dispersion axis (1 or 2)
+
+    Returns
+    -------
+    float
+        Offset in pixels to be added to cross-dispersion location
     """
 
     # pixels per arcsecond in the cross-dispersion direction
@@ -531,21 +563,26 @@ def postargOffset (phdr, dispaxis):
 def getColumns (ifd_e, detector):
     """Get the appropriate columns from the events table extension.
 
-    @param ifd_e: HDUList for the corrtag events table
-    @type ifd_e: PyFITS HDUList object
-    @param detector: detector name ("FUV" or "NUV")
-    @type detector: string
-
-    @return: columns from the corrtag table
-    @rtype: tuple of arrays
-
     The returned columns xi, eta, dq and epsilon are as follows:
         xi is the array of positions in the dispersion direction
         eta is the array of positions in the cross-dispersion direction
         dq is the array of data quality flags
         epsilon is the array of weights (inverse flat field and deadtime
-          correction)
+        correction)
     There is one element for each detected photon.
+
+    Parameters
+    ----------
+    ifd_e: pyfits ImageHDU object
+        Header/data unit for the corrtag events table
+
+    detector: str
+        Detector name ("FUV" or "NUV")
+
+    Returns
+    -------
+    tuple of array_like
+        Columns from the corrtag table
     """
 
     data = ifd_e[1].data
@@ -570,19 +607,25 @@ def getColumns (ifd_e, detector):
 def getSnrFf (switches, reffiles, segment):
     """Get the signal-to-noise ratio of the flat field data.
 
-    @param switches: calibration switch values
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param segment: segment (or stripe) name
-    @type segment: string
-
-    @return: signal-to-noise ratio of the flat field
-    @rtype: float
-
     If the flat-field correction has been done, this function reads the
     keyword SNR_FF from the appropriate header of the flat field image
     and returns that value; otherwise, this function returns zero.
+
+    Parameters
+    ----------
+    switches: dictionary
+        Calibration switch values
+
+    reffiles: dictionary
+        Reference file names
+
+    segment: str
+        Segment (or stripe) name
+
+    Returns
+    -------
+    float
+        Signal-to-noise ratio of the flat field
     """
 
     if switches["flatcorr"] == "COMPLETE":
@@ -610,50 +653,6 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
 
     This does the actual extraction, returning the results as a tuple.
 
-    @param e_data: SCI data from the flt file ('e' for effective count rate)
-    @type e_data: 2-D numpy array
-    @param c_data: SCI data from the counts file (count rate)
-    @type c_data: 2-D numpy array
-    @param e_dq_data: DQ data from the flt file
-    @type e_dq_data: 2-D numpy array
-    @param ofd_header: header of the output table (for updating keywords)
-    @type ofd_header: pyfits Header object
-    @param segment: FUVA or FUVB, etc. (only used for updating keywords)
-    @type segment: string
-    @param x_offset: offset of the detector in the output array
-    @type x_offset: int
-    @param sdqflags: "serious" data quality flags
-    @type sdqflags: int
-    @param snr_ff: the signal-to-noise ratio of the flat field reference file
-        (from the extension header of the flat field)
-    @type snr_ff: float
-    @param exptime: exposure time (seconds), from the header keyword
-    @type exptime: float
-    @param backcorr: "PERFORM" if background subtraction is to be done
-    @type backcorr: int
-    @param axis: the dispersion axis, 0 (Y) or 1 (X)
-    @type axis: int
-    @param xtract_info: one row of the xtractab
-    @type xtract_info: PyFITS record object
-    @param shift2: offset in the cross-dispersion direction
-    @type shift2: float
-    @param info: keywords and values
-    @type info: dictionary
-    @param wavelength: wavelength at each pixel (needed if find_target is True)
-    @type wavelength: array
-    @param is_wavecal: true if the observation is a wavecal, based on exptype
-    @type is_wavecal: boolean
-    @param xdisp_locn: user-specified location in cross-dispersion direction
-    @type xdisp_locn: int or float, or None if not specified
-    @param xdisp_size: user-specified height of extraction box
-    @type xdisp_size: int, or None if not specified
-    @param find_target: search for the cross-disp location of the target?
-    @type find_target: boolean
-
-    @return: net count rate, error estimate, gross count rate, gross counts,
-        background count rate, data quality array, data quality weight array
-    @rtype: tuple of seven 1-D arrays
-
     An "_ij" suffix indicates a 2-D array; here they will all be sections
     extracted from full images.  An "_i" suffix indicates a 1-D array
     which is the result of summing the 2-D array with the same prefix in
@@ -669,6 +668,73 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
       ERR_i     error estimate for net count rate
       DQ_i      data quality flags, bitwise OR of input DQ array
       DQ_WGT_i  data quality weight array
+
+    Parameters
+    ----------
+    e_data: 2-D array
+        SCI data from the flt file ('e' for effective count rate)
+
+    c_data: 2-D array
+        SCI data from the counts file (count rate)
+
+    e_dq_data: 2-D array
+        DQ data from the flt file
+
+    ofd_header: pyfits Header object
+        header of the output table (for updating keywords)
+
+    segment: str
+        FUVA or FUVB, etc. (only used for updating keywords)
+
+    x_offset: int
+        Offset of the detector in the output array
+
+    sdqflags: int
+        "Serious" data quality flags
+
+    snr_ff: float
+        The signal-to-noise ratio of the flat field reference file (from
+        the extension header of the flat field)
+
+    exptime: float
+        Exposure time (seconds), from the (corrected) header keyword
+
+    backcorr: int
+        "PERFORM" if background subtraction is to be done
+
+    axis: int
+        The dispersion axis, 0 (Y) or 1 (X)
+
+    xtract_info: pyfits record object
+        One row of the xtractab
+
+    shift2: float
+        Offset in the cross-dispersion direction
+
+    info: dictionary
+        Keywords and values
+
+    wavelength: array_like
+        Wavelength at each pixel (needed if find_target is True)
+
+    is_wavecal: boolean
+        True if the observation is a wavecal, based on exptype
+
+    xdisp_locn: int or float, or None if not specified
+        User-specified location in cross-dispersion direction
+
+    xdisp_size: int, or None if not specified
+        User-specified height of extraction box
+
+    find_target: boolean
+        Search for the cross-dispersion location of the target?
+
+    Returns
+    -------
+    tuple of seven 1-D arrays
+        net count rate, error estimate, gross count rate, gross counts,
+        background count rate, data quality array, data quality weight
+        array
     """
 
     slope           = xtract_info.field ("slope")[0]
@@ -858,51 +924,76 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
                     xdisp_locn=None, xdisp_size=None, find_target=False):
     """Extract a 1-D spectrum for one segment or stripe.
 
-    @param xi: column of pixel coordinates in the dispersion direction
-    @type xi: 1-D numpy array
-    @param eta: column of pixel coordinates in the cross-dispersion direction
-    @type eta: 1-D numpy array
-    @param dq: column of data quality flags
-    @type dq: 1-D numpy array
-    @param epsilon: column of weights for flat field or nonlinearity
-    @type epsilon: 1-D numpy array
-    @param dq_array: DQ array, created from the bad pixel table
-    @type dq_array: 2-D numpy array
-    @param ofd_header: header of the output table (for updating keywords)
-    @type ofd_header: pyfits Header object, or None
-    @param segment: FUVA or FUVB, etc. (only used for updating keywords)
-    @type segment: string
-    @param axis_length: length of dispersion axis
-    @type axis_length: int
-    @param x_offset: offset of the detector in the output array
-    @type x_offset: int
-    @param sdqflags: "serious" data quality flags
-    @type sdqflags: int
-    @param snr_ff: the signal-to-noise ratio of the flat field reference file
-    @type snr_ff: float
-    @param exptime: exposure time (seconds)
-    @type exptime: float
-    @param backcorr: "PERFORM" if background subtraction is to be done
-    @type backcorr: int
-    @param axis: the dispersion axis, 0 (Y) or 1 (X)
-    @type axis: int
-    @param xtract_info: one row of the xtractab
-    @type xtract_info: PyFITS record object
-    @param shift1: offset in the dispersion direction (used for NUV in the
-        section for smoothing the background)
-    @type shift1: float
-    @param shift2: offset in the cross-dispersion direction
-    @type shift2: float
-    @param xdisp_locn: user-specified location in cross-dispersion direction
-    @type xdisp_locn: int or float, or None if not specified
-    @param xdisp_size: user-specified height of extraction box
-    @type xdisp_size: int or float, or None if not specified
-    @param find_target: search for the cross-disp location of the target?
-    @type find_target: boolean
+    Parameters
+    ----------
+    xi: array_like
+        Column of pixel coordinates in the dispersion direction
 
-    @return: net count rate, error estimate, gross count rate, gross counts,
-        background count rate, data quality array, data quality weight array
-    @rtype: tuple of seven 1-D arrays
+    eta: array_like
+        Column of pixel coordinates in the cross-dispersion direction
+
+    dq: array_like
+        Column of data quality flags
+
+    epsilon: array_like
+        Column of weights for flat field or nonlinearity
+
+    dq_array: 2-D array
+        DQ array, created from the bad pixel table
+
+    ofd_header: pyfits Header object
+        header of the output table (for updating keywords)
+
+    segment: str
+        FUVA or FUVB, etc. (only used for updating keywords)
+
+    axis_length: int
+        Length of dispersion axis
+
+    x_offset: int
+        Offset of the detector in the output array
+
+    sdqflags: int
+        "Serious" data quality flags
+
+    snr_ff: float
+        The signal-to-noise ratio of the flat field reference file (from
+        the extension header of the flat field)
+
+    exptime: float
+        Exposure time (seconds), from the (corrected) header keyword
+
+    backcorr: int
+        "PERFORM" if background subtraction is to be done
+
+    axis: int
+        The dispersion axis, 0 (Y) or 1 (X)
+
+    xtract_info: pyfits record object
+        One row of the xtractab
+
+    shift1: float
+        Offset in the dispersion direction (used for NUV in the section for
+        smoothing the background)
+
+    shift2: float
+        Offset in the cross-dispersion direction
+
+    xdisp_locn: int or float, or None if not specified
+        User-specified location in cross-dispersion direction
+
+    xdisp_size: int, or None if not specified
+        User-specified height of extraction box
+
+    find_target: boolean
+        Search for the cross-dispersion location of the target?
+
+    Returns
+    -------
+    tuple of seven 1-D arrays
+        net count rate, error estimate, gross count rate, gross counts,
+        background count rate, data quality array, data quality weight
+        array
     """
 
     slope           = xtract_info.field ("slope")[0]
@@ -1080,20 +1171,27 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
     been specified, the flux and error will be corrected to the time of
     observation.
 
-    @param ofd: HDUList for the output table; the primary header will be
-        modified to set FLUXCORR to COMPLETE, and TDSCORR may be set to
-        either COMPLETE or SKIPPED
-    @type ofd: PyFITS HDUList object
-    @param opt_elem: grating name
-    @type opt_elem: string
-    @param cenwave: central wavelength
-    @type cenwave: integer
-    @param aperture: PSA, BOA, WCA
-    @type aperture: string
-    @param tdscorr: calibration switch, time-dependent sensitivity correction
-    @type tdscorr: string
-    @param reffiles: dictionary of reference file names
-    @type reffiles: dictionary
+    Parameters
+    ----------
+    ofd: pyfits HDUList object
+        HDUList for the output table; the primary header will be modified
+        to set FLUXCORR to COMPLETE, and TDSCORR may be set to either
+        COMPLETE or SKIPPED
+
+    opt_elem: str
+        Grating name
+
+    cenwave: integer
+        Central wavelength
+
+    aperture: str
+        PSA, BOA, WCA
+
+    tdscorr: str
+        Calibration switch, time-dependent sensitivity correction
+
+    reffiles: dictionary
+        Reference file names
     """
 
     outdata = ofd[1].data
@@ -1183,21 +1281,27 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
 def getTdsFactors (tdstab, filter, t_obs):
     """Get arrays of wavelengths and corresponding TDS factors.
 
-    @param tdstab: name of the time-dependent sensitivity reference table
-    @type tdstab: string
-    @param filter: dictionary for selecting a row from tdstab
-    @type filter: dictionary
-    @param t_obs: time of the observation (MJD)
-    @type t_obs: float
+    Parameters
+    ----------
+    tdstab: str
+        Name of the time-dependent sensitivity reference table
 
-    @return: (wl_tds, factor_tds), where wl_tds is the array of wavelengths
+    filter: dictionary
+        For selecting a row from tdstab
+
+    t_obs: float
+        Time of the observation (MJD)
+
+    Returns
+    -------
+    tuple or None
+        (wl_tds, factor_tds), where wl_tds is the array of wavelengths
         from the TDS table, and factor_tds is the corresponding array of
         time-dependent sensitivity factors, evaluated at the time of
         observation from the slope and intercept from the TDS table;
         if the time of observation is outside the range of times in the
         table, factor_tds will be independent of time and equal to the
         factor at the first or last time in the table respectively
-    @rtype: tuple, or None
     """
 
     # Slope and intercept are specified for each of the nt entries in
@@ -1260,34 +1364,46 @@ def updateExtractionKeywords (hdr, segment, slope, height,
                               b_bkg1, b_bkg2, bkg_height1, bkg_height2):
     """Update keywords giving the locations of extraction regions.
 
-    @param ofd_header: header of the output table
-    @type ofd_header: pyfits Header object
-    @param segment: FUVA or FUVB; NUVA, NUVB, or NUVC
-    @type segment: string
-    @param slope: slope of spectrum
-    @type slope: float
-    @param height: height of extraction box
-    @type height: int
-    @param xd_nominal: expected location of the spectrum in the cross-
-        dispersion direction (where it crosses the middle of the detector)
-    @type xd_nominal: float
-    @param xd_locn: location of the spectrum in the cross-dispersion
-        direction (where it crosses the middle of the detector)
-    @type xd_locn: float
-    @param xd_offset: difference between where the spectrum was found in the
-        cross-dispersion direction and where it was expected (in the sense
-        found - expected)
-    @type xd_offset: float
-    @param b_bkg1: location of first background region (at left edge, as
-        read from the reference table)
-    @type b_bkg1: float
-    @param b_bkg2: location of second background region (at left edge, as
-        read from the reference table)
-    @type b_bkg2: float
-    @param bkg_height1: height of first background region
-    @type bkg_height1: int
-    @param bkg_height2: height of second background region
-    @type bkg_height2: int
+    Parameters
+    ----------
+    ofd_header: pyfits Header object
+        Header of the output table
+
+    segment: str
+        FUVA or FUVB; NUVA, NUVB, or NUVC
+
+    slope: float
+        Slope of spectrum
+
+    height: int
+        Height of extraction box
+
+    xd_nominal: float
+        Expected location of the spectrum in the cross-dispersion
+        direction, where it crosses the middle of the detector
+
+    xd_locn: float
+        Location of the spectrum in the cross-dispersion direction, where
+        it crosses the middle of the detector
+
+    xd_offset: float
+        Difference between where the spectrum was found in the cross-
+        dispersion direction and where it was expected, in the sense
+        (found - expected)
+
+    b_bkg1: float
+        Location of first background region, at left edge, as read from
+        the reference table
+
+    b_bkg2: float
+        Location of second background region, at left edge, as read from
+        the reference table
+
+    bkg_height1: int
+        Height of first background region
+
+    bkg_height2: int
+        Height of second background region
     """
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
@@ -1322,14 +1438,18 @@ def updateExtractionKeywords (hdr, segment, slope, height,
 def copyKeywordsToInput (output, input, incounts):
     """Copy extraction location keywords to the input headers.
 
-    @param output: name of the output file for 1-D extracted spectra
-    @type output: string
-    @param input: name of either the flat-fielded count-rate image, or the
-        corrtag table
-    @type input: string
-    @param incounts: name of the file containing the count-rate image,
-        or None if input is the corrtag table
-    @type incounts: string, or None
+    Parameters
+    ----------
+    output: str
+        Name of the output file for 1-D extracted spectra
+
+    input: str
+        Name of either the flat-fielded count-rate image or the corrtag
+        table
+
+    incounts: str or None
+        Name of the file containing the count-rate image, or None if input
+        is the corrtag table
     """
 
     ofd = pyfits.open (output, mode="readonly")
@@ -1372,10 +1492,13 @@ def copyKeywordsToInput (output, input, incounts):
 def updateCorrtagKeywords (flt, corrtag):
     """Update extraction-location keywords in a corrtag file.
 
-    @param flt: name of an flt file
-    @type flt: string
-    @param corrtag: name of a corrtag file, to be modified in-place
-    @type corrtag: string
+    Parameters
+    ----------
+    flt: str
+        Name of an flt file
+
+    corrtag: str
+        Name of a corrtag file, to be modified in-place
     """
 
     ifd = pyfits.open (flt, mode="readonly")
@@ -1406,8 +1529,10 @@ def updateCorrtagKeywords (flt, corrtag):
 def updateArchiveSearch (ofd):
     """Update the keywords giving min & max wavelengths, etc.
 
-    @param ofd: output, primary header will be modified in-place
-    @type ofd: pyfits HDUList object
+    Parameters
+    ----------
+    ofd: pyfits HDUList object
+        Output, primary header will be modified in-place
     """
 
     phdr = ofd[0].header
@@ -1483,12 +1608,16 @@ def updateArchiveSearch (ofd):
 def fixApertureKeyword (ofd, aperture, detector):
     """Replace aperture in output header if aperture is RelMvReq.
 
-    @param ofd: output primary header, modified in-place
-    @type ofd: pyfits HDUList object
-    @param aperture: correct aperture name, without -FUV or -NUV
-    @type aperture: string
-    @param detector: detector name
-    @type detector: string
+    Parameters
+    ----------
+    ofd: pyfits HDUList object
+        Output primary header, modified in-place
+
+    aperture: str
+        Correct aperture name, without -FUV or -NUV
+
+    detector: str
+        Detector name
     """
 
     aperture_hdr = ofd[0].header.get ("aperture", NOT_APPLICABLE)
@@ -1501,10 +1630,13 @@ def fixApertureKeyword (ofd, aperture, detector):
 def concatenateFUVSegments (infiles, output):
     """Concatenate the 1-D spectra for the two FUV segments into one file.
 
-    @param infiles: list of input file names
-    @type infiles: list
-    @param output: output file name
-    @type output: string
+    Parameters
+    ----------
+    infiles: list
+        List of input file names
+
+    output: str
+        Output file name
     """
 
     cosutil.printMsg ("Concatenate " + repr (infiles) + " --> " + output, \
@@ -1616,16 +1748,22 @@ def concatenateFUVSegments (infiles, output):
 def copySegments (data_a, nrows_a, data_b, nrows_b, outdata):
     """Copy the two input tables to the output table.
 
-    @param data_a: data block for segment A (may have no data)
-    @type data_a: pyfits recarray object
-    @param nrows_a: length of data_a (may be zero)
-    @type nrows_a: int
-    @param data_b: data block for segment B (may have no data)
-    @type data_b: pyfits recarray object
-    @param nrows_b: length of data_b (may be zero)
-    @type nrows_b: int
-    @param outdata: data block with nrows_a + nrows_b rows
-    @type outdata: pyfits recarray object
+    Parameters
+    ----------
+    data_a: pyfits recarray object
+        Data block for segment A (may have no data)
+
+    nrows_a: int
+        Length of data_a (may be zero)
+
+    data_b: pyfits recarray object
+        Data block for segment B (may have no data)
+
+    nrows_b: int
+        Length of data_b (may be zero)
+
+    outdata: pyfits recarray object
+        Data block with nrows_a + nrows_b rows
     """
 
     n = 0
@@ -1650,8 +1788,10 @@ def recomputeWavelengths (input):
     is necessary because for FUV data the list of files may include the
     x1d file name twice, once for each segment.
 
-    @param input: name of an x1d file for a wavecal
-    @type input: string
+    Parameters
+    ----------
+    input: str
+        Name of an x1d file for a wavecal
     """
 
     fd = pyfits.open (input, mode="update")

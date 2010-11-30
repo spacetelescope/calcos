@@ -73,9 +73,11 @@ class SpWCS (object):
     def writeWCSKeywords (self):
         """Update keywords in-place in the extension header.
 
-        @return: True if keywords were actually written.  False for
-            wavecals or FCA exposures.
-        @rtype: boolean
+        Returns
+        -------
+        boolean
+            True if keywords were actually written.  False if the file is
+            a wavecal or an FCA exposure.
         """
 
         if self.detector == "FUV":
@@ -158,13 +160,18 @@ class SpWCS (object):
     def makeKeyword (self, generic_keyword, alt):
         """Construct the actual keyword name.
 
-        @param generic_keyword: generic WCS keyword (e.g. ctype1)
-        @type generic_keyword: string
-        @param alt: alternate WCS letter, or ""
-        @type alt: string
+        Parameters
+        ----------
+        generic_keyword: str
+            Generic WCS keyword (e.g. ctype1)
 
-        @return: actual keyword to use in header (e.g. ctype1a, tcty7a)
-        @rtype: string
+        alt: str
+            Alternate WCS letter, or "" for the primary WCS
+
+        Returns
+        -------
+        str
+            Actual keyword to use in header (e.g. ctype1a, tcty7a)
         """
 
         if alt and alt != " ":
@@ -177,11 +184,15 @@ class SpWCS (object):
     def doHelcorr (self, crval1):
         """Apply heliocentric correction (if helcorr is perform) to crval1.
 
-        @param crval1: wavelength at the reference pixel, as read from sptrctab
-        @type crval1: float
+        Parameters
+        ----------
+        crval1: float
+            Wavelength at the reference pixel, as read from sptrctab
 
-        @return: crval1 with heliocentric velocity correction applied
-        @rtype: float
+        Returns
+        -------
+        float
+            Crval1 with heliocentric velocity correction applied
         """
 
         if self.helcorr == "PERFORM" or self.helcorr == "COMPLETE":
@@ -195,12 +206,15 @@ class SpWCS (object):
     def addKeywords (self, hdr, wcs_dict):
         """Add (or update) WCS keywords in the header.
 
-        @param hdr: header to be updated in-place
-        @type hdr: pyfits Header object
-        @param wcs_dict: key is the generic WCS keyword (lower case), value is
-            a tuple of the actual keyword (lower case) and the value to assign
-            to that keyword in the header
-        @type wcs_dict: dictionary
+        Parameters
+        ----------
+        hdr: pyfits Header object
+            header to be updated in-place
+
+        wcs_dict: dictionary
+            Key is the generic WCS keyword (lower case), value is a tuple
+            of the actual keyword (lower case) and the value to assign to
+            that keyword in the header
         """
 
         for generic_keyword in self.keywords:
@@ -260,15 +274,20 @@ class SpWcsImage (SpWCS):
     def computeKeywordValues (self, wcs_info, alt):
         """Determine the values of the WCS keywords.
 
-        @param wcs_info: one row from the spwcstab
-        @type wcs_info: pyfits record object
-        @param alt: alternate WCS letter, or ""
-        @type alt: string
+        Parameters
+        ----------
+        wcs_info: pyfits record object
+            One row from the spwcstab
 
-        @return: key is the generic WCS keyword (but lower case), value is
-            a tuple of the actual keyword (lower case) and the value to assign
-            to that keyword in the header
-        @rtype: dictionary
+        alt: str
+            Alternate WCS letter, or "" for the primary WCS
+
+        Returns
+        -------
+        dictionary
+            Key is the generic WCS keyword (but lower case), value is a
+            tuple of the actual keyword (lower case) and the value to
+            assign to that keyword in the header
         """
 
         cos_pa = math.cos (self.pa_aper * math.pi / 180.)
@@ -423,15 +442,16 @@ class SpWcsCorrtag (SpWCS):
     def computeKeywordValues (self, wcs_info, alt):
         """Determine the values of the WCS keywords.
 
-        @param wcs_info: one row from the spwcstab
-        @type wcs_info: pyfits record object
-        @param alt: alternate WCS letter, or ""
-        @type alt: string
+        wcs_info: pyfits record object
+            One row from the spwcstab
 
-        @return: key is the generic WCS keyword (but lower case), value is
-            a tuple of the actual keyword (lower case) and the value to assign
-            to that keyword in the header
-        @rtype: dictionary
+        alt: str
+            Alternate WCS letter, or "" for the primary WCS
+
+        dictionary
+            Key is the generic WCS keyword (but lower case), value is a
+            tuple of the actual keyword (lower case) and the value to
+            assign to that keyword in the header
         """
 
         wcs_dict = {}

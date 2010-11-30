@@ -57,10 +57,13 @@ def fpAvgSpec (input, output):
 def oneInputFile (input, output):
     """Copy input to output, setting values to zero if dq_wgt is zero.
 
-    @param input: name of the (one) input x1d file
-    @type input: string
-    @param output: name of a file for the modified copy of input
-    @type output: string
+    Parameters
+    ----------
+    input: str
+        Name of the (one) input x1d file
+
+    output: str
+        Name of a file for the modified copy of input
     """
 
     fd = pyfits.open (input, mode="readonly")
@@ -106,8 +109,10 @@ def oneInputFile (input, output):
 def delSomeKeywords (hdr):
     """Delete exposure-specific keywords.
 
-    @param hdr: 
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    hdr: pyfits Header object
+        Extension header to be modified
     """
 
     # These keywords are exposure-specific and are not relevant
@@ -138,13 +143,18 @@ def pixelsFromWl (input_wavelength, output_wavelength):
     to zero, or it could be greater than nelem-1; these values should not be
     counted on to be accurate extrapolations.
 
-    @param input_wavelength: array of wavelengths in input spectrum
-    @type input_wavelength: numpy array
-    @param output_wavelength: array of wavelengths in output spectrum
-    @type output_wavelength: numpy array
+    Parameters
+    ----------
+    input_wavelength: array_like
+        Array of wavelengths in input spectrum
 
-    @return: pixel numbers (but not integer values) in input spectrum
-    @rtype: numpy array, same data type as wavelength arrays
+    output_wavelength: array_like
+        Array of wavelengths in output spectrum
+
+    Returns
+    -------
+    array_like, same data type as wavelength arrays
+        Pixel numbers (but not integer values) in input spectrum
     """
 
     nelem = len (input_wavelength)
@@ -179,26 +189,50 @@ def pixelsFromWl (input_wavelength, output_wavelength):
     return ipixel
 
 class OutputX1D (object):
+    """Average 1-D FP-POS spectra.
+
+    Parameters
+    ----------
+    input: list of str
+        Input file names
+
+    output: str
+        Output file name
+
+    Attributes
+    ----------
+    input
+    output
+
+    keywords: dictionary
+        Relevant keywords and values, e.g. detector
+
+    inspec: list of Spectrum objects
+        Input spectra
+
+    segments: list of str
+        Segment names found in input x1d tables
+
+    ofd: pyfits HDUList object
+        Pyfits object for output file
+
+    nrows: int
+        Number of rows to be written to the output table
+
+    output_nelem: int
+        Number of elements to use when allocating output arrays
+
+    output_wl: dictionary
+        First (smallest) wavelength in an output spectrum, key is segment
+        or stripe
+
+    output_dispersion: dictionary
+        Dispersion (Angstroms per pixel) in an output spectrum, key is
+        segment or stripe
+    """
 
     def __init__ (self, input, output):
-        """Average 1-D FP-POS spectra.
-
-        The attributes are:
-            input            list of input file names
-            output           output file name
-            keywords         dictionary of relevant keywords and values,
-                             e.g. detector
-            inspec           list of Spectrum objects
-            segments         list of segment names found in input x1d tables
-            ofd              pyfits object for output file
-            nrows            number of rows to be written to the output table
-            output_nelem     number of elements to use when allocating output
-                             arrays
-            output_wl        dictionary of first (smallest) wavelength in an
-                             output spectrum, key is segment or stripe
-            output_dispersion  dictionary of dispersion (Angstroms per pixel)
-                             in an output spectrum, key is segment or stripe
-        """
+        """Constructor."""
 
         self.input = input
         self.output = output
@@ -471,8 +505,8 @@ class OutputX1D (object):
     def updateArchiveSearch (self, ofd):
         """Update the keywords giving min & max wavelengths.
 
-        @param ofd: output, table header modified in-place
-        @type ofd: FITS HDUList object
+        ofd: pyfits HDUList object
+            For the output file, primary header modified in-place
         """
 
         phdr = ofd[0].header
@@ -504,26 +538,62 @@ class OutputX1D (object):
         phdr.update ("CENTRWV", (maxwave + minwave) / 2.)
 
 class Spectrum (object):
+    """One row of an input spectrum.
+
+    Parameters
+    ----------
+    ifd: pyfits HDUList object
+        The list of header/data objects for an input file
+
+    row: int
+        Row number (zero indexed) in the current input file
+
+    fpoffset: int
+        Value of the FPOFFSET keyword for the current input file
+
+    Attributes
+    ----------
+    exptime: float
+        exposure time (seconds) for this input spectrum
+
+    segment: str
+        segment or stripe name for the current row
+
+    nelem: int
+        number of elements in the arrays
+
+    wavelength: array_like
+        wavelengths for the current row
+
+    flux: array_like
+        flux values
+
+    error: array_like
+        error estimates for the flux
+
+    gross: array_like
+        gross values (count rate)
+
+    gcounts: array_like
+        gross counts
+
+    net: array_like
+        net values
+
+    background: array_like
+        background values
+
+    dq: array_like
+        data quality flags
+
+    dq_wgt: array_like
+        weights to account for pixels excluded due to data quality
+
+    fpoffset
+    """
 
     def __init__ (self, ifd, row=0, fpoffset=0):
-        """This is one row of an input x1d table.
-
-        The attributes are:
-            exptime          exposure time (seconds) for this input spectrum
-            segment          segment or stripe name for the current row
-            nelem            number of elements in the arrays
-            wavelength       array of wavelengths for the current row
-            flux             array of flux values
-            error            array of error estimates for the flux
-            gross            array of gross values (count rate)
-            gcounts          array of gross counts
-            net              array of net values
-            background       array of background values
-            dq               array of data quality flags
-            dq_wgt           array of weights to account for pixels excluded
-                                 due to data quality
-            fpoffset         OSM offset in motor steps from nominal
-        """
+        """Constructor."""
 
         self.segment = ifd[1].data.field ("segment")[row]
         self.exptime = ifd[1].data.field ("exptime")[row]
@@ -540,24 +610,45 @@ class Spectrum (object):
         self.fpoffset = fpoffset
 
 class OutputSpectrum (object):
+    """An output spectrum.
+
+    The interpolation and averaging for one row are done by invoking this.
+    Data for the current output row are computed and assigned to the data
+    block in ofd.
+
+    Parameters
+    ----------
+    ofd: pyfits HDUList object
+        For the output file
+
+    inspec: list of Spectrum objects
+        For the input tables
+
+    keywords: dictionary
+        keywords and values from input headers
+
+    segment: str
+        Segment or stripe name for current row
+
+    output_wl: float
+        Wavelength at first pixel
+
+    output_dispersion: float
+        Angstroms per pixel to use for output
+
+    Attributes
+    ----------
+    ofd
+    inspec
+    keywords
+    segment
+    output_wl
+    output_dispersion
+    """
 
     def __init__ (self, ofd, inspec, keywords, segment,
                   output_wl, output_dispersion):
-        """Construct an OutputSpectrum object.
-
-        The attributes are:
-            ofd              pyfits object for output file
-            inspec           list of Spectrum objects for the input tables
-            keywords         dictionary of keywords and values from input
-                             headers
-            segment          segment or stripe name for current row
-            output_wl        wavelength at first pixel
-            output_dispersion  Angstroms per pixel to use for output
-
-        The interpolation and averaging for one row are done by invoking this.
-        Data for the current output row are computed and assigned to the data
-        block in ofd.
-        """
+        """Constructor."""
 
         self.ofd = ofd
         self.inspec = inspec
@@ -591,10 +682,13 @@ class OutputSpectrum (object):
     def normalizeSums (self, data, sumweight):
         """Divide the sums by the sum of the weights.
 
-        @param data: the current row of the output file
-        @type data: pyfits record array
-        @param sumweight: sum of weights
-        @type sumweight: float
+        Parameters
+        ----------
+        data: pyfits record array
+            The current row of the output file
+
+        sumweight: float
+            Sum of weights
         """
 
         sumweight = np.where (sumweight == 0., 1., sumweight)
@@ -614,12 +708,16 @@ class OutputSpectrum (object):
         The values in data and sumweight will be modified in-place.
         This version allows for fractional-pixel offset of the input arrays.
 
-        @param sp: current input spectrum
-        @type sp: Spectrum object
-        @param data: the current row of the output file
-        @type data: record array
-        @param sumweight: sum of weights
-        @type sumweight: float
+        Parameters
+        ----------
+        sp: Spectrum object
+            Current input spectrum
+
+        data: pyfits record array
+            The current row of the output file
+
+        sumweight: float
+            Sum of weights
         """
 
         input_nelem = sp.nelem

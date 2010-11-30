@@ -786,9 +786,17 @@ def getHeaders (input):
 def timeAtMidpoint (info):
     """Return the time (MJD) at the midpoint of an exposure.
 
-    argument:
-    info          dictionary of header keywords (or could be a Header object)
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values.
+
+    Returns
+    -------
+    float
+        average of expstart and expend
     """
+
     return (info["expstart"] + info["expend"]) / 2.
 
 def geometricDistortion (x, y, geofile, segment, igeocorr):
@@ -934,20 +942,29 @@ def getInputDQ (input, imset=1):
 def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
     """Compute the range of Doppler shifts.
 
-    @param info: keywords and values
-    @type info: dictionary
-    @param doppcorr: if doppcorr = "PERFORM", shift DQ positions to track
-        Doppler shift during exposure
-    @type doppcorr: string
-    @param doppmag: magnitude (pixels) of Doppler shift
-    @type doppmag: int or float
-    @param doppzero: time (MJD) when Doppler shift is zero and increasing
-    @type doppzero: float
-    @param orbitper: orbital period (s) of HST
-    @type orbitper: float
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values.
 
-    @return: minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
-    @rtype: tuple
+    doppcorr: str
+        Calibration switch from header; if doppcorr is "PERFORM", the DQ
+        positions will be shifted to track the Doppler shift during the
+        exposure
+
+    doppmag: float
+        Magnitude (pixels) of the Doppler shift
+
+    doppzero: float
+        Time (MJD) when the Doppler shift is zero and increasing
+
+    orbitper: float
+        Orbital period (s) of HST
+
+    Returns
+    -------
+    tuple of two floats
+        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
     """
 
     if doppcorr == "PERFORM" or doppcorr == "COMPLETE":
@@ -982,23 +999,28 @@ def updateDQArray (bpixtab, info, dq_array,
     pixels.  The flag information in the bpixtab will be combined
     (in-place) with dq_array using bitwise OR.
 
-    @param bpixtab: name of the data quality initialization table
-    @type bpixtab: string
-    @param info: keywords and values
-    @type info: dictionary
-    @param dq_array: data quality image array (modified in-place)
-    @type dq_array: numpy array
-    @param minmax_shift_dict: the min and max offsets in the dispersion
-        direction and the min and max offsets in the cross-dispersion direction
-        during the exposure
-    @type minmax_shift_dict: dictionary
-    @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
-        doppcorr is omit)
-    @type minmax_doppler: tuple
-    @param doppler_boundary: the border between PSA and WCA regions:
-        Y < doppler_boundary is the PSA,
-        Y >= doppler_boundary is the WCA
-    @type doppler_boundary: int
+    Parameters
+    ----------
+    bpixtab: str
+        Name of the data quality initialization table
+
+    info: dictionary
+        Header keywords and values.
+
+    dq_array: array_like
+        Data quality image array (modified in-place)
+
+    minmax_shift_dict: dictionary
+        The min and max offsets in the dispersion direction and the min and
+        max offsets in the cross-dispersion direction during the exposure
+
+    minmax_doppler: tuple of two floats
+        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
+
+    doppler_boundary: int
+        The border between PSA and WCA regions:
+            Y < doppler_boundary is the PSA,
+            Y >= doppler_boundary is the WCA
     """
 
     dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
@@ -1076,29 +1098,38 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
                      minmax_doppler, doppler_boundary):
     """Flag regions that are outside all subarrays (done in-place).
 
-    @param hdr: the extension header
-    @type hdr: pyfits Header object
-    @param dq_array: data quality image array (modified in-place)
-    @type dq_array: numpy array
-    @param info: keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param brftab: name of baseline reference table (for active area)
-    @type brftab: string
-    @param geofile: name of geometric correction reference file
-    @type geofile: string
-    @param minmax_shift_dict: the min and max offsets in the dispersion
-        direction and the min and max offsets in the cross-dispersion direction
-        during the exposure
-    @type minmax_shift_dict: dictionary
-    @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
-        doppcorr is omit)
-    @type minmax_doppler: tuple
-    @param doppler_boundary: the border between PSA and WCA regions:
-        Y < doppler_boundary is the PSA,
-        Y >= doppler_boundary is the WCA
-    @type doppler_boundary: int
+    Parameters
+    ----------
+
+    hdr: pyfits Header object
+        the EVENTS or SCI extension header
+
+    dq_array: array_like
+        Data quality image array (modified in-place)
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switch keywords and values.
+
+    brftab: str
+        Name of baseline reference table (for active area)
+
+    geofile: str
+        Name of geometric correction reference file
+
+    minmax_shift_dict: dictionary
+        The min and max offsets in the dispersion direction and the min and
+        max offsets in the cross-dispersion direction during the exposure
+
+    minmax_doppler: tuple of two floats
+        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
+
+    doppler_boundary: int
+        The border between PSA and WCA regions:
+            Y < doppler_boundary is the PSA,
+            Y >= doppler_boundary is the WCA
     """
 
     if info["detector"] == "FUV":
@@ -1113,6 +1144,36 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
 def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
                         brftab, geofile, minmax_shift_dict,
                         minmax_doppler):
+    """In FUV data, flag regions that are outside all subarrays (in-place).
+
+    Parameters
+    ----------
+
+    hdr: pyfits Header object
+        the EVENTS or SCI extension header
+
+    dq_array: array_like
+        Data quality image array (modified in-place)
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switch keywords and values.
+
+    brftab: str
+        Name of baseline reference table (for active area)
+
+    geofile: str
+        Name of geometric correction reference file
+
+    minmax_shift_dict: dictionary
+        The min and max offsets in the dispersion direction and the min and
+        max offsets in the cross-dispersion direction during the exposure
+
+    minmax_doppler: tuple of two floats
+        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
+    """
 
     nsubarrays = info["nsubarry"]
     x_offset = info["x_offset"]
@@ -1343,27 +1404,34 @@ def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
 
 def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
                         minmax_shift_dict, minmax_doppler, doppler_boundary):
-    """Flag regions that are outside all subarrays (done in-place).
+    """In NUV data, flag regions that are outside all subarrays (in-place).
 
-    @param hdr: the extension header
-    @type hdr: pyfits Header object
-    @param dq_array: data quality image array (modified in-place)
-    @type dq_array: numpy array
-    @param info: keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param minmax_shift_dict: the min and max offsets in the dispersion
-        direction and the min and max offsets in the cross-dispersion direction
-        during the exposure
-    @type minmax_shift_dict: dictionary
-    @param minmax_doppler: minimum and maximum Doppler shifts (will be 0 if
-        doppcorr is omit)
-    @type minmax_doppler: tuple
-    @param doppler_boundary: the border between PSA and WCA regions:
-        Y < doppler_boundary is the PSA,
-        Y >= doppler_boundary is the WCA
-    @type doppler_boundary: int
+    Parameters
+    ----------
+
+    hdr: pyfits Header object
+        the EVENTS or SCI extension header
+
+    dq_array: array_like
+        Data quality image array (modified in-place)
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switch keywords and values.
+
+    minmax_shift_dict: dictionary
+        The min and max offsets in the dispersion direction and the min and
+        max offsets in the cross-dispersion direction during the exposure
+
+    minmax_doppler: tuple of two floats
+        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
+
+    doppler_boundary: int
+        The border between PSA and WCA regions:
+            Y < doppler_boundary is the PSA,
+            Y >= doppler_boundary is the WCA
     """
 
     nsubarrays = info["nsubarry"]
@@ -1464,18 +1532,27 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
 
     This is only relevant for FUV data.
 
-    @param dq_array: 2-D data quality array, modified in-place
-    @type dq_array: numpy array
-    @param segment: segment name (FUVA or FUVB)
-    @type segment: string
-    @param brftab: name of baseline reference table
-    @type brftab: string
-    @param x_offset: offset of raw_template in the extended template
-    @type x_offset: int
-    @param minmax_shift_dict: the min and max offsets in the dispersion
-        direction and the min and max offsets in the cross-dispersion
-        direction during the exposure
-    @type minmax_shift_dict: dictionary
+    Parameters
+    ----------
+
+    dq_array: array_like
+        Data quality image array (modified in-place)
+
+    segment: str
+        Segment name (FUVA or FUVB)
+
+    brftab: str
+        Name of baseline reference table (for active area)
+
+    x_offset: int
+        Offset of the detector in the image
+
+    minmax_shift_dict: dictionary
+        The min and max offsets in the dispersion direction and the min and
+        max offsets in the cross-dispersion direction during the exposure
+
+    minmax_doppler: tuple of two floats
+        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
     """
 
     (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
@@ -1512,19 +1589,26 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
 def getGeoData (geofile, segment):
     """Open and read the geofile.
 
-    @param geofile: name of geometric correction reference file
-    @type geofile: string
-    @param segment: FUVA or FUVB
-    @type segment: string
+    This is no longer used, and it can be deleted.
 
-    @return: the data from the geofile for X and Y, and the offsets;
+    Parameters
+    ----------
+    geofile: str
+        Name of geometric correction reference file
+
+    segment: str
+        Segment name (FUVA or FUVB)
+
+    Returns
+    -------
+    tuple
+        The data from the geofile for X and Y, and the offsets;
         x_hdu.data:  array to correct distortion in X
         origin_x:  offset of x_hdu.data within detector coordinates
         xbin:  binning (int) in the X direction
         y_hdu.data:  array to correct distortion in Y
         origin_y:  offset of y_hdu.data within detector coordinates
         ybin:  binning (int) in the Y direction
-    @rtype: tuple
     """
 
     fd = pyfits.open (geofile, mode="readonly", memmap=0)
@@ -1562,8 +1646,15 @@ def tableHeaderToImage (thdr):
     keywords renamed to their image-style counterparts, to serve as an
     image header.
 
-    argument:
-    thdr          a FITS Header object for a table
+    Parameters
+    ----------
+    thdr: pyfits Header object
+        A header for a BINTABLE extension.
+
+    Returns
+    -------
+    hdr: pyfits Header object
+        A copy of thdr, with certain table WCS keywords renamed or deleted.
     """
 
     hdr = thdr.copy()
@@ -1593,8 +1684,15 @@ def imageHeaderToTable (imhdr):
     The function returns a copy of the header with image-specific world
     coordinate system keywords and BUNIT deleted.
 
-    arguments:
-    imhdr         a FITS Header object for an image
+    Parameters
+    ----------
+    imhdr: pyfits Header object
+        A header for a FITS IMAGE HDU.
+
+    Returns
+    -------
+    hdr: pyfits Header object
+        A copy of imhdr, with certain image WCS keywords deleted.
     """
 
     hdr = imhdr.copy()
@@ -1615,8 +1713,15 @@ def delCorrtagWCS (thdr):
     deleted.  This is appropriate when creating an x1d table from a corrtag
     table.
 
-    argument:
-    thdr          a FITS Header object for a table
+    Parameters
+    ----------
+    thdr: pyfits Header object
+        A header for a BINTABLE extension.
+
+    Returns
+    -------
+    hdr: pyfits Header object
+        A copy of thdr, with certain table WCS keywords deleted.
     """
 
     hdr = thdr.copy()
@@ -1638,9 +1743,13 @@ def updateFilename (phdr, filename):
     This routine will update (or add) the FILENAME keyword.  If filename
     includes a directory, that will not be included in the keyword value.
 
-    arguments:
-    phdr        primary header
-    filename    may include directory
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        A primary header; keyword FILENAME will be modified in-place.
+
+    filename: str
+        Name of file, possibly including directory.
     """
 
     phdr.update ("filename", os.path.basename (filename))
@@ -1648,10 +1757,13 @@ def updateFilename (phdr, filename):
 def renameFile (infile, outfile):
     """Rename a FITS file, and update the FILENAME keyword.
 
-    @param infile: current name of a FITS file
-    @type infile: string
-    @param outfile: new name for the file
-    @type outfile: string
+    Parameters
+    ----------
+    infile: str
+        Current name of a FITS file.
+
+    outfile: str
+        New name for the file.
     """
 
     printMsg ("rename " + infile + " --> " + outfile, VERY_VERBOSE)
@@ -1674,10 +1786,13 @@ def renameFile (infile, outfile):
 def copyFile (infile, outfile):
     """Copy a FITS file, and update the FILENAME keyword.
 
-    @param infile: name of input FITS file
-    @type infile: string
-    @param outfile: name of output FITS file
-    @type outfile: string
+    Parameters
+    ----------
+    infile: str
+        Name of input FITS file.
+
+    outfile: str
+        Name of output FITS file.
     """
 
     printMsg ("copy " + infile + " --> " + outfile, VERY_VERBOSE)
@@ -1700,11 +1815,16 @@ def copyFile (infile, outfile):
 def isProduct (filename):
     """Return True if 'filename' is a "product" name.
 
-    @param filename: name of an output file
-    @type filename: string
-    @return: True if the root part (before the suffix) of 'filename'
-        ends in '0', implying that it is a product name
-    @rtype: boolean
+    Parameters
+    ----------
+    filename: str
+        Name of an output file.
+
+    Returns
+    -------
+    is_product: boolean
+        True if the root part (before the suffix) of 'filename' ends in '0',
+        implying that it is a product name.
     """
 
     is_product = False          # may be changed below
@@ -1719,10 +1839,15 @@ def isProduct (filename):
 def modifyAsnMtyp (asn_mtyp):
     """Replace 'EXP' with 'PROD' in the ASN_MTYP keyword string.
 
-    @param asn_mtyp: value of ASN_MTYP keyword from an input file
-    @type asn_mtyp: string
-    @return: modified asn_mtyp
-    @rtype: string
+    Parameters
+    ----------
+    asn_mtyp: str
+        Value of ASN_MTYP keyword from an input file.
+
+    Returns
+    -------
+    asn_mtyp: str
+        asn_mtyp string, but with "EXP" replaced by "PROD".
     """
 
     if asn_mtyp.startswith ("EXP-") or asn_mtyp.startswith ("EXP_"):
@@ -1733,9 +1858,10 @@ def modifyAsnMtyp (asn_mtyp):
 def doImageStat (input):
     """Compute statistics for an image, and update keywords in header.
 
-    argument:
-    input       name of FITS file; keywords in the file will be modified
-                in-place
+    Parameters
+    ----------
+    input: str
+        Name of FITS file; keywords in the file will be modified in-place.
     """
 
     fd = pyfits.open (input, mode="update")
@@ -1850,9 +1976,10 @@ def doSpecStat (input):
 
     The NET column will be read, and statistics computed for all rows.
 
-    argument:
-    input       name of FITS file; keywords in the file will be modified
-                in-place
+    Parameters
+    ----------
+    input: str
+        Name of FITS file; keywords in the file will be modified in-place.
     """
 
     fd = pyfits.open (input, mode="update")
@@ -1901,8 +2028,10 @@ def doTagFlashStat (fd):
 
     The GROSS column will be read, and statistics computed for all rows.
 
-    argument:
-    fd          HDU list for the FITS file (opened by doSpecStat)
+    Parameters
+    ----------
+    fd: pyfits HDUList object
+        HDU list for the FITS file (opened by doSpecStat).
     """
 
     sci_extn = fd["LAMPFLASH"]
@@ -1936,11 +2065,25 @@ def computeStat (sci_band, err_band=None, dq_band=None, sdqflags=3832):
     values in the SCI and ERR extensions (goodmean, goodmax) have
     sci_ or err_ prefixes.
 
-    arguments:
-    sci_band       science data array for which statistics are needed
-    err_band       error array (but may be None) associated with sci_band
-    dq_band        data quality array (may be None) associated with sci_band
-    sdqflags       "serious" data quality flags
+    Parameters
+    ----------
+    sci_band: array_like
+        Science data array for which statistics are needed.
+
+    err_band: array_like
+        Error array (but may be None) associated with sci_band.
+
+    dq_band: array_like
+        Data quality array (but may be None) associated with sci_band.
+
+    sdqflags: int
+        "Serious" data quality flags.
+
+    Returns
+    -------
+    stat_info: dictionary
+        Contains values for ngoodpix, sci_goodmax, sci_goodmean,
+        err_goodmax, err_goodmean.
     """
 
     # default values:
@@ -1986,8 +2129,17 @@ def combineStat (stat_info):
     The input is a list of dictionaries.  The output is one dictionary
     with the same keys and with values that are the averages of the input.
 
-    argument:
-    stat_info      list of dictionaries, one for each segment (or stripe)
+    Parameters
+    ----------
+    stat_info: list of dictionaries
+        One dictionary for each segment (FUV) or stripe (NUV).
+
+    Returns
+    -------
+    dictionary (same keys as an element of input list)
+        Contains values for ngoodpix, sci_goodmax, sci_goodmean,
+        err_goodmax, err_goodmean; these values are the averages of
+        the values in the input.
     """
 
     if len (stat_info) == 1:
@@ -2021,15 +2173,27 @@ def combineStat (stat_info):
 def overrideKeywords (phdr, hdr, info, switches, reffiles):
     """Override the calibration switch and reference file keywords.
 
-    The calibration switch and reference file keywords and a few other
-    specific keywords will be overridden.  The x_offset keyword will be set.
+    The calibration switch and reference file keywords will be overridden
+    with values from `info`.  Keywords cal_ver, opt_elem, cenwave, fpoffset,
+    obstype, and exptype in the primary header, as well as keywords dispaxis
+    and x_offset in the extension header, will be overridden from `info`.
 
-    arguments:
-    phdr          primary header from input
-    hdr           extension header from input
-    info          dictionary of keywords and values
-    switches      dictionary of calibration switches
-    reffiles      dictionary of reference file names
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        Primary header from input file.
+
+    hdr: pyfits Header object
+        Extension header from input file.
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switch keywords and values.
+
+    reffiles: dictionary
+        Reference file keywords and names.
     """
 
     for key in switches.keys():
@@ -2052,10 +2216,6 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
                 "exptype"]:
         if phdr.has_key (key):
             phdr[key] = info[key]
-    #if phdr.has_key ("exptype"):
-    #    # Override exptype, except for the case of an imaging wavecal.
-    #    if info["obstype"] != "IMAGING" or info["targname"] != "WAVE":
-    #        phdr["exptype"] = info["exptype"]
 
     if hdr.has_key ("dispaxis"):
         hdr["dispaxis"] = info["dispaxis"]
@@ -2067,10 +2227,19 @@ def updatePulseHeightKeywords (hdr, segment, low, high):
 
     This is only used for FUV data, since NUV doesn't have pulse height info.
 
-    arguments:
-    hdr            header with keywords to be modified
-    segment        FUVA or FUVB (last character used to construct keyword names)
-    low, high      values for PHALOWR[AB] and PHAUPPR[AB] respectively
+    Parameters
+    ----------
+    hdr: pyfits Header object
+        header with keywords to be modified
+
+    segment: str
+        FUVA or FUVB (last character used to construct keyword names)
+
+    low: float
+        value for PHALOWR[AB]
+
+    high: float
+        value for PHAUPPR[AB]
     """
 
     key_low  = "PHALOWR" + segment[-1]
@@ -2081,13 +2250,18 @@ def updatePulseHeightKeywords (hdr, segment, low, high):
 def getPulseHeightRange (hdr, segment):
     """Get the pulse height range that was used for PHACORR.
 
-    @param hdr: extension header of corrtag, counts, flt, etc
-    @type hdr: pyfits Header object
-    @param segment: segment name ("FUVA" or "FUVB")
-    @type segment: string
+    Parameters
+    ----------
+    hdr: pyfits Header object
+        Extension header of corrtag, counts, flt, etc.
 
-    @return: "ll_hh", where ll is the lower limit and hh is the upper limit
-    @rtype: string, or None if keyword(s) are missing or less than 0
+    segment: str
+        Segment name ("FUVA" or "FUVB")
+
+    Returns
+    -------
+    str, or None if keyword(s) are missing or less than 0
+        "ll_hh", where ll is the lower limit and hh is the upper limit
     """
 
     if segment[:3] != "FUV":
@@ -2112,11 +2286,15 @@ def getPulseHeightRange (hdr, segment):
 def tempPulseHeightRange (ref):
     """Get keyword PHARANGE from the primary header of a reference file.
 
-    @param ref: name of a reference file
-    @type ref: string
+    Parameters
+    ----------
+    ref: str
+        Name of a reference file
 
-    @return: value of keyword PHARANGE, or None if the keyword is missing
-    @rtype: string, or None
+    Returns
+    -------
+    str or None
+        Value of keyword PHARANGE, or None if the keyword is missing
     """
 
     fd = pyfits.open (ref, "readonly")
@@ -2128,16 +2306,20 @@ def tempPulseHeightRange (ref):
 def comparePulseHeightRanges (pharange, ref_pharange, refname):
     """Compare pharange with the pulse height range from the phatab.
 
-    @param pharange: pulse height range from the PHATAB, formatted "ll_hh",
-        where ll and hh are the lower and upper limits
-    @type pharange: string, or None
-    @param ref_pharange: pulse height range used when calibrating the data
-        used for creating the reference file (refname), formatted "ll_hh",
-        where ll and hh are the lower and upper limits
-    @type ref_pharange: string, or None
-    @param refname: name of reference file for comparing ranges (only used
-        for printing a warning message)
-    @type refname: string
+    Parameters
+    ----------
+    pharange: str or None
+        pulse height range from the PHATAB, formatted "ll_hh", where
+        ll and hh are the lower and upper limits
+
+    ref_pharange: str or None
+        pulse height range used when calibrating the data used for
+        creating the reference file (refname), formatted "ll_hh", where
+        ll and hh are the lower and upper limits
+
+    refname: str
+        name of reference file for comparing ranges (only used for
+        printing a warning message)
     """
 
     if pharange is None or ref_pharange is None:
@@ -2163,13 +2345,22 @@ def comparePulseHeightRanges (pharange, ref_pharange, refname):
 def getSwitch (phdr, keyword):
     """Get the value of a calibration switch from a primary header.
 
-    The value will be converted to upper case.  If the keyword is STATFLAG,
-    the header value T or F will be converted to PERFORM or OMIT
-    respectively.
+    The value will be converted to upper case.
 
-    arguments:
-    phdr           primary header
-    keyword        name of keyword to get from header
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        Primary header
+
+    keyword: str
+        Name of keyword to get from header
+
+    Returns
+    -------
+    str
+        Value of the keyword `keyword`, converted to upper case; for
+        keyword STATFLAG, the value will be "PERFORM" or "OMIT" if
+        statflag is T or F respectively.
     """
 
     if phdr.has_key (keyword):
@@ -2188,16 +2379,27 @@ def getSwitch (phdr, keyword):
 def setVerbosity (verbosity_level):
     """Copy verbosity to a variable that is global for this file.
 
-    argument:
-    verbosity_level   an integer value indicating the level of verbosity
+    Parameters
+    ----------
+    verbosity_level: int
+        The value to assign to the variable `verbosity` (global to this
+        file); possible values (QUIET, VERBOSE, VERY_VERBOSE) are defined
+        in calcosparam.py
     """
 
     global verbosity
     verbosity = verbosity_level
 
 def checkVerbosity (level):
-    """Return true if verbosity is at least as great as level.
+    """Return True if verbosity is at least as great as level.
 
+    Returns
+    -------
+    boolean
+        True if a message with verbosity equal to `level` would be printed
+
+    Examples
+    --------
     >>> setVerbosity (VERBOSE)
     >>> print checkVerbosity (QUIET)
     1
@@ -2212,8 +2414,10 @@ def checkVerbosity (level):
 def setWriteToTrailer (flag=False):
     """Set the flag to indicate whether we should write to trailer files.
 
-    @param flag: if True, write to trailer file(s)
-    @type flag: boolean
+    flag: boolean
+        Value to assign to the variable `write_to_trailer` (global to this
+        file); if True, the printMsg function will write to the trailer
+        file, in addition to the standard output
     """
 
     global write_to_trailer
@@ -2221,10 +2425,13 @@ def setWriteToTrailer (flag=False):
     write_to_trailer = flag
 
 def openTrailer (filename):
-    """Open the trailer file for 'filename' in append mode.
+    """Open the trailer file for `filename` in append mode.
 
-    @param filename: name of an input (science or wavecal) file
-    @type filename: string
+    Parameters
+    ----------
+    filename: str
+        Name of an input (science or wavecal) file, but including the
+        full directory, and with the ".fits" extension replaced by ".tra"
     """
 
     global fd_trl
@@ -2257,11 +2464,16 @@ def closeTrailer():
 def printMsg (message, level=QUIET):
     """Print 'message' if verbosity is at least as great as 'level'.
 
+    Examples
+    --------
     >>> setVerbosity (VERBOSE)
+
     >>> printMsg ("quiet", QUIET)
     quiet
+
     >>> printMsg ("verbose", VERBOSE)
     verbose
+
     >>> printMsg ("very verbose", VERY_VERBOSE)
     """
 
@@ -2275,8 +2487,10 @@ def printMsg (message, level=QUIET):
 def printIntro (str):
     """Print introductory message.
 
-    argument:
-    str            string to be printed
+    Parameters
+    ----------
+    str: str
+        String to be printed
     """
 
     printMsg ("", VERBOSE)
@@ -2285,17 +2499,34 @@ def printIntro (str):
 def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
     """Print input and output filenames.
 
-    arguments:
-    names         a list of (label, filename) tuples
-    shift_file    name of input text file to specify shift1 and shift2
-    stimfile      name of output text file for stim positions (or None)
-    livetimefile  name of output text file for livetime factors (or None)
+    Parameters
+    ----------
+    names: list of tuples
+        Each tuple is (label, filename), where `label` is a short string
+        (preferably 10 characters or less) that describes the file, and
+        `filename` is the name of the file; the file may be an existing
+        input file or an output file that hasn't been created yet
 
+    shift_file: str or None
+        Name of input text file to specify shift1 and shift2 (or None if
+        no shift file was specified)
+
+    stimfile: str or None
+        Name of output text file for stim positions (or None if no file
+        was specified)
+
+    livetimefile: str or None
+        Name of output text file for livetime factors (or None if no file
+        was specified)
+
+    Examples
+    --------
     >>> setVerbosity (VERBOSE)
     >>> names = [("Input", "abc_raw.fits"), ("Output", "abc_flt.fits")]
     >>> printFilenames (names)
     Input     abc_raw.fits
     Output    abc_flt.fits
+
     >>> printFilenames (names, stimfile="stim.txt", livetimefile="live.txt")
     Input     abc_raw.fits
     Output    abc_flt.fits
@@ -2316,8 +2547,10 @@ def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
 def printMode (info):
     """Print info about the observation mode.
 
-    argument:
-    info          dictionary of header keywords and values
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values.
     """
 
     if info["detector"] == "FUV":
@@ -2338,18 +2571,27 @@ def printMode (info):
 def printSwitch (keyword, switches):
     """Print calibration switch name and value.
 
-    arguments:
-    keyword       keyword name of calibration switch (e.g. "flatcorr")
-    switches      dictionary of calibration switches
+    Parameters
+    ----------
+    keyword: str
+        Keyword name of calibration switch (e.g. "flatcorr")
 
+    switches: dictionary
+        Dictionary of calibration switches
+
+    Examples
+    --------
     >>> setVerbosity (VERBOSE)
     >>> switches = {"statflag": "PERFORM", "flatcorr": "PERFORM", "geocorr": "COMPLETE", "randcorr": "SKIPPED"}
     >>> printSwitch ("statflag", switches)
     STATFLAG  T
+
     >>> printSwitch ("flatcorr", switches)
     FLATCORR  PERFORM
+
     >>> printSwitch ("geocorr", switches)
     GEOCORR   OMIT (already complete)
+
     >>> printSwitch ("randcorr", switches)
     RANDCORR  OMIT (skipped)
     """
@@ -2373,10 +2615,16 @@ def printSwitch (keyword, switches):
 def printRef (keyword, reffiles):
     """Print reference file keyword and file name.
 
-    arguments:
-    keyword       keyword name for reference file name (e.g. "flatfile")
-    reffiles      dictionary of reference file names
+    Parameters
+    ----------
+    keyword: str
+        Keyword name for reference file name (e.g. "flatfile")
 
+    reffiles: dictionary
+        Dictionary of reference file names
+
+    Examples
+    --------
     >>> setVerbosity (VERBOSE)
     >>> reffiles = {"flatfile": "abc_flat.fits", "flatfile_hdr": "lref$abc_flat.fits"}
     >>> printRef ("flatfile", reffiles)
@@ -2388,39 +2636,70 @@ def printRef (keyword, reffiles):
     printMsg ("%-8s= %s" % (key_upper, reffiles[key_lower+"_hdr"]), VERBOSE)
 
 def printWarning (message, level=QUIET):
-    """Print a warning message."""
+    """Print a warning message.
+
+    Parameters
+    ----------
+    message: str
+        Warning message to be printed
+    """
 
     printMsg ("Warning:  " + message, level)
 
 def printError (message):
-    """Print an error message."""
+    """Print an error message.
+
+    Parameters
+    ----------
+    message: str
+        Error message to be printed
+    """
 
     printMsg ("ERROR:  " + message, level=QUIET)
 
 def printContinuation (message, level=QUIET):
-    """Print a continuation line of a warning or error message."""
+    """Print a continuation line of a warning or error message.
+
+    Parameters
+    ----------
+    message: str
+        Continuation message to be printed
+    """
 
     printMsg ("    " + message, level)
 
 def returnTime():
-    """Return the current date and time, formatted into a string."""
+    """Return the current date and time, formatted into a string.
+
+    Returns
+    -------
+    str
+        The current local time, e.g. "20-Oct-2010 16:28:08 EDT"
+    """
 
     return time.strftime ("%d-%b-%Y %H:%M:%S %Z", time.localtime (time.time()))
 
 def getPedigree (switch, refkey, filename, level=VERBOSE):
     """Return the value of the PEDIGREE keyword.
 
-    @param switch: keyword name for calibration switch
-    @type switch: string
-    @param refkey: keyword name for the reference file
-    @type refkey: string
-    @param filename: name of the reference file
-    @type filename: string
-    @param level: QUIET, VERBOSE, or VERY_VERBOSE
-    @type level: integer
+    Parameters
+    ----------
+    switch: str
+        Keyword name for calibration switch
 
-    @return: the value of the PEDIGREE keyword, or "OK" if not found
-    @rtype: string
+    refkey: str
+        Keyword name for the reference file
+
+    filename: str
+        Name of the reference file
+
+    level: int
+        QUIET, VERBOSE, or VERY_VERBOSE (defined in calcosparam.py)
+
+    Returns
+    -------
+    str
+        The value of the PEDIGREE keyword, or "OK" if not found
     """
 
     if filename == "N/A":
@@ -2440,9 +2719,23 @@ def getPedigree (switch, refkey, filename, level=VERBOSE):
 def getApertureKeyword (hdr, truncate=1):
     """Get the value of the APERTURE keyword.
 
-    arguments:
-    hdr           pyfits Header object
-    truncate      if true, strip "-FUV" or "-NUV" from keyword value
+    The reason for this function is that some thermal-vac data had "-FUV"
+    or "-NUV" appended to the aperture name, and in some cases the keyword
+    value was "RelMvReq".  This function will strip off "-FUV" or "-NUV"
+    (if found), and it will replace "RelMvReq" with "PSA".
+
+    Parameters
+    ----------
+    hdr: pyfits Header object
+        Primary header from which to get the APERTURE keyword
+
+    truncate: boolean
+        if true, strip "-FUV" or "-NUV" from keyword value
+
+    Returns
+    -------
+    str
+        The value of the APERTURE keyword, corrected if necessary
     """
 
     aperture = hdr.get ("aperture", NOT_APPLICABLE)
@@ -2456,11 +2749,15 @@ def getApertureKeyword (hdr, truncate=1):
 def exptimeKeyword (segment):
     """Construct the keyword for the updated exposure time.
 
-    @param segment: segment or stripe name
-    @type segment: string
+    Parameters
+    ----------
+    segment: str
+        Segment or stripe name
 
-    @return: keyword (lower case) for exposure time
-    @rtype: string
+    Returns
+    -------
+    str
+        Keyword (lower case) for exposure time
     """
 
     if segment[0] == "F":
@@ -2478,8 +2775,15 @@ def expandFileName (filename):
     respectively), this routine expands the variable and returns a complete
     path name for the file.
 
-    argument:
-    filename      a file name, possibly including an environment variable
+    Parameters
+    ----------
+    filename: str
+        A file name, possibly including an environment variable
+
+    Returns
+    -------
+    filename: str
+        The name of the file, with any environment variable expanded
     """
 
     n = filename.find ("$")
@@ -2509,15 +2813,23 @@ def changeSegment (filename, detector, segment):
     the wavecal files need to be changed to end in "_b.fits" instead of
     "_a.fits".
 
-    @param filename: one or more file names, separated by spaces
-    @type filename: string
-    @param detector: FUV or NUV
-    @type filename: string
-    @param segment: FUVA or FUVB, if detector is FUV
-    @type segment: string
+    Parameters
+    ----------
+    filename: str
+        One or more file names, separated by spaces
 
-    @return: name(s) with '_a' replaced with '_b', or vice versa, or no change
-    @rtype: string
+    detector: str
+        FUV or NUV
+
+    segment: str
+        FUVA or FUVB, if detector is FUV
+
+    Returns
+    -------
+    str
+        A copy of the input `filename`, but with '_a' replaced with '_b'
+        or vice versa, or no change if the input name does not end in
+        '_a.fits' or '_b.fits'
     """
 
     if detector != "FUV":
@@ -2547,28 +2859,37 @@ def changeSegment (filename, detector, segment):
 def findRefFile (ref, missing, wrong_filetype, bad_version):
     """Check for the existence of a reference file.
 
-    arguments:
-      (missing, wrong_filetype and bad_version are dictionaries, with the
-       reference file keyword as key.)
-    ref             a dictionary with the following keys:
-                      keyword (e.g. "FLATFILE")
-                      filename (name of file)
-                      calcos_ver (calcos version number)
-                      min_ver (minimum acceptable version number)
-                      filetype (e.g. "FLAT FIELD REFERENCE IMAGE")
-    missing         messages about missing reference files
-    wrong_filetype  messages about wrong FILETYPE keyword in reference files
-    bad_version     messages about inconsistent version strings
+    If the reference file does not exist, its name is added to the
+    'missing' dictionary.  If the file does exist, open the file and
+    compare 'filetype' with the value of the FILETYPE keyword in the
+    primary header.  If they're not the same (unless FILETYPE is "ANY"),
+    then an entry is added to the 'wrong_filetype' dictionary.  The
+    VCALCOS keyword is also gotten from the primary header of the
+    reference file (with a default value of "1.0").  If the version of
+    the reference file is not consistent with calcos, the reference file
+    name and error message will be added to the 'bad_version' dictionary.
 
-    If the reference file does not exist, its name is added to the 'missing'
-    dictionary.  If the file does exist, open the file and compare
-    'filetype' with the value of the FILETYPE keyword in the primary header.
-    If they're not the same (unless FILETYPE is "ANY"), then an entry is
-    added to the 'wrong_filetype' dictionary.  The VCALCOS keyword is also
-    gotten from the primary header (with a default value of "1.0").  If the
-    version of the reference file is not consistent with calcos, the
-    reference file name and error message will be added to the 'bad_version'
-    dictionary.
+    Parameters
+    ----------
+    ref: dictionary
+        a dictionary with the following keys:
+            reference file keyword (e.g. "FLATFILE")
+            filename (name of reference file)
+            calcos_ver (calcos version number)
+            min_ver (minimum acceptable value of VCALCOS)
+            filetype (e.g. "FLAT FIELD REFERENCE IMAGE")
+
+    missing: dictionary
+        Messages about missing reference files; the reference file keywords
+        are the keys
+
+    wrong_filetype: dictionary
+        Messages about wrong FILETYPE keyword in reference files; the
+        reference file keywords are the keys
+
+    bad_version: dictionary
+        Messages about inconsistent version strings; the reference file
+        keywords are the keys
     """
 
     keyword    = ref["keyword"]
@@ -2608,16 +2929,20 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
 def fitQuadratic (x, y):
     """Fit a quadratic to y vs x.
 
-    @param x: array of independent values
-    @type x: ndarray
-    @param y: array of dependent values
-    @type y: ndarray
+    Parameters
+    ----------
+    x: array_like
+        Array of independent variable values
+    y: array_like
+        Array of dependent variable values
 
-    @return: (coeff, var), where coeff is an array of the coefficients
-        of the fit (coeff[0] + coeff[1]*x + coeff[2]*x**2), and var is an
-        array of the corresponding variances; coeff and var will be None if
-        there was a LinAlgError.
-    @rtype: tuple
+    Returns
+    -------
+    tuple
+        (coeff, var), where coeff is an array of the coefficients of the
+        fit (coeff[0] + coeff[1]*x + coeff[2]*x**2), and var is an array of
+        the corresponding variances; coeff and var will be None if there
+        was a LinAlgError.
     """
 
     assert len (x) == len (y)
@@ -2665,17 +2990,23 @@ def fitQuadratic (x, y):
 def centerOfQuadratic (coeff, var):
     """Find the center of a quadratic function from its coefficients.
 
-    @param coeff: the coefficients of the fit (or None if not determined):
+    Parameters
+    ----------
+    coeff: array_like or None
+        The coefficients of the fit (or None if not determined):
            y = coeff[0] + coeff[1]*x + coeff[2]*x**2
-    @type coeff: ndarray
-    @param var: the variances of the coefficients
-    @type var: ndarray
 
-    @return: (x_min, x_min_sigma), where x is value at which y is an extremum,
-        and x_min_sigma is the error estimate for x_min, based on the scatter
-        of the values around the fitted curve; the values will be (None, 0.)
-        if coeff is None or if the second-order coefficient is zero
-    @rtype: tuple
+    var: array_like or None
+        The variances of the coefficients (or None if not determined)
+
+    Returns
+    -------
+    tuple
+        (x_min, x_min_sigma), where x_min is value at which y is an
+        extremum, and x_min_sigma is the error estimate for x_min, based
+        on the scatter of the values around the fitted curve; the values
+        will be (None, 0.) if coeff is None or if the second-order
+        coefficient is zero
     """
 
     if coeff is None or coeff[2] == 0:
@@ -2692,7 +3023,25 @@ def centerOfQuadratic (coeff, var):
     return (x_min, x_min_sigma)
 
 def fitQuartic (x, y):
-    """not currently used"""
+    """Fit a fourth-order polynomial to y vs x.
+
+    not currently used
+
+    Parameters
+    ----------
+    x: array_like
+        Array of independent variable values
+    y: array_like
+        Array of dependent variable values
+
+    Returns
+    -------
+    tuple
+        (coeff, var), where coeff is an array of the coefficients of the
+        fit (coeff[0] + coeff[1]*x + coeff[2]*x**2 + coeff[3]*x**3 +
+             coeff[4]*x**4), and var is an array of the corresponding
+        variances; coeff and var will be None if there was a LinAlgError.
+    """
 
     assert len (x) == len (y)
     n = float (len (x))
@@ -2745,12 +3094,23 @@ def fitQuartic (x, y):
     return (coeff, var)
 
 def centerOfQuartic (x, coeff):
-    """Find the center of a quartic function from its coefficients.
+    """Find the center of a fourth-order function from its coefficients.
 
     not currently used
 
-    @return: the x value at which y is a minimum, or None if coeff is None
-    @rtype: float
+    Parameters
+    ----------
+    x: array_like
+        Array of independent variable values
+
+    coeff: array_like or None
+        The coefficients of the fit (or None if not determined):
+           y = coeff[0] + coeff[1]*x + coeff[2]*x**2
+
+    Returns
+    -------
+    x_min: float, or None
+        The value at which y is a minimum, or None if coeff is None
     """
 
     if coeff is None:
@@ -2780,18 +3140,23 @@ def centerOfQuartic (x, coeff):
     return x_min
 
 def precess (t, target):
-    """Precess target to the time of observation.
+    """Precess `target` to the time of observation.
 
     This function is currently not used.
     It could be called by timetag.heliocentricVelocity.
 
-    @param t: time (MJD)
-    @type t: float
-    @param target: unit vector pointing toward the target, J2000 coordinates
-    @type target: sequence type
+    Parameters
+    ----------
+    t: float
+        Time (MJD) of observation
 
-    @return: target coordinates precessed to time t
-    @rtype: list
+    target: array_like
+        Unit vector pointing toward the target, J2000 coordinates
+
+    Returns
+    -------
+    list
+        Target coordinates precessed to time t
     """
 
     # 51544.5 is MJD for 2000 Jan 1.5 UT, or JD 2451545.0
@@ -2842,12 +3207,6 @@ def precess (t, target):
 def cmpVersion (min_ver, vcalcos, calcos_ver):
     """Compare version strings.
 
-    arguments:
-    min_ver      calcos requires the reference file to be at least this
-                   version
-    vcalcos      VCALCOS from the primary header of the reference file
-    calcos_ver   version of calcos
-
     The test passes if min_ver <= vcalcos <= calcos_ver, in which case
     this function will return 0.
 
@@ -2859,30 +3218,62 @@ def cmpVersion (min_ver, vcalcos, calcos_ver):
     a part starting with a letter (if any).  Then comparisons are made on
     the substrings one at a time.
 
+    Parameters
+    ----------
+    min_ver: str
+        calcos requires the reference file to be at least this version
+
+    vcalcos: str
+        VCALCOS from the primary header of the reference file
+
+    calcos_ver: str
+        Version of calcos
+
+    Returns
+    -------
+    int
+        -1 if min_ver > vcalcos
+         0 if min_ver <= vcalcos <= calcos_ver
+        +1 if vcalcos > calcos_ver
+
+    Examples
+    --------
     >>> print cmpVersion ("1", "1", "1.1")
     0
+
     >>> print cmpVersion ("1", "1.1", "1")
     1
+
     >>> print cmpVersion ("1.1", "1", "1")
     -1
+
     >>> print cmpVersion ("1.1", "1.1", "1.2")
     0
+
     >>> print cmpVersion ("1.1", "1.2", "1.1")
     1
+
     >>> print cmpVersion ("1.2", "1.1", "1.1")
     -1
+
     >>> print cmpVersion ("1.0", "1.7", "2.3")
     0
+
     >>> print cmpVersion ("2.7", "2.8", "2.8a")
     0
+
     >>> print cmpVersion ("2.0", "2.13.1", "2.13")
     1
+
     >>> print cmpVersion ("2.9", "2.9", "2.13.1")
     0
+
     >>> print cmpVersion ("2.12d", "2.13b", "2.13a")
     1
+
     >>> print cmpVersion ("2.13d", "2.13b", "2.13a")
     -1
+
     >>> print cmpVersion ("2.13", "2.13b", "2.13c")
     0
     """

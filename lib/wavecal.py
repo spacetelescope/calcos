@@ -12,7 +12,7 @@ import shiftfile
 
 # Each element of wavecal_info is a dictionary with the keys:
 # "time", "fpoffset", "shift_dict", "rootname", "filename".  The variable
-# name wc_dict is used for one element of wavecal_info.
+# name `wc_dict` is used for one element of `wavecal_info`.
 
 def findWavecalShift (input, shift_file, info, wcp_info):
     """Find the shift from a wavecal image.
@@ -69,7 +69,8 @@ def findWavecalShift (input, shift_file, info, wcp_info):
     stepsize = wcp_info.field ("stepsize")
 
     # Replace shift values in segment B with values from segment A?
-    override_segment_B = (info["opt_elem"] == "G140L" and "FUVA" in segment)
+    override_segment_B = (info["opt_elem"] == "G140L" and "FUVB" in segment)
+    segment_A_present = ("FUVA" in segment)
 
     # segment will be added to the filter in the loop below.
     filter = {"opt_elem": info["opt_elem"],
@@ -107,6 +108,8 @@ def findWavecalShift (input, shift_file, info, wcp_info):
         if got_pixel_shift:
             fp_pixel_shift[segment[row]] = \
                     lamp_info.field ("fp_pixel_shift")[0]
+            print "debug (findWavecalShift):  fp_pixel_shift =", \
+                        fp_pixel_shift[segment[row]]
         else:
             fp_pixel_shift[segment[row]] = 0.
 
@@ -115,8 +118,11 @@ def findWavecalShift (input, shift_file, info, wcp_info):
                              xc_range, fp_pixel_shift, initial_offset)
     fs1.findShifts()
 
-    if override_segment_B:              # copy shift1 from A to B
-        fs1.setShift1 ("FUVB", fs1.getShift1 ("FUVA"))
+    if override_segment_B:
+        if segment_A_present:           # copy shift1 from A to B
+            fs1.setShift1 ("FUVB", fs1.getShift1 ("FUVA"))
+        else:
+            fs1.setShift1 ("FUVB", 0., fp=False)
 
     # Did the user supply a file with overrides for the shifts?
     if shift_file is None:
@@ -142,7 +148,10 @@ def findWavecalShift (input, shift_file, info, wcp_info):
         # This is the offset in the cross-dispersion direction.
         key = "shift2" + segment[row][-1].lower()
         if override_segment_B and segment[row] == "FUVB":
-            shift_dict[key] = sci_extn.header.get ("shift2a", default=0.)
+            if segment_A_present:       # copy shift2 from A to B
+                shift_dict[key] = sci_extn.header.get ("shift2a", default=0.)
+            else:
+                shift_dict[key] = 0.
         else:
             shift_dict[key] = sci_extn.header.get (key, default=0.)
         sci_extn.header.update (key, shift_dict[key])
@@ -174,7 +183,10 @@ def findWavecalShift (input, shift_file, info, wcp_info):
         if user_specified:
             message = message + "  # user-specified"
         elif override_segment_B and segment[row] == "FUVB":
-            message = message + "  # based on FUVA value"
+            if segment_A_present:
+                message = message + "  # based on FUVA value"
+            else:
+                message = message + "  # set to 0 (no FUVA)"
         elif not fs1.getSpecFound (segment[row]):
             message = message + "  # not found"
         cosutil.printMsg (message, VERBOSE)
@@ -196,22 +208,7 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
                       rootname, filename):
     """Append the current info to the wavecal_info list.
 
-    @param wavecal_info: list of wavecal information dictionaries; updated
-        in-place
-    @type wavecal_info: list
-    @param time: time of observation, MJD at middle of exposure
-    @type time: float
-    @param fpoffset: OSM position, used to select entries from wavecal_info
-    @type fpoffset: int
-    @param shift_dict: a dictionary of keyword names and shifts
-    @type shift_dict: dictionary
-    @param rootname: the rootname (typically lower case) of the observation
-    @type rootname: string
-    @param filename: the name of the raw file (this will typically be the
-                    _a.fits name for FUV)
-    @type filename: string
-
-    shift_dict can have any of the following keys (and others):
+    `shift_dict` can have any of the following keys (and others):
     "shift1a" for FUV segment A or NUV stripe A,
     "shift1b" for FUV segment B or NUV stripe B,
     "shift1c" for NUV stripe C
@@ -222,9 +219,35 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
     or stripe in the dispersion direction (shift1[abc]) or in the cross
     dispersion direction (shift2[abc]).
 
-    The input information will be combined into a dictionary, which will then
-    be appended to wavecal_info.  wavecal_info will be sorted in increasing
-    order of time.
+    The input information will be combined into a dictionary, which will
+    then be appended to `wavecal_info`.  `wavecal_info` will be sorted in
+    increasing order of time.
+
+    Parameters
+    ----------
+    wavecal_info: list of wavecal information dictionaries
+        The other arguments will be used to create a wavecal information
+        dictionary, and that will be appended to `wavecal_info`.
+        A wavecal information dictionary has keys "time", "fpoffset",
+        "shift_dict", "rootname", and "filename".  The values are the
+        arguments with those names, except that if `filename` includes a
+        directory, that will be removed before saving in the dictionary.
+
+    time: float
+        Time of observation, MJD at middle of exposure
+
+    fpoffset: int
+        OSM position, used to select entries from `wavecal_info`
+
+    shift_dict: dictionary
+        A dictionary of keyword names and shifts
+
+    rootname: str
+        The rootname (typically lower case) of the observation
+
+    filename: str
+        The name of the raw file (this will typically be the _a.fits name
+        for FUV)
     """
 
     wc_dict = {}
@@ -241,16 +264,20 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
 def cmpTime (wc_dict_a, wc_dict_b):
     """Compare the times in two wavecal_info entries.
 
-    @param wc_dict_a: one wavecal information dictionary (one element of
-        wavecal_info)
-    @type wc_dict_a: dictionary
-    @param wc_dict_b: another wavecal information dictionary
-    @type wc_dict_b: dictionary
+    Parameters
+    ----------
+    wc_dict_a: dictionary
+        One wavecal information dictionary (one element of wavecal_info)
 
-    @return: 0 if the times are the same,
-            -1 if the time in wc_dict_a is smaller than the time in wc_dict_b,
-            +1 if the time in wc_dict_a is larger than the time in wc_dict_b
-    @rtype: int
+    wc_dict_b: dictionary
+        Another wavecal information dictionary
+
+    Returns
+    -------
+    int
+         0 if the times are the same,
+        -1 if the time in wc_dict_a is smaller than the time in wc_dict_b,
+        +1 if the time in wc_dict_a is larger than the time in wc_dict_b
     """
 
     return cmp (wc_dict_a["time"], wc_dict_b["time"])
@@ -258,36 +285,43 @@ def cmpTime (wc_dict_a, wc_dict_b):
 def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
     """Return the shift dictionary from wavecal_info that matches fpoffset.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list of dictionaries
-    @param wcp_info: data (one row) from the wavecal parameters table
-    @type wcp_info: PyFITS record
-    @param fpoffset: OSM position, used to select entries from wavecal_info
-    @type fpoffset: int
-    @param time: time of observation, MJD at middle of exposure
-    @type time: float
-
-    @return: a pair of dictionaries and a string.  For the dictionaries, the
-        key is the keyword name for the shift (shift1a, shift1b, shift1c,
-        shift2a, shift2b, shift2c).  For the first dictionary, the value is
-        the shift at the specified time.  For the second dictionary, the
-        value is the slope (pixels/s).  The string is the name or names of
-        the wavecal files (separated by a blank, if there are two) that were
-        used to find the shifts.
-    @rtype: tuple, or None
-
     The element of wavecal_info that matches fpoffset will be extracted.
     If there are multiple entries that match fpoffset, we'll find the two
-    that are closest to the time of the observation and linearly interpolate
-    the shifts at that time.
+    that are closest to the time of the observation and linearly
+    interpolate the shifts at that time.
 
     If there is no entry in wavecal_info for the current fpoffset, we'll
     find the entry that is closest in time to the time of the observation.
-    If the difference in time for that entry is not too large (based on info
-    from the wavecal parameters table), we'll use that entry and correct for
-    the difference in OSM position.
+    If the difference in time for that entry is not too large (based on
+    info from the wavecal parameters table), we'll use that entry and
+    correct for the difference in OSM position.
 
     None will be returned if wavecal_info is empty.
+
+    Parameters
+    ----------
+    wavecal_info: list of dictionaries
+        List of wavecal information dictionaries
+
+    wcp_info: pyfits record object
+        Data (one row) from the wavecal parameters table
+
+    fpoffset: int
+        OSM position, used to select entries from `wavecal_info`
+
+    time: float
+        Time of observation, MJD at middle of exposure
+
+    Returns
+    -------
+    tuple, or None
+        A pair of dictionaries and a string.  For the dictionaries, the
+        key is the keyword name for the shift (shift1a, shift1b, shift1c,
+        shift2a, shift2b, shift2c).  For the first dictionary, the value
+        is the shift at the specified time.  For the second dictionary,
+        the value is the slope (pixels/s).  The string is the name or
+        names of the wavecal files (separated by a blank, if there are
+        two) that were used to find the shifts.
     """
 
     if len (wavecal_info) < 1:
@@ -335,19 +369,24 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
 def returnExactMatch (wavecal_info, rootname):
     """Return the shift dictionary for the specified wavecal rootname.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list
-    @param rootname: used to find the appropriate element of wavecal_info
-    @type rootname: string
-
-    @return: the shift dictionary corresponding to rootname, or None
-    @rtype: dictionary
-
     The rootname of a wavecal exposure is used to extract one element of
     wavecal_info (there should always be exactly one matching element).
     The shift dictionary from that matchine element is then returned.
 
     None will be returned if wavecal_info is empty.
+
+    Parameters
+    ----------
+    wavecal_info: list of dictionaries
+        List of wavecal information dictionaries
+
+    rootname: str
+        Used to find the appropriate element of `wavecal_info`
+
+    Returns
+    -------
+    dictionary or None
+        The shift dictionary corresponding to rootname, or None
     """
 
     if len (wavecal_info) < 1:
@@ -363,13 +402,18 @@ def returnExactMatch (wavecal_info, rootname):
 def selectWavecalInfo (wavecal_info, fpoffset):
     """Return a list of all elements of wavecal_info that match fpoffset.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list
-    @param fpoffset: used to find one or more elements of wavecal_info
-    @type fpoffset: int
+    Parameters
+    ----------
+    wavecal_info: list of dictionaries
+        List of wavecal information dictionaries
 
-    @return: list of dictionaries in wavecal_info that match fpoffset
-    @rtype: list
+    fpoffset: int
+        Used to find one or more elements of `wavecal_info`
+
+    Returns
+    -------
+    list
+        List of dictionaries in `wavecal_info` that match `fpoffset`
     """
 
     subset_wavecal_info = []
@@ -383,22 +427,27 @@ def selectWavecalInfo (wavecal_info, fpoffset):
 def minTimeWavecalInfo (wavecal_info, time, max_time_diff):
     """Return the element of wavecal_info that is closest to time.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list
-    @param time: time of a science observation (MJD at middle of exposure)
-    @type time: float
-    @param max_time_diff: cutoff for time difference between 'time' and a
-        wavecal observation
-    @type max_time_diff: float
+    The element of wavecal_info that is closest in time to the specified
+    time will be selected.  If the difference between the time for that
+    element and the specified time is less than max_time_diff, that element
+    of `wavecal_info` will be returned; otherwise, None will be returned.
 
-    @return: the shift dictionary closest in time to 'time', or None if
-        there is none that is within max_time_diff
-    @rtype: dictionary
+    Parameters
+    ----------
+    wavecal_info: list of dictionaries
+        List of wavecal information dictionaries
 
-    The element of wavecal_info that is closest in time to the specified time
-    will be selected.  If the difference between the time for that element
-    and the specified time is less than max_time_diff, that element of
-    wavecal_info will be returned; otherwise, None will be returned.
+    time: float
+        Time of a science observation (MJD at middle of exposure)
+
+    max_time_diff: float
+        Cutoff for time difference between `time` and a wavecal observation
+
+    Returns
+    -------
+    dictionary
+        The shift dictionary closest in time to `time`, or None if there
+        is none that is within `max_time_diff`
     """
 
     index = -1
@@ -421,29 +470,34 @@ def minTimeWavecalInfo (wavecal_info, time, max_time_diff):
 def interpolateWavecal (wavecal_info, time):
     """Interpolate to get a shift dictionary at the specified time.
 
-    @param wavecal_info: list of wavecal information dictionaries
-    @type wavecal_info: list of dictionaries
-    @param time: time of observation, MJD at middle of exposure
-    @type time: float
+    `wavecal_info` is assumed to be sorted in increasing order of time.
+    If the time of observation is earlier than the first entry or later
+    than the last entry in `wavecal_info`, then the shift dictionary for the
+    first or last element respectively of `wavecal_info` will be returned.
+    Otherwise, the pair of entries that bracket the time of observation
+    will be selected, and the shifts in the shift dictionaries will be
+    linearly interpolated at the time of observation.
 
-    @return: a pair of dictionaries and a string.  For the dictionaries, the
+    None will be returned if `wavecal_info` is empty.
+
+    Parameters
+    ----------
+    wavecal_info: list of dictionaries
+        list of wavecal information dictionaries
+
+    time: float
+        time of observation, MJD at middle of exposure
+
+    Returns
+    -------
+    tuple, or None
+        A pair of dictionaries and a string.  For the dictionaries, the
         key is the keyword name for the shift (shift1a, shift1b, shift1c,
         shift2a, shift2b, shift2c).  For the first dictionary, the value is
         the shift at the specified time.  For the second dictionary, the
         value is the slope in pixels per second.  The string is the name or
         names of the wavecal files (separated by a blank, if there are two)
         that were used to find the shifts.
-    @rtype: tuple, or None
-
-    wavecal_info is assumed to be sorted in increasing order of time.
-    If the time of observation is earlier than the first entry or later
-    than the last entry in wavecal_info, then the shift dictionary for the
-    first or last element respectively of wavecal_info will be returned.
-    Otherwise, the pair of entries that bracket the time of observation
-    will be selected, and the shifts in the shift dictionaries will be
-    linearly interpolated at the time of obsrvation.
-
-    None will be returned if wavecal_info is empty.
     """
 
     wlen = len (wavecal_info)
@@ -829,8 +883,10 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
 def printWavecalRef (reffiles):
     """Print the names of reference files used for wavecal processing.
 
-    @param reffiles: reference file names
-    @type reffiles: dictionary
+    Parameters
+    ----------
+    reffiles: dictionary
+        Reference file names
     """
 
     cosutil.printRef ("wcptab", reffiles)

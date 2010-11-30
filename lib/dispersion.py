@@ -117,11 +117,15 @@ class Dispersion (object):
         The function value will be the wavelength (or array of wavelengths)
         at x, in Angstroms.
 
-        @param x: pixel coordinate (or array of coordinates)
-        @type x: numpy array or float
+        Parameters
+        ----------
+        x: array_like or float
+            Pixel coordinate (or array of coordinates)
 
-        @return: wavelength (or array of wavelengths) at x
-        @rtype: numpy array or float
+        Returns
+        -------
+        array_like or float
+            Wavelength (or array of wavelengths) at x
         """
 
         x_prime = x + self.delta
@@ -138,11 +142,15 @@ class Dispersion (object):
         The function value will be the slope (or array of slopes) at x,
         in Angstroms per pixel.
 
-        @param x: pixel coordinate (or array of coordinates)
-        @type x: numpy array or float
+        Parameters
+        ----------
+        x: array_like or float
+            Pixel coordinate (or array of coordinates)
 
-        @return: slope at x, in Angstroms per pixel
-        @rtype: numpy array or float
+        Returns
+        -------
+        array_like or float
+            Slope at x, in Angstroms per pixel
         """
 
         x_prime = x + self.delta
@@ -162,14 +170,19 @@ class Dispersion (object):
         difference between the specified wavelengths and computed wavelengths
         is less than tiny.
 
-        @param wavelength: wavelength (or array of wavelengths)
-        @type wavelength: numpy array or float
-        @param tiny: maximum allowed difference between the final pixel
-            number(s) and the value from the previous iteration
-        @type tiny: float
+        Parameters
+        ----------
+        wavelength: array_like or float
+            Wavelength or array of wavelengths
 
-        @return: pixel number (or array of pixel numbers) at wavelength
-        @rtype: numpy array or float
+        tiny: float
+            Maximum allowed difference between the final pixel number(s)
+            and the value from the previous iteration
+
+        Returns
+        -------
+        array_like or float
+            Pixel number (or array of pixel numbers) at wavelength
         """
 
         tiny = abs (tiny)

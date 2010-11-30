@@ -13,6 +13,7 @@ extractband extracts a 2-D band (spectrum or background) from a 2-D image.
 smoothbkg smooths a 1-D array (background).
 addlines creates a template spectrum based on a list of emission lines.
 geocorrection applies the geometric (INL) distortion correction.
+pha_check compares the pha with lower and upper limits.
 clear_rows sets a temporary DQ array to 0 within curved boundaries.
 interp1d does linear interpolation of one 1-D array onto another.
 getstartstop gets indices of start and stop times of time intervals.
@@ -97,6 +98,7 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 2010 Apr 2	In binarySearch, compare the first and last elements of array
 		(rather than just the first and second elements) to check
 		whether the array is increasing.
+2010 Nov 22	Add function pha_check.
 */
 
 # include <Python.h>
@@ -138,6 +140,7 @@ static PyObject *ccos_extractband (PyObject *, PyObject *);
 static PyObject *ccos_smoothbkg (PyObject *, PyObject *);
 static PyObject *ccos_addlines (PyObject *, PyObject *);
 static PyObject *ccos_geocorrection (PyObject *, PyObject *);
+static PyObject *ccos_pha_check (PyObject *, PyObject *);
 static PyObject *ccos_clear_rows (PyObject *, PyObject *);
 static PyObject *ccos_interp1d (PyObject *, PyObject *);
 static PyObject *ccos_getstartstop (PyObject *self, PyObject *args);
@@ -176,6 +179,9 @@ static int binarySearch (double, double [], int);
 static void addLSF (double, float, double, float [], int);
 static int geoInterp2D (float [], float [], int,
 	PyArrayObject *, PyArrayObject *, int, float, float, float, float);
+static int phaCheck (int, short,
+	float [], float [], short [], short [],
+	PyArrayObject *, PyArrayObject *, int *, int *);
 static int clearRows (PyArrayObject *,
 	float [], float [], float [], float []);
 static void bilinearInterp (float, float,
@@ -239,6 +245,7 @@ static char *DocString (void) {
     addlines (intensity, wavelength, reswidth, x1d_wl, dq, template)\n\
     geocorrection (x, y, x_image, y_image, interp_flag,\n\
                 <optional:  origin_x, origin_y, xbin, ybin>)\n\
+    counters = pha_check (x, y, pha, dq, im_low, im_high, pha_flag)\n\
     clear_rows (dq, y_lower, y_upper, x_left, x_right)\n\
     interp1d (x_a, y_a, x_b, y_b)\n\
     getstartstop (time, istart, istop, delta_t)\n\
@@ -266,6 +273,7 @@ static char *DocString (void) {
 x and y are arrays of pixel coordinates of the events (float32 or int16).\n\
 x_offset is such that image pixel = detector coord + x_offset (int).\n\
 epsilon is an array of weights for the events (float32).\n\
+pha is an array of pulse height amplitudes (int16).\n\
 dq is an array of data quality flags (0 is good; int16).\n\
 array is the 2-D array modified in-place by binevents (float32).\n\
 lx and ly are arrays of lower left corners of DQ regions (int32).\n\
@@ -2151,6 +2159,130 @@ static int geoInterp2D (float x[], float y[], int n_events,
 	return 0;
 }
 
+/* calling sequence for pha_check:
+
+   counters = pha_check (x, y, pha, dq, im_low, im_high, pha_flag)
+
+    x, y        i: arrays of pixel coordinates of the events (float32)
+    pha         i: array of pulse heights (int16)
+    dq         io: array of data quality flags (int16)
+    im_low      i: the 2-D image array of lower limits for pulse height (int16)
+    im_high     i: the 2-D image array of upper limits for pulse height (int16)
+    pha_flag    i: the flag value that indicates that the pulse height is
+                   out of bounds (int)
+
+    (nlow, nhigh) o: a two-element tuple giving the number of events that
+                     were flagged as out of range on the low side or on
+                     the high side respectively
+
+   ccos_pha_check calls phaCheck, which compares the value of each value
+   in the pha column with the lower and upper limits of the acceptable
+   range for pulse height at the corresponding location on the detector.
+   Values that are out of range will be flagged in the dq array.
+*/
+
+static PyObject *ccos_pha_check (PyObject *self, PyObject *args) {
+
+	PyObject *ox, *oy, *opha, *odq, *oim_low, *oim_high;
+        int pha_flag;
+	int interp_flag;
+	PyArrayObject *x, *y, *pha, *dq, *im_low, *im_high;
+	int status;
+	int n_events;		/* number of rows in events table */
+	/* number of events flagged because pha is below or above the cutoff */
+	int nlow, nhigh;
+	PyObject *counters;
+
+	if (!PyArg_ParseTuple (args, "OOOOOOi",
+			&ox, &oy, &opha, &odq, &oim_low, &oim_high,
+			&pha_flag)) {
+	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    return NULL;
+	}
+
+	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	pha = (PyArrayObject *)PyArray_FROM_OTF (opha, NPY_INT16,
+			NPY_IN_ARRAY);
+	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+			NPY_INOUT_ARRAY);
+	im_low = (PyArrayObject *)PyArray_FROM_OTF (oim_low, NPY_INT16,
+			NPY_IN_ARRAY);
+	im_high = (PyArrayObject *)PyArray_FROM_OTF (oim_high, NPY_INT16,
+			NPY_IN_ARRAY);
+	if (x == NULL || y == NULL || pha == NULL || dq == NULL ||
+		im_low == NULL || im_high == NULL)
+	    return NULL;
+
+	n_events = PyArray_DIM (x, 0);	/* rows in events table */
+	status = phaCheck (n_events, pha_flag,
+		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
+		(short *)PyArray_DATA (pha), (short *)PyArray_DATA (dq),
+		im_low, im_high, &nlow, &nhigh);
+
+	Py_DECREF (x);
+	Py_DECREF (y);
+	Py_DECREF (pha);
+	Py_DECREF (dq);
+	Py_DECREF (im_low);
+	Py_DECREF (im_high);
+
+	if (status) {
+	    return NULL;
+	} else {
+	    counters = Py_BuildValue ("(i,i)", nlow, nhigh);
+	    return counters;
+	}
+}
+
+/* This is called by ccos_pha_check. */
+
+static int phaCheck (int n_events, short pha_flag,
+	float x[], float y[], short pha[], short dq[],
+	PyArrayObject *im_low, PyArrayObject *im_high,
+	int *nlow, int *nhigh) {
+
+	int nx, ny;		/* size of images */
+	int k;			/* loop index for events */
+	int i, j;		/* indices in 2-D array */
+
+	nx = PyArray_DIM (im_low, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM (im_low, 0);
+	if (nx != PyArray_DIM (im_high, 1) || ny != PyArray_DIM (im_high, 0)) {
+	    PyErr_SetString (PyExc_RuntimeError,
+		"im_low and im_high are not the same shape");
+	    return 1;
+	}
+	*nlow = 0;
+	*nhigh = 0;
+
+	for (k = 0;  k < n_events;  k++) {
+
+	    i = NINT (x[k]);
+	    j = NINT (y[k]);
+	    /* pixels outside the image array will not be checked */
+	    if (i < 0 || i >= nx || j < 0 || j >= ny)
+		continue;
+
+	    /* Compare the pulse height with the lower and upper cutoffs
+	       at the current location, and flag it as bad if it's out
+	       of range.
+	    */
+	    if (pha[k] < *(short *)PyArray_GETPTR2 (im_low, j, i)) {
+		dq[k] |= pha_flag;		/* update dq in-place */
+		(*nlow)++;
+	    }
+	    if (pha[k] > *(short *)PyArray_GETPTR2 (im_high, j, i)) {
+		dq[k] |= pha_flag;
+		(*nhigh)++;
+	    }
+	}
+
+	return 0;
+}
+
 /* This routine does bilinear interpolation at x,y within the x and y
    image arrays.  The interpolated values are returned as dx and dy.
    x is the more rapidly varying axis.  nx and ny give the size of the
@@ -3778,6 +3910,9 @@ static PyMethodDef ccos_methods[] = {
 
 	{"geocorrection", ccos_geocorrection, METH_VARARGS,
 	"apply the geometric correction to events table x and y arrays"},
+
+	{"pha_check", ccos_pha_check, METH_VARARGS,
+	"apply the pulse height correction to events table pha array"},
 
 	{"clear_rows", ccos_clear_rows, METH_VARARGS,
 	"assign 0 to the region in a DQ array within specified borders"},

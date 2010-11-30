@@ -15,6 +15,8 @@ def splittag (infiles, outroot, starttime=None, increment=None, endtime=None,
 
     All times are in seconds, and the zero point is EXPSTART.
 
+    Parameters
+    ----------
     infiles: str
         Name of input file, possibly including a wildcard character.
 
@@ -53,21 +55,29 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
               time_list=None, verbosity=1):
     """Split a TIME-TAG file into multiple files.
 
-    @param input: name of input file
-    @type input: string
-    @param outroot: root name with which to construct output file names
-    @type outroot: string
-    @param starttime: time at beginning of first interval, or None
-    @type starttime: float, or None
-    @param increment: length of each time interval, or None
-    @type increment: float, or None
-    @param endtime: time at end of last interval, or None
-    @type endtime: float, or None
-    @param time_list: string containing explicit times of beginning of each
+    Parameters
+    ----------
+    input: str
+        Name of input file
+
+    outroot: str
+        Root name with which to construct output file names
+
+    starttime: float or None
+        Time at beginning of first interval, or None
+
+    increment: float or None
+        Length of each time interval, or None
+
+    endtime: float or None
+        Time at end of last interval, or None
+
+    time_list: str
+        String containing explicit times of beginning of each
         time interval and end of the last interval
-    @type time_list: string
-    @param verbosity: 0-2, indicating how much should be printed
-    @type verbosity: int
+
+    verbosity: int {0, 1, 2}
+        Indicates how much should be printed
     """
 
     cosutil.setVerbosity (verbosity)
@@ -130,14 +140,18 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
 def splitName (input):
     """Split the input name into rootname and suffix.
 
-    @param input: name of input file
-    @type input: string
+    Parameters
+    ----------
+    input: str
+        Name of input file
 
-    @return: root name (up to "_corrtag"), everything past the root name
-    @rtype: tuple of two strings
-
-    For example, if input = "xyz_corrtag_a.fits", then the returned tuple
-    would be ("xyz", "_corrtag_a.fits").
+    Returns
+    -------
+    tuple of two str
+        The first string is the root name (up to "_corrtag"), and the
+        second is everything past the root name.  For example, if
+        input = "xyz_corrtag_a.fits", then the returned tuple would be
+        ("xyz", "_corrtag_a.fits").
     """
 
     i = input.find ("_corrtag")
@@ -156,18 +170,24 @@ def splitName (input):
 def getInfo (input, phdr, hdr):
     """Get header information.
 
-    @param input: name of input file
-    @type input: string
-    @param phdr: primary header of input file
-    @type phdr: pyfits Header object
-    @param hdr: EVENTS extension header of input file
-    @type hdr: pyfits Header object
+    The input file name is included in the calling sequence just so it
+    can be added to the info dictionary.
 
-    @return: keywords and values
-    @rtype: dictionary
+    Parameters
+    ----------
+    input: str
+        Name of input file
 
-    The input file name is included in the calling sequence just so it can be
-    added to the info dictionary.
+    phdr: pyfits Header object
+        Primary header of input file
+
+    hdr: pyfits Header object
+        EVENTS extension header of input file
+
+    Returns
+    -------
+    info: dictionary
+        Selected keywords and values from the input headers
     """
 
     info = {}
@@ -201,26 +221,32 @@ def getInfo (input, phdr, hdr):
 def convertToSlices (time_col, starttime, increment, endtime, time_list):
     """Return a list of two-element tuples, giving time intervals.
 
-    @param time_col: a copy of the TIME column from the input table
-    @type time_col: numpy array
-    @param starttime: time at beginning of first interval, or None if
-        time_list was specified
-    @type starttime: float, or None
-    @param increment: length of each time interval, or None if time_list
-        was specified
-    @type increment: float, or None
-    @param endtime: time at end of last interval, or None if time_list is
-        specified
-    @type endtime: float, or None
-    @param time_list: the times of the beginning of each interval and the
-        time of the end of the last interval; or time_list may already be
-        the output format, a list of two-element tuples, in which case it
-        will be returned unchanged
-    @type time_list: string or list
+    Parameters
+    ----------
+    time_col: array_like
+        A copy of the TIME column from the input table
 
-    @return: each tuple in the list gives the start and end times of an
+    starttime: float or None
+        Time at beginning of first interval, or None if time_list was
+        specified
+
+    increment: float or None
+        Length of each time interval, or None if time_list was specified
+
+    endtime: float or None
+        Time at end of last interval, or None if time_list was specified
+
+    time_list: str or list
+        The times of the beginning of each interval and the time of the
+        end of the last interval; or time_list may already be the output
+        format, a list of two-element tuples, in which case it will be
+        returned unchanged
+
+    Returns
+    -------
+    list of two-element tuples
+        Each tuple in the list gives the start and end times (float) of an
         interval to be extracted from the input EVENTS table
-    @rtype: list of two-element tuples
     """
 
     if not increment and not time_list:
@@ -322,14 +348,18 @@ def convertToSlices (time_col, starttime, increment, endtime, time_list):
 def convertToList (time_string):
     """Split a string of times on commas and/or blanks.
 
-    @param time_string: string containing times, separated by blanks and/or
-        commas; the times may be integers or floats, but "start", "stop" and
-        "end" are also allowed
-    @type time_string: string
+    Parameters
+    ----------
+    time_string: str
+        String containing times, separated by blanks and/or commas; the
+        times may be integers or floats, but "start", "stop" and "end" are
+        also allowed
 
-    @return: list of start and/or stop times of intervals, extracted from
+    Returns
+    -------
+    list of floats
+        list of start and/or stop times of intervals, extracted from
         the input string
-    @rtype: list
     """
 
     if time_string.find (",") >= 0:
@@ -361,33 +391,28 @@ def convertToList (time_string):
 def determineSlice (time_col, t0, t1):
     """Find the indices correspond to the start and end times of an interval.
 
-    @param time_col: a copy of the TIME column from the input table
-    @type time_col: numpy array
-    @param t0: time at the beginning of an interval
-    @type t0: float
-    @param t1: time at the end of an interval
-    @type t1: float
+    Parameters
+    ----------
+    time_col: array_like
+        A copy of the TIME column from the input table
 
-    @return: the indices of a slice in time_col that will give the elements
+    t0: float
+        Time at the beginning of an interval
+
+    t1: float
+        Time at the end of an interval
+
+    Returns
+    -------
+    tuple of two integers
+        The indices of a slice in time_col that will give the elements
         with times >= t0 and < t1
-    @rtype: tuple of two integers
     """
 
     return ccos.range (time_col, t0, t1)
 
 def constructOutputName (outroot, file_index, suffix):
     """Construct an output file name.
-
-    @param outroot: root name with which to construct output file names
-    @type outroot: string
-    @param file_index: this number, preceded by "_", will be appended to
-        outroot
-    @type file_index: integer
-    @param suffix: all of the input file name that follows the root name
-    @type suffix: string
-
-    @return: the name to use for the output file
-    @rtype: string
 
     For example, if outroot="abc", file_index=3, and suffix="_corrtag_a.fits",
     the output file name will be "abc_3_corrtag_a.fits".
@@ -397,6 +422,21 @@ def constructOutputName (outroot, file_index, suffix):
     file also already exists, "_2" will be tried instead of "_1", and so on
     until a name is found that doesn't exist.  For the above example, the
     first such name would be "abc_3_1_corrtag_a.fits".
+
+    Parameters
+    ----------
+    outroot: str
+        Root name with which to construct output file names
+
+    file_index: int
+        This number, preceded by "_", will be appended to outroot
+
+    suffix: str
+        All of the input file name that follows the root name
+
+    Returns
+    -------
+    The name to use for the output file
     """
 
     upper_limit = 10000
@@ -424,15 +464,20 @@ def constructOutputName (outroot, file_index, suffix):
 def copyRows (data, ofd, i, j):
     """Copy rows from the input file to an output file.
 
-    @param data: the data block of the EVENTS table extension
-    @type data: numpy record array
-    @param ofd: the data block of the EVENTS table extension
-    @type ofd: pyfits HDUList object
-    @param i: number (zero indexed) of the first row to copy
-    @type i: integer
-    @param j: one more than the number (zero indexed) of the last row to copy;
+    Parameters
+    ----------
+    data: pyfits record array
+        The data block of the EVENTS table extension
+
+    ofd: pyfits HDUList object
+        The data block of the EVENTS table extension
+
+    i: int
+        Number (zero indexed) of the first row to copy
+
+    j: int
+        One more than the number (zero indexed) of the last row to copy;
         that is, [i:j] is a slice
-    @type j: integer
     """
 
     ofd[1].data = data[i:j]
@@ -440,11 +485,15 @@ def copyRows (data, ofd, i, j):
 def getGTI (ifd):
     """Find the most up-to-date GTI table in the input file.
 
-    @param ifd: the pyfits file handle for the input file
-    @type ifd: pyfits HDUList object
+    Parameters
+    ----------
+    ifd: pyfits HDUList object
+        The pyfits file handle for the input file
 
-    @return: the GTI extension from the input file, or None if there isn't one
-    @rtype: pyfits BinTableHDU object, or None
+    Returns
+    -------
+    pyfits BinTableHDU object, or None
+        The GTI extension from the input file, or None if there isn't one
     """
 
     # Find the GTI table with the largest value of EXTVER.
@@ -468,17 +517,24 @@ def getGTI (ifd):
 def createNewGTI (gti_hdu, t0, t1):
     """Create a GTI table for the output table.
 
-    @param info: keywords and values
-    @type info: dictionary
-    @param gti_hdu: the GTI table from the input file (may be None)
-    @type gti_hdu: pyfits BinTableHDU object, or None
-    @param t0: time at the start of the interval
-    @type t0: float
-    @param t1: time at the end of the interval
-    @type t1: float
+    Parameters
+    ----------
+    info: dictionary
+        Keywords and values from the input header
 
-    @return: a GTI table to append to the output file
-    @rtype: pyfits BinTableHDU object
+    gti_hdu: pyfits BinTableHDU object, or None
+        The GTI table from the input file (may be None)
+
+    t0: float
+        Time at the start of the interval
+
+    t1: float
+        Time at the end of the interval
+
+    Returns
+    -------
+    pyfits BinTableHDU object
+        A GTI table to append to the output file
     """
 
     cd = gti_hdu.columns
@@ -528,19 +584,25 @@ def createNewGTI (gti_hdu, t0, t1):
 def updateKeywords (info, out_gti_hdu, t0, t1, ofd):
     """Update keywords in an output file.
 
-    @param info: keywords and values
-    @type info: dictionary
-    @param out_gti_hdu: header/data unit for the GTI table for the output file
-    @type out_gti_hdu: pyfits BinTableHDU object
-    @param t0: time at the start of the interval
-    @type t0: float
-    @param t1: time at the end of the interval
-    @type t1: float
-    @param ofd: the pyfits file handle for the output file
-    @type ofd: pyfits HDUList object
-
     This function adds two HISTORY records to the output primary header and
     updates EXPTIME, EXPEND and EXPENDJ in the EVENTS extension header.
+
+    Parameters
+    ----------
+    info: dictionary
+        Keywords and values from the input header
+
+    out_gti_hdu: pyfits BinTableHDU object
+        Header/data unit for the GTI table for the output file
+
+    t0: float
+        Time at the start of the interval
+
+    t1: float
+        Time at the end of the interval
+
+    ofd: pyfits HDUList object
+        The pyfits file handle for the output file
     """
 
     phdr = ofd[0].header

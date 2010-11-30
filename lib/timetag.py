@@ -258,8 +258,10 @@ def timetagBasicCalibration (input, inpha, outtag,
 def setCorrColNames (detector):
     """Assign column names to global variables.
 
-    @param detector: FUV or NUV
-    @type detector: string
+    Parameters
+    ----------
+    detector: {"FUV", "NUV"}
+        Detector name.
     """
 
     global xcorr, ycorr, xdopp, ydopp, xfull, yfull
@@ -275,18 +277,22 @@ def setCorrColNames (detector):
 def setActiveArea (events, info, brftab):
     """Assign a value to active_area.
 
-    @param events: the data unit containing the events table
-    @type events: record array
-    @param info: header keywords and values
-    @type info: dictionary
-    @param brftab: name of the baseline reference table
-    @type brftab: string
-
-    This function updates the global variable active_area, which is a
+    This function updates the global variable `active_area`, which is a
     Boolean array with the same number of elements as there are rows in
     the events table.  An element will be True if the corresponding
     event (row in the table) is within the FUV active area.  For NUV
     all elements will be set to True.
+
+    Parameters
+    ----------
+    events: pyfits record array
+        The data unit containing the events table
+
+    info: dictionary
+        Header keywords and values
+
+    brftab: str
+        Name of the baseline reference table
     """
 
     global active_area
@@ -310,16 +316,8 @@ def setActiveArea (events, info, brftab):
 def mkHeaders (phdr, events_header, extver=1):
     """Create a list of four headers for creating the flt and counts files.
 
-    @param phdr: primary header from input file
-    @type phdr: pyfits Header object
-    @param events_header: EVENTS extension header from input file
-    @type events_header: pyfits Header object
-
-    @return: primary, SCI, ERR and DQ headers
-    @rtype: list
-
-    The following keywords will be assigned or copied from events_header to
-    the ERR extension header:
+    The following keywords will be assigned or copied from `events_header`
+    to the ERR extension header:
         EXTNAME
         EXTVER
         ROOTNAME
@@ -331,12 +329,25 @@ def mkHeaders (phdr, events_header, extver=1):
         NGOODPIX
         GOODMEAN
         GOODMAX
-    The following keywords will be assigned or copied from events_header to
-    the DQ extension header:
+    The following keywords will be assigned or copied from `events_header`
+    to the DQ extension header:
         EXTNAME
         EXTVER
         ROOTNAME
         EXPNAME
+
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        primary header from input file
+
+    events_header: pyfits Header object
+        EVENTS extension header from input file
+
+    Returns
+    -------
+    list
+        Primary, SCI, ERR and DQ headers
     """
 
     headers = [phdr]
@@ -390,16 +401,22 @@ def mkHeaders (phdr, events_header, extver=1):
 def doPhotcorr (info, switches, imphttab, phdr, hdr):
     """Update photometry parameter keywords for imaging data.
 
-    @param info: header keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param imphttab: the name of the imaging photometric parameters table
-    @type imphttab: string
-    @param phdr: the primary header, photcorr keyword updated in-place
-    @type phdr: pyfits Header object
-    @param hdr: the first extension header, updated in-place
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values
+
+    switches: dictionary
+        Calibration switches
+
+    imphttab: str
+        The name of the imaging photometric parameters table
+
+    phdr: pyfits Header Object
+        The primary header, photcorr keyword updated in-place
+
+    hdr: pyfits Header Object
+        The first extension header, updated in-place
     """
 
     if info["obstype"] == "IMAGING" and info["detector"] == "NUV":
@@ -413,10 +430,13 @@ def doPhotcorr (info, switches, imphttab, phdr, hdr):
 def updateGlobrate (info, hdr):
     """Update the GLOBRATE keyword in the extension header.
 
-    @param info: header keywords and values
-    @type info: dictionary
-    @param hdr: the input events extension header
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values
+
+    hdr: pyfits Header object
+        The input events extension header
     """
 
     globrate = globrate_tt (info["orig_exptime"], info["detector"])
@@ -430,14 +450,19 @@ def updateGlobrate (info, hdr):
 def globrate_tt (exptime, detector):
     """Return the global count rate for time-tag data.
 
-    @param exptime: the exposure time; this is the original value, i.e. not
-        corrected for bursts or bad time intervals
-    @type exptime: float
-    @param detector: FUV or NUV
-    @type detector: string
+    Parameters
+    ----------
+    exptime: float
+        The exposure time; this is the original value from the header,
+        i.e. not corrected for bursts or bad time intervals
 
-    @return: the global count rate, counts per second
-    @rtype: float
+    detector: {"FUV", "NUV"}
+        Detector name.
+
+    Returns
+    -------
+    float
+        The global count rate, counts per second
     """
 
     global active_area
@@ -453,22 +478,31 @@ def globrate_tt (exptime, detector):
 def doBurstcorr (events, info, switches, reffiles, phdr, burstfile):
     """Find bursts, and flag them in the data quality column.
 
-    @param events: the data unit containing the events table
+    Parameters
+    ----------
+    events: the data unit containing the events table
     @type events: pyfits record array
-    @param info: header keywords and values
+
+    info: header keywords and values
     @type info: dictionary
-    @param switches: calibration switches
+
+    switches: calibration switches
     @type switches: dictionary
-    @param reffiles: reference file names
+
+    reffiles: reference file names
     @type reffiles: dictionary
-    @param phdr: the input primary header
+
+    phdr: the input primary header
     @type phdr: pyfits Header object
-    @param burstfile: name of output text file for burst info (or None)
+
+    burstfile: name of output text file for burst info (or None)
     @type burstfile: string
 
-    @return: list of [bad_start, bad_stop] intervals during which a burst
-        was detected (seconds since expstart)
-    @rtype: list of two-element lists, or None
+    Returns
+    -------
+    bursts: list of two-element lists, or None
+        List of [bad_start, bad_stop] intervals during which a burst was
+        detected (seconds since expstart)
     """
 
     bursts = None
@@ -488,20 +522,28 @@ def doBurstcorr (events, info, switches, reffiles, phdr, burstfile):
 def doBadtcorr (events, info, switches, reffiles, phdr):
     """Flag bad time intervals in the data quality column.
 
-    @param events: the data unit containing the events table
-    @type events: pyfits record array
-    @param info: header keywords and values
-    @type info: dictionary
-    @param switches: calibration switches
-    @type switches: dictionary
-    @param reffiles: reference file names
-    @type reffiles: dictionary
-    @param phdr: the input primary header
-    @type phdr: pyfits Header object
+    Parameters
+    ----------
+    events: pyfits record array
+        The data unit containing the events table
 
-    @return: list of [bad_start, bad_stop] intervals from the badttab
-        (converted to seconds since expstart)
-    @rtype: list of two-element lists
+    info: dictionary
+        Header keywords and values
+
+    switches: dictionary
+        Calibration switches
+
+    reffiles: dictionary
+        Reference file names
+
+    phdr: pyfits Header object
+        The input primary header
+
+    Returns
+    -------
+    badt: list of two-element lists
+        List of [bad_start, bad_stop] intervals from the badttab (converted
+        to seconds since expstart)
     """
 
     badt = []
@@ -521,20 +563,28 @@ def filterByTime (time, dq, badttab, expstart, segment):
     For each bad time interval in the badttab, a flag will be set in the
     data quality column for each event within that time interval.
 
-    @param time: the time column in the events table
-    @type time: numpy array
-    @param dq: the data quality column in the events table (updated in-place)
-    @type dq: numpy array
-    @param badttab: the name of the bad-time-intervals table
-    @type badttab: string
-    @param expstart: the exposure start time (MJD)
-    @type expstart: float
-    @param segment: FUVA or FUVB
-    @type segment: string
+    Parameters
+    ----------
+    time: array_like
+        The time column in the events table
 
-    @return: list of [bad_start, bad_stop] intervals from the badttab
-        (converted to seconds since expstart)
-    @rtype: list of two-element lists
+    dq: array_like
+        The data quality column in the events table (updated in-place)
+
+    badttab: str
+        The name of the bad-time-intervals table
+
+    expstart: float
+        The exposure start time (MJD)
+
+    segment: str
+        Segment or stripe name
+
+    Returns
+    -------
+    badt: list of two-element lists
+        List of [bad_start, bad_stop] intervals from the badttab (converted
+        to seconds since expstart)
     """
 
     # Flag regions listed in the badt table.
@@ -801,29 +851,126 @@ def doPhacorr (inpha, events, info, switches, reffiles, phdr, hdr):
         cosutil.printSwitch ("PHACORR", switches)
         if switches["phacorr"] == "PERFORM":
             if info["obsmode"] == "TIME-TAG":
-                cosutil.printRef ("PHATAB", reffiles)
-                filterByPulseHeight (events.field ("pha"), events.field ("dq"),
-                                     reffiles["phatab"], info, hdr)
+                if reffiles["phafile"] != NOT_APPLICABLE:
+                    cosutil.printRef ("PHAFILE", reffiles)
+                    filterPHA (events.field (xcorr), events.field (ycorr),
+                               events.field ("pha"), events.field ("dq"),
+                               reffiles["phafile"], info, hdr)
+                else:
+                    cosutil.printRef ("PHATAB", reffiles)
+                    filterByPulseHeight (events.field ("pha"),
+                                         events.field ("dq"),
+                                         reffiles["phatab"], info, hdr)
             else:
                 checkPulseHeight (inpha, reffiles["phatab"], info, hdr)
             phdr["phacorr"] = "COMPLETE"
+
+def filterPHA (xcorr, ycorr, pha, dq, phafile, info, hdr):
+    """Flag events that have a pulse height outside an allowed range.
+
+    This is only called for TIME-TAG mode data.
+    This version uses a pair of images with the cutoff limits.  Since the
+    limits can vary with position on the detector, the keywords for the
+    screening limits will be set to -999 to indicate that the limits are
+    not constant.
+
+    Parameters
+    ----------
+    xcorr: array_like
+        The column of corrected X pixel coordinates from the events table.
+
+    ycorr: array_like
+        The column of corrected Y pixel coordinates from the events table.
+
+    pha: array_like
+        The column of pulse-height amplitudes from the events table.
+
+    dq: array_like
+        The data quality column in the events table (updated in-place).
+
+    phafile: str
+        The name of the file containing images of lower and upper cutoff
+        limits for the pulse height.
+
+    info: dictionary
+        Header keywords and values.
+
+    hdr: pyfits Header object
+        The EVENTS extension header; keywords for number of rejected
+        events will be assigned.
+    """
+
+    segment = info["segment"]
+
+    # get im_low, im_high from phafile
+    fd = pyfits.open (phafile, mode="readonly", memmap=0)
+    hdu_low = fd[(segment,1)]           # hdu with data for lower limits
+    hdu_high = fd[(segment,2)]          # hdu with data for upper limits
+    im_low = hdu_low.data
+    im_high = hdu_high.data
+    fd.close()
+
+    counters = ccos.pha_check (xcorr, ycorr, pha.astype(np.int16), dq, 
+                               im_low, im_high, DQ_PHA_OUT_OF_BOUNDS)
+    if counters is None:
+        raise RuntimeError, \
+        "PHACORR:  images in PHAFILE %s are not the same shape" % phafile
+
+    (nbad_low, nbad_high) = counters
+
+    if cosutil.checkVerbosity (VERY_VERBOSE):
+        cosutil.printMsg ("Filter by pulse height using PHAFILE:",
+                          VERY_VERBOSE)
+        if nbad_low == 0:
+            msg = "  no event was"
+        elif nbad_low == 1:
+            msg = "  one event was"
+        else:
+            msg = "  %d events were" % nbad_low
+        msg += " rejected because PHA was less than the cutoff"
+        cosutil.printMsg (msg, VERY_VERBOSE)
+        if nbad_high == 0:
+            msg = "  no event was"
+        elif nbad_high == 1:
+            msg = "  one event was"
+        else:
+            msg = "  %d events were" % nbad_high
+        msg += " rejected because PHA was greater than the cutoff"
+        cosutil.printMsg (msg, VERY_VERBOSE)
+
+    keyword = "NPHA_" + segment[-1]
+    hdr.update (keyword, nbad_low + nbad_high)
+
+    # xxx what should we do for keywords for lower and upper limits?
+    # The screening limits are not necessarily constant, so the keywords
+    # for these limits are no longer useful.
+    (low, high) = (-999, -999)
+    cosutil.updatePulseHeightKeywords (hdr, segment, low, high)
 
 def filterByPulseHeight (pha, dq, phatab, info, hdr):
     """Flag events that have a pulse height outside an allowed range.
 
     This is only called for TIME-TAG mode data.
+    This version uses a table with the cutoff limits.
 
-    @param pha: pulse-height column in events table
-    @type pha: numpy array
-    @param dq: data-quality column in events table (modified in-place)
-    @type dq: numpy array
-    @param phatab: name of PHA thresholds table
-    @type phatab: string
-    @param info: header keywords and values
-    @type info: dictionary
-    @param hdr: header for events table extension (keywords for screening
-        limits and number of rejected events will be assigned)
-    @type hdr: pyfits Header object
+    Parameters
+    ----------
+    pha: array_like
+        The column of pulse-height amplitudes from the events table.
+
+    dq: array_like
+        The data quality column in the events table (updated in-place).
+
+    phatab: str
+        The name of the table containing lower and upper cutoff limits for
+        the pulse height.
+
+    info: dictionary
+        Header keywords and values.
+
+    hdr: pyfits Header object
+        The EVENTS extension header; keywords for screening limits and
+        number of rejected events will be assigned.
     """
 
     global active_area
@@ -855,7 +1002,8 @@ def filterByPulseHeight (pha, dq, phatab, info, hdr):
     nbad_high = nbad - nbad_low         # number of rejected events, PHA high
 
     if cosutil.checkVerbosity (VERY_VERBOSE):
-        cosutil.printMsg ("Filter by pulse height:", VERY_VERBOSE)
+        cosutil.printMsg ("Filter by pulse height using PHATAB:",
+                          VERY_VERBOSE)
         if nbad_low == 0:
             msg = "  no event was"
         elif nbad_low == 1:
@@ -3184,6 +3332,8 @@ def updateFromWavecal (events, wavecal_info,
         avg_shift1 = shift1_slope * t_mid + shift1_zero
         key = "SHIFT1" + segment[-1]
         hdr.update (key, round (avg_shift1, 4))
+        print "debug (updateFromWavecal):  avg_shift1, shift1_slope, t_mid, shift1_zero =", \
+                       avg_shift1, shift1_slope, t_mid, shift1_zero
 
     if info["detector"] == "FUV":
         segment = segment_list[0]
