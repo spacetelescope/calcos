@@ -66,7 +66,7 @@ class Shift1 (object):
         The maximum offset (lag) for the cross correlation; this is from
         column XC_RANGE in the WCPTAB.
 
-     fp_pixel_shift: dictionary
+    fp_pixel_shift: dictionary
         From the FP_PIXEL_SHIFT column of the lamptab, with an entry (same
         keys as for `spectra`) for each segment or stripe; if that column
         is not present in the lamptab, the values should be 0.

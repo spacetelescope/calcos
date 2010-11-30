@@ -3332,8 +3332,6 @@ def updateFromWavecal (events, wavecal_info,
         avg_shift1 = shift1_slope * t_mid + shift1_zero
         key = "SHIFT1" + segment[-1]
         hdr.update (key, round (avg_shift1, 4))
-        print "debug (updateFromWavecal):  avg_shift1, shift1_slope, t_mid, shift1_zero =", \
-                       avg_shift1, shift1_slope, t_mid, shift1_zero
 
     if info["detector"] == "FUV":
         segment = segment_list[0]

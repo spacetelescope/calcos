@@ -1304,7 +1304,6 @@ class ConcurrentWavecal (object):
             key = "SHIFT1" + segment[-1]
             value = round (avg_dx[segment], 4)          # round to four places
             self.hdr.update (key, value)                        # corrtag
-            print "debug (setShiftKeywords): ", key, value
             self.ofd[1].header.update (key, value)              # lampflash
             key = "SHIFT2" + segment[-1]
             value = round (avg_dy[segment], 4)

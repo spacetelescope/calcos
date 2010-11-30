@@ -108,8 +108,6 @@ def findWavecalShift (input, shift_file, info, wcp_info):
         if got_pixel_shift:
             fp_pixel_shift[segment[row]] = \
                     lamp_info.field ("fp_pixel_shift")[0]
-            print "debug (findWavecalShift):  fp_pixel_shift =", \
-                        fp_pixel_shift[segment[row]]
         else:
             fp_pixel_shift[segment[row]] = 0.
 
