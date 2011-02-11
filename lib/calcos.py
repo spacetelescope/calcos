@@ -53,7 +53,7 @@ def main (args):
         --find (find Y location of spectrum)
         --csum (create csum image)
         --raw (use raw coordinates for csum image)
-        --only_raw_csum (create raw csum image, and do almost nothing else)
+        --only_csum (create csum image, and do almost nothing else)
         --compress parameters (compress csum image)
         --binx X_bin_factor (csum binning in X)
         --biny Y_bin_factor (csum binning in Y)
@@ -75,7 +75,7 @@ def main (args):
     try:
         (options, pargs) = getopt.getopt (args, "qvso:",
                            ["find",
-                            "csum", "raw", "only_raw_csum",
+                            "csum", "raw", "only_csum",
                             "compress=", "binx=", "biny=",
                             "shift=", "stim=", "live=", "burst="])
     except Exception, error:
@@ -96,7 +96,7 @@ def main (args):
     # parameters pertaining to the "calcos sum" file
     create_csum_image = False
     raw_csum_coords = False
-    only_raw_csum = False
+    only_csum = False
     binx = 1
     biny = 1
     find_target = False
@@ -125,8 +125,8 @@ def main (args):
             create_csum_image = True
         elif options[i][0] == "--raw":
             raw_csum_coords = True
-        elif options[i][0] == "--only_raw_csum":
-            only_raw_csum = True
+        elif options[i][0] == "--only_csum":
+            only_csum = True
         elif options[i][0] == "--compress":
             compress_csum = True
             compression_parameters = options[i][1]
@@ -143,15 +143,19 @@ def main (args):
         elif options[i][0] == "--burst":
             burstfile = options[i][1]
 
-    if only_raw_csum:
+    if only_csum:
         create_csum_image = True
-        raw_csum_coords = True
         shift_file = None
         stimfile = None
         livetimefile = None
         burstfile = None
-    if raw_csum_coords and not create_csum_image:
-        raw_csum_coords = False
+    if raw_csum_coords:
+        if not create_csum_image:
+            cosutil.printWarning ("--raw will be ignored because "
+                                  "--csum was not specified")
+            raw_csum_coords = False
+        else:
+            raw_csum_coords = True
     if outdir:
         outdir = os.path.expandvars (outdir)
         if not os.path.isdir (outdir):
@@ -167,7 +171,7 @@ def main (args):
                          find_target=find_target,
                          create_csum_image=create_csum_image,
                          raw_csum_coords=raw_csum_coords,
-                         only_raw_csum=only_raw_csum,
+                         only_csum=only_csum,
                          binx=binx, biny=biny,
                          compress_csum=compress_csum,
                          compression_parameters=compression_parameters,
@@ -188,6 +192,7 @@ def prtOptions():
     cosutil.printMsg ("  -o outdir (output directory name)")
     cosutil.printMsg ("  --find (find Y location of spectrum)")
     cosutil.printMsg ("  --csum (create 'calcos sum' image)")
+    cosutil.printMsg ("  --only_csum (do little else but create csum)")
     cosutil.printMsg ("  --raw (use raw coordinates for csum image)")
     cosutil.printMsg ("  --compress parameters (compress csum image)")
     cosutil.printMsg ("  --binx X_bin_factor (csum bin factor in X)")
@@ -251,7 +256,7 @@ def calcos (asntable, outdir=None, verbosity=None,
             find_target=False,
             create_csum_image=False,
             raw_csum_coords=False,
-            only_raw_csum=False,
+            only_csum=False,
             binx=None, biny=None,
             compress_csum=False, compression_parameters="gzip,-0.01",
             shift_file=None,
@@ -295,6 +300,10 @@ def calcos (asntable, outdir=None, verbosity=None,
     raw_csum_coords: boolean, optional
         If True, use raw pixel coordinates (rather than thermally and
         geometrically corrected) to create the csum image.
+
+    only_csum: boolean, optional
+        If True, create a csum image, but most other files will not be
+        written.
 
     binx, biny: int or None, optional
         Binning factor for the X and Y axes, or None, which means that
@@ -350,7 +359,7 @@ def calcos (asntable, outdir=None, verbosity=None,
     cl_args = {"find_target": find_target,
                "create_csum_image": create_csum_image,
                "raw_csum_coords": raw_csum_coords,
-               "only_raw_csum": only_raw_csum,
+               "only_csum": only_csum,
                "binx": binx,
                "biny": biny,
                "compress_csum": compress_csum,
@@ -694,7 +703,7 @@ class Association (object):
         self.first_science = i
 
         self.compareConfig()
-        self.resetSwitches()    # set switches to OMIT if only_raw_csum is True
+        self.resetSwitches()    # set switches to OMIT if only_csum is True
         self.compareRefFiles()
         self.compareSwitches()
         self.missingRefFiles()
@@ -959,7 +968,7 @@ class Association (object):
         if obstype != "IMAGING":
             return
 
-        if self.cl_args["only_raw_csum"]:       # there won't be any flt files
+        if self.cl_args["only_csum"]:           # there won't be any flt files
             return
 
         if not self.combine.has_key ("flt"):
@@ -986,7 +995,7 @@ class Association (object):
         if obstype != "SPECTROSCOPIC":
             return
 
-        if self.cl_args["only_raw_csum"]:       # there won't be any x1d files
+        if self.cl_args["only_csum"]:           # there won't be any x1d files
             return
 
         if not self.combine.has_key ("x1d"):
@@ -1088,14 +1097,20 @@ class Association (object):
                 raise RuntimeError, errmess
 
     def resetSwitches (self):
-        """Reset all switches to OMIT if only_raw_csum is True."""
+        """Reset most/all switches to OMIT if only_csum is True."""
 
-        if not self.cl_args["only_raw_csum"]:
+        if not self.cl_args["only_csum"]:
             return
+
+        if self.cl_args["raw_csum_coords"]:
+            leave_unchanged = []        # reset all switches to OMIT
+        else:
+            leave_unchanged = ["tempcorr", "geocorr", "igeocorr", "randcorr"]
 
         for obs in self.obs:
             for key in obs.switches:
-                obs.switches[key] = "OMIT"
+                if key not in leave_unchanged:
+                    obs.switches[key] = "OMIT"
             obs.reffiles["spwcstab"] = "N/A"
 
     def compareRefFiles (self):

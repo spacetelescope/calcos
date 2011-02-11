@@ -2,8 +2,8 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.14"
-CALCOS_VERSION_DATE = "2010-11-30"
+CALCOS_VERSION_NUMBER = "2.14.1"
+CALCOS_VERSION_DATE = "2011-02-10"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
@@ -113,5 +113,6 @@ DQ_BACKGROUND_FEATURE = 4096    # background feature
 DQ_LOW_GAIN = 8192              # low gain area
 DQ_UNUSED = 16384               # [currently unused]
 
-# Use this when extracting data.
+# Use this when binning TIME-TAG data to images, or extracting spectra from
+# TIME-TAG data.
 SERIOUS_DQ_FLAGS = (DQ_BURST | DQ_BAD_TIME | DQ_PHA_OUT_OF_BOUNDS)

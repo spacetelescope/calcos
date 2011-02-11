@@ -799,6 +799,36 @@ def timeAtMidpoint (info):
 
     return (info["expstart"] + info["expend"]) / 2.
 
+def timelineTimes (first_time, last_time, dt=1.):
+    """Create an array of times.
+
+    Parameters
+    ----------
+    first_time: float
+        The time of the first event.
+
+    last_time: float
+        The time of the last event.
+
+    dt: float
+        The time interval for the output array of times.
+
+    Returns
+    -------
+    array_like
+        Array of uniformly spaced times, in seconds, with zero point
+        EXPSTART.  The data type is float32.
+    """
+
+    if first_time is None or (last_time - first_time) <= 0.:
+        tl_time = np.arange (1, dtype=np.float32)
+    else:
+        # add one so every event will be within the array of times
+        nelem = int (round ((last_time - first_time) / dt)) + 1
+        tl_time = first_time + dt * np.arange (nelem, dtype=np.float32)
+
+    return tl_time
+
 def geometricDistortion (x, y, geofile, segment, igeocorr):
     """Apply geometric (INL) correction.
 
@@ -1052,7 +1082,9 @@ def updateDQArray (bpixtab, info, dq_array,
     #   the minimum shift will be subtracted from the upper limit.
     # It is explicitly assumed here that the slice is only in the cross-
     # dispersion direction.
-    for key in minmax_dict.keys():
+    keys = minmax_dict.keys()
+    keys.sort()
+    for key in keys:
         (lower_y, upper_y) = key
         [min_shift1, max_shift1, min_shift2, max_shift2] = \
                 minmax_dict[key]
@@ -1074,8 +1106,8 @@ def updateDQArray (bpixtab, info, dq_array,
             continue
         if lower_y_s < 0:
             lower_y_s = 0
-        if upper_y_s >= dq_shape[0]:
-            upper_y_s = dq_shape[0] - 2
+        if upper_y_s > dq_shape[0]:
+            upper_y_s = dq_shape[0]
 
         # these are Y locations relative to the slice
         # ly - max_shift2 - (lower_y - max_shift2)

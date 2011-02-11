@@ -220,8 +220,23 @@ class SpWCS (object):
         for generic_keyword in self.keywords:
             (actual_keyword, value) = wcs_dict[generic_keyword]
             if generic_keyword == "wcsaxes":
-                # Assume that CTYPE1 is the first WCS keyword.
-                hdr.update (actual_keyword, value, before="ctype1")
+                # It is a FITS requirement that WCSAXES precede all other
+                # WCS keywords in a header.
+                if hdr.has_key (actual_keyword):
+                    hdr.update (actual_keyword, value)
+                else:
+                    # GCOUNT is the last of the set of keywords that must be
+                    # present at the beginning of an extension header.
+                    if actual_keyword == "wcsaxes":
+                        hdr.update (actual_keyword, value, after="gcount")
+                    elif actual_keyword == "wcsaxesa":
+                        hdr.update (actual_keyword, value, after="wcsaxes")
+                    elif actual_keyword == "wcsaxesb":
+                        hdr.update (actual_keyword, value, after="wcsaxesa")
+                    elif actual_keyword == "wcsaxesc":
+                        hdr.update (actual_keyword, value, after="wcsaxesb")
+                    else:       # don't really expect anything else
+                        hdr.update (actual_keyword, value, after="gcount")
             else:
                 hdr.update (actual_keyword, value)
 
@@ -355,6 +370,21 @@ class SpWcsImage (SpWCS):
         del (hdr["cd1_2"])
         del (hdr["cd2_1"])
         del (hdr["cd2_2"])
+        # The following keywords could be left around if the input file
+        # was corrtag rather than raw.
+        keyword_list = ["tctyp7", "tctyp8", "tcrpx7", "tcrpx8",
+                        "tcrvl7", "tcrvl8", "tcdlt7", "tcdlt8",
+                        "tpc7_7", "tpc7_8", "tpc8_7", "tpc8_8",
+                        "tcuni7", "tcuni8",
+                        "tpv7_0", "tpv7_1", "tpv7_2", "tpv7_6"]
+        if self.detector == "FUV":
+            for keyword in keyword_list:
+                del (hdr[keyword])
+        else:
+            for alt in ["", "a", "b", "c"]:
+                for key in keyword_list:
+                    keyword = key + alt
+                    del (hdr[keyword])
 
 class SpWcsCorrtag (SpWCS):
     """Spectroscopic WCS for pixel list (corrtag) data.

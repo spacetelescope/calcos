@@ -110,45 +110,41 @@ def accumBasicCalibration (input, inpha, outtag,
 
     # Check for null science data.
     if info["npix"] == (0,):
-        writeNull (input, outflt, outcounts, headers)
-        return 1
-
-    # Open the accum image.
-    fd = pyfits.open (input, mode="readonly")
-    sci = fd[("SCI",1)].data
-    fd.close()
-
-    # The number of rows in the pseudo time-tag table will be equal to
-    # the total number of counts in the input image.
-    nrows = getNcounts (sci)
-
-    if nrows == 0:
-        writeNull (input, outflt, outcounts, headers)
-        info["npix"] = (0,)
-        return 1
-
-    # Create pseudo-timetag arrays (x & y, no time) from the raw image.
-    x = np.zeros (nrows, dtype=np.float32)
-    y = np.zeros (nrows, dtype=np.float32)
-    ccos.unbinaccum (sci, x, y, x_offset)
+        nrows = 0
+    else:
+        # Open the accum image.
+        # The number of rows in the pseudo time-tag table will be equal to
+        # the total number of counts in the input image.
+        fd = pyfits.open (input, mode="readonly")
+        sci = fd[("SCI",1)].data
+        fd.close()
+        nrows = getNcounts (sci)
+        if nrows == 0:
+            info["npix"] = (0,)
 
     hdu = cosutil.createCorrtagHDU (nrows, info["detector"], headers[1])
     hdu.header.update ("extname", "EVENTS")
-    outdata = hdu.data
 
-    # Copy x and y to the pseudo time-tag table.
-    outdata.field ("TIME")[:] = info["exptime"] / 2.
-    outdata.field ("RAWX")[:] = x
-    outdata.field ("RAWY")[:] = y
-    outdata.field ("XCORR")[:] = x
-    outdata.field ("YCORR")[:] = y
-    outdata.field ("XDOPP")[:] = x
-    outdata.field ("XFULL")[:] = x
-    outdata.field ("YFULL")[:] = y
-    outdata.field ("WAVELENGTH")[:] = np.zeros (nrows, dtype=np.float32)
-    outdata.field ("EPSILON")[:] = np.ones (nrows, dtype=np.float32)
-    outdata.field ("DQ")[:] = np.zeros (nrows, dtype=np.int16)
-    outdata.field ("PHA")[:] = 0
+    if nrows > 0:
+        # Create pseudo-timetag arrays (x & y, no time) from the raw image.
+        x = np.zeros (nrows, dtype=np.float32)
+        y = np.zeros (nrows, dtype=np.float32)
+        ccos.unbinaccum (sci, x, y, x_offset)
+
+        # Copy x and y to the pseudo time-tag table.
+        outdata = hdu.data
+        outdata.field ("TIME")[:] = info["exptime"] / 2.
+        outdata.field ("RAWX")[:] = x
+        outdata.field ("RAWY")[:] = y
+        outdata.field ("XCORR")[:] = x
+        outdata.field ("YCORR")[:] = y
+        outdata.field ("XDOPP")[:] = x
+        outdata.field ("XFULL")[:] = x
+        outdata.field ("YFULL")[:] = y
+        outdata.field ("WAVELENGTH")[:] = np.zeros (nrows, dtype=np.float32)
+        outdata.field ("EPSILON")[:] = np.ones (nrows, dtype=np.float32)
+        outdata.field ("DQ")[:] = np.zeros (nrows, dtype=np.int16)
+        outdata.field ("PHA")[:] = 0
 
     primary_hdu = pyfits.PrimaryHDU (header=phdr)
     ofd = pyfits.HDUList (primary_hdu)
@@ -691,37 +687,6 @@ def addExptimeKeywords (hdr_list, hdr):
     hdr.update ("expend", expend)
     hdr.update ("exptime", exptime)
     hdr.update ("rawtime", rawtime)
-
-def writeNull (input, outflt, outcounts, headers):
-    """Write output files with null data blocks.
-
-    Parameters
-    ----------
-    input: str
-        Name of the input file.
-
-    outflt: str
-        Name of the output file for flat-fielded count-rate image.
-
-    outcounts: str
-        Name of the output file for count-rate image.
-
-    headers: list of pyfits Header objects
-        List of headers (primary, sci, err, dq).
-    """
-
-    cosutil.printWarning ("No data in " + input)
-
-    imset = 1
-    nextend = 3
-
-    writePrimaryHDU (outcounts, headers[0], nextend)
-    appendImset (outcounts, imset, None, None, None,
-                 headers[1], headers[2], headers[3])
-
-    writePrimaryHDU (outflt, headers[0], nextend)
-    appendImset (outflt, imset, None, None, None,
-                 headers[1], headers[2], headers[3])
 
 def writePrimaryHDU (output, phdr, nextend):
     """Write an output file containing just a primary header.

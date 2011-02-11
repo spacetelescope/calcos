@@ -65,21 +65,25 @@ def processConcurrentWavecal (events, outflash, shift_file,
 
     Returns
     -------
-    shift1_vs_time: array_like or None
-        The shifts in the dispersion direction at one-second intervals,
-        or None if wavecorr is not perform (or complete) or the input data
-        are not tagflash or there are no flashes.
+    (tl_time, shift1_vs_time): tuple of two array like
+        `tl_time` is the array of times at one-second intervals, for the
+        timeline table.  `shift1_vs_time` is the array of corresponding
+        values of shift1a or shift1b, or None if there were no flashes or
+        if the exposure time is zero.
     """
 
+    tl_time = np.zeros (1, dtype=np.float32)    # replaced later
+
     if not info["tagflash"]:
-        return None
+        return (tl_time, None)
 
     # This test allows processing to continue if wavecorr is either
     # PERFORM or COMPLETE.
     if switches["wavecorr"] == "OMIT" or switches["wavecorr"] == "SKIPPED":
         cw = initWavecal (events, outflash, shift_file,
                           info, switches, reffiles, phdr, hdr)
-        return None
+        tl_time = cosutil.timelineTimes (self.time[0], self.time[-1], dt=1.)
+        return (tl_time, None)
 
     cosutil.printMsg ("Process tagflash wavecal")
     wavecal.printWavecalRef (reffiles)
@@ -94,7 +98,7 @@ def processConcurrentWavecal (events, outflash, shift_file,
             cw.applyCorrections()
             (avg_dx, avg_dy) = cw.avgShift()
             cw.setShiftKeywords (avg_dx, avg_dy)
-            shift1_vs_time = cw.shift1VsTime()
+            (tl_time, shift1_vs_time) = cw.shift1VsTime()
             phdr["wavecorr"] = "COMPLETE"
             cw.closeOutFlash()
         else:
@@ -103,9 +107,9 @@ def processConcurrentWavecal (events, outflash, shift_file,
             cw.outFlashSetup()
             (avg_dx, avg_dy) = cw.miscSegB()
             cw.setShiftKeywords (avg_dx, avg_dy)
-            shift1_vs_time = cw.shift1VsTime()
+            (tl_time, shift1_vs_time) = cw.shift1VsTime()
             cw.writeOutFlash()
-        return shift1_vs_time
+        return (tl_time, shift1_vs_time)
 
     cw.getStartStopTimes()
     if cw.numflash < 1:
@@ -115,7 +119,7 @@ def processConcurrentWavecal (events, outflash, shift_file,
         phdr["lampused"] = "NONE"
         cw.ofd[0].header["lampused"] = "NONE"
         cw.writeOutFlash()
-        return None
+        return (tl_time, None)
 
     cw.outFlashSetup()          # create an HDU list for the outflash file
 
@@ -126,7 +130,7 @@ def processConcurrentWavecal (events, outflash, shift_file,
     (avg_dx, avg_dy) = cw.avgShift()
     cw.setShiftKeywords (avg_dx, avg_dy)
 
-    shift1_vs_time = cw.shift1VsTime()
+    (tl_time, shift1_vs_time) = cw.shift1VsTime()
 
     if switches["statflag"] == "PERFORM":
         cw.doStat()
@@ -134,7 +138,7 @@ def processConcurrentWavecal (events, outflash, shift_file,
 
     cw.writeOutFlash()
 
-    return shift1_vs_time
+    return (tl_time, shift1_vs_time)
 
 def initWavecal (events, outflash, shift_file, info, switches, reffiles,
                  phdr, hdr):
@@ -799,6 +803,8 @@ class ConcurrentWavecal (object):
             t1 = self.lamp_median[n+1]
 
         (i0, i1) = ccos.range (self.time, t0, t1)
+        if extrapolate:
+            i1 = len (self.time)
 
         return (i0, i1, extrapolate)
 
@@ -1379,52 +1385,61 @@ class ConcurrentWavecal (object):
 
         Returns
         -------
-        array_like or None
-            The shifts in the dispersion direction at one-second intervals.
-            The value will be None if there are no flashes or if the
-            exposure time is zero.
+        (tl_time, shift1_vs_time): tuple of two array like
+            `tl_time` is the array of times at one-second intervals, for
+            the timeline table.  `shift1_vs_time` is the array of
+            corresponding values of shift1a or shift1b, or None if there
+            were no flashes or if the exposure time is zero.
         """
 
         if self.numflash < 1 or self.info["exptime"] <= 0.:
-            return None
+            return (cosutil.timelineTimes (None, 0.), None)
 
-        time = self.time
-        nbins = int (math.ceil (time[-1] - time[0]))
+        first_time = self.time[0]
+        tl_time = cosutil.timelineTimes (self.time[0], self.time[-1], dt=1.)
+        nbins = len (tl_time)
         shift1_vs_time = np.zeros (nbins, dtype=np.float32)
 
-        segment = self.segment_list[0]
+        if self.segment_list[0][0] == "F":
+            segment = self.segment_list[0]
+        elif "NUVB" in self.segment_list:
+            segment = "NUVB"
+        else:
+            segment = self.segment_list[0]
 
-        t0 = time[0]
-        t_prev = time[0]
-        shift1_prev = self.shift1[0][segment]
-        i = 0
         for n in range (self.numflash):
-            t = self.lamp_median[n]
-            shift1_t = self.shift1[n][segment]
-            max_k = int (round (t)) - i
-            if max_k < 1:
-                continue
-            if i + max_k > nbins:
-                full = True
-                max_k = nbins - i
+
+            t0 = self.lamp_median[n]
+            if n == self.numflash - 1:
+                t1 = tl_time[-1]
             else:
-                full = False
-            subset = np.arange (max_k, dtype=np.float32)
-            slope = (shift1_t - shift1_prev) / (t - t_prev)
-            subset = slope * subset + shift1_prev
-            shift1_vs_time[i:i+max_k] = subset
-            t_prev = t
-            shift1_prev = shift1_t
-            i += max_k
-            if full:
-                break
+                t1 = self.lamp_median[n+1]
 
-        max_k = nbins - i
-        if time[-1] > t and max_k > 0:
-            subset = np.ones (max_k, dtype=np.float32) * shift1_t
-            shift1_vs_time[i:i+max_k] = subset
+            shift1_zero = self.shift1[n][segment]
+            t0 = self.lamp_median[n]
+            i0 = int (round (t0 - first_time))
+            i0 = max (i0, 0)
 
-        return shift1_vs_time
+            if self.numflash == 1:
+                shift1_vs_time[:] = shift1_zero
+            elif n == self.numflash - 1:
+                # last flash; extrapolate with zero slope
+                shift1_vs_time[i0:] = shift1_zero
+            else:
+                if n == 0:      # extrapolate with slope of first interval
+                    i0 = 0
+                t1 = self.lamp_median[n+1]
+                if t1 <= t0:
+                    slope = 0.
+                else:
+                    slope = (self.shift1[n+1][segment] -
+                             self.shift1[n][segment]) / (t1 - t0)
+                i1 = int (round (t1 - first_time))
+                i1 = min (i1, nbins-1)
+                shift1_vs_time[i0:i1] = \
+                        ((tl_time[i0:i1] - t0) * slope + shift1_zero)
+
+        return (tl_time, shift1_vs_time)
 
 class FUVConcurrentWavecal (ConcurrentWavecal):
 
