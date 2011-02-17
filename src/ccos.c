@@ -99,6 +99,8 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 		(rather than just the first and second elements) to check
 		whether the array is increasing.
 2010 Nov 22	Add function pha_check.
+2011 Feb 17	Replace calls to malloc/free with PyMem_Malloc/PyMem_Free
+		in functions findSmallerBursts and median_boxcar.
 */
 
 # include <Python.h>
@@ -3056,7 +3058,7 @@ verbose			 i: if true, print info about bursts
 	/* difference between bkg_counts and median filtered bkg_counts */
 	int delta_counts;
 
-	m_filtered = malloc (nbins * sizeof (int));
+	m_filtered = PyMem_Malloc (nbins * sizeof (int));
 	if (m_filtered == NULL)
 	    return 1;
 
@@ -3110,7 +3112,7 @@ verbose			 i: if true, print info about bursts
 	    if (nreject < 1)
 		break;
 	}
-	free (m_filtered);
+	PyMem_Free (m_filtered);
 
 	return 0;
 }
@@ -3143,7 +3145,7 @@ large_burst		i: flag value for a "large" burst
 	int base;	/* index of first non-negative element of sorted data */
 	int mid;	/* index of midpoint of non-negative data */
 
-	temp = malloc ((2*half_block+1) * sizeof (int));
+	temp = PyMem_Malloc ((2*half_block+1) * sizeof (int));
 	if (temp == NULL)
 	    return 1;
 
@@ -3169,7 +3171,7 @@ large_burst		i: flag value for a "large" burst
 		m_filtered[i] = temp[base+mid];
 	    }
 	}
-	free (temp);
+	PyMem_Free (temp);
 	return 0;
 }
 

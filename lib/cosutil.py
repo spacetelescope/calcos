@@ -804,8 +804,9 @@ def timelineTimes (first_time, last_time, dt=1.):
 
     Parameters
     ----------
-    first_time: float
-        The time of the first event.
+    first_time: float or None
+        The time of the first event.  If this is None, the array that is
+        returned will have length 1, and the value will be 0.
 
     last_time: float
         The time of the last event.

@@ -3136,8 +3136,9 @@ def writeNull (input, ofd, output, outcounts, outcsum,
     makeImage (outcounts, phdr, headers, None, None, None)
     makeImage (output, phdr, headers, None, None, None)
     tl_time = cosutil.timelineTimes (None, None)
-    timeline.createTimeline (input, ofd, info, {},
-                             tl_time, None, None, None)
+    timeline.createTimeline (input, ofd, info, reffiles={},
+                             tl_time=tl_time, shift1_vs_time=None,
+                             time=None, xfull=None, yfull=None)
     if outcsum is not None:
         writeCsum (outcsum, None,
                    info["detector"], info["obsmode"],
