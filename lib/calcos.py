@@ -2590,10 +2590,9 @@ class Calibration (object):
                 elif obs.info["obstype"] == "SPECTROSCOPIC":
                     cosutil.printSwitch ("X1DCORR", obs.switches)
                     any_spectroscopic = "PERFORM"
-                if obs.info["tagflash"]:
-                    if obs.switches["wavecorr"] == "PERFORM" or \
-                       obs.switches["wavecorr"] == "COMPLETE":
-                        any_wavecorr = "PERFORM"
+                if obs.info["tagflash"] and \
+                   obs.switches["wavecorr"] == "PERFORM":
+                    any_wavecorr = "PERFORM"
                 obs.closeTrailer()
 
         if any_x1dcorr == "PERFORM":

@@ -455,6 +455,9 @@ def findPixelRegion (info, disptab, xtractab, median_shift1, wl_airglow):
         are the upper limits of the two background regions.
     """
 
+    if info["obstype"] == "IMAGING":
+        return None
+
     if info["detector"] == "FUV":
         segment = info["segment"]
         axis_length = FUV_X
