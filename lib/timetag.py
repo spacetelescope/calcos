@@ -235,7 +235,7 @@ def timetagBasicCalibration (input, inpha, outtag,
             computeWavelengths (events, info, reffiles,
                                 helcorr=switches["helcorr"], hdr=None)
     else:
-        time = events.field ("time")
+        time = cosutil.getColCopy (data=events, column="time")
         tl_time = cosutil.timelineTimes (time[0], time[-1], dt=1.)
         shift1_vs_time = None
         del time
@@ -254,9 +254,13 @@ def timetagBasicCalibration (input, inpha, outtag,
     doStatflag (switches, output, outcounts)
 
     # Create or update a TIMELINE extension.
+    #timeline.createTimeline (input, ofd, info, reffiles,
+    #                         tl_time, shift1_vs_time,
+    #                         events.field ("time"),
+    #                         events.field (xfull), events.field (yfull))
     timeline.createTimeline (input, ofd, info, reffiles,
                              tl_time, shift1_vs_time,
-                             events.field ("time"),
+                             cosutil.getColCopy (data=events, column="time"),
                              events.field (xfull), events.field (yfull))
 
     ofd.close()
@@ -3402,6 +3406,7 @@ def writeCsum (outcsum, events,
         if raw_csum_coords:
             xcoord = events.field ("rawx")
             ycoord = events.field ("rawy")
+            flagOmit (fd[0].header)     # set some cal. switches to OMIT
             fd[0].header.update ("coordfrm", "raw")
         else:
             xcoord = events.field (xcorr)
@@ -3493,6 +3498,38 @@ def writeCsum (outcsum, events,
     fd[1].header.update ("BUNIT", "count")
 
     fd.writeto (outcsum, output_verify="silentfix")
+    fd.close()
+
+def flagOmit (phdr):
+    """Flag certain calibration switches as OMIT.
+
+    This is called for the primary header of the csum file, for the case
+    that the csum image will be constructed from raw pixel coordinates.
+    These steps may have actually been done, but they don't affect the
+    raw coordinates, so it would be misleading to have their values set
+    to "COMPLETE" in the csum header.
+
+    Parameters
+    ----------
+    phdr: pyfits Header object
+        The primary header of the csum file, modified in-place to set some
+        calibration switches to OMIT.
+    """
+
+    keys = phdr.keys()
+    omit_switches = ["BRSTCORR",
+                     "BADTCORR",
+                     "RANDCORR",
+                     "TEMPCORR",
+                     "GEOCORR",
+                     "IGEOCORR",
+                     "PHACORR",
+                     "DOPPCORR",
+                     "HELCORR",
+                     "DEADCORR"]
+    for key in omit_switches:
+        if key in keys:
+            phdr[key] = "OMIT"
 
 def doStatflag (switches, output, outcounts):
     """Compute statistics and update keywords.
