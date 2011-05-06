@@ -1268,7 +1268,8 @@ class Association (object):
             "fluxtab":  ["2.0", "PHOTOMETRIC SENSITIVITY REFERENCE TABLE"],
             "imphttab": ["2.0", "IMAGING PHOTOMETRIC TABLE"],
             "tdstab":   ["2.0", "TIME DEPENDENT SENSITIVITY TABLE"],
-            "brsttab":  ["2.0", "BURST PARAMETERS TABLE"]
+            "brsttab":  ["2.0", "BURST PARAMETERS TABLE"],
+            "walktab":  ["2.0", "WALK CORRECTION TABLE"]
         }
         # The contents of these dictionaries must agree with what
         # cosutil.findRefFile expects.
@@ -1349,6 +1350,10 @@ class Association (object):
             if switches["tdscorr"] == "PERFORM":
                 cosutil.findRefFile (ref["tdstab"],
                         missing, wrong_filetype, bad_version)
+
+        if switches["walkcorr"] == "PERFORM":
+            cosutil.findRefFile (ref["walktab"],
+                    missing, wrong_filetype, bad_version)
 
         if switches["photcorr"] == "PERFORM":
             # xxx commented out because we don't have this table yet
