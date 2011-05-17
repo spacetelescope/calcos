@@ -1932,6 +1932,8 @@ def doWalkCorr (events, info, switches, reffiles, phdr):
 def xyWalk (xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float32):
     """Apply a 'walk' correction, i.e. change x,y depending on PHA.
 
+    The correction will be subtracted from the pixel coordinates.
+
     Parameters
     ----------
     xi: array_like
@@ -1968,8 +1970,6 @@ def xyWalk (xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float32):
         should be set to double precision.
     """
 
-    # xcoeff & ycoeff have shape (n_pha_coeff, n_y, n_x)
-
     global active_area
 
     nevents = len (xi)
@@ -2004,7 +2004,7 @@ def xyWalk (xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float32):
     for k in range (n_pha_coeff-2, 0, -1):
         delta_x = delta_x * dpha + pha_coeff[k,:]
     delta_x *= dpha
-    xi[:] = np.where (active_area, xi + delta_x, xi)
+    xi[:] = np.where (active_area, xi - delta_x, xi)
     del (dpha, delta_x)
 
     # we've already computed powers_of_data
@@ -2019,7 +2019,7 @@ def xyWalk (xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float32):
     for k in range (n_pha_coeff-2, 0, -1):
         delta_y = delta_y * dpha + pha_coeff[k,:]
     delta_y *= dpha
-    eta[:] = np.where (active_area, eta + delta_y, eta)
+    eta[:] = np.where (active_area, eta - delta_y, eta)
 
 def doDqicorr (events, input, info, switches, reffiles,
                phdr, hdr, minmax_shift_dict):

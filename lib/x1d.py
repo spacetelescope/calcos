@@ -397,7 +397,9 @@ def makeFltCounts (cal_ver, corrtag, flt, counts):
 
     detector = phdr.get ("detector")
     headers = timetag.mkHeaders (phdr, fd[1].header)
-    exptime = headers[1].get ("exptime")
+    exptime_key = cosutil.exptimeKeyword (phdr["segment"])
+    exptime_default = headers[1].get ("exptime", default=-1.)
+    exptime = headers[1].get (exptime_key, default=exptime_default)
 
     is_wavecal = phdr["exptype"].find ("WAVE") >= 0
 

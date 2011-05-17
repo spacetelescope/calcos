@@ -124,12 +124,13 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
         ofd.append (hdu)
 
         copyRows (data, ofd, i, j)
+        nevents = j - i
 
         out_gti_hdu = createNewGTI (gti_hdu, t0, t1)
         if out_gti_hdu is not None:
             ofd.append (out_gti_hdu)
 
-        updateKeywords (info, out_gti_hdu, t0, t1, ofd)
+        updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd)
 
         ofd.writeto (filename)
         ofd.close()
@@ -208,13 +209,16 @@ def getInfo (input, phdr, hdr):
         info[key] = phdr.get (key, default=keylist[key])
 
     # This is a list of extension header keywords and default values.
+    # (also exptime; see below)
     keylist = {
-        "exptime":  -1.,
         "expstart": -1.,
         "expend":   -1.}
 
     for key in keylist.keys():
         info[key] = hdr.get (key, default=keylist[key])
+    exptime_key = cosutil.exptimeKeyword (info["segment"])
+    exptime_default = hdr.get ("exptime", default=-1.)
+    info["exptime"] = hdr.get (exptime_key, default=exptime_default)
 
     return info
 
@@ -581,11 +585,12 @@ def createNewGTI (gti_hdu, t0, t1):
 
     return out_gti_hdu
 
-def updateKeywords (info, out_gti_hdu, t0, t1, ofd):
+def updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd):
     """Update keywords in an output file.
 
     This function adds two HISTORY records to the output primary header and
-    updates EXPTIME, EXPEND and EXPENDJ in the EVENTS extension header.
+    updates EXPTIME, EXPTIMEA or EXPTIMEB, NEVENTS, NEVENTSA or NEVENTSB,
+    EXPEND and EXPENDJ in the EVENTS extension header.
 
     Parameters
     ----------
@@ -600,6 +605,9 @@ def updateKeywords (info, out_gti_hdu, t0, t1, ofd):
 
     t1: float
         Time at the end of the interval
+
+    nevents: int
+        Number of events in the output EVENTS table
 
     ofd: pyfits HDUList object
         The pyfits file handle for the output file
@@ -622,7 +630,16 @@ def updateKeywords (info, out_gti_hdu, t0, t1, ofd):
         for i in range (n):
             exptime += (stop_col[i] - start_col[i])
 
+    # Modified 2011 May 13 to update exptimea or exptimeb, depending on
+    # segment.  Also update nevents and either neventsa or neventsb.
     hdr.update ("exptime", exptime)
+    hdr.update ("nevents", nevents)
+    if info["detector"] == "FUV":
+        # "exptimea" or "exptimeb"
+        exptime_key = cosutil.exptimeKeyword (info["segment"])
+        hdr.update (exptime_key, exptime)
+        nevents_key = "nevents" + info["segment"][-1].lower()
+        hdr.update (nevents_key, nevents)
 
     expstart = info["expstart"]
     if expstart > 0.:
