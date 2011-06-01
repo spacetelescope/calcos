@@ -1,5 +1,6 @@
 from __future__ import division         # confidence high
 import glob
+import math
 import os
 import numpy
 import pyfits
@@ -101,6 +102,7 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
     if info["wavecorr"] != "COMPLETE":
         cosutil.printWarning ("WAVECORR was not done for " + input)
     gti_hdu = getGTI (ifd)
+    timeline_hdu = getTimeline (ifd)
     time_list = convertToSlices (time_col,
                                  starttime, increment, endtime, time_list)
     cosutil.printMsg ("time_list = %s" % repr (time_list), 2)
@@ -129,6 +131,10 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
         out_gti_hdu = createNewGTI (gti_hdu, t0, t1)
         if out_gti_hdu is not None:
             ofd.append (out_gti_hdu)
+
+        out_timeline_hdu = createNewTimeline (timeline_hdu, t0, t1)
+        if out_timeline_hdu is not None:
+            ofd.append (out_timeline_hdu)
 
         updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd)
 
@@ -523,9 +529,6 @@ def createNewGTI (gti_hdu, t0, t1):
 
     Parameters
     ----------
-    info: dictionary
-        Keywords and values from the input header
-
     gti_hdu: pyfits BinTableHDU object, or None
         The GTI table from the input file (may be None)
 
@@ -585,6 +588,88 @@ def createNewGTI (gti_hdu, t0, t1):
 
     return out_gti_hdu
 
+def getTimeline (ifd):
+    """Get the TIMELINE extension (if there is one) from the input file.
+
+    Parameters
+    ----------
+    ifd: pyfits HDUList object
+        The pyfits file handle for the input file.
+
+    Returns
+    -------
+    pyfits BinTableHDU object, or None
+        The TIMELINE extension from the input file, if there is one.
+    """
+
+    hdunum = 0
+    for i in range (1, len(ifd)):
+        hdu = ifd[i]
+        extname = hdu.header.get ("extname", "MISSING")
+        if extname.upper() == "TIMELINE":
+            hdunum = i
+            break               # assume there's only one
+
+    if hdunum < 1:
+        timeline_hdu = None
+    else:
+        timeline_hdu = ifd[hdunum]
+        if timeline_hdu.data is None:
+            timeline_hdu = None
+
+    return timeline_hdu
+
+def createNewTimeline (timeline_hdu, t0, t1):
+    """Create a TIMELINE table for the output table.
+
+    Parameters
+    ----------
+    timeline_hdu: pyfits BinTableHDU object, or None
+        The TIMELINE table from the input file (may be None).
+
+    t0: float
+        Time at the start of the interval.
+
+    t1: float
+        Time at the end of the interval.
+
+    Returns
+    -------
+    pyfits BinTableHDU object, or None
+        A TIMELINE table to append to the output file, or None.  If
+        there is no TIMELINE extension in the input file (indicated by
+        timeline_hdu being None) or if the time increment is zero or
+        negative, None will be returned.  Otherwise, the returned value
+        will have the same columns as the input timeline_hdu, but the rows
+        will be a subset of timeline_hdu.
+    """
+
+    if timeline_hdu is None:
+        return None
+
+    cd = timeline_hdu.columns
+
+    in_data = timeline_hdu.data
+    in_nrows = len (in_data)
+
+    time_col = in_data.field ("time")
+
+    # The "ceil(t1) + 0.1" here is to ensure that the time range (specifically
+    # i_end) actually includes all the relevant rows of the input TIMELINE
+    # table.  This implicitly assumes that the time increment is one second.
+    (i_start, i_end)= ccos.range (time_col, t0, math.ceil(t1) + 0.1)
+    out_nrows = i_end - i_start
+
+    out_timeline_hdu = pyfits.new_table (cd, header=timeline_hdu.header,
+                                         nrows=out_nrows)
+    out_data = out_timeline_hdu.data
+    i = i_start
+    for j in range (out_nrows):
+        out_data[j] = in_data[i]
+        i += 1
+
+    return out_timeline_hdu
+
 def updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd):
     """Update keywords in an output file.
 
@@ -635,6 +720,12 @@ def updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd):
     hdr.update ("exptime", exptime)
     hdr.update ("nevents", nevents)
     if info["detector"] == "FUV":
+        # first assign default values, so keywords for the "other" segment
+        # will have the default
+        hdr.update ("exptimea", 0.)
+        hdr.update ("exptimeb", 0.)
+        hdr.update ("neventsa", 0)
+        hdr.update ("neventsb", 0)
         # "exptimea" or "exptimeb"
         exptime_key = cosutil.exptimeKeyword (info["segment"])
         hdr.update (exptime_key, exptime)
