@@ -2,7 +2,7 @@ from __future__ import division         # confidence high
 import math
 import os
 import numpy as np
-from convolve import boxcar
+from stsci.convolve import boxcar
 import pyfits
 from calcosparam import *
 import ccos

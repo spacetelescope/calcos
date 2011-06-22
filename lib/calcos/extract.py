@@ -1,7 +1,7 @@
 from __future__ import division         # confidence high
 import os
 import numpy as np
-from convolve import boxcar
+from stsci.convolve import boxcar
 import pyfits
 import cosutil
 import ccos
