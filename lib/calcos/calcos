@@ -1,7 +1,8 @@
-#! python
+#!/usr/bin/env python
 from __future__ import division         # confidence high
 import calcos
 import sys
 
-calcos.main (sys.argv[1:])
+if __name__ == '__main__':
+    calcos.main(sys.argv[1:])
 
