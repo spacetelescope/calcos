@@ -967,8 +967,8 @@ def filterPHA (xcorr, ycorr, pha, dq, phafile, info, hdr):
     counters = ccos.pha_check (xcorr, ycorr, pha.astype(np.int16), dq,
                                im_low, im_high, DQ_PHA_OUT_OF_BOUNDS)
     if counters is None:
-        raise RuntimeError, \
-        "PHACORR:  images in PHAFILE %s are not the same shape" % phafile
+        raise RuntimeError ("PHACORR:  images in PHAFILE %s are "
+                            "not the same shape" % phafile)
 
     (nbad_low, nbad_high) = counters
 
@@ -2189,7 +2189,7 @@ def dopplerParam (info, disptab, doppcorr):
             middle = float (NUV_X) / 2.
         disp_rel = dispersion.Dispersion (disptab, filter, False)
         if not disp_rel.isValid():
-            raise RuntimeError, "missing row in disptab"
+            raise RuntimeError ("missing row in disptab")
         # get the dispersion (disp) at the middle of the detector
         disp = disp_rel.evalDerivDisp (middle)
         disp_rel.close()
@@ -2407,7 +2407,7 @@ def dopplerCorrection (time, xi, info, reffiles, stripe=None):
     disp_rel = dispersion.Dispersion (disptab, filter, use_fpoffset=True)
     if not disp_rel.isValid():
         disp_rel.close()
-        raise RuntimeError, "missing row in disptab"
+        raise RuntimeError ("missing row in disptab")
 
     xi = xi.astype (np.float64)
     fpoffset_present = cosutil.findColumn (disptab, "fpoffset")
@@ -3797,7 +3797,7 @@ def updateFromWavecal (events, wavecal_info,
     # start of the exposure.  If the science exposure was bracketed by
     # two wavecals, the slope of the shifts can be non-zero.
     shift_info = wavecal.returnWavecalShift (wavecal_info,
-                        wcp_info, info["fpoffset"], info["expstart"])
+                wcp_info, info["cenwave"], info["fpoffset"], info["expstart"])
     if shift_info is None:
         return (tl_time, None)
 

@@ -140,6 +140,14 @@ def processConcurrentWavecal (events, outflash, shift_file,
 
     return (tl_time, shift1_vs_time)
 
+def r_key (x):
+    """Comparison key for sorting locations in setRegions().
+
+    The comparison is based entirely on the second element, b_spec.
+    """
+
+    return x[1]
+
 def initWavecal (events, outflash, shift_file, info, switches, reffiles,
                  phdr, hdr):
     """Return a ConcurrentWavecal object, depending on detector.
@@ -1135,9 +1143,9 @@ class ConcurrentWavecal (object):
                     break
 
         if len (lamp_on) != len (lamp_off):
-            raise RuntimeError, \
-                "Internal error:  len (lamp_on) = %d, len (lamp_off) = %d" % \
-                (len (lamp_on), len (lamp_off))
+            raise RuntimeError ("Internal error:  len (lamp_on) = %d, "
+                                "len (lamp_off) = %d" % \
+                                (len (lamp_on), len (lamp_off)))
 
         self.numflash = len (lamp_on)           # the actual number of flashes
 
@@ -1782,7 +1790,7 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
                      xtract_info.field ("slope")[0] * middle
             locations.append ((segment, b_spec))
 
-        locations.sort (self.r_cmp)     # sort on b_spec, regardless of segment
+        locations.sort (key=r_key)      # sort on b_spec, regardless of segment
         len_locn = len (locations)
 
         # intervals will be the same length as locations.  Each interval
@@ -1814,18 +1822,6 @@ class NUVConcurrentWavecal (ConcurrentWavecal):
             regions[segment] = locn_list
 
         return regions
-
-    def r_cmp (self, x, y):
-        """Comparison function for sorting locations in setRegions().
-
-        The comparison is based entirely on the second element, b_spec.
-        """
-        if x[1] < y[1]:
-            return -1
-        elif x[1] > y[1]:
-            return 1
-        else:
-            return 0
 
     def shift2Corr (self, n, i0, i1, extrapolate=False):
         """Correct the pixel coordinates in the cross-dispersion direction.

@@ -1,7 +1,6 @@
 from __future__ import division         # confidence high
 import os
 import numpy as np
-from stsci.convolve import boxcar
 import pyfits
 import cosutil
 import ccos
@@ -269,17 +268,17 @@ def checkLocation (info, location, extrsize, find_target):
             try:
                 nelem = len (location)
             except TypeError:
-                raise TypeError, "location must be an int, float, or sequence"
+                raise TypeError ("location must be an int, float, or sequence")
             if info["detector"] == "FUV":
                 if nelem == 1:
                     location = {info["segment"]: location[0]}
                 else:
-                    raise TypeError, \
-                    "for FUV, location may have only one element"
+                    raise TypeError ("for FUV, location may have "
+                                     "only one element")
             elif info["detector"] == "NUV":
                 if nelem > 3:
-                    raise TypeError, \
-                    "location may not have more than three elements"
+                    raise TypeError ("location may not have more than "
+                                     "three elements")
                 segments = ["NUVA", "NUVB", "NUVC"]
                 temp = {"NUVA": None, "NUVB": None, "NUVC": None}
                 for i in range (nelem):
@@ -303,13 +302,13 @@ def checkLocation (info, location, extrsize, find_target):
             try:
                 nelem = len (extrsize)
             except TypeError:
-                raise TypeError, "extrsize must be an integer or sequence"
+                raise TypeError ("extrsize must be an integer or sequence")
             if info["detector"] == "FUV":
                 if nelem == 1:
                     extrsize = {info["segment"]: extrsize[0]}
                 else:
-                    raise TypeError, \
-                    "for FUV, extrsize may have only one element"
+                    raise TypeError, ("for FUV, extrsize may have "
+                                      "only one element")
             elif info["detector"] == "NUV":
                 if nelem == 1:
                     extrsize = {"NUVA": extrsize[0],
@@ -317,8 +316,8 @@ def checkLocation (info, location, extrsize, find_target):
                                 "NUVC": extrsize[0]}
                 else:
                     if nelem > 3:
-                        raise TypeError, \
-                        "extrsize may not have more than three elements"
+                        raise TypeError ("extrsize may not have more than "
+                                         "three elements")
                     segments = ["NUVA", "NUVB", "NUVC"]
                     temp = {"NUVA": None, "NUVB": None, "NUVC": None}
                     for i in range (nelem):
@@ -761,7 +760,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         xd_offset = -999.
     else:
         # Search for the target spectrum.
-        (offset2, found_locn, found_locn_sigma) = \
+        (offset2, found_locn, found_locn_sigma, fwhm) = \
                 xd_search.xdSearch (e_data,
                                     e_dq_data, wavelength,
                                     axis, slope, b_spec,
@@ -780,6 +779,13 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                                  found_locn + offset_to_middle,
                                  xd_nominal)
         cosutil.printMsg (message, VERBOSE)
+        msg1 = "error estimate for y location = %.2f, FWHM = " % \
+               found_locn_sigma
+        if isinstance (fwhm, int):
+            msg2 = "%d" % fwhm
+        else:
+            msg2 = "%.2f" % fwhm
+        cosutil.printContinuation (msg1 + msg2)
 
     # b_spec is where the spectrum crosses the left edge of the array.
     # xd_locn will be set to either the user-specified value (if it was
@@ -852,6 +858,7 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         # Get the background data from the counts image.
         ccos.extractband (c_data, axis, slope, b_bkg1, x_offset, BK1_ij)
         ccos.extractband (c_data, axis, slope, b_bkg2, x_offset, BK2_ij)
+        original_BK_i = BK1_ij.sum (axis=0) + BK2_ij.sum (axis=0)
         # Get the data quality array from the flt file.
         ccos.extractband (e_dq_data, axis, slope, b_bkg1, x_offset, dq1_ij)
         ccos.extractband (e_dq_data, axis, slope, b_bkg2, x_offset, dq2_ij)
@@ -874,25 +881,29 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         # If good_i is zero, the background will also be zero, so it doesn't
         # matter what we set good_i to as long as it's not zero (we're going
         # to divide by it).
-        good_i = np.where (good_i > 0., good_i, 1.)
+        good_i_div = np.where (good_i > 0., good_i, 1.)
         # Correct for regions excluded because they're flagged as bad.
-        BK_i *= (float (bkg_height1 + bkg_height2)) / good_i
+        BK_i *= (float (bkg_height1 + bkg_height2)) / good_i_div
         # Scale the background to the spectral extraction height.
         BK_i *= bkg_norm
+        original_BK_i *= bkg_norm
+        # Restore BK_i where all background pixels were flagged as bad.
+        BK_i[:] = np.where (good_i > 0., BK_i, original_BK_i)
         if x_offset > 0:
             # assumes x_offset only for NUV
             key = "shift1" + segment[-1].lower()
             i = x_offset - ofd_header.get (key, 0.)
             i = int (round (i))
-            j = i + NUV_X
+            j = i + NUV_X       # assumes x_offset only for NUV
             i = max (i, 0)
-            j = min (j, axis_length-1)
-            temp_bk = BK_i[i:j].copy()
-            boxcar (temp_bk, (bkg_smooth,), output=temp_bk, mode='nearest')
-            BK_i[i:j] = temp_bk.copy()
-            del temp_bk
+            j = min (j, axis_length)    # upper limit of a slice
         else:
-            boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
+            (i, j) = (0, axis_length)
+        (i, j) = excludeAllBad (good_i, i, j)
+        temp_bk = BK_i[i:j].copy()
+        ccos.smoothbkg (temp_bk, bkg_smooth)
+        BK_i[i:j] = temp_bk.copy()
+        del temp_bk
     else:
         BK_i = np.zeros (axis_length, dtype=np.float32)
 
@@ -915,6 +926,62 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                               b_bkg1, b_bkg2, bkg_height1, bkg_height2)
 
     return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
+
+def excludeAllBad (good_i, i, j):
+    """Exclude endpoints of BK_i where all pixels are flagged as bad.
+
+    Parameters
+    ----------
+    good_i: array_like
+        1-D array of floats, one for each element along the dispersion
+        axis.  The values are 0. or 1., depending on the data quality array
+        in the background regions.  If any element in the DQ array in
+        column i (in either background region) indicates a bad pixel,
+        good_i[i] will be 0 (bad); otherwise, it will be 1 (good).
+
+    i: int
+        Lower limit of a slice, i:j excludes the X_OFFSET (as shifted
+        depending on the wavecal offset).
+
+    j: int
+        Upper limit of a slice.
+
+    Returns
+    -------
+    tuple of two integers
+        New values for i and j, such that good_i[i] and good_i[j-1]
+        are both > 0 (if there are any such indices)
+    """
+
+    nelem = len (good_i)
+
+    done = False
+    ip = i
+    while not done:
+        if ip >= nelem:
+            break
+        if good_i[ip] > 0.:
+            done = True
+            break
+        ip += 1
+    if not done:        # no point not flagged as bad
+        ip = i
+
+    done = False
+    # i:j is a slice, so start looking for good data at j-1
+    jp = j - 1
+    while not done:
+        if jp < ip:
+            break
+        if good_i[jp] > 0.:
+            done = True
+            break
+        jp -= 1
+    if not done:
+        jp = j
+    jp += 1             # jp is the upper limit of a slice
+
+    return (ip, jp)
 
 def extractCorrtag (xi, eta, dq, epsilon, dq_array,
                     ofd_header, segment, axis_length,
@@ -1024,7 +1091,7 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
             # xxx not implemented yet xxx
             #y_nominal = b_spec + shift2
             # xxx need different arguments for xdSearch for corrtag xxx
-            #(shift2, b_spec, b_spec_sigma) = xd_search.xdSearch (e_data,
+            #(shift2, b_spec, b_spec_sigma, fwhm) = xd_search.xdSearch (e_data,
             #                    e_dq_data, wavelength,
             #                    axis, slope, b_spec,
             #                    x_offset, info["detector"], info["opt_elem"])
@@ -1032,6 +1099,9 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
             #message = "Spectrum found at y = %.2f (nominal y = %.2f)." % \
             #           (xd_locn, y_nominal + offset_to_middle)
             #cosutil.printMsg (message, VERBOSE)
+            #cosutil.printContinuation (
+            #"error estimate for y location = %.2f, FWHM = %.2f" % \
+            #                           (b_spec_sigma, fwhm))
         else:
             # add the shift to the nominal location; assign a value to xd_locn
             # (which will be used to update a header keyword)
@@ -1111,32 +1181,41 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
         BK2_ij *= good2_ij
         BK_i = BK1_ij.sum (axis=0) + BK2_ij.sum (axis=0)
         BK_i /= exptime
+        original_BK_i = BK_i.copy()
 
         # The sum along axis=0 gives the number of good pixels in each column.
         # Use this sum to correct (rescale) the background to account for
         # pixels that are flagged as bad.
         good_i = good1_ij.sum (axis=0, dtype=np.float64) + \
                  good2_ij.sum (axis=0, dtype=np.float64)
+        # flags will be 0 where good, 1 where bad; this is used for smoothing.
+        flags = np.ones (axis_length, dtype=np.int16)
+        flags[:] = np.where (good_i > 0.5, 0, 1)
         # If good_i is zero, the background will also be zero, so it doesn't
         # matter what we set good_i to as long as it's not zero (we're going
         # to divide by it).
-        good_i = np.where (good_i > 0., good_i, 1.)
+        good_i_div = np.where (good_i > 0., good_i, 1.)
         # Correct for regions excluded because they're flagged as bad.
-        BK_i *= (float (bkg_height1 + bkg_height2)) / good_i
+        BK_i *= (float (bkg_height1 + bkg_height2)) / good_i_div
         # Scale the background to the spectral extraction height.
         BK_i *= bkg_norm
+        original_BK_i *= bkg_norm
+        # Restore BK_i where all background pixels were flagged as bad.
+        BK_i[:] = np.where (good_i > 0., BK_i, original_BK_i)
         if x_offset > 0:
             i = x_offset - shift1
             i = int (round (i))
-            j = i + NUV_X       # assumes x_offset only for NUV
+            j = i + NUV_X
             i = max (i, 0)
-            j = min (j, axis_length-1)
-            temp_bk = BK_i[i:j].copy()
-            boxcar (temp_bk, (bkg_smooth,), output=temp_bk, mode='nearest')
-            BK_i[i:j] = temp_bk.copy()
-            del temp_bk
+            j = min (j, axis_length)    # upper limit of a slice
         else:
-            boxcar (BK_i, (bkg_smooth,), output=BK_i, mode='nearest')
+            (i, j) = (0, axis_length)
+        (i, j) = excludeAllBad (good_i, i, j)
+        bk_i_f32 = BK_i.astype (np.float32)
+        temp_bk = bk_i_f32[i:j].copy()
+        ccos.smoothbkg (temp_bk, bkg_smooth)
+        BK_i[i:j] = temp_bk.copy()
+        del temp_bk
     else:
         BK_i = np.zeros (axis_length, dtype=np.float64)
 
@@ -1680,8 +1759,8 @@ def concatenateFUVSegments (infiles, output):
         seg_b = None
     if seg_a is None or seg_b is None:
         cosutil.printError ("files are " + infiles[0] + " " + infiles[1])
-        raise RuntimeError, \
-            "Files to concatenate must be for segments FUVA and FUVB."
+        raise RuntimeError ("Files to concatenate must be for "
+                            "segments FUVA and FUVB.")
 
     if seg_a[1].data is None:
         nrows_a = 0

@@ -260,10 +260,10 @@ def convertToSlices (time_col, starttime, increment, endtime, time_list):
     """
 
     if not increment and not time_list:
-        raise RuntimeError, "Must specify either increment or time_list."
+        raise RuntimeError ("Must specify either increment or time_list.")
 
     if time_list and len (time_list) < 2:
-        raise RuntimeError, "time_list must have at least two elements."
+        raise RuntimeError ("time_list must have at least two elements.")
 
     if increment and time_list:
         cosutil.printWarning ("Both increment and time_list were specified;"
@@ -296,8 +296,8 @@ def convertToSlices (time_col, starttime, increment, endtime, time_list):
             if value == "start":
                 t0 = 0.
             else:
-                raise RuntimeError, \
-                "First element of time_list is '%s'." % time_list[0]
+                raise RuntimeError ("First element of time_list is '%s'." %
+                                    time_list[0])
         else:
             t0 = time_list[0]
 
@@ -310,15 +310,15 @@ def convertToSlices (time_col, starttime, increment, endtime, time_list):
                 elif value == "stop" or value == "end":
                     t1 = time_col[-1]
                 else:
-                    raise RuntimeError, \
-                    "Don't understand time_list[%d] = '%s'." % \
-                        (i, time_list[i])
+                    raise RuntimeError (
+                    "Don't understand time_list[%d] = '%s'." %
+                        (i, time_list[i]))
             else:
                 t1 = time_list[i]
             if t1 < t0:
                 cosutil.printError ("time_list = %s" % repr (time_list))
-                raise RuntimeError, \
-                "Values in time_list must be in increasing order."
+                raise RuntimeError ("Values in time_list must be "
+                                    "in increasing order.")
             elif t0 == t1:
                 continue
             new_time_list.append ((t0, t1))
@@ -461,8 +461,8 @@ def constructOutputName (outroot, file_index, suffix):
             if os.access (filename, os.R_OK):
                 i += 1
                 if i > upper_limit:
-                    raise RuntimeError, "Output file already exists," \
-                          " and upper limit of names has been exceeded."
+                    raise RuntimeError ("Output file already exists,"
+                          " and upper limit of names has been exceeded.")
             else:
                 done = True
         cosutil.printWarning ("Output file %s already exists,"

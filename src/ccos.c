@@ -10,7 +10,7 @@ unbinaccum updates X & Y coordinates of pixel values in an image.
 addrandom adds pseudo-random numbers on (-0.5,+0.5) to values in an array.
 convolve1d convolves a 2-D image with a 1-D array.
 extractband extracts a 2-D band (spectrum or background) from a 2-D image.
-smoothbkg smooths a 1-D array (background).
+smoothbkg smoothes a 1-D array (background).
 addlines creates a template spectrum based on a list of emission lines.
 geocorrection applies the geometric (INL) distortion correction.
 pha_check compares the pha with lower and upper limits.
@@ -101,6 +101,8 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 2010 Nov 22	Add function pha_check.
 2011 Feb 17	Replace calls to malloc/free with PyMem_Malloc/PyMem_Free
 		in functions findSmallerBursts and median_boxcar.
+2011 June 29	Add an optional argument to smoothbkg, an array of flags;
+		rewrite smoothBackground to use these flags.
 */
 
 # include <Python.h>
@@ -173,7 +175,7 @@ static int addRN (float [], int, int, int);
 static int convolveWithDopp (PyArrayObject *, int, int, float [], int, int);
 static int extract2DBand (PyArrayObject *,
 	int, double, double, int, PyArrayObject *);
-static int smoothBackground (int, int, float []);
+static int smoothBackground (int, int, float [], short []);
 static int addEmissionLines (float [], double [], int,
 		double, double [], float [], int);
 static double findPixelNumber (double, double [], int);
@@ -243,7 +245,8 @@ static char *DocString (void) {
     newseed = addrandom (x, seed, use_clock)\n\
     convolve1d (flat, dopp, axis)\n\
     extractband (indata, axis, slope, intercept, x_offset, outdata)\n\
-    smoothbkg (data, width)\n\
+    smoothbkg (data, width,\n\
+                <optional:  flags>)\n\
     addlines (intensity, wavelength, reswidth, x1d_wl, dq, template)\n\
     geocorrection (x, y, x_image, y_image, interp_flag,\n\
                 <optional:  origin_x, origin_y, xbin, ybin>)\n\
@@ -1676,23 +1679,30 @@ static int extract2DBand (PyArrayObject *indata,
 
 /* calling sequence for smoothbkg:
 
-   smoothbkg (data, width)
+   smoothbkg (data, width, flags)
 
     data      io: a 1-D array to be smoothed in-place (float32)
     width      i: the width (pixels) of the boxcar smoothing function (int)
 
-   ccos_smoothbkg calls smoothBackground, which boxcar smooths the
+   optional argument:
+    flags      i: a 1-D array of flags, 0 is good, 1 is bad (int16)
+
+   ccos_smoothbkg calls smoothBackground, which boxcar smoothes the
    1-D array 'data' in-place, with a width of 'width' pixels.
 */
 
 static PyObject *ccos_smoothbkg (PyObject *self, PyObject *args) {
 
-	PyObject *odata;
+	PyObject *odata, *oflags;
 	PyArrayObject *data;
+	PyArrayObject *flags;
 	int width;
+	int length;		/* length of data array */
 	int status;
 
-	if (!PyArg_ParseTuple (args, "Oi", &odata, &width)) {
+	oflags = NULL;
+
+	if (!PyArg_ParseTuple (args, "Oi|O", &odata, &width, &oflags)) {
 	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
@@ -1701,9 +1711,39 @@ static PyObject *ccos_smoothbkg (PyObject *self, PyObject *args) {
 		NPY_INOUT_ARRAY);
 	if (data == NULL)
 	    return NULL;
+	if (PyArray_NDIM (data) != 1) {
+	    PyErr_SetString (PyExc_RuntimeError, "arrays must be 1-D");
+	    return NULL;
+	}
 
-	status = smoothBackground (PyArray_DIM (data, 0), width,
-		(float *)PyArray_DATA (data));
+	length = PyArray_DIM (data, 0);
+
+	if (oflags == NULL) {
+	    short *dummy_flags;
+	    int i;
+	    dummy_flags = PyMem_Malloc (length * sizeof (short));
+	    for (i = 0;  i < length;  i++)
+		dummy_flags[i] = 0;
+	    status = smoothBackground (length, width,
+			(float *)PyArray_DATA (data), dummy_flags);
+	    PyMem_Free (dummy_flags);
+	} else {
+	    flags = (PyArrayObject *)PyArray_FROM_OTF (oflags, NPY_INT16,
+			NPY_IN_ARRAY);
+	    if (flags == NULL) {
+		Py_DECREF (data);
+		return NULL;
+	    }
+	    if (PyArray_NDIM (flags) != 1) {
+		PyErr_SetString (PyExc_RuntimeError, "flags must be 1-D");
+		Py_DECREF (data);
+		return NULL;
+	    }
+	    status = smoothBackground (length, width,
+			(float *)PyArray_DATA (data),
+			(short *)PyArray_DATA (flags));
+	    Py_DECREF (flags);
+	}
 
 	Py_DECREF (data);
 
@@ -1717,47 +1757,87 @@ static PyObject *ccos_smoothbkg (PyObject *self, PyObject *args) {
 
 /* This is called by ccos_smoothbkg. */
 
-static int smoothBackground (int length, int width, float data[]) {
+static int smoothBackground (int length, int width,
+		float data[], short flags[]) {
 
-	double sum;
-	float *scr;		/* temporary copy of data, extended at ends */
+	double sum;		/* sum of elements not flagged as bad */
+	double ngood;		/* number of good elements included in sum */
+	float *scr_data;	/* temporary copy of data, extended at ends */
+	short *scr_flags;	/* temporary copy of flags, extended */
 	int offset;		/* width / 2, truncated */
+	int ext_nelem;		/* length of extended arrays */
 	int i, ilow, ihigh;
+	int istart, iend;	/* first and last pixels not flagged as bad */
 
-	if ((scr = PyMem_Malloc ((length+width) * sizeof (float))) == NULL) {
+	ext_nelem = length + width;
+	scr_data = PyMem_Malloc (ext_nelem * sizeof (float));
+	scr_flags = PyMem_Malloc (ext_nelem * sizeof (short));
+	if (scr_data == NULL || scr_flags == NULL) {
 	    PyErr_NoMemory();
 	    return 1;
 	}
-	memset (scr, 0, (length+width) * sizeof (float));
+	memset (scr_data, 0, (ext_nelem) * sizeof (float));
+	for (i = 0;  i < ext_nelem;  i++)
+	    scr_flags[i] = 1;		/* initially all bad */
 
 	offset = width / 2;
 
 	/* copy to scratch */
-	for (i = 0;  i < length;  i++)
-	    scr[i+offset] = data[i];
+	for (i = 0;  i < length;  i++) {
+	    scr_data[i+offset] = data[i];
+	    scr_flags[i+offset] = flags[i];
+	}
 
-	/* duplicate the leftmost and rightmost elements of data in scratch */
-	for (i = 0;  i < offset;  i++)
-	    scr[i] = data[0];
-	for (i = 0;  i < offset;  i++)
-	    scr[i+length+offset] = data[length-1];
+	/* find first and last good pixels */
+	istart = ext_nelem;		/* initial values outside array */
+	iend = -1;
+	for (i = 0;  i < ext_nelem;  i++) {
+	    if (scr_flags[i] == 0) {
+		istart = i;
+		break;
+	    }
+	}
+	for (i = ext_nelem-1;  i >= 0;  i--) {
+	    if (scr_flags[i] == 0) {
+		iend = i;
+		break;
+	    }
+	}
+	/* don't do any smoothing if there are no good pixels */
+	if (istart >= ext_nelem || iend < 0)
+	    return 0.;
 
 	sum = 0.;
-	for (i = 0;  i < width-1;  i++)
-	    sum += scr[i];
-
+	ngood = 0.;
+	for (i = 0;  i < width-1;  i++) {
+	    if (scr_flags[i] == 0) {
+		sum += scr_data[i];
+		ngood++;
+	    }
+	}
 	for (i = offset;  i < length+offset;  i++) {
 	    ilow = i - offset - 1;
 	    ihigh = ilow + width;
-	    sum += scr[ihigh];
-	    if (ilow >= 0)
-		sum -= scr[ilow];
-	    data[i-offset] = sum / width;
+	    if (ihigh < ext_nelem) {
+		if (scr_flags[ihigh] == 0) {
+		    sum += scr_data[ihigh];
+		    ngood++;
+		}
+	    }
+	    if (ilow >= 0) {
+		if (scr_flags[ilow] == 0) {
+		    sum -= scr_data[ilow];
+		    ngood--;
+		}
+	    }
+	    if (i >= istart && i <= iend && ngood > 0.)
+		data[i-offset] = sum / ngood;
 	}
 
-	PyMem_Free (scr);
+	PyMem_Free (scr_flags);
+	PyMem_Free (scr_data);
 
-	return (0);
+	return 0;
 }
 
 /* calling sequence for addlines:

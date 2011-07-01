@@ -78,7 +78,7 @@ def avgImage (input, output):
 
     if got_data:
         if sum_exptime <= 0.:
-            raise RuntimeError, "ERROR in avgImage; invalid EXPTIME."
+            raise RuntimeError ("ERROR in avgImage; invalid EXPTIME.")
         sci_data /= sum_exptime
         globrate = sum_globrate / sum_exptime
     else:

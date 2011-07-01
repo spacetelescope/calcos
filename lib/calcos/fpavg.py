@@ -222,9 +222,9 @@ class OutputX1D (object):
     output_nelem: int
         Number of elements to use when allocating output arrays
 
-    output_wl: dictionary
-        First (smallest) wavelength in an output spectrum, key is segment
-        or stripe
+    output_wl_range: dictionary of two-element tuples
+        Smallest and largest wavelengths in an output spectrum; key is
+        segment or stripe
 
     output_dispersion: dictionary
         Dispersion (Angstroms per pixel) in an output spectrum, key is
@@ -242,7 +242,7 @@ class OutputX1D (object):
         self.ofd = None
         self.nrows = 0
         self.output_nelem = 0
-        self.output_wl = {}
+        self.output_wl_range = {}
         self.output_dispersion = {}
         # This is the index of the element of self.inspec that has the
         # maximum value of nelem.  We'll use this spectrum as the template
@@ -264,7 +264,7 @@ class OutputX1D (object):
         # Fill in the data in the output table.
         for segment in self.segments:           # for each output row ...
             osp = OutputSpectrum (self.ofd, self.inspec, self.keywords,
-                        segment, self.output_wl[segment],
+                        segment, self.output_wl_range[segment],
                         self.output_dispersion[segment])
         if cosutil.isProduct (self.output):
             asn_mtyp = self.ofd[1].header.get ("asn_mtyp", "missing")
@@ -385,13 +385,13 @@ class OutputX1D (object):
 
         for sp in self.inspec:
             if sp.nelem != self.inspec[0].nelem:
-                raise RuntimeError, "x1d tables have different array sizes."
+                raise RuntimeError ("x1d tables have different array sizes.")
 
     def computeOutputInfo (self):
         """Compute length of output arrays, and info for output wavelengths.
 
         This routine assigns values to the attributes output_nelem,
-        index_max_nelem, output_wl, and output_dispersion.
+        index_max_nelem, output_wl_range, and output_dispersion.
         """
 
         if len (self.inspec) < 1:
@@ -402,17 +402,15 @@ class OutputX1D (object):
         # The input nelem should really be all the same, but just in case
         # one of them is zero, we need to be able to skip that one.
         # Also set self.index_max_nelem, which we'll use in createOutput
-        # for getting the column definitions for the output table.
-        output_nelem = -1
+        # for getting the initial column definitions for the output table.
+        min_output_nelem = -1
         for (k, sp) in enumerate (self.inspec):
-            if sp.nelem > output_nelem:
+            if sp.nelem > min_output_nelem:
                 self.index_max_nelem = k
-                output_nelem = sp.nelem
-        if output_nelem >= 0:
-            self.output_nelem = output_nelem
+                min_output_nelem = sp.nelem
 
         # Find the wavelength and dispersion for each segment.
-        self.output_wl = {}
+        self.output_wl_range = {}
         self.output_dispersion = {}
         for segment in self.segments:
             min_wl = 1.e9
@@ -426,8 +424,23 @@ class OutputX1D (object):
                     max_wl = max (max_wl, sp.wavelength[-1])
                     min_dispersion = min (min_dispersion,
                         (sp.wavelength[-1] - sp.wavelength[0]) / (sp.nelem - 1))
-            self.output_wl[segment] = min_wl
+            self.output_wl_range[segment] = (min_wl, max_wl)
             self.output_dispersion[segment] = min_dispersion
+
+        # Determine the number of elements we will need for the output
+        # spectra.  The output array size should be at least as large as the
+        # arrays in the input spectra (min_output_nelem)
+        output_nelem = min_output_nelem         # initial value
+        for segment in self.segments:
+            (min_wl, max_wl) = self.output_wl_range[segment]
+            dispersion = self.output_dispersion[segment]
+            if dispersion <= 0.:
+                continue
+            nelem = (max_wl - min_wl) / dispersion
+            nelem = int (round (math.ceil (nelem)))
+            output_nelem = max (output_nelem, nelem)
+        if output_nelem >= 0:
+            self.output_nelem = output_nelem
 
     def createOutput (self):
         """Create pyfits object for output file."""
@@ -448,9 +461,49 @@ class OutputX1D (object):
             del (primary_hdu.header["fpoffset"])
         ofd = pyfits.HDUList (primary_hdu)
 
-        # Define output columns to be the same as for the selected input table.
-        cd = ifd[1].columns
+        rpt = str (self.output_nelem)   # used for defining columns
 
+        # Define the columns explicitly, rather than using an input table
+        # as a template and then modifying the lengths of arrays (see below),
+        # because the modified columns kept reverting to the original length.
+        col = []
+        col.append (pyfits.Column (name="SEGMENT", format="4A"))
+        col.append (pyfits.Column (name="EXPTIME", format="1D",
+                    disp="F8.3", unit="s"))
+        col.append (pyfits.Column (name="NELEM", format="1J", disp="I6"))
+        col.append (pyfits.Column (name="WAVELENGTH", format=rpt+"D",
+                    unit="angstrom"))
+        col.append (pyfits.Column (name="FLUX", format=rpt+"E",
+                    unit="erg /s /cm**2 /angstrom"))
+        col.append (pyfits.Column (name="ERROR", format=rpt+"E",
+                    unit="erg /s /cm**2 /angstrom"))
+        col.append (pyfits.Column (name="GROSS", format=rpt+"E",
+                    unit="count /s"))
+        col.append (pyfits.Column (name="GCOUNTS", format=rpt+"E",
+                    unit="count"))
+        col.append (pyfits.Column (name="NET", format=rpt+"E",
+                    unit="count /s"))
+        col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E",
+                    unit="count /s"))
+        col.append (pyfits.Column (name="DQ", format=rpt+"I"))
+        col.append (pyfits.Column (name="DQ_WGT", format=rpt+"E"))
+        cd = pyfits.ColDefs (col)
+
+        # Modify some of the output columns.
+        #cd = ifd[1].columns             # this is a ColDefs object
+        #col_names = cd.names
+        #col_formats = cd.formats
+        #ncols = len (col_names)
+        # xxx x = ifd[1].data                 # xxx touch the data
+        #for i in range (ncols):
+        #    fmt = col_formats[i]
+        #    if fmt[-1] in ["D", "E", "I", "J"] and fmt[0] in "123456789":
+        #        x = ifd[1].data         # xxx touch the data
+        #        newfmt = rpt + fmt[-1]
+        #        cd.change_attrib (col_names[i], "format", newfmt)
+        #        print "debug:  name, newfmt =", col_names[i], newfmt
+
+        # Create output HDU for the table.
         hdu = pyfits.new_table (cd, header=ifd[1].header, nrows=self.nrows)
 
         hdu.header.update ("exptime", self.keywords["exptime"])
@@ -630,7 +683,7 @@ class OutputSpectrum (object):
     segment: str
         Segment or stripe name for current row
 
-    output_wl: float
+    output_wl_range: float
         Wavelength at first pixel
 
     output_dispersion: float
@@ -642,12 +695,12 @@ class OutputSpectrum (object):
     inspec
     keywords
     segment
-    output_wl
+    output_wl_range
     output_dispersion
     """
 
     def __init__ (self, ofd, inspec, keywords, segment,
-                  output_wl, output_dispersion):
+                  output_wl_range, output_dispersion):
         """Constructor."""
 
         self.ofd = ofd
@@ -670,7 +723,7 @@ class OutputSpectrum (object):
         sumweight = np.zeros (nelem, dtype=np.float64)
 
         # Assign wavelengths for the current row.
-        data.field ("wavelength")[row,:] = output_wl + \
+        data.field ("wavelength")[row,:] = output_wl_range[0] + \
                 output_dispersion * np.arange (nelem, dtype=np.float64)
 
         for sp in self.inspec:

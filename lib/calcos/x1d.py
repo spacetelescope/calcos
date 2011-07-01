@@ -33,22 +33,22 @@ def main (args):
     if len (args) < 1:
         print "Specify one or more input corrtag file names."
         prtOptions()
-        raise RuntimeError
+        raise RuntimeError()
 
     try:
         (options, pargs) = getopt.getopt (args, "qvuo:",
                                           ["find", "location=", "extrsize="])
     except Exception, error:
-        print error
+        print str (error)
         prtOptions()
-        raise RuntimeError
+        raise RuntimeError()
 
     if len (options) == 0:
         for i in range (len (pargs)):
             if pargs[i][0] == '-':
                 prtOptions()
-                raise RuntimeError, \
-                "Command-line options must precede the input file name(s)."
+                raise RuntimeError ("Command-line options must precede "
+                                    "the input file name(s).")
 
     outdir = None               # output directory name
     update_input = False        # update keywords in corrtag files?
@@ -146,8 +146,8 @@ def extractSpec (inlist=[], outdir=None, update_input=False,
 
     if verbosity is not None:
         if verbosity < 0 or verbosity > 2:
-            raise RuntimeError, \
-                "Verbosity %d is out of range (0, 1, or 2)" % verbosity
+            raise RuntimeError ("Verbosity %d is out of range (0, 1, or 2)" %
+                                verbosity)
         cosutil.setVerbosity (verbosity)
 
     cal_ver = calcosparam.CALCOS_VERSION
@@ -155,8 +155,8 @@ def extractSpec (inlist=[], outdir=None, update_input=False,
     if outdir:
         outdir = os.path.expandvars (outdir)
         if not os.path.isdir (outdir):
-            raise RuntimeError, \
-                "The specified output directory doesn't exist:  %s" % outdir
+            raise RuntimeError ("The specified output directory "
+                                "doesn't exist:  %s" % outdir)
     else:
         outdir = ""
 
@@ -169,10 +169,11 @@ def extractSpec (inlist=[], outdir=None, update_input=False,
     missing = checkMissing (filenames)
     already_exists = checkExists (filenames)
     if missing or already_exists:
-        raise IOError
+        raise IOError()
 
-    keys = filenames.keys()
-    keys.sort()
+    # keys = filenames.keys()
+    # keys.sort()
+    keys = sorted (filenames)
     for x1d in keys:
         corrtag_list = filenames[x1d]["corrtag"]
         flt_list = filenames[x1d]["flt"]
@@ -244,8 +245,9 @@ def checkExists (filenames):
 
     already_exists = []
 
-    keys = filenames.keys()
-    keys.sort()
+    # keys = filenames.keys()
+    # keys.sort()
+    keys = sorted (filenames)
     for x1d in keys:
         flt_list = filenames[x1d]["flt"]
         counts_list = filenames[x1d]["counts"]
@@ -331,8 +333,8 @@ def makeFileNames (inlist, outdir=""):
         corrtag = os.path.expandvars (input)
         i = corrtag.rfind ("corrtag")
         if i < 0:
-            raise RuntimeError, "File name " + input + \
-                  " was expected to have suffix 'corrtag'"
+            raise RuntimeError ("File name " + input +
+                                " was expected to have suffix 'corrtag'")
         # This is the corrtag file name, but in the output directory.
         outdir_input = os.path.join (outdir, os.path.basename (corrtag))
 
@@ -576,8 +578,8 @@ def replaceSuffix (rawname, suffix, new_suffix):
     if i >= 0:
         newname = rawname[0:i] + new_suffix + rawname[i+lensuffix:]
     else:
-        raise RuntimeError, \
-            "File name " + rawname + " was expected to have suffix " + suffix
+        raise RuntimeError ("File name " + rawname +
+                            " was expected to have suffix " + suffix)
 
     return newname
 

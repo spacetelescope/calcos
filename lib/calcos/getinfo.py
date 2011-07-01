@@ -28,28 +28,28 @@ def initialInfo (filename):
     if phdr.has_key ("DETECTOR"):
         detector = phdr["DETECTOR"]
     else:
-        raise RuntimeError, \
-        "File " + filename + " does not have DETECTOR keyword."
+        raise RuntimeError ("File " + filename +
+                            " does not have DETECTOR keyword.")
 
     if phdr.has_key ("OBSMODE"):
         obsmode = phdr["OBSMODE"]
     else:
-        raise RuntimeError, \
-        "File " + filename + " does not have OBSMODE keyword."
+        raise RuntimeError ("File " + filename +
+                            " does not have OBSMODE keyword.")
 
     if phdr.has_key ("EXPTYPE"):
         exptype = phdr["EXPTYPE"]
     else:
-        raise RuntimeError, \
-        "File " + filename + " does not have EXPTYPE keyword."
+        raise RuntimeError ("File " + filename +
+                            " does not have EXPTYPE keyword.")
 
     if detector != "FUV" and detector != "NUV":
-        raise ValueError, \
-        "File " + filename + " has invalid DETECTOR = " + detector
+        raise ValueError ("File " + filename +
+                          " has invalid DETECTOR = " + detector)
 
     if obsmode != "TIME-TAG" and obsmode != "ACCUM":
-        raise ValueError, \
-        "File " + filename + " has invalid OBSMODE = " + obsmode
+        raise ValueError ("File " + filename +
+                          " has invalid OBSMODE = " + obsmode)
 
     info["detector"] = detector
     info["obsmode"] = obsmode

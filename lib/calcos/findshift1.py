@@ -94,8 +94,8 @@ class Shift1 (object):
             keys = fp_pixel_shift.keys()
             for key in keys:
                 if fp_pixel_shift[key] != 0.:
-                    raise RuntimeError, \
-                    "initial_offset and fp_pixel_shift cannot both be non-zero"
+                    raise RuntimeError ("initial_offset and fp_pixel_shift "
+                                        "cannot both be non-zero")
 
         self.spectra = copy.deepcopy (spectra)
         self.templates = copy.deepcopy (templates)
@@ -127,8 +127,9 @@ class Shift1 (object):
         self.tmpl_slice = None
 
         # working parameters
-        keys = self.spectra.keys()
-        keys.sort()
+        # keys = self.spectra.keys()
+        # keys.sort()
+        keys = sorted (self.spectra)
         self.keys = keys
         self.current_key = ""
 

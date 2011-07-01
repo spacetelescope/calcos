@@ -62,6 +62,7 @@ def readImPhtTab (imphttab, obsmode):
 
     bp = S.ObsBandpass ("cos,nuv,mirrora,psa")
     sp = S.FlatSpectrum (4.816554456084e-18, fluxunits="flam")
+    print obs.effstim ("fnu")
     photfnu = 8.64540709538e-30
 
     bp = S.ObsBandpass ("cos,nuv,mirrora,boa")
@@ -140,7 +141,7 @@ def readImPhtTab (imphttab, obsmode):
     if photdict.has_key (key):
         param = photdict[key]
     else:
-        raise RuntimeError, "obsmode '%s' not recognized, expected " \
-                            "'mirrora' or 'mirrorb', 'psa' or 'boa'" % obsmode
+        raise RuntimeError ("obsmode '%s' not recognized, expected "
+                            "'mirrora' or 'mirrorb', 'psa' or 'boa'" % obsmode)
 
     return param

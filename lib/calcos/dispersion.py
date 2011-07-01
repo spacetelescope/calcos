@@ -62,7 +62,7 @@ class Dispersion (object):
 
         self.ncoeff = disp_info.field ("nelem")[0]
         if self.ncoeff < 2:
-            raise ValueError, "Dispersion relation has too few coefficients"
+            raise ValueError ("Dispersion relation has too few coefficients")
         self.coeff = disp_info.field ("coeff")[0][0:self.ncoeff]
         if cosutil.findColumn (disp_info, "delta"):
             self.delta = disp_info.field ("delta")[0]

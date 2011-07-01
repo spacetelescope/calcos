@@ -62,8 +62,8 @@ class ShiftFile (object):
                 continue
             nwords = len (words)
             if nwords < 5 or nwords > 6:
-                raise RuntimeError, \
-                "error reading this line of shift_file:  '%s'" % line
+                raise RuntimeError ("error reading this line of "
+                                    "shift_file:  '%s'" % line)
             for i in range (nwords):
                 words[i] = words[i].lower()
             # Select rows matching rootname and fpoffset.

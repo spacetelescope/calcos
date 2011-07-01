@@ -366,7 +366,7 @@ def findColumn (table, colname):
         True if `colname` is in the table (without regard to case).
     """
 
-    if type (table) is str:
+    if isinstance (table, str):
         fd = pyfits.open (table, mode="readonly")
         fits_rec = fd[1].data
         fd.close()
@@ -468,7 +468,7 @@ def getTable (table, filter, extension=1,
         message = "Table has no matching row;\n" + \
                   "table name is " + table + "\n" + \
                   "row selection is " + repr (filter)
-        raise RuntimeError, message
+        raise RuntimeError (message)
 
     if exactly_one and nselect > 1:
         printWarning ("Table has more than one matching row;")
@@ -505,7 +505,7 @@ def getColCopy (filename="", column=None, extension=1, data=None):
     """
 
     if filename and data is not None:
-        raise RuntimeError, "Specify either filename or data, but not both."
+        raise RuntimeError ("Specify either filename or data, but not both.")
 
     if filename:
         fd = pyfits.open (filename, mode="readonly")
@@ -514,7 +514,7 @@ def getColCopy (filename="", column=None, extension=1, data=None):
     elif data is not None:
         temp = data.field (column)
     else:
-        raise RuntimeError, "Either filename or data must be specified."
+        raise RuntimeError ("Either filename or data must be specified.")
 
     x = np.empty (temp.shape, dtype=temp.dtype.type)
     x[...] = temp
@@ -861,13 +861,13 @@ def geometricDistortion (x, y, geofile, segment, igeocorr):
 
     if origin_x != y_hdu.header.get ("origin_x", 0) or \
        origin_y != y_hdu.header.get ("origin_y", 0):
-        raise RuntimeError, "Inconsistent ORIGIN_X or _Y keywords in GEOFILE"
+        raise RuntimeError ("Inconsistent ORIGIN_X or _Y keywords in GEOFILE")
 
     xbin = x_hdu.header.get ("xbin", 1)
     ybin = x_hdu.header.get ("ybin", 1)
     if xbin != y_hdu.header.get ("xbin", 1) or \
        ybin != y_hdu.header.get ("ybin", 1):
-        raise RuntimeError, "Inconsistent XBIN or YBIN keywords in GEOFILE"
+        raise RuntimeError ("Inconsistent XBIN or YBIN keywords in GEOFILE")
 
     interp_flag = (igeocorr == "PERFORM")
     ccos.geocorrection (x, y, x_hdu.data, y_hdu.data, interp_flag,
@@ -1083,8 +1083,9 @@ def updateDQArray (bpixtab, info, dq_array,
     #   the minimum shift will be subtracted from the upper limit.
     # It is explicitly assumed here that the slice is only in the cross-
     # dispersion direction.
-    keys = minmax_dict.keys()
-    keys.sort()
+    # keys = minmax_dict.keys()
+    # keys.sort()
+    keys = sorted (minmax_dict)
     for key in keys:
         (lower_y, upper_y) = key
         [min_shift1, max_shift1, min_shift2, max_shift2] = \
@@ -1656,13 +1657,13 @@ def getGeoData (geofile, segment):
 
     if origin_x != y_hdu.header.get ("origin_x", 0) or \
        origin_y != y_hdu.header.get ("origin_y", 0):
-        raise RuntimeError, "Inconsistent ORIGIN_X or _Y keywords in GEOFILE"
+        raise RuntimeError ("Inconsistent ORIGIN_X or _Y keywords in GEOFILE")
 
     xbin = x_hdu.header.get ("xbin", 1)
     ybin = x_hdu.header.get ("ybin", 1)
     if xbin != y_hdu.header.get ("xbin", 1) or \
        ybin != y_hdu.header.get ("ybin", 1):
-        raise RuntimeError, "Inconsistent XBIN or YBIN keywords in GEOFILE"
+        raise RuntimeError ("Inconsistent XBIN or YBIN keywords in GEOFILE")
 
     # "touch" the data before closing the file.  Is this necessary?
     x_data = x_hdu.data
@@ -2191,7 +2192,7 @@ def combineStat (stat_info):
             sum_n += n
             sci_max = max (sci_max, stat["sci_goodmax"])
             sci_sum += (n * stat["sci_goodmean"])
-            if stat.has_key ("err_goodmax"):
+            if "err_goodmax" in stat:
                 err_max = max (err_max, stat["err_goodmax"])
                 err_sum += (n * stat["err_goodmean"])
 
@@ -2511,7 +2512,7 @@ def printMsg (message, level=QUIET):
     """
 
     if verbosity >= level:
-        print message
+        print (message)
         sys.stdout.flush()
         if fd_trl is not None:
             fd_trl.write (message+"\n")
@@ -2942,7 +2943,7 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
 
         if min_ver != "ANY":
             vcalcos = phdr.get ("VCALCOS", "1.0")
-            if type (vcalcos) is not types.StringType:
+            if not isinstance (vcalcos, str):
                 vcalcos = str (vcalcos)
             compare = cmpVersion (min_ver, vcalcos, calcos_ver)
             if compare < 0:

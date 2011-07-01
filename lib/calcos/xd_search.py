@@ -1,12 +1,18 @@
 from __future__ import division         # confidence unknown
 import numpy as np
-from stsci.convolve import boxcar
+try:
+    from stsci.convolve import boxcar
+except ImportError:
+    from convolve import boxcar
 import cosutil
 from calcosparam import *       # parameter definitions
 import ccos
 
 MASK_X = 189            # width of region to mask for each geocoronal line
 SEARCH_Y = 91           # height of search region
+
+# for comparison between values of fwhm
+SIGNFICANTLY_LARGER = 2.        # pixels
 
 # Lyman alpha, oxygen I, oxygen I
 AIRGLOW_WAVELENGTHS = [1215.67, 1304., 1356.]
@@ -60,12 +66,14 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
 
     Returns
     -------
-    (offset2, y_locn, y_locn_sigma): tuple of three floats
+    (offset2, y_locn, y_locn_sigma, fwhm): tuple of four values
         `offset2` is the offset of the spectrum from `y_nominal` (positive
         if the spectrum was found at a larger Y pixel number).  `y_locn`
         is the Y pixel number at which the spectrum was found (at pixel
         `x_offset` from the left edge of `data`).  `y_locn_sigma` is the
-        error estimate for `y_locn`.
+        error estimate for `y_locn`.  `fwhm` is the full-width at half
+        maximum of the peak in the cross-dispersion profile; this can be
+        either a float or an int.
     """
 
     (e_j, zero_point) = extractBand (data, dq_data, wavelength,
@@ -74,7 +82,7 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
 
     box = 3
 
-    (y_locn, y_locn_sigma) = findPeak (e_j, box)
+    (y_locn, y_locn_sigma, fwhm) = findPeak (e_j, box)
 
     if y_locn is None:
         offset2 = 0.
@@ -85,7 +93,7 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
         y_locn += slope * float (x_offset)
         offset2 = y_locn - y_nominal
 
-    return (offset2, y_locn, y_locn_sigma)
+    return (offset2, y_locn, y_locn_sigma, fwhm)
 
 def extractBand (data, dq_data, wavelength, axis, slope, y_nominal,
                  x_offset, detector):
@@ -194,7 +202,7 @@ def findPixelNumber (wl, wavelength):
             break
         slope = (wl[i1] - wl[i0]) / (i1 - i0)
         if slope == 0.:
-            raise RuntimeError, "Bad wavelength array."
+            raise RuntimeError ("Bad wavelength array.")
         mid = (i1 + i0) // 2
         x = int (round ((wavelength - wl[mid]) / slope)) + mid
         dx = i1 - i0
@@ -236,8 +244,9 @@ def findPeak (e_j, box):
     -------
     tuple
         The location (float) in the cross-dispersion direction relative
-        to the first pixel in `e_j`, and an estimate of the uncertainty in
-        that location
+        to the first pixel in `e_j`, an estimate of the uncertainty in
+        that location, and the FWHM of the peak in the cross-dispersion
+        profile
     """
 
     e_j_sm = boxcar (e_j, (box,), mode="nearest")
@@ -259,4 +268,109 @@ def findPeak (e_j, box):
 
     (y_locn, y_locn_sigma) = cosutil.centerOfQuadratic (coeff, var)
 
-    return (y_locn, y_locn_sigma)
+    fwhm = findFwhm (e_j, y_locn)
+
+    return (y_locn, y_locn_sigma, fwhm)
+
+def findFwhm (e_j, y_locn):
+    """Find the FWHM of the cross-dispersion profile of the spectrum.
+
+    Two different approaches are used to find the FWHM.  The first method
+    is to count the number of elements in the cross-dispersion profile with
+    values above the half-maximum value; this value will be an integer.
+    The second method is to follow the profile to the half-maximum value on
+    either side of the maximum, using linear interpolation to get a better
+    estimate of where the profile cuts across the half-maximum level; this
+    value will be a float.  The value from the second method is expected to
+    be more accurate if the target was actually found and has good
+    signal-to-noise, so normally that value will be returned.  If the first
+    method gives a significantly larger value, however, that value will be
+    returned because it may indicate that the cross-dispersion profile is
+    just noise.
+
+    Parameters
+    ----------
+    e_j: array_like
+        1-D array of data collapsed along dispersion axis
+
+    y_locn: float
+        The location in the cross-dispersion direction, relative to the
+        first pixel in `e_j`.
+
+    Returns
+    -------
+    float or int
+        The full width half maximum of the peak in `e_j`.
+    """
+
+    nelem = len (e_j)
+    y_locn_nint = int (round (y_locn))
+    if y_locn_nint < 0 or y_locn_nint >= nelem:
+        return -1.
+
+    e_max = e_j[y_locn_nint]
+    if e_max <= 0:
+        return -1.
+
+    e_j_sorted = np.sort (e_j)
+
+    third = nelem // 3
+    background = e_j_sorted[0:third].mean()
+
+    find_this_level = (e_max - background) / 2. + background
+
+    # first estimate of FWHM
+    # Count all elements in the sorted array that are greater than the
+    # halfway level.  This will be large if the array is just noise
+    # (at least, that's the idea).
+    j = nelem - 1
+    while j >= 0:
+        if e_j_sorted[j] < find_this_level:
+            break
+        j -= 1
+    fwhm_1 = nelem - 1 - j      # this is an int
+
+    # second estimate of FWHM
+    # Find where the cross-dispersion profile crosses the halfway level
+    # on either side of the maximum.
+
+    j_low = 0                   # initial values
+    j_high = nelem - 1
+
+    # first the low side
+    j = y_locn_nint
+    while j >= 0:
+        if e_j[j] < find_this_level:
+            j_low = j
+            break
+        j -= 1
+
+    # Use linear interpolation to find where e_j would equal find_this_level.
+    denom = e_j[j_low+1] - e_j[j_low]
+    if denom == 0.:
+        low = float (j_low) + 0.5       # 0.5 is an estimate
+    else:
+        low = float (j_low) + (find_this_level - e_j[j_low]) / denom
+
+    # now the high side
+    j = y_locn_nint
+    while j < nelem:
+        if e_j[j] < find_this_level:
+            j_high = j
+            break
+        j += 1
+
+    denom = e_j[j_high] - e_j[j_high-1]
+    if denom == 0.:
+        high = float (j_high) - 0.5
+    else:
+        high = float (j_high-1) + (find_this_level - e_j[j_high-1]) / denom
+
+    fwhm_2 = high - low         # this is a float
+
+    if fwhm_1 > fwhm_2 + SIGNFICANTLY_LARGER:
+        fwhm = fwhm_1
+    else:
+        fwhm = fwhm_2
+
+    return fwhm

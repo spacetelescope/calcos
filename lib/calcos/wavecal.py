@@ -2,7 +2,10 @@ from __future__ import division         # confidence high
 import math
 import os
 import numpy as np
-from stsci.convolve import boxcar
+try:
+    from stsci.convolve import boxcar
+except ImportError:
+    from convolve import boxcar
 import pyfits
 from calcosparam import *
 import ccos
@@ -11,8 +14,8 @@ import findshift1
 import shiftfile
 
 # Each element of wavecal_info is a dictionary with the keys:
-# "time", "fpoffset", "shift_dict", "rootname", "filename".  The variable
-# name `wc_dict` is used for one element of `wavecal_info`.
+# "time", "cenwave", "fpoffset", "shift_dict", "rootname", "filename".
+# The variable name `wc_dict` is used for one element of `wavecal_info`.
 
 def findWavecalShift (input, shift_file, info, wcp_info):
     """Find the shift from a wavecal image.
@@ -202,7 +205,7 @@ def findWavecalShift (input, shift_file, info, wcp_info):
 
     return shift_dict
 
-def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
+def storeWavecalInfo (wavecal_info, time, cenwave, fpoffset, shift_dict,
                       rootname, filename):
     """Append the current info to the wavecal_info list.
 
@@ -234,6 +237,9 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
     time: float
         Time of observation, MJD at middle of exposure
 
+    cenwave: int
+        Central wavelength, used to select entries from `wavecal_info`
+
     fpoffset: int
         OSM position, used to select entries from `wavecal_info`
 
@@ -250,6 +256,7 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
 
     wc_dict = {}
     wc_dict["time"]       = time
+    wc_dict["cenwave"]    = cenwave
     wc_dict["fpoffset"]   = fpoffset
     wc_dict["shift_dict"] = shift_dict
     wc_dict["rootname"]   = rootname
@@ -257,42 +264,37 @@ def storeWavecalInfo (wavecal_info, time, fpoffset, shift_dict,
 
     wavecal_info.append (wc_dict)
     if len (wavecal_info) > 1:
-        wavecal_info.sort (cmpTime)
+        wavecal_info.sort (key=keyTime)
 
-def cmpTime (wc_dict_a, wc_dict_b):
-    """Compare the times in two wavecal_info entries.
+def keyTime (wc_dict):
+    """Return the time in a wavecal_info entry.
 
     Parameters
     ----------
-    wc_dict_a: dictionary
-        One wavecal information dictionary (one element of wavecal_info)
-
-    wc_dict_b: dictionary
-        Another wavecal information dictionary
+    wc_dict: dictionary
+        A wavecal information dictionary (one element of wavecal_info)
 
     Returns
     -------
-    int
-         0 if the times are the same,
-        -1 if the time in wc_dict_a is smaller than the time in wc_dict_b,
-        +1 if the time in wc_dict_a is larger than the time in wc_dict_b
+    float
+        The element of `wc_dict` with key "time"
     """
 
-    return cmp (wc_dict_a["time"], wc_dict_b["time"])
+    return wc_dict["time"]
 
-def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
-    """Return the shift dictionary from wavecal_info that matches fpoffset.
+def returnWavecalShift (wavecal_info, wcp_info, cenwave, fpoffset, time):
+    """Return the matching shift dictionary from wavecal_info.
 
-    The element of wavecal_info that matches fpoffset will be extracted.
-    If there are multiple entries that match fpoffset, we'll find the two
-    that are closest to the time of the observation and linearly
+    The element of wavecal_info that matches cenwave and fpoffset will be
+    extracted.  If there are multiple entries that match, we'll find the
+    two that are closest to the time of the observation and linearly
     interpolate the shifts at that time.
 
-    If there is no entry in wavecal_info for the current fpoffset, we'll
-    find the entry that is closest in time to the time of the observation.
-    If the difference in time for that entry is not too large (based on
-    info from the wavecal parameters table), we'll use that entry and
-    correct for the difference in OSM position.
+    If there is no entry in wavecal_info for the current cenwave and
+    fpoffset, we'll find the entry that is closest in time to the time of
+    the observation.  If the difference in time for that entry is not too
+    large (based on info from the wavecal parameters table), we'll use that
+    entry and correct for the difference in OSM position.
 
     None will be returned if wavecal_info is empty.
 
@@ -303,6 +305,9 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
 
     wcp_info: pyfits record object
         Data (one row) from the wavecal parameters table
+
+    cenwave: int
+        Central wavelength, used to select entries from `wavecal_info`
 
     fpoffset: int
         OSM position, used to select entries from `wavecal_info`
@@ -327,8 +332,8 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
 
     slope_dict = {}             # initial value
 
-    # Extract those elements of wavecal_info that match fpoffset.
-    subset_wavecal_info = selectWavecalInfo (wavecal_info, fpoffset)
+    # Extract those elements of wavecal_info that match cenwave and fpoffset.
+    subset_wavecal_info = selectWavecalInfo (wavecal_info, cenwave, fpoffset)
 
     if len (subset_wavecal_info) == 1:
         shift_dict = subset_wavecal_info[0]["shift_dict"]
@@ -340,7 +345,7 @@ def returnWavecalShift (wavecal_info, wcp_info, fpoffset, time):
         # No matching row; find nearest in time.
         wc_dict = minTimeWavecalInfo (wavecal_info, time,
                          wcp_info.field ("max_time_diff"))
-        if wc_dict is None:
+        if wc_dict is None or cenwave != wc_dict["cenwave"]:
             cosutil.printWarning (
                     "No matching wavecal info; zero shift assumed.")
             shift_dict = None
@@ -395,15 +400,18 @@ def returnExactMatch (wavecal_info, rootname):
             return wc_dict["shift_dict"]
 
     # We shouldn't get here.
-    raise RuntimeError, "There should have been a matching element."
+    raise RuntimeError ("There should have been a matching element.")
 
-def selectWavecalInfo (wavecal_info, fpoffset):
-    """Return a list of all elements of wavecal_info that match fpoffset.
+def selectWavecalInfo (wavecal_info, cenwave, fpoffset):
+    """Return a list of all matching elements of wavecal_info.
 
     Parameters
     ----------
     wavecal_info: list of dictionaries
         List of wavecal information dictionaries
+
+    cenwave: int
+        Central wavelength, used to select entries from `wavecal_info`
 
     fpoffset: int
         Used to find one or more elements of `wavecal_info`
@@ -411,13 +419,14 @@ def selectWavecalInfo (wavecal_info, fpoffset):
     Returns
     -------
     list
-        List of dictionaries in `wavecal_info` that match `fpoffset`
+        List of dictionaries in `wavecal_info` that match `cenwave` and
+        `fpoffset`
     """
 
     subset_wavecal_info = []
 
     for wc_dict in wavecal_info:
-        if wc_dict["fpoffset"] == fpoffset:
+        if wc_dict["cenwave"] == cenwave and wc_dict["fpoffset"] == fpoffset:
             subset_wavecal_info.append (wc_dict)
 
     return subset_wavecal_info
@@ -527,7 +536,7 @@ def interpolateWavecal (wavecal_info, time):
                 # for each segment or stripe ...
                 for key in shift_dict0.keys():
                     shift0 = shift_dict0[key]
-                    if shift_dict1.has_key (key):
+                    if key in shift_dict1:
                         shift1 = shift_dict1[key]
                         p = (time - t0) / (t1 - t0)
                         q = 1. - p
@@ -598,8 +607,9 @@ def findWavecalSpectrum (corrtag, info, reffiles):
     fd.close()
 
     cosutil.printMsg ("Shift (location) in cross-dispersion direction:")
-    keys = xd_shifts.keys()
-    keys.sort()
+    # keys = xd_shifts.keys()
+    # keys.sort()
+    keys = sorted (xd_shifts)
     for key in keys:
         if xd_shifts[key] is None:
             cosutil.printMsg ("%4s    ---- (%5.1f)  # not found in XD" \
