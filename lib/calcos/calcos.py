@@ -1071,10 +1071,11 @@ class Association (object):
         return (i_timetag, i_accum)
 
     def compareConfig (self):
-        """Compare detector and opt_elem.
+        """Compare detector, opt_elem, and cenwave.
 
         All the files in an association must have been taken with the same
-        detector and grating (or mirror).
+        detector and grating (or mirror).  For spectroscopic observations,
+        the central wavelength must also be the same.
         """
 
         if len (self.obs) < 2:
@@ -1085,13 +1086,18 @@ class Association (object):
         refinfo = self.obs[0].info
         detector = refinfo["detector"]
         opt_elem = refinfo["opt_elem"]
+        cenwave = refinfo["cenwave"]            # 0 for imaging type
 
         for obs in self.obs:
             if obs.info["detector"] != detector or \
-               obs.info["opt_elem"] != opt_elem:
+               obs.info["opt_elem"] != opt_elem or \
+               obs.info["cenwave"] != cenwave:
                 cosutil.printError (obs.filenames["raw"])
-                errmess = "All files must be for the same detector" \
-                          " and opt_elem."
+                errmess = "All files must be for the same detector"
+                if obs.info["obstype"] == "SPECTROSCOPIC":
+                    errmess += ", opt_elem and cenwave."
+                else:
+                    errmess += " and opt_elem."
                 raise RuntimeError (errmess)
 
     def resetSwitches (self):
@@ -2011,29 +2017,6 @@ class Observation (object):
             bad = 1
             cosutil.printError ("OBSMODE = `%s'; should be TIME-TAG or ACCUM" \
                          % info["obsmode"])
-
-        # check OPT_ELEM
-        if info["obstype"] == "SPECTROSCOPIC":
-            opt_elem = info["opt_elem"]
-            if info["detector"] == "FUV" and (opt_elem != "G130M" and \
-                    opt_elem != "G160M" and opt_elem != "G140L" and \
-                    opt_elem != "NCM1"):
-                bad = 1
-                cosutil.printError ("OPT_ELEM = `%s' is invalid for FUV" \
-                         % info["opt_elem"])
-            elif info["detector"] == "NUV" and \
-                   (opt_elem != "G185M" and opt_elem != "G225M" and \
-                    opt_elem != "G285M" and opt_elem != "G230L"):
-                bad = 1
-                cosutil.printError ("OPT_ELEM = `%s' is invalid for NUV" \
-                         % info["opt_elem"])
-
-        # check APERTURE
-        if info["aperture"] != "PSA" and info["aperture"] != "BOA" and \
-           info["aperture"] != "WCA" and info["aperture"] != "FCA":
-            bad = 1
-            cosutil.printError ("APERTURE = `%s' is not valid" \
-                    % info["aperture"])
 
         if warn or bad:
             cosutil.printContinuation ("for %s" % self.input)
