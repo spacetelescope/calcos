@@ -49,7 +49,7 @@ class Dispersion (object):
             self.filter["fpoffset"] = self.fpoffset
 
         if not cosutil.findColumn (disptab, "fpoffset"):
-            if self.filter.has_key ("fpoffset"):
+            if "fpoffset" in self.filter:
                 del (self.filter["fpoffset"])
 
         disp_info = cosutil.getTable (disptab, self.filter)

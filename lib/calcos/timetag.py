@@ -165,7 +165,7 @@ def timetagBasicCalibration (input, inpha, outtag,
             saveNewGTI (ofd, gti)
 
     if info["detector"] == "FUV":       # update keyword EXPTIMEA or EXPTIMEB
-        key = cosutil.exptimeKeyword (info["segment"])
+        key = cosutil.segmentSpecificKeyword ("exptime", info["segment"])
         headers[1].update (key, info["exptime"])
 
     doRandcorr (events, info, switches, reffiles, phdr)
@@ -377,34 +377,34 @@ def mkHeaders (phdr, events_header, extver=1):
     dq_hdr.update ("extname", "DQ", comment="extension name")
     err_hdr.update ("extver", extver, comment="extension version number")
     dq_hdr.update ("extver", extver, comment="extension version number")
-    if events_header.has_key ("rootname"):
+    if "rootname" in events_header:
         rootname = events_header["rootname"]
         err_hdr.update ("rootname", rootname,
                         comment="rootname of the observation set")
         dq_hdr.update ("rootname", rootname,
                        comment="rootname of the observation set")
-    if events_header.has_key ("expname"):
+    if "expname" in events_header:
         expname = events_header["expname"]
         err_hdr.update ("expname", expname, comment="exposure identifier")
         dq_hdr.update ("expname", expname, comment="exposure identifier")
-    if events_header.has_key ("ra_aper"):
+    if "ra_aper" in events_header:
         err_hdr.update ("ra_aper", events_header["ra_aper"],
                         comment="RA of reference aperture center")
-    if events_header.has_key ("dec_aper"):
+    if "dec_aper" in events_header:
         err_hdr.update ("dec_aper", events_header["dec_aper"],
                         comment="Declination of reference aperture center")
-    if events_header.has_key ("pa_aper"):
+    if "pa_aper" in events_header:
         err_hdr.update ("pa_aper", events_header["pa_aper"],
                     comment="Position Angle of reference aperture center (de")
-    if events_header.has_key ("dispaxis"):
+    if "dispaxis" in events_header:
         err_hdr.update ("dispaxis", events_header["dispaxis"],
                         comment="dispersion axis; 1 = axis 1, 2 = axis 2, none")
-    if events_header.has_key ("ngoodpix"):
+    if "ngoodpix" in events_header:
         err_hdr.update ("ngoodpix", -999, comment="number of good pixels")
-    if events_header.has_key ("goodmean"):
+    if "goodmean" in events_header:
         err_hdr.update ("goodmean", -999.,
                         comment="mean value of good pixels")
-    if events_header.has_key ("goodmax"):
+    if "goodmax" in events_header:
         err_hdr.update ("goodmax", -999.,
                         comment="maximum value of good pixels")
 
@@ -957,7 +957,7 @@ def filterPHA (xcorr, ycorr, pha, dq, phafile, info, hdr):
     segment = info["segment"]
 
     # get im_low, im_high from phafile
-    fd = pyfits.open (phafile, mode="readonly", memmap=0)
+    fd = pyfits.open (phafile, mode="copyonwrite")
     hdu_low = fd[(segment,1)]           # hdu with data for lower limits
     hdu_high = fd[(segment,2)]          # hdu with data for upper limits
     im_low = hdu_low.data
@@ -1126,7 +1126,7 @@ def checkPulseHeight (inpha, phatab, info, hdr):
     max_peak = pha_info.field ("max_peak")[0]
 
     # Read the pulse-height histogram.
-    fd = pyfits.open (inpha, mode="readonly")
+    fd = pyfits.open (inpha, mode="readonly", memmap=False)
     pha_data = fd[1].data
 
     npts = len (pha_data)
@@ -1368,7 +1368,7 @@ def computeThermalParam (time, x, y, dq,
 
     # Find stims and compute parameters every dt_thermal seconds.
     if obsmode == "TIME-TAG":
-        fd_brf = pyfits.open (brftab, mode="readonly")
+        fd_brf = pyfits.open (brftab, mode="readonly", memmap=False)
         dt_thermal = fd_brf[1].header["timestep"]
         fd_brf.close()
         cosutil.printMsg (
@@ -1835,7 +1835,7 @@ def thermalDistortion (x, y, stim_param):
 
     actually_done = False
 
-    if stim_param.has_key ("i0"):
+    if "i0" in stim_param:
         i0 = stim_param["i0"]
         i1 = stim_param["i1"]
     else:
@@ -2099,23 +2099,23 @@ def doDqicorr (events, input, info, switches, reffiles,
     if switches["dqicorr"] == "PERFORM" or switches["dqicorr"] == "COMPLETE":
 
         cosutil.printRef ("BPIXTAB", reffiles)
-        bpixtab = reffiles["bpixtab"]
+        if "gsagtab" in reffiles and reffiles["gsagtab"] != NOT_APPLICABLE:
+            cosutil.printRef ("GSAGTAB", reffiles)
 
         # Update the dq column in the events list with the bpixtab regions.
-        dq_info = cosutil.getTable (bpixtab,
-                                    filter={"segment": info["segment"]})
-        if dq_info is not None:
+        (lx, ly, dx, dy, dq, extn, message) = \
+                cosutil.getDQArrays (info, reffiles)
+        if message:
+            cosutil.printWarning (message)
+        if len (lx) > 0:
             pharange = cosutil.getPulseHeightRange (hdr, info["segment"])
             # xxx temporary; eventually select rows based on pharange
+            bpixtab = reffiles["bpixtab"]
             ref_pharange = cosutil.tempPulseHeightRange (bpixtab)
-            cosutil.comparePulseHeightRanges (pharange, ref_pharange,
-                                              bpixtab)
-            ccos.applydq (dq_info.field ("lx"), dq_info.field ("ly"),
-                          dq_info.field ("dx"), dq_info.field ("dy"),
-                          dq_info.field ("dq"),
+            cosutil.comparePulseHeightRanges (pharange, ref_pharange, bpixtab)
+            ccos.applydq (lx, ly, dx, dy, dq,
                           events.field (xcorr), events.field (ycorr),
                           events.field ("dq"))
-            del dq_info
 
         # Copy values from the bpixtab to the dq_array, applying offsets
         # depending on the wavecal shift and the Doppler shift.
@@ -2127,7 +2127,7 @@ def doDqicorr (events, input, info, switches, reffiles,
             doppler_boundary = psaWcaBoundary (info, reffiles["xtractab"])
         else:
             doppler_boundary = -10
-        cosutil.updateDQArray (bpixtab, info, dq_array,
+        cosutil.updateDQArray (info, reffiles, dq_array,
                                minmax_shift_dict,
                                minmax_doppler, doppler_boundary)
 
@@ -2144,6 +2144,16 @@ def doDqicorr (events, input, info, switches, reffiles,
                         minmax_shift_dict, minmax_doppler)
 
         phdr["dqicorr"] = "COMPLETE"
+        if extn is not None:
+            if "gsagtab" in phdr:
+                # replace the comment, to give the extension number
+                segment = info["segment"]
+                gsagtab = phdr.get ("gsagtab", "missing")
+                if extn > 0:
+                    comment = "ext. %d for %s" % (extn, segment)
+                else:
+                    comment = "no ext. for %s" % segment
+                phdr.update ("gsagtab", gsagtab, comment=comment)
 
     return dq_array
 
@@ -2648,7 +2658,7 @@ def doFlatcorr (events, info, switches, reffiles, phdr, hdr):
 
         cosutil.printRef ("FLATFILE", reffiles)
 
-        fd = pyfits.open (reffiles["flatfile"], mode="readonly")
+        fd = pyfits.open (reffiles["flatfile"], mode="copyonwrite")
 
         if info["detector"] == "NUV":
             hdu = fd[1]
@@ -2954,7 +2964,7 @@ def deadtimeCorrection (events, deadtab, info,
             fd.write ("# t0 t1 countrate livetime\n")
 
         # Use counts over dt_deadtime seconds to compute livetime.
-        fd_dead = pyfits.open (deadtab, mode="readonly")
+        fd_dead = pyfits.open (deadtab, mode="readonly", memmap=False)
         dt_deadtime = fd_dead[1].header["timestep"]
         fd_dead.close()
         cosutil.printMsg ("Compute livetime factor; timestep is %.6g s:" \
@@ -3455,11 +3465,11 @@ def makeImageHDU (fd, table_hdr, data_array, name="SCI"):
         imhdr.update ("BUNIT", "count /s")
 
     if data_array is not None:
-        if imhdr.has_key ("npix1"):
+        if "npix1" in imhdr:
             del (imhdr["npix1"])
-        if imhdr.has_key ("npix2"):
+        if "npix2" in imhdr:
             del (imhdr["npix2"])
-        if imhdr.has_key ("pixvalue"):
+        if "pixvalue" in imhdr:
             del (imhdr["pixvalue"])
 
     hdu = pyfits.ImageHDU (data=data_array, header=imhdr, name=name)
@@ -3818,7 +3828,7 @@ def updateFromWavecal (events, wavecal_info,
     for segment in segment_list:
 
         key = "shift1" + segment[-1].lower()
-        if not (shift_dict.has_key (key) and slope_dict.has_key (key)):
+        if not (key in shift_dict and key in slope_dict):
             cosutil.printError ("There is no wavecal for segment %s." % segment)
             return (tl_time, None)
         shift1_zero = shift_dict[key]

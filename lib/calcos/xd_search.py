@@ -256,19 +256,34 @@ def findPeak (e_j, box):
 
     nelem = len (e_j)
 
-    # fit a quadratic to five points centered on ymax
-    NPTS = 5
+    # This may be done again later, after we have found the location more
+    # accurately.
+    fwhm = findFwhm (e_j, ymax)
+
+    # fit a quadratic to at least five points centered on ymax
+    MIN_NPTS = 5
+    npts = int (round (fwhm))
+    npts = max (npts, MIN_NPTS)
+    if npts // 2 * 2 == npts:
+        npts += 1
     x = np.arange (nelem, dtype=np.float64)
-    j1 = ymax - NPTS // 2
+    j1 = ymax - npts // 2
     j1 = max (j1, 0)
-    j2 = j1 + NPTS
-    j2 = min (j2, nelem)
-    j1 = j2 - NPTS
+    j2 = j1 + npts
+    if j2 > nelem:
+        j2 = nelem
+        j1 = j2 - npts
+        j1 = max (j1, 0)
     (coeff, var) = cosutil.fitQuadratic (x[j1:j2], e_j_sm[j1:j2])
 
     (y_locn, y_locn_sigma) = cosutil.centerOfQuadratic (coeff, var)
+    if y_locn is None:
+        y_locn = ymax
+        y_locn_sigma = 999.
 
-    fwhm = findFwhm (e_j, y_locn)
+    # Find the FWHM again if the location is far from the brightest pixel.
+    if abs (y_locn - ymax) > fwhm / 4.:
+        fwhm = findFwhm (e_j, y_locn)
 
     return (y_locn, y_locn_sigma, fwhm)
 

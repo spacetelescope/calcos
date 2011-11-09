@@ -223,7 +223,7 @@ class Shift1 (object):
     def getShift1 (self, key):
         """Return the shift in the dispersion direction."""
 
-        if self.shift1_dict.has_key (key):
+        if key in self.shift1_dict:
             return self.shift1_dict[key] + self.fp_pixel_shift[key]
         else:
             return 0.
@@ -263,7 +263,7 @@ class Shift1 (object):
     def getUserSpecified (self, key):
         """Return True if shift1 was specified by the user."""
 
-        if self.user_specified_dict.has_key (key):
+        if key in self.user_specified_dict:
             return self.user_specified_dict[key]
         else:
             return False
@@ -271,7 +271,7 @@ class Shift1 (object):
     def getOrigShift1 (self, key):
         """Return the shift1 value even if it was poorly found."""
 
-        if self.shift1_dict.has_key (key):
+        if key in self.shift1_dict:
             return self.orig_shift1_dict[key] + self.fp_pixel_shift[key]
         else:
             return 0.
@@ -279,7 +279,7 @@ class Shift1 (object):
     def getMeasuredShift1 (self, key):
         """Return the shift1 value that was directly measured."""
 
-        if self.shift1_dict.has_key (key):
+        if key in self.shift1_dict:
             return self.orig_shift1_dict[key]
         else:
             return 0.
@@ -287,7 +287,7 @@ class Shift1 (object):
     def getFpPixelShift (self, key):
         """Return the fp_pixel_shift value."""
 
-        if self.shift1_dict.has_key (key):
+        if key in self.shift1_dict:
             return self.fp_pixel_shift[key]
         else:
             return 0.
@@ -295,7 +295,7 @@ class Shift1 (object):
     def getSpecFound (self, key):
         """Return a flag indicating whether the spectrum was found."""
 
-        if self.spec_found.has_key (key):
+        if key in self.spec_found:
             return self.spec_found[key]
         else:
             return False
@@ -303,7 +303,7 @@ class Shift1 (object):
     def getScatter (self, key):
         """Return an estimate of the uncertainty in shift1."""
 
-        if self.scatter_dict.has_key (key):
+        if key in self.scatter_dict:
             return self.scatter_dict[key]
         else:
             return 0.
@@ -311,7 +311,7 @@ class Shift1 (object):
     def getChiSq (self, key):
         """Return Chi square for the spectrum vs template."""
 
-        if self.chisq_dict.has_key (key):
+        if key in self.chisq_dict:
             return self.chisq_dict[key]
         else:
             return -1.
@@ -319,7 +319,7 @@ class Shift1 (object):
     def getNdf (self, key):
         """Return the number of number of degrees of freedom for Chi square."""
 
-        if self.ndf_dict.has_key (key):
+        if key in self.ndf_dict:
             return self.ndf_dict[key]
         else:
             return 0
@@ -327,7 +327,7 @@ class Shift1 (object):
     def getSpec (self, key):
         """Return the extracted spectrum for testing."""
 
-        if self.spec_dict.has_key (key):
+        if key in self.spec_dict:
             return self.spec_dict[key]
         else:
             return np.zeros (1, dtype=np.float32)
@@ -335,7 +335,7 @@ class Shift1 (object):
     def getTmpl (self, key):
         """Return the template spectrum for testing."""
 
-        if self.tmpl_dict.has_key (key):
+        if key in self.tmpl_dict:
             return self.tmpl_dict[key]
         else:
             return np.zeros (1, dtype=np.float32)
@@ -483,7 +483,7 @@ class Shift1 (object):
             self.current_key = key
             # Skip spectra for which spec_found is already set to False,
             # because they probably have negligible counts.
-            if self.templates.has_key (key) and self.spec_found[key]:
+            if key in self.templates and self.spec_found[key]:
                 sum_spectra += self.spectra[key]
                 sum_templates += self.templates[key]
                 nsum += 1

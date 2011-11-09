@@ -174,6 +174,7 @@ def createTimeline (input, fd, info, reffiles,
     orb = orbit.HSTOrbit (sptfile)
 
     sun_alt_col = tl_data.field ("sun_alt")
+    sun_zd_col = tl_data.field ("sun_zd")
     long_col = tl_data.field ("longitude")
     lat_col = tl_data.field ("latitude")
 
@@ -199,6 +200,7 @@ def createTimeline (input, fd, info, reffiles,
         lat_col[i] = lat_hst / DEGtoRAD
         rect_sun = eqSun (mjd)                  # equatorial coords of the Sun
         sun_alt_col[i] = computeAlt (rect_sun, rect_hst, parallax=True)
+        sun_zd_col[i] = computeZD (rect_sun, rect_hst)
         if external_target:
             rv_col[i] = -dotProduct (rect_targ, vel_hst)
             target_alt_col[i] = computeAlt (rect_targ, rect_hst,
@@ -343,6 +345,8 @@ def timelineHDU (nrows_timeline, hdr):
                                unit="degree", disp="F10.6"))
     col.append (pyfits.Column (name="SUN_ALT", format="1E",
                                unit="degree", disp="F6.2"))
+    col.append (pyfits.Column (name="SUN_ZD", format="1E",
+                               unit="degree", disp="F6.2"))
     col.append (pyfits.Column (name="TARGET_ALT", format="1E",
                                unit="degree", disp="F6.2"))
     col.append (pyfits.Column (name="RADIAL_VEL", format="1E",
@@ -416,6 +420,40 @@ def computeAlt (rect, rect_hst, parallax=False):
     altitude = math.pi / 2 + horizon_corr - zenith_dist
 
     return altitude / DEGtoRAD
+
+def computeZD (rect_sun, rect_hst):
+    """Compute the zenith distance (ignoring parallax) of the Sun.
+
+    Parameters
+    ----------
+    rect_sun: array like
+        Rectangular, geocentric coordinates of an object, in particular,
+        the Sun.  The units are arbitrary because the vector will be
+        normalized to 1.
+
+    rect_hst: array like
+        Rectangular, geocentric coordinates of HST.  The units are
+        arbitrary because the vector will be normalized to 1.
+
+    Returns
+    -------
+    float
+        The angle between HST and the Sun, as seen from the center of
+        the Earth, in degrees.
+    """
+
+    rsun = math.sqrt (dotProduct (rect_sun, rect_sun))
+    usun = rect_sun / rsun
+
+    rhst = math.sqrt (dotProduct (rect_hst, rect_hst))
+    uhst = rect_hst / rhst
+
+    # `zenith_dist` is not quite the zenith distance, because parallax
+    # is not accounted for.
+    cz = dotProduct (uhst, usun)
+    zenith_dist = math.acos (cz)
+
+    return zenith_dist / DEGtoRAD
 
 def findPixelRegion (info, disptab, xtractab, median_shift1, wl_airglow):
     """Find the pixel region corresponding to an airglow line (or dark).

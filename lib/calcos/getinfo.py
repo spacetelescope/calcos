@@ -25,19 +25,19 @@ def initialInfo (filename):
 
     info = {}
 
-    if phdr.has_key ("DETECTOR"):
+    if "DETECTOR" in phdr:
         detector = phdr["DETECTOR"]
     else:
         raise RuntimeError ("File " + filename +
                             " does not have DETECTOR keyword.")
 
-    if phdr.has_key ("OBSMODE"):
+    if "OBSMODE" in phdr:
         obsmode = phdr["OBSMODE"]
     else:
         raise RuntimeError ("File " + filename +
                             " does not have OBSMODE keyword.")
 
-    if phdr.has_key ("EXPTYPE"):
+    if "EXPTYPE" in phdr:
         exptype = phdr["EXPTYPE"]
     else:
         raise RuntimeError ("File " + filename +
@@ -197,9 +197,13 @@ def getGeneralInfo (phdr, hdr):
         info[key] = hdr.get (key, default=keylist[key])
 
     # For FUV, the keyword for exposure time depends on segment.
-    exptime_key = cosutil.exptimeKeyword (info["segment"])
+    exptime_key = cosutil.segmentSpecificKeyword ("exptime", info["segment"])
     exptime_default = hdr.get ("exptime", default=0.)
     info["exptime"] = hdr.get (exptime_key, default=exptime_default)
+
+    # FUV detector high voltage level
+    dethvl_key = cosutil.segmentSpecificKeyword ("dethvl", info["segment"])
+    info["dethvl"] = hdr.get (dethvl_key, default=NOT_APPLICABLE)
 
     # Copy exptime to orig_exptime, so we can modify exptime but save the
     # original value.  NOTE:  for TIME-TAG data this value will be replaced
@@ -288,7 +292,7 @@ def getRefFileNames (phdr):
     reffiles = {}
 
     for key in ["flatfile", "bpixtab", "brftab", "geofile",
-                "walktab",
+                "walktab", "gsagtab",
                 "deadtab", "phafile", "phatab",
                 "brsttab", "badttab",
                 "xtractab", "lamptab", "disptab",

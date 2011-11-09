@@ -577,8 +577,7 @@ def findWavecalSpectrum (corrtag, info, reffiles):
         indicates whether the lamp was actually on.
     """
 
-    fd = pyfits.open (corrtag, mode="readonly", memmap=0)
-    # fd = pyfits.open (corrtag, mode="readonly", memmap=1)
+    fd = pyfits.open (corrtag, mode="copyonwrite")
     phdr = fd[0].header
     sci_extn = fd["EVENTS"]
     if sci_extn.data is None:

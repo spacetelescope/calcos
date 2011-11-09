@@ -115,7 +115,7 @@ def accumBasicCalibration (input, inpha, outtag,
         # Open the accum image.
         # The number of rows in the pseudo time-tag table will be equal to
         # the total number of counts in the input image.
-        fd = pyfits.open (input, mode="readonly")
+        fd = pyfits.open (input, mode="copyonwrite")
         sci = fd[("SCI",1)].data
         fd.close()
         nrows = getNcounts (sci)
@@ -168,7 +168,7 @@ def acqImage (input, outflt, outcounts, outcsum, cl_args,
 
     livetimefile = cl_args["livetimefile"]
 
-    fd = pyfits.open (input, mode="readonly")
+    fd = pyfits.open (input, mode="copyonwrite")
     nextend = len (fd) - 1
     nimsets = len (fd) // 3
     phdr = fd[0].header
@@ -306,7 +306,7 @@ def doDqicorr (info, switches, reffiles, phdr, dq_array):
         minmax_shift_dict = {(0, 1024): [0., 0., 0., 0.]}
         minmax_doppler = (0., 0.)
         doppler_boundary = -10          # anywhere below 0
-        cosutil.updateDQArray (reffiles["bpixtab"], info, dq_array,
+        cosutil.updateDQArray (info, reffiles, dq_array,
                                minmax_shift_dict,
                                minmax_doppler, doppler_boundary)
 
@@ -460,7 +460,7 @@ def doFlatcorr (flt_sci, switches, reffiles, phdr):
 
         cosutil.printRef ("FLATFILE", reffiles)
 
-        fd = pyfits.open (reffiles["flatfile"], mode="readonly")
+        fd = pyfits.open (reffiles["flatfile"], mode="copyonwrite")
         hdu = fd[1]
         flat = hdu.data
         fd.close()

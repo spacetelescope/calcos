@@ -37,7 +37,7 @@ def main (args):
 
     try:
         (options, pargs) = getopt.getopt (args, "qvuo:",
-                                          ["find", "location=", "extrsize="])
+                                          ["find=", "location=", "extrsize="])
     except Exception, error:
         print str (error)
         prtOptions()
@@ -52,7 +52,7 @@ def main (args):
 
     outdir = None               # output directory name
     update_input = False        # update keywords in corrtag files?
-    find_target = False
+    find_target = {"flag": False, "cutoff": None}
     location = None
     extrsize = None
     for i in range (len (options)):
@@ -68,7 +68,23 @@ def main (args):
             outdir = options[i][1]
 
         elif options[i][0] == "--find":
-            find_target = True
+            temp = options[i][1].lower()
+            if temp == "yes" or temp == "true":
+                find_target["flag"] = True
+            elif temp == "no" or temp == "false":
+                find_target["flag"] = False
+            else:
+                try:
+                    cutoff = float (temp)
+                except ValueError:
+                    prtOptions()
+                    raise RuntimeError ("Don't understand '--find %s'" %
+                                        options[i][1])
+                if cutoff < 0.:
+                    prtOptions()
+                    raise RuntimeError ("Cutoff for --find cannot be negative.")
+                find_target["flag"] = True
+                find_target["cutoff"] = cutoff
 
         elif options[i][0] == "--location":
             values = options[i][1].split()
@@ -92,7 +108,8 @@ def main (args):
                  location, extrsize, find_target)
 
 def extractSpec (inlist=[], outdir=None, update_input=False,
-                 location=None, extrsize=None, find_target=False,
+                 location=None, extrsize=None,
+                 find_target={"flag": False, "cutoff": None},
                  verbosity=None):
     """Extract a 1-D spectrum from each set of flt and counts images.
 
@@ -127,18 +144,21 @@ def extractSpec (inlist=[], outdir=None, update_input=False,
         spectrum crosses the middle of the detector (index 8192 for FUV,
         512 for NUV).  None means the user did not specify the location.
         If `location` was specified, that value will be used, regardless
-        of the `find_target` switch.
+        of the flag in `find_target`.
 
     extrsize: int, or list of int, or None
         The height of the extraction box (or list of three heights for NUV)
         in the cross-dispersion direction.  None means the user did not
         specify the extraction height.
 
-    find_target: boolean
-        True means that we should search for the location of the target
-        in the cross-dispersion direction; False means we should use the
-        location determined from the wavecal or specified by the user.
-        `find_target` will be locally set to False if location is not None.
+    find_target: dictionary
+        Keys are "flag" and "cutoff".  If flag is True, this means that we
+        should use the location of the target in the cross-dispersion
+        direction if the standard deviation (pixels) of the location is
+        no larger than cutoff (if cutoff is positive).  flag = False means
+        we should use the location determined from the wavecal or as
+        specified by the user.  find_target["flag"] will be turned off if
+        `location` is not None.
 
     verbosity: int {0, 1, 2} or None
         If not None, set verbosity to this level.
@@ -393,13 +413,13 @@ def makeFltCounts (cal_ver, corrtag, flt, counts):
         True if the current exposure is a wavecal, based on EXPTYPE
     """
 
-    fd = pyfits.open (corrtag, mode="readonly")
+    fd = pyfits.open (corrtag, mode="copyonwrite")
     phdr = fd[0].header
     phdr.update ("cal_ver", cal_ver)
 
     detector = phdr.get ("detector")
     headers = timetag.mkHeaders (phdr, fd[1].header)
-    exptime_key = cosutil.exptimeKeyword (phdr["segment"])
+    exptime_key = cosutil.segmentSpecificKeyword ("exptime", phdr["segment"])
     exptime_default = headers[1].get ("exptime", default=-1.)
     exptime = headers[1].get (exptime_key, default=exptime_default)
 
@@ -505,7 +525,7 @@ def copyKeywords (x1d, file_list):
         keywords should be updated
     """
 
-    fd1 = pyfits.open (x1d, mode="readonly")
+    fd1 = pyfits.open (x1d, mode="readonly", memmap=False)
 
     if fd1[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
@@ -542,15 +562,18 @@ def copyKeywords (x1d, file_list):
 def prtOptions():
     """Print a list of command-line options and arguments."""
 
-    print "The command-line arguments and options are:"
-    print "  -q (quiet)"
-    print "  -v (very verbose)"
-    print "  -u (update keywords in input corrtag files)"
-    print "  -o outdir (output directory name)"
-    print "  --find (find Y location of spectrum)"
-    print "  --location Y location(s) at which to extract spectra"
-    print "  --extrsize height(s) of extraction region(s)"
-    print "  one or more corrtag file names"
+    print ("The command-line arguments and options are:")
+    print ("  -q (quiet)")
+    print ("  -v (very verbose)")
+    print ("  -u (update keywords in input corrtag files)")
+    print ("  -o outdir (output directory name)")
+    print ("  --find yes (find Y location of spectrum)")
+    print ("  --find no (use Y location of spectrum "
+                      "from 1dx file and wavecal)")
+    print ("  --find cutoff (find Y location if sigma <= cutoff)")
+    print ("  --location Y location(s) at which to extract spectra")
+    print ("  --extrsize height(s) of extraction region(s)")
+    print ("  one or more corrtag file names")
 
 def replaceSuffix (rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.

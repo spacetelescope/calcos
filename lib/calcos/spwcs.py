@@ -222,7 +222,7 @@ class SpWCS (object):
             if generic_keyword == "wcsaxes":
                 # It is a FITS requirement that WCSAXES precede all other
                 # WCS keywords in a header.
-                if hdr.has_key (actual_keyword):
+                if actual_keyword in hdr:
                     hdr.update (actual_keyword, value)
                 else:
                     # GCOUNT is the last of the set of keywords that must be

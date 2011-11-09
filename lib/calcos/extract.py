@@ -1,4 +1,5 @@
 from __future__ import division         # confidence high
+import copy
 import os
 import numpy as np
 import pyfits
@@ -11,7 +12,8 @@ from calcosparam import *       # parameter definitions
 
 def extract1D (input, incounts=None, output=None,
                update_input=True,
-               location=None, extrsize=None, find_target=False):
+               location=None, extrsize=None,
+               find_target={"flag": False, "cutoff": None}):
     """Extract 1-D spectrum from 2-D image.
 
     Parameters
@@ -37,19 +39,21 @@ def extract1D (input, incounts=None, output=None,
         spectrum crosses the middle of the detector (index 8192 for FUV,
         512 for NUV).  None means the user did not specify the location.
         If `location` was specified, that value will be used, regardless
-        of the `find_target` switch.
+        of the switch in `find_target`.
 
     extrsize: int, or list of int, or None
         The height of the extraction box (or list of three heights for NUV)
         in the cross-dispersion direction.  None means the user did not
         specify the extraction height.
 
-    find_target: boolean
-        True means that we should search for the location of the target
-        in the cross-dispersion direction; False means we should use the
-        location determined from the wavecal or specified by the user.
-        `find_target` will be locally set to False if `location` is not
-        None.
+    find_target: dictionary
+        Keys are "flag" and "cutoff".  flag = True means that we should use
+        the location that we find for the target in the cross-dispersion
+        direction if the standard deviation (pixels) of the location is
+        less than or equal to cutoff (if cutoff is positive).  flag = False
+        means we should use the location determined from the wavecal or as
+        specified by the user.  find_target["flag"] will locally be set to
+        False if `location` is not None, or if the input is a wavecal.
     """
 
     cosutil.printIntro ("Spectral Extraction")
@@ -58,11 +62,11 @@ def extract1D (input, incounts=None, output=None,
     cosutil.printMsg ("", VERBOSE)
 
     # Open the input files.
-    ifd_e = pyfits.open (input, mode="readonly")
+    ifd_e = pyfits.open (input, mode="copyonwrite")
     if incounts is None:
         ifd_c = None
     else:
-        ifd_c = pyfits.open (incounts, mode="readonly")
+        ifd_c = pyfits.open (incounts, mode="copyonwrite")
 
     phdr = ifd_e[0].header
     hdr = ifd_e[1].header
@@ -73,17 +77,25 @@ def extract1D (input, incounts=None, output=None,
     if not is_wavecal and switches["wavecorr"] != "COMPLETE":
         cosutil.printWarning ("WAVECORR was not done for " + input)
 
+    local_find_targ = copy.deepcopy (find_target)
+
     if is_wavecal:
        location = None
        extrsize = None
-       find_target = False
+       local_find_targ["flag"] = False
     if location is None:
-        if find_target:
-            cosutil.printMsg ("Info:  Spectrum will be extracted where"
-                              " one is found.", VERBOSE)
+        if local_find_targ["flag"]:
+            flag = "yes"
         else:
-            cosutil.printMsg ("Info:  Spectrum will be extracted at location"
-                              " based on XTRACTAB.", VERBOSE)
+            flag = "no"
+        cutoff = local_find_targ["cutoff"]
+        cosutil.printMsg ("Info:  find-target option = %s" % flag, VERBOSE)
+        if find_target["flag"]:
+            if cutoff is None or cutoff <= 0.:
+                cosutil.printMsg ("Info:  cutoff was not specified.",
+                                  VERBOSE)
+            else:
+                cosutil.printMsg ("Info:  cutoff = %.4f" % cutoff, VERBOSE)
     else:
         cosutil.printMsg ("Info:  Spectrum will be extracted"
                           " at user-specified location.", VERBOSE)
@@ -93,9 +105,9 @@ def extract1D (input, incounts=None, output=None,
 
     # Check data types and lengths (if not scalar), and copy values for
     # location and extrsize to dictionary entries.  Override value of
-    # find_target (set to False) if location was specified.
-    (location, extrsize, find_target) = \
-        checkLocation (info, location, extrsize, find_target)
+    # local_find_targ["flag"] (set to False) if location was specified.
+    (location, extrsize) = \
+        checkLocation (info, location, extrsize, local_find_targ)
 
     cosutil.printSwitch ("X1DCORR", switches)
     cosutil.printRef ("XTRACTAB", reffiles)
@@ -171,11 +183,10 @@ def extract1D (input, incounts=None, output=None,
         # Extract the spectrum or spectra.
         doExtract (ifd_e, ifd_c, ofd, nelem,
                    segments, info, switches, reffiles, is_wavecal,
-                   location, extrsize, find_target)
+                   location, extrsize, local_find_targ)
         if switches["fluxcorr"] == "PERFORM":
             # Convert net count rate to flux.
-            doFluxCorr (ofd, info["opt_elem"], info["cenwave"],
-                        info["aperture"], switches["tdscorr"], reffiles)
+            doFluxCorr (ofd, info, reffiles, switches["tdscorr"])
     # Update nrows, in case rows were skipped during 1-D extraction.
     nrows = ofd[1].data.shape[0]
 
@@ -219,13 +230,13 @@ def extract1D (input, incounts=None, output=None,
     if switches["statflag"] == "PERFORM":
         cosutil.doSpecStat (output)
 
-def checkLocation (info, location, extrsize, find_target):
+def checkLocation (info, location, extrsize, local_find_targ):
     """Check that location and height were specified correctly.
 
     Parameters
     ----------
     info: dictionary
-        Keywords and values
+        Header keywords and values
 
     location: integer, float, or array_like
         Location(s) at which to extract spectrum or spectra
@@ -233,20 +244,18 @@ def checkLocation (info, location, extrsize, find_target):
     extrsize: integer or array_like
         Extraction height (or heights for NUV)
 
-    find_target: boolean
-        This flag is included in the tuple that is returned.  If `location`
-        is None, the returned value of this flag will not be modified.  If
-        `location` was specified, however, `find_target` will be set to
-        False.  That is, if the user specified both a location for the
-        spectrum and that we should search for the location, the location
-        takes precedence.
+    local_find_targ: dictionary
+        The "flag" value in this dictionary may be modified in-place.  If
+        `location` is None, the flag will not be modified.  If `location`
+        was specified, however, the flag will be set to False.  That is,
+        if the user specified both a location for the spectrum and that we
+        should search for the location, the location takes precedence.
 
     Returns
     -------
-    tuple of two dictionaries and a boolean flag
+    tuple of two dictionaries
         Dictionary of locations (key is segment or stripe), dictionary of
-        extraction heights (key is segment or stripe), and the find_target
-        flag (set to False if location was not None).  The elements of the
+        extraction heights (key is segment or stripe).  The entries in the
         dictionaries may be None (i.e. if location is None or extrsize is
         None)
     """
@@ -257,7 +266,7 @@ def checkLocation (info, location, extrsize, find_target):
         else:
             location = {"NUVA": None, "NUVB": None, "NUVC": None}
     else:
-        find_target = False             # override
+        local_find_targ["flag"] = False         # override
         if isinstance (location, int) or isinstance (location, float):
             if info["detector"] == "FUV":
                 location = {info["segment"]: location}
@@ -324,11 +333,12 @@ def checkLocation (info, location, extrsize, find_target):
                         temp[segments[i]] = extrsize[i]
                     extrsize = temp
 
-    return (location, extrsize, find_target)
+    return (location, extrsize)
 
 def doExtract (ifd_e, ifd_c, ofd, nelem,
                segments, info, switches, reffiles, is_wavecal,
-               location, extrsize, find_target=False):
+               location, extrsize,
+               local_find_targ={"flag": False, "cutoff": None}):
     """Extract either FUV or NUV data.
 
     This calls a routine to do the extraction for one segment, and it
@@ -376,10 +386,13 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         in the cross-dispersion direction.  A key value may be None, which
         means the user did not specify the extraction height.
 
-    find_target: boolean
-        True means that we should search for the location of the target in
-        the cross-dispersion direction; False means we should use the
-        location determined from the wavecal or specified by the user.
+    local_find_targ: dictionary
+        Keys are "flag" and "cutoff".  flag = True means that we should use
+        the location that we find for the target in the cross-dispersion
+        direction if the standard deviation (pixels) of the location is
+        less than or equal to cutoff (if cutoff is positive).  flag = False
+        means we should use the location determined from the wavecal or as
+        specified by the user.
     """
 
     hdr = ifd_e[1].header
@@ -405,7 +418,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         minmax_doppler = (0., 0.)       # xxx replace with actual values
         doppler_boundary = 512          # xxx replace with actual value
         dq_array = np.zeros ((axis_height,axis_length), dtype=np.int16)
-        cosutil.updateDQArray (reffiles["bpixtab"], info, dq_array,
+        cosutil.updateDQArray (info, reffiles, dq_array,
                                minmax_shift_dict,
                                minmax_doppler, doppler_boundary)
 
@@ -436,8 +449,8 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         # xdisp_locn will be the user-specified location in cross-dispersion
         # direction (or None, if the user did not specify a value).
         # xd_locn (assigned later) will be either xdisp_locn (if specified),
-        # or the value found by searching (if find_target is True), or the
-        # default value plus shift2.
+        # or the value found by searching (if local_find_targ["flag"] is
+        # True), or the default value plus shift2.
         if location is None:
             xdisp_locn = None
         else:
@@ -468,7 +481,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
         axis = 2 - dispaxis             # 1 --> 1,  2 --> 0
 
         # For FUV, the keyword for exposure time depends on segment.
-        exptime_key = cosutil.exptimeKeyword (segment)
+        exptime_key = cosutil.segmentSpecificKeyword ("exptime", segment)
         exptime = hdr.get (exptime_key, default=hdr["exptime"])
 
         if is_corrtag:
@@ -480,7 +493,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                                 x_offset, hdr["sdqflags"], snr_ff,
                                 exptime, switches["backcorr"], axis,
                                 xtract_info, shift1, shift2,
-                                xdisp_locn, xdisp_size, find_target)
+                                xdisp_locn, xdisp_size, local_find_targ)
         else:
             (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
              extractSegment (ifd_e["SCI"].data, ifd_c["SCI"].data,
@@ -489,7 +502,7 @@ def doExtract (ifd_e, ifd_c, ofd, nelem,
                              exptime, switches["backcorr"], axis,
                              xtract_info, shift2,
                              info, wavelength, is_wavecal,
-                             xdisp_locn, xdisp_size, find_target)
+                             xdisp_locn, xdisp_size, local_find_targ)
         del xtract_info
 
         outdata.field ("SEGMENT")[row] = segment
@@ -646,7 +659,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                     exptime, backcorr, axis,
                     xtract_info, shift2,
                     info, wavelength, is_wavecal,
-                    xdisp_locn=None, xdisp_size=None, find_target=False):
+                    xdisp_locn=None, xdisp_size=None,
+                    find_target={"flag": False, "cutoff": None}):
 
     """Extract a 1-D spectrum for one segment or stripe.
 
@@ -711,10 +725,11 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         Offset in the cross-dispersion direction
 
     info: dictionary
-        Keywords and values
+        Header keywords and values
 
     wavelength: array_like
-        Wavelength at each pixel (needed if find_target is True)
+        Wavelength at each pixel (needed if find_target["flag"] is
+        True)
 
     is_wavecal: boolean
         True if the observation is a wavecal, based on exptype
@@ -725,8 +740,14 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     xdisp_size: int, or None if not specified
         User-specified height of extraction box
 
-    find_target: boolean
-        Search for the cross-dispersion location of the target?
+    find_target: dictionary
+        Keys are "flag" and "cutoff".  flag = True means that we should use
+        the location that we find for the target in the cross-dispersion
+        direction if the standard deviation (pixels) of the location is
+        less than or equal to cutoff (if cutoff is positive).  flag = False
+        means we should use the location determined from the wavecal or as
+        specified by the user.  find_target["flag"] will locally be set to
+        False if the cross-dispersion location was not found.
 
     Returns
     -------
@@ -735,6 +756,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
         background count rate, data quality array, data quality weight
         array
     """
+
+    local_find_targ = copy.deepcopy (find_target)
 
     slope           = xtract_info.field ("slope")[0]
     b_spec          = xtract_info.field ("b_spec")[0]   # may be changed below
@@ -767,7 +790,8 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
                                     x_offset, info["detector"])
         if found_locn is None:
             xd_offset = 0.
-            find_target = False         # turn off for this segment/stripe
+            # turn off for this segment/stripe
+            local_find_targ["flag"] = False
             message = "%s spectrum was not found; nominal y = %.2f" % \
                         (segment, xd_nominal)
         else:
@@ -792,7 +816,17 @@ def extractSegment (e_data, c_data, e_dq_data, ofd_header, segment,
     # specified) or the location based on the wavecal.  In either case,
     # xd_locn is where the spectrum crosses the middle of the array.
     if xdisp_locn is None:
-        if find_target:         # use the location we found above
+        use_found_location = local_find_targ["flag"]
+        if local_find_targ["cutoff"] is not None and \
+           local_find_targ["cutoff"] > 0. and \
+           found_locn_sigma > local_find_targ["cutoff"]:
+            use_found_location = False
+            cosutil.printMsg ("%s sigma = %.2f of found location"
+                              " is higher than cutoff = %.2f." %
+                              (segment, found_locn_sigma,
+                               local_find_targ["cutoff"]),
+                              VERBOSE)
+        if use_found_location:
             b_spec = found_locn
             xd_locn = found_locn + offset_to_middle
         else:
@@ -988,7 +1022,8 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
                     x_offset, sdqflags, snr_ff,
                     exptime, backcorr, axis,
                     xtract_info, shift1, shift2,
-                    xdisp_locn=None, xdisp_size=None, find_target=False):
+                    xdisp_locn=None, xdisp_size=None,
+                    find_target={"flag": False, "cutoff": None}):
     """Extract a 1-D spectrum for one segment or stripe.
 
     Parameters
@@ -1052,8 +1087,13 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
     xdisp_size: int, or None if not specified
         User-specified height of extraction box
 
-    find_target: boolean
-        Search for the cross-dispersion location of the target?
+    find_target: dictionary
+        Keys are "flag" and "cutoff".  flag = True means that we should use
+        the location that we find for the target in the cross-dispersion
+        direction if the standard deviation (pixels) of the location is
+        less than or equal to cutoff (if cutoff is positive).  flag = False
+        means we should use the location determined from the wavecal or as
+        specified by the user.
 
     Returns
     -------
@@ -1062,6 +1102,8 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
         background count rate, data quality array, data quality weight
         array
     """
+
+    local_find_targ = copy.deepcopy (find_target)
 
     slope           = xtract_info.field ("slope")[0]
     b_spec          = xtract_info.field ("b_spec")[0]   # but see xdisp_locn
@@ -1085,7 +1127,12 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
     # location based on the wavecal; in either case, it's where the spectrum
     # crosses the middle of the array, not the left edge of the array.
     if xdisp_locn is None:
-        if find_target:
+        use_found_location = local_find_targ["flag"]
+        # xxx not implemented yet xxx
+        #if local_find_targ["cutoff"] is not None and \
+        #   found_locn_sigma > local_find_targ["cutoff"]):
+        #    use_found_location = False
+        if use_found_location:
             b_spec += shift2
             xd_locn = b_spec + slope * (axis_length // 2 - x_offset)
             # xxx not implemented yet xxx
@@ -1242,7 +1289,7 @@ def extractCorrtag (xi, eta, dq, epsilon, dq_array,
 
     return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
 
-def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
+def doFluxCorr (ofd, info, reffiles, tdscorr):
     """Convert net counts to flux, updating flux and error columns.
 
     The correction to flux is made by dividing by the appropriate row
@@ -1257,20 +1304,14 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
         to set FLUXCORR to COMPLETE, and TDSCORR may be set to either
         COMPLETE or SKIPPED
 
-    opt_elem: str
-        Grating name
-
-    cenwave: integer
-        Central wavelength
-
-    aperture: str
-        PSA, BOA, WCA
-
-    tdscorr: str
-        Calibration switch, time-dependent sensitivity correction
+    info: dictionary
+        Header keywords and values
 
     reffiles: dictionary
         Reference file names
+
+    tdscorr: str
+        Calibration switch, time-dependent sensitivity correction
     """
 
     outdata = ofd[1].data
@@ -1281,12 +1322,15 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
     flux = outdata.field ("FLUX")
     error = outdata.field ("ERROR")
 
-    # segment will be added to filter in the loop
-    filter = {"opt_elem": opt_elem,
-              "cenwave": cenwave,
-              "aperture": aperture}
-
     fluxtab = reffiles["fluxtab"]
+
+    # segment will be added to filter in the loop
+    filter = {"opt_elem": info["opt_elem"],
+              "cenwave": info["cenwave"],
+              "aperture": info["aperture"]}
+    # Also select the row on fpoffset, if that column is present in the table.
+    if cosutil.findColumn (fluxtab, "fpoffset"):
+        filter["fpoffset"] = info["fpoffset"]
 
     for row in range (nrows):
         pharange = cosutil.getPulseHeightRange (ofd[1].header, segment[row])
@@ -1312,8 +1356,8 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
     if tdscorr == "PERFORM":
         tdstab = reffiles["tdstab"]
         t_obs = (ofd[1].header["expstart"] + ofd[1].header["expend"]) / 2.
-        filter = {"opt_elem": opt_elem,
-                  "aperture": aperture}
+        filter = {"opt_elem": info["opt_elem"],
+                  "aperture": info["aperture"]}
         # First check for dummy rows in the TDS table.  If there is no
         # pedigree column, assume all rows are good (i.e. not dummy).
         dummy = False           # initial value
@@ -1342,6 +1386,7 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
         if dummy:
             ofd[0].header["tdscorr"] = "SKIPPED"
         else:
+            printed = False             # used below
             for row in range (nrows):
                 filter["segment"] = segment[row]
                 # Get an array of factors vs. wavelength at the time of the obs.
@@ -1349,16 +1394,23 @@ def doFluxCorr (ofd, opt_elem, cenwave, aperture, tdscorr, reffiles):
                     tds_results = getTdsFactors (tdstab, filter, t_obs)
                 except RuntimeError:    # no matching row in table
                     continue
-                (wl_tds, factor_tds) = tds_results
+                (wl_tds, factor_tds, extrapolate) = tds_results
                 factor = np.zeros (len (flux[row]), dtype=np.float32)
                 # Interpolate factor_tds at each wavelength.
                 ccos.interp1d (wl_tds, factor_tds, wavelength[row], factor)
                 flux[row][:] /= factor
                 error[row][:] /= factor
+                if extrapolate and not printed:
+                    cosutil.printWarning ("TDS correction was extrapolated.")
+                    printed = True
             ofd[0].header["tdscorr"] = "COMPLETE"
 
 def getTdsFactors (tdstab, filter, t_obs):
     """Get arrays of wavelengths and corresponding TDS factors.
+
+    If the time of observation is outside the range of times in the TDS
+    table, the correction factor will be extrapolated using the slope at
+    the first or last time in the table respectively.
 
     Parameters
     ----------
@@ -1374,13 +1426,13 @@ def getTdsFactors (tdstab, filter, t_obs):
     Returns
     -------
     tuple or None
-        (wl_tds, factor_tds), where wl_tds is the array of wavelengths
-        from the TDS table, and factor_tds is the corresponding array of
-        time-dependent sensitivity factors, evaluated at the time of
-        observation from the slope and intercept from the TDS table;
-        if the time of observation is outside the range of times in the
-        table, factor_tds will be independent of time and equal to the
-        factor at the first or last time in the table respectively
+        (wl_tds, factor_tds, extrapolate), where wl_tds is the array
+        of wavelengths from the TDS table, and factor_tds is the
+        corresponding array of time-dependent sensitivity factors,
+        evaluated at the time of observation from the slope and
+        intercept from the TDS table, and extrapolate will be True if
+        the time of observation was outside the range of times in the
+        TDS table.
     """
 
     # Slope and intercept are specified for each of the nt entries in
@@ -1407,7 +1459,10 @@ def getTdsFactors (tdstab, filter, t_obs):
     slope = np.reshape (slope, (maxt, maxwl))
     intercept = np.reshape (intercept, (maxt, maxwl))
 
+    extrapolate = (t_obs < time[0] or t_obs >= time[nt-1])
+
     # Find the time interval that includes the time of observation.
+    # The variable i is set here, and it's used below.
     if nt == 1 or t_obs >= time[nt-1]:
         i = nt - 1
     else:
@@ -1418,17 +1473,10 @@ def getTdsFactors (tdstab, filter, t_obs):
     # The slope in the tdstab is in percent per year.  Convert the time
     # interval to years, and convert the slope to fraction per year.
     # If the time of observation is before the first time in the table or
-    # after the last time, the correction factor is to be the factor at
-    # the first time or the last time respectively.  This is done by setting
-    # delta_t to be the difference from the reference time to the first or
-    # last time.
-    if t_obs < time[0]:
-        delta_t = (time[0] - ref_time) / DAYS_PER_YEAR
-    elif t_obs > time[nt-1]:
-        delta_t = (time[nt-1] - ref_time) / DAYS_PER_YEAR
-    else:
-        delta_t = (t_obs - ref_time) / DAYS_PER_YEAR
-    slope[:] /= 100.
+    # after the last time, the extrapolation will be done using the slope
+    # at the first time or the last time respectively.
+    delta_t = (t_obs - ref_time) / DAYS_PER_YEAR
+    slope[:,:] /= 100.
 
     # Take the slice [0:nwl] to avoid using elements that may not be valid,
     # and because the array of factors should be the same length as the
@@ -1436,7 +1484,7 @@ def getTdsFactors (tdstab, filter, t_obs):
     wl_tds = wl_tds[0:nwl]
     factor_tds = delta_t * slope[i][0:nwl] + intercept[i][0:nwl]
 
-    return (wl_tds, factor_tds)
+    return (wl_tds, factor_tds, extrapolate)
 
 def updateExtractionKeywords (hdr, segment, slope, height,
                               xd_nominal, xd_locn, xd_offset,
@@ -1599,7 +1647,7 @@ def updateCorrtagKeywords (flt, corrtag):
         for key in ["SP_LOC_", "SP_OFF_", "SP_NOM_", "SP_SLP_", "SP_HGT_",
                     "B_BKG1_", "B_BKG2_", "B_HGT1_", "B_HGT2_"]:
             keyword = key + segment[-1]
-            if ihdr.has_key (keyword):
+            if keyword in ihdr:
                 ohdr.update (keyword, ihdr[keyword])
 
     ofd.close()
@@ -1701,7 +1749,7 @@ def fixApertureKeyword (ofd, aperture, detector):
 
     aperture_hdr = ofd[0].header.get ("aperture", NOT_APPLICABLE)
     if aperture_hdr == "RelMvReq":
-        aperture_fixed = aperture + "-" + detector
+        aperture_fixed = aperture
         ofd[0].header.update ("aperture", aperture_fixed)
         cosutil.printWarning ("APERTURE reset from %s to %s" % \
                 (aperture_hdr, aperture_fixed), level=VERBOSE)
@@ -1712,10 +1760,10 @@ def concatenateFUVSegments (infiles, output):
     Parameters
     ----------
     infiles: list
-        List of input file names
+        List of input x1d_a and x1d_b file names
 
     output: str
-        Output file name
+        Output x1d file name
     """
 
     cosutil.printMsg ("Concatenate " + repr (infiles) + " --> " + output, \
@@ -1740,8 +1788,8 @@ def concatenateFUVSegments (infiles, output):
         cosutil.renameFile (rename_file, output)
         return
 
-    ifd_0 = pyfits.open (infiles[0], mode="readonly")
-    ifd_1 = pyfits.open (infiles[1], mode="readonly")
+    ifd_0 = pyfits.open (infiles[0], mode="copyonwrite")
+    ifd_1 = pyfits.open (infiles[1], mode="copyonwrite")
 
     # Make sure we know which files are for segments A and B respectively,
     # and then use seg_a and seg_b instead of ifd_0 and ifd_1.
@@ -1785,7 +1833,7 @@ def concatenateFUVSegments (infiles, output):
     # for segment B.
     for key in segment_specific_keywords:
         keyword = key.replace ("X", "b")
-        if seg_b[1].header.has_key (keyword):
+        if keyword in seg_b[1].header:
             hdu.header.update (keyword, seg_b[1].header.get (keyword, -1.0))
 
     exptimea = seg_a[1].header.get ("exptimea",
@@ -1809,6 +1857,7 @@ def concatenateFUVSegments (infiles, output):
         phdu = seg_b[0]
     ofd = pyfits.HDUList (phdu)
     cosutil.updateFilename (ofd[0].header, output)
+    updateGsagComment (seg_a[0].header, seg_b[0].header, [ofd[0].header])
     if a_exists and b_exists and nrows_a > 0 and nrows_b > 0:
         # we now have both segments
         ofd[0].header.update ("segment", "BOTH")
@@ -1823,6 +1872,56 @@ def concatenateFUVSegments (infiles, output):
 
     if phdu.header["statflag"]:
         cosutil.doSpecStat (output)
+
+def updateGsagComment (phdr0, phdr1, phdr_list):
+    """Combine the comments for keyword GSAGTAB.
+
+    Parameters
+    ----------
+    phdr0: pyfits Header object
+        Primary header of the first input file (for segment A)
+
+    phdr1: pyfits Header object
+        Primary header of the second input file (for segment B)
+
+    phdr_list: list of pyfits Header objects
+        Output primary headers, modified in-place
+    """
+
+    # Check which header is for segment A and which is for segment B.
+    segment0 = phdr0.get ("segment", "missing")
+    segment1 = phdr1.get ("segment", "missing")
+    if segment0 == "FUVA":
+        seg_a = phdr0
+    elif segment1 == "FUVA":
+        seg_a = phdr1
+    else:
+        seg_a = None
+    if segment0 == "FUVB":
+        seg_b = phdr0
+    elif segment1 == "FUVB":
+        seg_b = phdr1
+    else:
+        seg_b = None
+
+    if seg_a is None or seg_b is None:
+        return
+
+    clist_a = seg_a.ascardlist()
+    clist_b = seg_b.ascardlist()
+    if "gsagtab" in clist_a:
+        comment_a = clist_a["gsagtab"].comment
+    else:
+        comment_a = ""
+    if "gsagtab" in clist_b:
+        comment_b = clist_b["gsagtab"].comment
+    else:
+        comment_b = ""
+    if comment_a.find ("ext. ") >= 0 and comment_b.find ("ext. ") >= 0:
+        comment = comment_a + "; " + comment_b
+        for phdr in phdr_list:
+            gsagtab = phdr.get ("gsagtab", "missing")
+            phdr.update ("gsagtab", gsagtab, comment=comment)
 
 def copySegments (data_a, nrows_a, data_b, nrows_b, outdata):
     """Copy the two input tables to the output table.

@@ -112,6 +112,8 @@ def processConcurrentWavecal (events, outflash, shift_file,
         return (tl_time, shift1_vs_time)
 
     cw.getStartStopTimes()
+    if cw.numflash < 1 and cw.shift_file is not None:
+        cw.dummyFlash()
     if cw.numflash < 1:
         # write an empty lampflash table
         cosutil.printWarning ("No lamp flash was found.")
@@ -301,6 +303,15 @@ class ConcurrentWavecal (object):
         self.eta_corr = None            # corrected coords (YFULL)
         self.spectrum = None            # scratch space for extracted spectrum
 
+    def dummyFlash (self):
+        """Assign values for one flash, even if there wasn't."""
+
+        self.numflash = 1
+        self.lamp_on = [0.]
+        self.lamp_off = [1.]
+        self.lamp_duration = [1.]
+        self.lamp_median = [0.5]
+
     def outFlashSetup (self):
         """Create an HDU list for the outflash FITS table."""
 
@@ -373,13 +384,13 @@ class ConcurrentWavecal (object):
                 "TC2_2",  "TC2_3",  "TC3_2",  "TC3_3",
                 "TALEN2", "TALEN3"]
         for keyword in ikey:
-            if hdu.header.has_key (keyword):
+            if keyword in hdu.header:
                 del hdu.header[keyword]
 
         # Set the values of these keywords to zero.
         zkey = ["SHIFT1A", "SHIFT1B", "SHIFT1C"]
         for keyword in zkey:
-            if hdu.header.has_key (keyword):
+            if keyword in hdu.header:
                 hdu.header[keyword] = 0.
 
     def doStat (self):
@@ -511,7 +522,7 @@ class ConcurrentWavecal (object):
             axis_length = NUV_EXTENDED_X
         # create and populate a DQ array
         dq_array = np.zeros ((axis_height,axis_length), dtype=np.int16)
-        cosutil.updateDQArray (self.reffiles["bpixtab"], self.info, dq_array,
+        cosutil.updateDQArray (self.info, self.reffiles, dq_array,
                                {(0, 1024): [0., 0., 0., 0.]},
                                (0., 0.), -10)
         # weights from flat field or nonlinearity
@@ -1231,7 +1242,7 @@ class ConcurrentWavecal (object):
 
         for i in range (self.numflash):
             keyword = "LMP_ON%d" % (i+1)
-            if not self.hdr.has_key (keyword):
+            if keyword not in self.hdr:
                 break
             self.hdr.update (keyword, self.lamp_on[i])
             keyword = "LMPOFF%d" % (i+1)
@@ -1509,6 +1520,10 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
 
         self.ofd = pyfits.open (self.outflash, mode="update")
         self.ofd[0].header["segment"] = self.segment_list[0]
+        if self.ofd[1].data is None:
+            self.numflash = 0
+            cosutil.printWarning ("No data in lampflash table.")
+            return
 
         # A_shift1 is the shift1 value for FUVA, and A_spec_found is used
         # for printing "not found in FUVA" if the shift was not found.
@@ -1517,11 +1532,8 @@ class FUVConcurrentWavecal (ConcurrentWavecal):
         A_spec_found = self.ofd[1].data.field ("spec_found").copy()
 
         nrows = len (self.ofd[1].data)
-        if self.ofd[1].data is None:
-            self.numflash = 0
-        else:
-            # This assumes that lampflash_a contains data for only one segment.
-            self.numflash = nrows
+        # This assumes that lampflash_a contains data for only one segment.
+        self.numflash = nrows
         self.lamp_median = self.ofd[1].data.field ("time")
         self.shift2 = self.ofd[1].data.field ("shift_xdisp")
         self.spec_found = self.ofd[1].data.field ("spec_found")

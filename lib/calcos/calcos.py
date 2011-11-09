@@ -17,6 +17,7 @@ import cosutil
 import extract
 import fpavg
 import getinfo
+import shiftfile
 import spwcs
 import timetag
 import wavecal
@@ -50,12 +51,12 @@ def main (args):
         -v (very verbose)
         -s (save temporary files)
         -o outdir (output directory name)
-        --find (find Y location of spectrum)
-        --nofind (use Y location of spectrum from 1dx file and wavecal)
+        --find yes|no|cutoff (find Y location of spectrum)
         --csum (create csum image)
         --raw (use raw coordinates for csum image)
         --only_csum (create csum image, and do almost nothing else)
-        --compress parameters (compress csum image)
+        --compress parameters (compress csum image;
+                the default value for parameters is 'gzip,-0.01')
         --binx X_bin_factor (csum binning in X)
         --biny Y_bin_factor (csum binning in Y)
         --shift filename (file to specify shift values)
@@ -68,28 +69,28 @@ def main (args):
     """
 
     if len (args) < 1:
+        prtOptions()
         cosutil.printError (
         "An association file name or observation rootname must be specified.")
-        prtOptions()
         sys.exit()
 
     try:
         (options, pargs) = getopt.getopt (args, "qvso:",
-                           ["find", "nofind",
+                           ["find=",
                             "csum", "raw", "only_csum",
                             "compress=", "binx=", "biny=",
                             "shift=", "stim=", "live=", "burst="])
     except Exception, error:
-        cosutil.printError (str (error))
         prtOptions()
+        cosutil.printError (str (error))
         sys.exit()
 
     if len (options) == 0:
         for i in range (len (pargs)):
             if pargs[i][0] == '-':
+                prtOptions()
                 cosutil.printError (
                 "Command-line options must precede the association file name.")
-                prtOptions()
                 sys.exit()
 
     # default values
@@ -100,7 +101,7 @@ def main (args):
     only_csum = False
     binx = 1
     biny = 1
-    find_target = False
+    find_target = {"flag": False, "cutoff": None}
     compress_csum = False
     compression_parameters = "gzip,-0.01"
     # user-supplied text file to specify shift1 and shift2
@@ -121,7 +122,25 @@ def main (args):
         elif options[i][0] == "-o":
             outdir = options[i][1]
         elif options[i][0] == "--find":
-            find_target = True
+            temp = options[i][1].lower()
+            if temp == "yes" or temp == "true":
+                find_target["flag"] = True
+            elif temp == "no" or temp == "false":
+                find_target["flag"] = False
+            else:
+                try:
+                    cutoff = float (temp)
+                except ValueError:
+                    prtOptions()
+                    cosutil.printError ("Don't understand '--find %s'" %
+                                        options[i][1])
+                    sys.exit()
+                if cutoff < 0.:
+                    prtOptions()
+                    cosutil.printError ("Cutoff for --find cannot be negative.")
+                    sys.exit()
+                find_target["flag"] = True
+                find_target["cutoff"] = cutoff
         elif options[i][0] == "--nofind":
             find_target = False
         elif options[i][0] == "--csum":
@@ -193,9 +212,10 @@ def prtOptions():
     cosutil.printMsg ("  -v (very verbose)")
     cosutil.printMsg ("  -s (save temporary files)")
     cosutil.printMsg ("  -o outdir (output directory name)")
-    cosutil.printMsg ("  --find (find Y location of spectrum)")
-    cosutil.printMsg ("  --nofind (use Y location of spectrum "
+    cosutil.printMsg ("  --find yes (find Y location of spectrum)")
+    cosutil.printMsg ("  --find no (use Y location of spectrum "
                       "from 1dx file and wavecal)")
+    cosutil.printMsg ("  --find cutoff (find Y location if sigma <= cutoff)")
     cosutil.printMsg ("  --csum (create 'calcos sum' image)")
     cosutil.printMsg ("  --only_csum (do little else but create csum)")
     cosutil.printMsg ("  --raw (use raw coordinates for csum image)")
@@ -213,6 +233,9 @@ def prtOptions():
 def uniqueInput (infiles):
     """Remove effective duplicates from list of files to process.
 
+    This function also expands environment variables and wildcards.
+    Aside from that, the order of the input file names will be preserved.
+
     Parameters
     ----------
     infiles: list of strings
@@ -224,10 +247,23 @@ def uniqueInput (infiles):
         The list of input files but with duplicates removed.
     """
 
-    if len (infiles) <= 1:
-        return infiles
+    MAX_COUNT = 100
+    # expand environment variables and wildcards
+    allfiles = []
+    for file in infiles:
+        for i in range (MAX_COUNT):
+            template = os.path.expandvars (file)
+            if template == file:
+                break
+            file = template
+        files = glob.glob (template)
+        files.sort()
+        allfiles.extend (files)
 
-    inlist = copy.copy (infiles)
+    if len (allfiles) <= 1:
+        return allfiles
+
+    inlist = copy.copy (allfiles)
     inlist.sort()
 
     newlist = [inlist[0]]
@@ -243,7 +279,7 @@ def uniqueInput (infiles):
             newlist.append (inlist[i])
 
     unique_files = []
-    for input in infiles:
+    for input in allfiles:
         if input in newlist and \
            input not in unique_files:
             unique_files.append (input)
@@ -258,7 +294,7 @@ def checkNumerix():
                               os.environ["NUMERIX"])
 
 def calcos (asntable, outdir=None, verbosity=None,
-            find_target=False,
+            find_target={"flag": False, "cutoff": None},
             create_csum_image=False,
             raw_csum_coords=False,
             only_csum=False,
@@ -293,9 +329,12 @@ def calcos (asntable, outdir=None, verbosity=None,
     verbosity: int {0, 1, 2} or None, optional
         If not None, set verbosity to this level.
 
-    find_target: boolean, optional
-        If True, search for the target spectrum in the Y direction, rather
-        than relying on the wavecal offset (shift2).
+    find_target: dictionary, optional
+        Keys are "flag" and "cutoff".  flag = True means use the location
+        of the target in the cross-dispersion direction if the standard
+        deviation (pixels) of the location is less than or equal to cutoff
+        (if cutoff is positive).  flag = False means use the location
+        determined from the wavecal.
 
     create_csum_image: boolean, optional
         If True, write an image that reflects the counts detected at each
@@ -653,7 +692,8 @@ class Association (object):
                 first = True                    # first of a pair for FUV
                 for input in basic_info["rawfiles"]:    # one (NUV) or two (FUV)
                     obs = initObservation (input, self.outdir, memtype[i],
-                          basic_info["detector"], basic_info["obsmode"], first)
+                          basic_info["detector"], basic_info["obsmode"],
+                          cl_args["shift_file"], first)
                     self.obs.append (obs)
                     if basic_info["detector"] == "FUV":
                         concat_these.append (obs.filenames["x1d_x"])
@@ -721,7 +761,7 @@ class Association (object):
 
         cosutil.printMsg ("Association file = " + self.asntable, VERBOSE)
 
-        fd = pyfits.open (self.asntable, mode="readonly")
+        fd = pyfits.open (self.asntable, mode="copyonwrite", memmap=False)
         asn_data = fd[1].data
         nrows = asn_data.shape[0]
         if nrows <= 0:
@@ -1071,11 +1111,10 @@ class Association (object):
         return (i_timetag, i_accum)
 
     def compareConfig (self):
-        """Compare detector, opt_elem, and cenwave.
+        """Compare detector and opt_elem.
 
         All the files in an association must have been taken with the same
-        detector and grating (or mirror).  For spectroscopic observations,
-        the central wavelength must also be the same.
+        detector and grating (or mirror).
         """
 
         if len (self.obs) < 2:
@@ -1086,18 +1125,13 @@ class Association (object):
         refinfo = self.obs[0].info
         detector = refinfo["detector"]
         opt_elem = refinfo["opt_elem"]
-        cenwave = refinfo["cenwave"]            # 0 for imaging type
 
         for obs in self.obs:
             if obs.info["detector"] != detector or \
-               obs.info["opt_elem"] != opt_elem or \
-               obs.info["cenwave"] != cenwave:
+               obs.info["opt_elem"] != opt_elem:
                 cosutil.printError (obs.filenames["raw"])
-                errmess = "All files must be for the same detector"
-                if obs.info["obstype"] == "SPECTROSCOPIC":
-                    errmess += ", opt_elem and cenwave."
-                else:
-                    errmess += " and opt_elem."
+                errmess = "All files must be for the same detector" \
+                          " and opt_elem."
                 raise RuntimeError (errmess)
 
     def resetSwitches (self):
@@ -1261,6 +1295,7 @@ class Association (object):
             "flatfile": ["2.0", "FLAT FIELD REFERENCE IMAGE"],
             "badttab":  ["2.0", "BAD TIME INTERVALS TABLE"],
             "bpixtab":  ["2.0", "DATA QUALITY INITIALIZATION TABLE"],
+            "gsagtab":  ["2.0", "GAIN SAG REFERENCE TABLE"],
             "deadtab":  ["2.0", "DEADTIME REFERENCE TABLE"],
             "brftab":   ["2.0", "BASELINE REFERENCE FRAME TABLE"],
             "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
@@ -1302,6 +1337,9 @@ class Association (object):
         if switches["dqicorr"] == "PERFORM":
             cosutil.findRefFile (ref["bpixtab"],
                     missing, wrong_filetype, bad_version)
+            if reffiles["gsagtab"] != NOT_APPLICABLE:
+                cosutil.findRefFile (ref["gsagtab"],
+                            missing, wrong_filetype, bad_version)
 
         if switches["deadcorr"] == "PERFORM":
             cosutil.findRefFile (ref["deadtab"],
@@ -1674,7 +1712,8 @@ class Association (object):
 
         fd.close()
 
-def initObservation (input, outdir, memtype, detector, obsmode, first=False):
+def initObservation (input, outdir, memtype, detector, obsmode,
+                     shift_file, first=False):
     """Construct an Observation object for the current mode.
 
     Parameters
@@ -1695,6 +1734,11 @@ def initObservation (input, outdir, memtype, detector, obsmode, first=False):
     obsmode: str {"TIME-TAG", "ACCUM"}
         The observation mode.
 
+    shift_file: str or None
+        The name of the shift file (command-line argument), if one was
+        specified.  This is only used (here) to possibly override keyword
+        TAGFLASH.
+
     first: boolean
         True if the current file is the first for a given rootname (this
         is for writing the calcos version string to the trailer, so that
@@ -1708,14 +1752,14 @@ def initObservation (input, outdir, memtype, detector, obsmode, first=False):
 
     if detector == "FUV":
         if obsmode == "TIME-TAG":
-            obs = FUVTimetagObs (input, outdir, memtype, first)
+            obs = FUVTimetagObs (input, outdir, memtype, shift_file, first)
         else:
-            obs = FUVAccumObs (input, outdir, memtype, first)
+            obs = FUVAccumObs (input, outdir, memtype, shift_file, first)
     else:
         if obsmode == "TIME-TAG":
-            obs = NUVTimetagObs (input, outdir, memtype, first)
+            obs = NUVTimetagObs (input, outdir, memtype, shift_file, first)
         else:
-            obs = NUVAccumObs (input, outdir, memtype, first)
+            obs = NUVAccumObs (input, outdir, memtype, shift_file, first)
 
     return obs
 
@@ -1743,11 +1787,15 @@ class Observation (object):
         detector); this may be reset internally to "_corrtag" or
         "_rawimage" or "_rawacq".
 
+    shift_file: str or None
+        The name of the shift file (command-line argument), if one was
+        specified.
+
     first: boolean
         True if the current file is the first of two for FUV.
     """
 
-    def __init__ (self, input, outdir, memtype, suffix, first):
+    def __init__ (self, input, outdir, memtype, suffix, shift_file, first):
         """Invoked by a subclass."""
 
         self.input = input              # name of a raw input file
@@ -1790,6 +1838,19 @@ class Observation (object):
         self.info["root"] = self.filenames["root"]
         self.openTrailer (first)    # open the trailer file for this input file
         self.sanityCheck()
+
+        # If a shift file was specified but this is not a tagflash exposure
+        # or a wavecal, override the tagflash flag so the shift file will
+        # actually be used.
+        if shift_file is not None and not self.info["tagflash"] and \
+           self.info["exptype"] != "WAVECAL":
+            # Is the current exposure included in the shift file?
+            user_shifts = shiftfile.ShiftFile (shift_file, self.info["root"],
+                                               self.info["fpoffset"])
+            (shifts, nfound) = user_shifts.getShifts (("any", "any"))
+            if nfound > 0:
+                self.info["tagflash"] = True    # OK to use the shift file
+            del (user_shifts)
 
         # Determine what type of observation this is.
 
@@ -1921,7 +1982,7 @@ class Observation (object):
         info dictionary.
         """
 
-        fd = pyfits.open (self.input, mode="readonly")
+        fd = pyfits.open (self.input, mode="copyonwrite")
         phdr = fd[0].header
         try:
             hdr = fd["EVENTS"].header
@@ -2342,9 +2403,10 @@ class Observation (object):
 
 class FUVTimetagObs (Observation):
 
-    def __init__ (self, input, outdir, memtype, first=False):
+    def __init__ (self, input, outdir, memtype, shift_file, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawtag", first)
+        Observation.__init__ (self, input, outdir, memtype, "_rawtag",
+                              shift_file, first)
 
     def checkSwitches (self):
 
@@ -2354,9 +2416,10 @@ class FUVTimetagObs (Observation):
 
 class FUVAccumObs (Observation):
 
-    def __init__ (self, input, outdir, memtype, first=False):
+    def __init__ (self, input, outdir, memtype, shift_file, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawaccum", first)
+        Observation.__init__ (self, input, outdir, memtype, "_rawaccum",
+                              shift_file, first)
 
     def checkSwitches (self):
 
@@ -2372,9 +2435,10 @@ class FUVAccumObs (Observation):
 
 class NUVTimetagObs (Observation):
 
-    def __init__ (self, input, outdir, memtype, first=False):
+    def __init__ (self, input, outdir, memtype, shift_file, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawtag", first)
+        Observation.__init__ (self, input, outdir, memtype, "_rawtag",
+                              shift_file, first)
 
     def checkSwitches (self):
 
@@ -2390,9 +2454,10 @@ class NUVTimetagObs (Observation):
 
 class NUVAccumObs (Observation):
 
-    def __init__ (self, input, outdir, memtype, first=False):
+    def __init__ (self, input, outdir, memtype, shift_file, first=False):
 
-        Observation.__init__ (self, input, outdir, memtype, "_rawaccum", first)
+        Observation.__init__ (self, input, outdir, memtype, "_rawaccum",
+                              shift_file, first)
 
     def checkSwitches (self):
 
@@ -2961,10 +3026,13 @@ class Calibration (object):
             for i in range (len (a_kwds)):
                 keyword_a = a_kwds[i]
                 keyword_b = b_kwds[i]
-                if hdr_a.has_key (keyword_a):
+                if keyword_a in hdr_a:
                     hdr_b.update (keyword_a, hdr_a[keyword_a])
-                if hdr_b.has_key (keyword_b):
+                if keyword_b in hdr_b:
                     hdr_a.update (keyword_b, hdr_b[keyword_b])
+            # concatenate comments for keyword GSAGTAB
+            extract.updateGsagComment (fd_a[0].header, fd_b[0].header,
+                                       [fd_a[0].header, fd_b[0].header])
             fd_a.close()
             fd_b.close()
 

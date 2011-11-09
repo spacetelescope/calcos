@@ -43,7 +43,7 @@ def avgImage (input, output):
     sum_globrate = 0.
 
     # Open the first file just to get some header keywords.
-    ifd = pyfits.open (input[0], mode="readonly")
+    ifd = pyfits.open (input[0], mode="copyonwrite")
     phdr = ifd[0].header
     sci_extn = ifd["SCI"]
     statflag = phdr.get ("statflag", False)
@@ -57,8 +57,7 @@ def avgImage (input, output):
     ifd.close()
 
     for i in range (nimages):
-        ifd = pyfits.open (input[i], mode="readonly", memmap=0)
-        # ifd = pyfits.open (input[i], mode="readonly", memmap=1)
+        ifd = pyfits.open (input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
         exptime = sci_extn.header["exptime"]
         sum_plantime += sci_extn.header.get ("plantime", exptime)
@@ -110,8 +109,7 @@ def avgImage (input, output):
 
     got_data = 0
     for i in range (nimages):
-        ifd = pyfits.open (input[i], mode="readonly", memmap=0)
-        # ifd = pyfits.open (input[i], mode="readonly", memmap=1)
+        ifd = pyfits.open (input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
         err_extn = ifd["ERR"]
         exptime = sci_extn.header["exptime"]    # exptime is in SCI extension
@@ -143,11 +141,7 @@ def avgImage (input, output):
 
     got_data = 0
     for i in range (nimages):
-        if got_data:
-            ifd = pyfits.open (input[i], mode="readonly", memmap=0)
-            # ifd = pyfits.open (input[i], mode="readonly", memmap=1)
-        else:
-            ifd = pyfits.open (input[i], mode="readonly", memmap=0)
+        ifd = pyfits.open (input[i], mode="copyonwrite")
         dq_extn = ifd["DQ"]
         if dq_extn.data is not None:
             if got_data:

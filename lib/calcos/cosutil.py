@@ -42,8 +42,7 @@ def writeOutputEvents (infile, outfile):
         Name of file for output EVENTS table (and GTI table).
     """
 
-    # ifd = pyfits.open (infile, mode="readonly", memmap=1)
-    ifd = pyfits.open (infile, mode="readonly")
+    ifd = pyfits.open (infile, mode="copyonwrite")
     events_extn = ifd["EVENTS"]
     indata = events_extn.data
     if indata is None:
@@ -200,6 +199,9 @@ def createCorrtagHDU (nrows, detector, header):
     col.append (pyfits.Column (name="PHA", format="1B"))
     cd = pyfits.ColDefs (col)
 
+    # delete some image-specific keywords
+    header = imageHeaderToTable (header)
+
     hdu = pyfits.new_table (cd, header=header, nrows=nrows)
 
     return hdu
@@ -321,7 +323,7 @@ def returnGTI (infile):
         Name of the input FITS file containing a GTI table.
     """
 
-    fd = pyfits.open (infile, mode="readonly")
+    fd = pyfits.open (infile, mode="copyonwrite")
 
     # Find the GTI table with the largest value of EXTVER.
     last_extver = 0                     # initial value
@@ -367,7 +369,7 @@ def findColumn (table, colname):
     """
 
     if isinstance (table, str):
-        fd = pyfits.open (table, mode="readonly")
+        fd = pyfits.open (table, mode="copyonwrite")
         fits_rec = fd[1].data
         fd.close()
     else:
@@ -387,12 +389,11 @@ def getTable (table, filter, extension=1,
     """Return the data portion of a table.
 
     All rows that match the filter (a dictionary of column_name = value)
-    will be returned.  If the value in the table is STRING_WILDCARD or
-    INT_WILDCARD (depending on the data type of the column), that value
-    does match the filter for that column.  Also, for a given filter key,
-    if the value of the filter is STRING_WILDCARD or NOT_APPLICABLE,
-    the test on filter will not be applied for that key (i.e. that filter
-    element matches any row).
+    will be returned.  If the value in the table is STRING_WILDCARD and
+    the column contains strings, that value is regarded as matching that
+    row.  Also, for a given filter key, if the value of the filter is
+    STRING_WILDCARD or NOT_APPLICABLE, the test on filter will not be
+    applied for that key (i.e. that filter element matches any row).
 
     It is an error if exactly_one or at_least_one is true but no row
     matches the filter.  A warning will be printed if exactly_one is true
@@ -404,9 +405,22 @@ def getTable (table, filter, extension=1,
         Name of the reference table.
 
     filter: dictionary
-        Key is a column name, and if the value in that column matches the
-        filter value for some row, that row will be included in the array
-        that is returned.
+        Each key/value pair in `filter` is used to select rows in the
+        table.  The key is a column name, and if the filter value for that
+        key matches the value in the column for one or more rows, those
+        rows will be included in the array of rows that is returned.
+        If the filter value is a tuple or list, however, the first element
+        is taken to be a numpy function for a relation (such as
+        np.greater for "greater than"), and the second element is taken
+        to be the value against which the column values should be compared.
+        This can be used for cases where rows need to be selected on a
+        value, but the relation is not necessarily equality.  The rows
+        selected are those for which the value in the table column (the
+        column with the same name as the key) has the specified relation
+        to the value in the filter.  For example, to select rows for which
+        the values in the DATE column are greater than or equal to 55785.,
+        use:
+            filter = {"date": (np.greater_equal, 55785.)}
 
     extension: tuple, str, or int
         Identifier for the extension containing the table.
@@ -423,8 +437,7 @@ def getTable (table, filter, extension=1,
         Pyfits table data object containing the selected row(s).
     """
 
-    # fd = pyfits.open (table, mode="readonly", memmap=1)
-    fd = pyfits.open (table, mode="readonly")
+    fd = pyfits.open (table, mode="copyonwrite")
     data = fd[extension].data
 
     # There will be one element of select_arrays for each non-trivial
@@ -433,18 +446,19 @@ def getTable (table, filter, extension=1,
     select_arrays = []
     for key in filter.keys():
 
-        if filter[key] == STRING_WILDCARD or \
-           filter[key] == NOT_APPLICABLE:
+        if filter[key] == STRING_WILDCARD or filter[key] == NOT_APPLICABLE:
             continue
         column = data.field (key)
-        selected = (column == filter[key])
+        if isinstance (filter[key], tuple) or isinstance (filter[key], list):
+            (relation_fcn, value) = filter[key]
+            selected = relation_fcn (column, value)
+        else:
+            selected = (column == filter[key])
 
         # Test for for wildcards in the table.
         wild = None
         if isinstance (column, np.chararray):
             wild = (column == STRING_WILDCARD)
-        #elif isinstance (column[0], np.integer):
-        #    wild = (column == INT_WILDCARD)
         if wild is not None:
             selected = np.logical_or (selected, wild)
 
@@ -508,7 +522,7 @@ def getColCopy (filename="", column=None, extension=1, data=None):
         raise RuntimeError ("Specify either filename or data, but not both.")
 
     if filename:
-        fd = pyfits.open (filename, mode="readonly")
+        fd = pyfits.open (filename, mode="copyonwrite")
         temp = fd[extension].data.field (column)
         fd.close()
     elif data is not None:
@@ -775,7 +789,7 @@ def getHeaders (input):
         A list of all the headers in the input FITS file.
     """
 
-    fd = pyfits.open (input, mode="readonly")
+    fd = pyfits.open (input, mode="copyonwrite")
 
     headers = [hdu.header.copy() for hdu in fd]
 
@@ -851,8 +865,7 @@ def geometricDistortion (x, y, geofile, segment, igeocorr):
         "PERFORM" if interpolation should be used within the geofile.
     """
 
-    fd = pyfits.open (geofile, mode="readonly", memmap=0)
-    # fd = pyfits.open (geofile, mode="readonly", memmap=1)
+    fd = pyfits.open (geofile, mode="copyonwrite")
     x_hdu = fd[(segment,1)]
     y_hdu = fd[(segment,2)]
 
@@ -930,7 +943,7 @@ def getInputDQ (input, imset=1):
         Data quality array read from input file, or array of zeros.
     """
 
-    fd = pyfits.open (input, mode="readonly")
+    fd = pyfits.open (input, mode="copyonwrite")
 
     hdr = fd[("DQ",imset)].header
     detector = fd[0].header["detector"]
@@ -961,7 +974,7 @@ def getInputDQ (input, imset=1):
             dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",imset)].data
     else:
         dq_array = np.zeros (npix, dtype=np.int16)
-        if hdr.has_key ("pixvalue"):
+        if "pixvalue" in hdr:
             pixvalue = hdr["pixvalue"]
             if pixvalue != 0:
                 dq_array[:,:] = pixvalue
@@ -1018,7 +1031,7 @@ def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
 
     return (mindopp, maxdopp)
 
-def updateDQArray (bpixtab, info, dq_array,
+def updateDQArray (info, reffiles, dq_array,
                    minmax_shift_dict,
                    minmax_doppler, doppler_boundary):
     """Apply the data quality initialization table to DQ array.
@@ -1032,11 +1045,11 @@ def updateDQArray (bpixtab, info, dq_array,
 
     Parameters
     ----------
-    bpixtab: str
-        Name of the data quality initialization table
-
     info: dictionary
         Header keywords and values.
+
+    reffiles: dictionary
+        Reference file keywords and names.
 
     dq_array: array_like
         Data quality image array (modified in-place)
@@ -1054,15 +1067,14 @@ def updateDQArray (bpixtab, info, dq_array,
             Y >= doppler_boundary is the WCA
     """
 
-    dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
-    if dq_info is None:
+    (lx, ly, dx, dy, dq, extn, message) = getDQArrays (info, reffiles)
+    if len (lx) < 1:
         return
 
     dq_shape = dq_array.shape
-    lx = dq_info.field ("lx")
-    ly = dq_info.field ("ly")
-    ux = lx + dq_info.field ("dx") - 1
-    uy = ly + dq_info.field ("dy") - 1
+
+    ux = lx + dx - 1
+    uy = ly + dy - 1
 
     (mindopp, maxdopp) = minmax_doppler
 
@@ -1083,8 +1095,6 @@ def updateDQArray (bpixtab, info, dq_array,
     #   the minimum shift will be subtracted from the upper limit.
     # It is explicitly assumed here that the slice is only in the cross-
     # dispersion direction.
-    # keys = minmax_dict.keys()
-    # keys.sort()
     keys = sorted (minmax_dict)
     for key in keys:
         (lower_y, upper_y) = key
@@ -1124,8 +1134,149 @@ def updateDQArray (bpixtab, info, dq_array,
         ly_s = ly_s.astype (np.int32)
         uy_s = uy_s.astype (np.int32)
 
-        ccos.bindq (lx_s, ly_s, ux_s, uy_s, dq_info.field ("dq"),
+        ccos.bindq (lx_s, ly_s, ux_s, uy_s, dq,
                     dq_array[lower_y_s:upper_y_s,:], info["x_offset"])
+
+def getDQArrays (info, reffiles):
+    """Get DQ info from BPIXTAB and possibly GSAGTAB.
+
+    Parameters
+    ----------
+    info: dictionary
+        Header keywords and values.
+
+    reffiles: dictionary
+        Reference file keywords and names.
+
+    Returns
+    -------
+    tuple of five arrays, an int, and a string
+        (lx, ly, dx, dy, dq, extn, message)
+        lx and ly are arrays (np.int16) of the lower-left corners of
+            flagged regions (ly is along axis 0, lx is along axis 1),
+        dx and dy are arrays (np.int16) of the width and height of flagged
+            regions (dy is along axis 0, dx is along axis 1),
+        dq is an array (np.int16) of the data quality value for each
+            region,
+        extn is the integer extension number from which the gain sag table
+            information was read (or None if there is no gain sag table,
+            or -1 if no matching extension was found)
+        message is a string, which, if not empty, gives a warning message
+    """
+
+    # These defaults indicate there is no gain sag table (e.g. for NUV).
+    lx = []; ly = []; dx = []; dy = []; dq = []; extn = None; message = ""
+
+    bpixtab = reffiles["bpixtab"]
+    dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
+    if dq_info is None:
+        return (lx, ly, dx, dy, dq, extn, message)
+
+    lx = dq_info.field ("lx")
+    ly = dq_info.field ("ly")
+    dx = dq_info.field ("dx")
+    dy = dq_info.field ("dy")
+    dq = dq_info.field ("dq")
+
+    if info["detector"] == "FUV" and info["obsmode"] == "TIME-TAG":
+        gsagtab = reffiles["gsagtab"]
+        if gsagtab != NOT_APPLICABLE:
+            (extn, message) = findGSagExtn (gsagtab, info["dethvl"],
+                                            info["segment"])
+            if extn > 0:        # was an appropriate extension found?
+                gsag_info = getTable (gsagtab,
+                        filter={"date": (np.less_equal, info["expstart"])},
+                        extension=extn)
+                if gsag_info is not None:
+                    gsag_lx = gsag_info.field ("lx")
+                    gsag_ly = gsag_info.field ("ly")
+                    gsag_dx = gsag_info.field ("dx")
+                    gsag_dy = gsag_info.field ("dy")
+                    gsag_dq = gsag_info.field ("dq")
+
+                    lx = concatArrays (lx, gsag_lx)
+                    ly = concatArrays (ly, gsag_ly)
+                    dx = concatArrays (dx, gsag_dx)
+                    dy = concatArrays (dy, gsag_dy)
+                    dq = concatArrays (dq, gsag_dq)
+
+    return (lx, ly, dx, dy, dq, extn, message)
+
+def concatArrays (x0, x1):
+    """Concatenate two arrays.
+
+    Parameters
+    ----------
+    x0: array_like
+        First array, to be copied to the first part of the output array.
+
+    x1: array_like
+        Second array, to be copied to the second part of the output array.
+
+    Returns
+    -------
+    array
+        This is the result of appending x1 to x0.
+    """
+
+    length0 = len (x0)
+    length1 = len (x1)
+    length = length0 + length1
+    dtype = x0.dtype
+    x = np.zeros (length, dtype=dtype)
+    x[0:length0] = x0
+    x[length0:length] = x1
+
+    return x
+
+def findGSagExtn (gsagtab, dethvl, segment):
+    """Find the appropriate extension in the gain sag table.
+    Parameters
+    ----------
+    gsagtab: string
+        Name of the gain sag table, i.e. listing gain-sagged regions.
+
+    dethvl: float
+        FUV detector high voltage level (volts).
+
+    segment: string
+        Segment name (FUVA or FUVB)
+
+    Returns
+    -------
+    tuple (extn, message) of an int and a string
+        extn is the integer extension number in the gain sag table that
+            matches the specified segment name and high voltage.  If there
+            is no such extension, `extn` will be set to -1.
+            or -1 if no matching extension was found)
+        message is a string, either empty or giving a warning message
+            regarding `dethvl` compared with the nominal value in the
+            matching extension.
+
+    """
+
+    fd = pyfits.open (gsagtab, mode="copyonwrite", memmap=False)
+    extn = -1           # default indicates that no extension matched the HV
+    message = None
+    for i in range (1, len (fd)):
+        hdr = fd[i].header
+        segment_i = hdr.get ("segment", default="missing")
+        if segment_i != segment:
+            continue
+        min_hv = hdr.get ("min_hv", default=0.)
+        max_hv = hdr.get ("max_hv", default=0.)
+        nom_hv = hdr.get ("nom_hv", default=0.)
+        range_hv = hdr.get ("range_hv", default=0.)
+        if dethvl >= min_hv and dethvl <= max_hv:
+            extn = i
+            if abs (dethvl - nom_hv) > range_hv:
+                message = "For selecting an extension in the gain sag " \
+                "table, the detector high voltage %.6g is farther than " \
+                "expected from nominal %.6g" % (dethvl, nom_hv)
+            break
+    fd.close()
+
+    return (extn, message)
 
 def flagOutOfBounds (hdr, dq_array, info, switches,
                      brftab, geofile, minmax_shift_dict,
@@ -1645,7 +1796,7 @@ def getGeoData (geofile, segment):
         ybin:  binning (int) in the Y direction
     """
 
-    fd = pyfits.open (geofile, mode="readonly", memmap=0)
+    fd = pyfits.open (geofile, mode="copyonwrite")
     x_hdu = fd[(segment,1)]
     y_hdu = fd[(segment,2)]
 
@@ -1702,8 +1853,8 @@ def tableHeaderToImage (thdr):
             "CTYPE2", "CRVAL2", "CRPIX2", "CDELT2", "CUNIT2", "CD2_1", "CD2_2"]
     # Rename events table WCS keywords to the corresponding image WCS keywords.
     for i in range (len (tkey)):
-        if hdr.has_key (tkey[i]):
-            if hdr.has_key (ikey[i]):
+        if tkey[i] in hdr:
+            if ikey[i] in hdr:
                 printWarning ("Can't rename %s to %s" % (tkey[i], ikey[i]))
                 printContinuation ("keyword already exists")
                 del (hdr[tkey[i]])
@@ -1715,8 +1866,8 @@ def tableHeaderToImage (thdr):
 def imageHeaderToTable (imhdr):
     """Modify keywords to turn an image header into a table header.
 
-    The function returns a copy of the header with image-specific world
-    coordinate system keywords and BUNIT deleted.
+    The function returns a copy of the header with some image-specific
+    keywords (e.g. world coordinate system keywords and BUNIT) deleted.
 
     Parameters
     ----------
@@ -1726,16 +1877,16 @@ def imageHeaderToTable (imhdr):
     Returns
     -------
     hdr: pyfits Header object
-        A copy of imhdr, with certain image WCS keywords deleted.
+        A copy of imhdr, with certain image-specific keywords deleted.
     """
 
     hdr = imhdr.copy()
 
     ikey = ["CTYPE1", "CRVAL1", "CRPIX1", "CDELT1", "CUNIT1", "CD1_1", "CD1_2",
             "CTYPE2", "CRVAL2", "CRPIX2", "CDELT2", "CUNIT2", "CD2_1", "CD2_2",
-            "BUNIT"]
+            "BSCALE", "BZERO", "BUNIT", "DATAMIN", "DATAMAX"]
     for keyword in ikey:
-        if hdr.has_key (keyword):
+        if keyword in hdr:
             del hdr[keyword]
 
     return hdr
@@ -1766,7 +1917,7 @@ def delCorrtagWCS (thdr):
     tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
             "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
     for keyword in tkey:
-        if hdr.has_key (keyword):
+        if keyword in hdr:
             del hdr[keyword]
 
     return hdr
@@ -1906,8 +2057,7 @@ def doImageStat (input):
     phdr = fd[0].header
     xtractab = expandFileName (phdr.get ("xtractab", ""))
     detector = phdr.get ("detector", "")
-    if detector == "FUV":
-        fuv_segment = phdr.get ("segment", "")  # not used for NUV
+    segment = phdr.get ("segment", "")          # used for FUV
     opt_elem = phdr.get ("opt_elem", "")
     cenwave = phdr.get ("cenwave", 0)
     aperture = getApertureKeyword (phdr, truncate=1)
@@ -1924,7 +2074,8 @@ def doImageStat (input):
         dq = fd[("DQ",extver)].data
 
         dispaxis = hdr.get ("dispaxis", 0)
-        exptime = hdr.get ("exptime", 0.)
+        key = segmentSpecificKeyword ("exptime", segment)
+        exptime = hdr.get (key, 0.)
         sdqflags = hdr.get ("sdqflags", 3832)
         x_offset = hdr.get ("x_offset", 0)
 
@@ -1939,7 +2090,7 @@ def doImageStat (input):
         stat_info = []
 
         if detector == "FUV":
-            segment_list = [fuv_segment]            # just one
+            segment_list = [segment]                # just one
         elif dispaxis == 0:
             segment_list = ["NUV"]                  # target-acq image
         else:
@@ -2231,7 +2382,7 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
     """
 
     for key in switches.keys():
-        if phdr.has_key (key):
+        if key in phdr:
             if key == "statflag":
                 if switches["statflag"] == "PERFORM":
                     phdr["statflag"] = True
@@ -2243,15 +2394,15 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
     for key in reffiles.keys():
         # Skip the _hdr keys (they're redundant), and skip any keyword
         # that isn't already in the header.
-        if key.find ("_hdr") < 0 and phdr.has_key (key):
+        if key.find ("_hdr") < 0 and key in phdr:
             phdr[key] = reffiles[key+"_hdr"]
 
     for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype",
                 "exptype"]:
-        if phdr.has_key (key):
+        if key in phdr:
             phdr[key] = info[key]
 
-    if hdr.has_key ("dispaxis"):
+    if "dispaxis" in hdr:
         hdr["dispaxis"] = info["dispaxis"]
 
     hdr.update ("x_offset", info["x_offset"])
@@ -2397,7 +2548,7 @@ def getSwitch (phdr, keyword):
         statflag is T or F respectively.
     """
 
-    if phdr.has_key (keyword):
+    if keyword in phdr:
         switch = phdr[keyword]
         if keyword.upper() == "STATFLAG":
             if switch:
@@ -2780,24 +2931,29 @@ def getApertureKeyword (hdr, truncate=1):
 
     return aperture
 
-def exptimeKeyword (segment):
-    """Construct the keyword for the updated exposure time.
+def segmentSpecificKeyword (keyword_root, segment):
+    """Construct a segment-specific keyword.
 
     Parameters
     ----------
+    keyword_root: str
+        The part of the keyword name preceding the segment-specific
+        character.
+
     segment: str
         Segment or stripe name
 
     Returns
     -------
     str
-        Keyword (lower case) for exposure time
+        Keyword (lower case) for the specified segment.
     """
 
+    keyword_root = keyword_root.lower()
     if segment[0] == "F":
-        key = "exptime" + segment[-1].lower()
+        key = keyword_root + segment[-1].lower()
     else:
-        key = "exptime"
+        key = keyword_root
 
     return key
 

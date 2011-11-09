@@ -66,7 +66,7 @@ def oneInputFile (input, output):
         Name of a file for the modified copy of input
     """
 
-    fd = pyfits.open (input, mode="readonly")
+    fd = pyfits.open (input, mode="copyonwrite")
     data = fd[1].data
     if data is None:
         fd.close()
@@ -93,13 +93,13 @@ def oneInputFile (input, output):
         asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
         if asn_mtyp != "missing":
             fd[1].header["asn_mtyp"] = asn_mtyp
-    if fd[0].header.has_key ("segment"):
+    if "segment" in fd[0].header:
         del (fd[0].header["segment"])
-    if fd[0].header.has_key ("wavecals"):
+    if "wavecals" in fd[0].header:
         del (fd[0].header["wavecals"])
-    if fd[0].header.has_key ("fppos"):
+    if "fppos" in fd[0].header:
         del (fd[0].header["fppos"])
-    if fd[0].header.has_key ("fpoffset"):
+    if "fpoffset" in fd[0].header:
         del (fd[0].header["fpoffset"])
     delSomeKeywords (fd[1].header)
 
@@ -120,7 +120,7 @@ def delSomeKeywords (hdr):
     for key in ["shift1a", "shift1b", "shift1c",
                 "shift2a", "shift2b", "shift2c",
                 "dpixel1a", "dpixel1b", "dpixel1c"]:
-        if hdr.has_key (key):
+        if key in hdr:
             del (hdr[key])
 
 def pixelsFromWl (input_wavelength, output_wavelength):
@@ -303,7 +303,7 @@ class OutputX1D (object):
             if first:
                 detector = phdr["detector"]
                 opt_elem = phdr["opt_elem"]
-                cenwave = phdr["cenwave"]
+                cenwave = [phdr["cenwave"]]     # may have multiple values
                 aperture = cosutil.getApertureKeyword (phdr, truncate=1)
                 statflag = phdr.get ("statflag", False)
                 sum_plantime = hdr["plantime"]
@@ -314,6 +314,10 @@ class OutputX1D (object):
                 sum_plantime += hdr["plantime"]
                 expstart = min (expstart, hdr["expstart"])
                 expend = max (expend, hdr["expend"])
+                # If there are multiple input cenwaves, we'll delete the
+                # keyword before writing the output file.
+                if phdr["cenwave"] not in cenwave:
+                    cenwave.append (phdr["cenwave"])
             fpoffset = phdr["fpoffset"]
 
             if ifd[1].data is not None:
@@ -362,7 +366,7 @@ class OutputX1D (object):
         self.keywords = {
              "detector": detector,
              "opt_elem": opt_elem,
-             "cenwave":  cenwave,
+             "cenwave":  cenwave,               # this is a list
              "aperture": aperture,
              "exptime":  exptime,
              "exptimea": sum_exptime_kwd[1],
@@ -446,19 +450,22 @@ class OutputX1D (object):
         """Create pyfits object for output file."""
 
         # Get header info from the input.
-        ifd = pyfits.open (self.input[self.index_max_nelem], mode="readonly")
+        ifd = pyfits.open (self.input[self.index_max_nelem],
+                           mode="copyonwrite")
         detector = ifd[0].header["detector"]
 
         primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
         cosutil.updateFilename (primary_hdu.header, self.output)
-        if primary_hdu.header.has_key ("segment"):
+        if "segment" in primary_hdu.header:
             del (primary_hdu.header["segment"])
-        if primary_hdu.header.has_key ("wavecals"):
+        if "wavecals" in primary_hdu.header:
             del (primary_hdu.header["wavecals"])
-        if primary_hdu.header.has_key ("fppos"):
+        if "fppos" in primary_hdu.header:
             del (primary_hdu.header["fppos"])
-        if primary_hdu.header.has_key ("fpoffset"):
+        if "fpoffset" in primary_hdu.header:
             del (primary_hdu.header["fpoffset"])
+        if len (self.keywords["cenwave"]) > 1:
+            del (primary_hdu.header["cenwave"])
         ofd = pyfits.HDUList (primary_hdu)
 
         rpt = str (self.output_nelem)   # used for defining columns
@@ -501,7 +508,6 @@ class OutputX1D (object):
         #        x = ifd[1].data         # xxx touch the data
         #        newfmt = rpt + fmt[-1]
         #        cd.change_attrib (col_names[i], "format", newfmt)
-        #        print "debug:  name, newfmt =", col_names[i], newfmt
 
         # Create output HDU for the table.
         hdu = pyfits.new_table (cd, header=ifd[1].header, nrows=self.nrows)

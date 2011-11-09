@@ -88,7 +88,7 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
 
     (inroot, suffix) = splitName (input)
 
-    ifd = pyfits.open (input, mode="readonly")
+    ifd = pyfits.open (input, mode="copyonwrite")
     phdr = ifd[0].header
     try:
         hdr = ifd[("events")].header
@@ -222,7 +222,7 @@ def getInfo (input, phdr, hdr):
 
     for key in keylist.keys():
         info[key] = hdr.get (key, default=keylist[key])
-    exptime_key = cosutil.exptimeKeyword (info["segment"])
+    exptime_key = cosutil.segmentSpecificKeyword ("exptime", info["segment"])
     exptime_default = hdr.get ("exptime", default=-1.)
     info["exptime"] = hdr.get (exptime_key, default=exptime_default)
 
@@ -727,7 +727,8 @@ def updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd):
         hdr.update ("neventsa", 0)
         hdr.update ("neventsb", 0)
         # "exptimea" or "exptimeb"
-        exptime_key = cosutil.exptimeKeyword (info["segment"])
+        exptime_key = cosutil.segmentSpecificKeyword ("exptime",
+                                                      info["segment"])
         hdr.update (exptime_key, exptime)
         nevents_key = "nevents" + info["segment"][-1].lower()
         hdr.update (nevents_key, nevents)
