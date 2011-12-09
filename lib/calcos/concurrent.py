@@ -104,7 +104,7 @@ def processConcurrentWavecal (events, outflash, shift_file,
         else:
             phdr["wavecorr"] = "SKIPPED"        # reset if user-specified
             cw.setSegBtoZero()          # set shifts to zero
-            cw.outFlashSetup()
+            cw.setUpOutFlash()
             (avg_dx, avg_dy) = cw.miscSegB()
             cw.setShiftKeywords (avg_dx, avg_dy)
             (tl_time, shift1_vs_time) = cw.shift1VsTime()
@@ -117,13 +117,13 @@ def processConcurrentWavecal (events, outflash, shift_file,
     if cw.numflash < 1:
         # write an empty lampflash table
         cosutil.printWarning ("No lamp flash was found.")
-        cw.outFlashSetup()
+        cw.setUpOutFlash()
         phdr["lampused"] = "NONE"
         cw.ofd[0].header["lampused"] = "NONE"
         cw.writeOutFlash()
         return (tl_time, None)
 
-    cw.outFlashSetup()          # create an HDU list for the outflash file
+    cw.setUpOutFlash()          # create an HDU list for the outflash file
 
     cw.getWavecalParameters()
     cw.findShifts()
@@ -312,7 +312,7 @@ class ConcurrentWavecal (object):
         self.lamp_duration = [1.]
         self.lamp_median = [0.5]
 
-    def outFlashSetup (self):
+    def setUpOutFlash (self):
         """Create an HDU list for the outflash FITS table."""
 
         if not self.outflash:

@@ -663,7 +663,20 @@ def ttFindWavecalSpectrum (xi, eta, dq, info, xd_range, box, xtractab):
     """
 
     if len (xi) < 1:
-        return (0., {}, {})
+        shift2 = 0.
+        xd_shifts = {}
+        xd_locns = {}
+        lamp_is_on = False
+        if info["detector"] == "FUV":
+            segment_list = [info["segment"]]
+        elif info["obstype"] == "IMAGING":
+            segment_list = ["NUVA"]
+        else:
+            segment_list = ["NUVA", "NUVB", "NUVC"]
+        for segment in segment_list:
+            xd_shifts[segment] = None
+            xd_locns[segment] = 0.
+        return (shift2, xd_shifts, xd_locns, lamp_is_on)
 
     filter = {"segment": info["segment"],
               "opt_elem": info["opt_elem"],
@@ -820,8 +833,8 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
     -------
     (shift2, y): tuple of two floats
         `shift2` is the shift from nominal in the cross-dispersion
-        direction, and `y` is the location of the spectrum.  The
-        location is based on fitting a quadratic to points near the
+        direction (or None), and `y` is the location of the spectrum.
+        The location is based on fitting a quadratic to points near the
         maximum.  Note that the data were collapsed to the left edge to
         get `xdisp`, so the location is the intercept on the edge, rather
         than where the spectrum crosses the middle of the detector.
@@ -866,6 +879,8 @@ def ttFindSpec (xdisp, xtract_info, xd_range, box):
         x = np.arange (fit_range, dtype=np.float64)
         (coeff, var) = cosutil.fitQuadratic (x, xdisp_sm[r0:r1])
         (y_temp, y_float_sigma) = cosutil.centerOfQuadratic (coeff, var)
+        if y_temp is None:
+            return (None, 0.)
         y_float = y_temp + r0
 
     # Find the background level.

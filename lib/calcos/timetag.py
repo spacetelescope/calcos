@@ -242,7 +242,8 @@ def timetagBasicCalibration (input, inpha, outtag,
         shift1_vs_time = None
         del time
 
-    minmax_shift_dict = getWavecalOffsets (events, info, reffiles["xtractab"])
+    minmax_shift_dict = getWavecalOffsets (events, info, switches["wavecorr"],
+                                           reffiles["xtractab"])
 
     dq_array = doDqicorr (events, input, info, switches, reffiles,
                           phdr, headers[1], minmax_shift_dict)
@@ -2123,7 +2124,8 @@ def doDqicorr (events, input, info, switches, reffiles,
                                 reffiles["disptab"], switches["doppcorr"])
         minmax_doppler = cosutil.minmaxDoppler (info, switches["doppcorr"],
                                doppmag, doppzero, orbitper)
-        if info["obstype"] == "SPECTROSCOPIC":
+        if info["obstype"] == "SPECTROSCOPIC" and \
+           minmax_doppler[0] != 0. and minmax_doppler[1] != 0.:
             doppler_boundary = psaWcaBoundary (info, reffiles["xtractab"])
         else:
             doppler_boundary = -10
@@ -4317,7 +4319,7 @@ def nuvWcaRegions (eta, info, xtractab):
 
     return region_flags_dict
 
-def getWavecalOffsets (events, info, xtractab):
+def getWavecalOffsets (events, info, wavecorr, xtractab):
     """Get min and max values of shift1 and shift2.
 
     Parameters
@@ -4327,6 +4329,9 @@ def getWavecalOffsets (events, info, xtractab):
 
     info: dictionary
         Keywords and values.
+
+    wavecorr: str
+        Specifies whether wavecal processing has been done.
 
     xtractab: str
         Name of spectral extraction parameters reference table.
@@ -4349,7 +4354,7 @@ def getWavecalOffsets (events, info, xtractab):
 
     minmax_shift_dict = {}
 
-    if info["obstype"] == "IMAGING":
+    if info["obstype"] == "IMAGING" or wavecorr != "COMPLETE":
         if info["detector"] == "NUV":
             minmax_shift_dict[(0, NUV_Y)] = [0., 0., 0., 0.]
         else:

@@ -19,10 +19,10 @@ ASECtoRAD = math.pi / (180. * 3600.)    # radians per arcsecond
 DEGtoRAD  = math.pi / 180.              # radians per degree
 
 # Wavelengths in Angstroms of airglow lines Lyman alpha, oxygen I, oxygen I.
-# This will probably need to be modified, perhaps to add a wavelength range.
-AIRGLOW_WAVELENGTHS = {"ly_alpha": 1215.67,
-                       "oi_1304": 1304.,
-                       "oi_1356": 1356.,
+# The values in the tuple are the wavelengths of the lines in the multiplet.
+AIRGLOW_WAVELENGTHS = {"ly_alpha": (1215.67,),
+                       "oi_1304": (1302.2, 1304.9, 1306.0),
+                       "oi_1356": (1355.6, 1358.5),
                        "dark": None}
 
 def createTimeline (input, fd, info, reffiles,
@@ -474,9 +474,10 @@ def findPixelRegion (info, disptab, xtractab, median_shift1, wl_airglow):
         used when testing whether an airglow line is on the detector, and
         for shifting the region for the dark count rate.
 
-    wl_airglow: float or None
-        Wavelength (Angstroms) of an airglow line, or None if the region
-        should be for the dark count rate.
+    wl_airglow: tuple of floats, or None
+        The elements of the tuple are the wavelengths of the airglow line
+        or lines (i.e. in a multiplet), in Angstroms.
+        If the region is for the dark count rate, wl_airglow will be None.
 
     Returns
     -------
@@ -543,24 +544,29 @@ def findPixelRegion (info, disptab, xtractab, median_shift1, wl_airglow):
     else:
         # Region for an airglow line.
         disp_rel = dispersion.Dispersion (disptab, filter, False)
+        min_wl = min (wl_airglow)
+        max_wl = max (wl_airglow)
         # First check whether the airglow line is off the detector.
-        wl_left = disp_rel.evalDisp (-x_width - median_shift1)
-        if wl_airglow < wl_left:
+        # NOTE that we assume that wavelength increases with x.
+        wl_left_edge = disp_rel.evalDisp (-x_width - median_shift1)
+        if max_wl < wl_left_edge:
             disp_rel.close()
             return None
-        wl_right = disp_rel.evalDisp (axis_length - 1. +
-                                      x_width - median_shift1)
-        if wl_airglow > wl_right:
+        wl_right_edge = disp_rel.evalDisp (axis_length - 1. +
+                                           x_width - median_shift1)
+        if min_wl > wl_right_edge:
             disp_rel.close()
             return None
-        # x is the pixel coordinate for the airglow wavelength.
-        x = float (disp_rel.evalInvDisp (wl_airglow, tiny=1.e-8))
-        x0 = x - x_width
-        x1 = x + x_width
+        # x_left and x_right are the pixel coordinates for the minimum
+        # and maximum airglow wavelengths respectively.
+        x_left = float (disp_rel.evalInvDisp (min_wl, tiny=1.e-8))
+        x_right = float (disp_rel.evalInvDisp (max_wl, tiny=1.e-8))
+        x0 = x_left - x_width
+        x1 = x_right + x_width
         disp_rel.close()
         slope = xtract_info.field ("slope").item(0)
         b_spec = xtract_info.field ("b_spec").item(0)
-        y = b_spec + slope * x
+        y = b_spec + slope * (x_left + x_right) / 2.
         y0 = y - y_width
         y1 = y + y_width
 
