@@ -4354,7 +4354,7 @@ def getWavecalOffsets (events, info, wavecorr, xtractab):
 
     minmax_shift_dict = {}
 
-    if info["obstype"] == "IMAGING" or wavecorr != "COMPLETE":
+    if info["obstype"] == "IMAGING" or wavecorr == "OMIT":
         if info["detector"] == "NUV":
             minmax_shift_dict[(0, NUV_Y)] = [0., 0., 0., 0.]
         else:
