@@ -363,13 +363,12 @@ class SpWcsImage (SpWCS):
     def deleteKeywords (self, hdr):
         """Delete some keywords (if they're present) in the header."""
 
-        del (hdr["talen2"])
-        del (hdr["talen3"])
-        del (hdr["cunit2"])
-        del (hdr["cd1_1"])
-        del (hdr["cd1_2"])
-        del (hdr["cd2_1"])
-        del (hdr["cd2_2"])
+        keyword_list = ["talen2", "talen3", "cunit2",
+                        "cd1_1", "cd1_2", "cd2_1", "cd2_2"]
+        for keyword in keyword_list:
+            if keyword in hdr:
+                del (hdr[keyword])
+
         # The following keywords could be left around if the input file
         # was corrtag rather than raw.
         keyword_list = ["tctyp7", "tctyp8", "tcrpx7", "tcrpx8",
@@ -379,12 +378,14 @@ class SpWcsImage (SpWCS):
                         "tpv7_0", "tpv7_1", "tpv7_2", "tpv7_6"]
         if self.detector == "FUV":
             for keyword in keyword_list:
-                del (hdr[keyword])
+                if keyword in hdr:
+                    del (hdr[keyword])
         else:
             for alt in ["", "a", "b", "c"]:
                 for key in keyword_list:
                     keyword = key + alt
-                    del (hdr[keyword])
+                    if keyword in hdr:
+                        del (hdr[keyword])
 
 class SpWcsCorrtag (SpWCS):
     """Spectroscopic WCS for pixel list (corrtag) data.

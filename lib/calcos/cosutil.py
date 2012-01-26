@@ -1181,7 +1181,7 @@ def getDQArrays (info, reffiles):
     if info["detector"] == "FUV" and info["obsmode"] == "TIME-TAG":
         gsagtab = reffiles["gsagtab"]
         if gsagtab != NOT_APPLICABLE:
-            (extn, message) = findGSagExtn (gsagtab, info["dethvl"],
+            (extn, message) = findGSagExtn (gsagtab, info["hvlevel"],
                                             info["segment"])
             if extn > 0:        # was an appropriate extension found?
                 gsag_info = getTable (gsagtab,
@@ -1229,15 +1229,17 @@ def concatArrays (x0, x1):
 
     return x
 
-def findGSagExtn (gsagtab, dethvl, segment):
+def findGSagExtn (gsagtab, hvlevel, segment):
     """Find the appropriate extension in the gain sag table.
+
     Parameters
     ----------
     gsagtab: string
         Name of the gain sag table, i.e. listing gain-sagged regions.
 
-    dethvl: float
-        FUV detector high voltage level (volts).
+    hvlevel: int
+        Raw (commanded) FUV detector high voltage level that was used for
+        the current exposure.
 
     segment: string
         Segment name (FUVA or FUVB)
@@ -1247,33 +1249,49 @@ def findGSagExtn (gsagtab, dethvl, segment):
     tuple (extn, message) of an int and a string
         extn is the integer extension number in the gain sag table that
             matches the specified segment name and high voltage.  If there
-            is no such extension, `extn` will be set to -1.
-            or -1 if no matching extension was found)
+            is no extension with an exact match to the current high
+            voltage, the extension with the closest voltage value greater
+            than the current high voltage will be selected.  If no such
+            extension was found (e.g. no extension for the current segment,
+            or voltages in all extensions were lower than the current high
+            voltage), then `extn` will be set to -1.
         message is a string, either empty or giving a warning message
-            regarding `dethvl` compared with the nominal value in the
+            regarding `hvlevel` compared with the nominal value in the
             matching extension.
 
     """
 
-    fd = pyfits.open (gsagtab, mode="copyonwrite", memmap=False)
+    kwd_root = "hvlevel"        # high voltage (commanded, raw)
+    keyword = segmentSpecificKeyword (kwd_root, segment)
+
+    fd = pyfits.open (gsagtab)
     extn = -1           # default indicates that no extension matched the HV
-    message = None
+    message = ""
+    extn_hv_min = None
+    hv_diff = None
     for i in range (1, len (fd)):
         hdr = fd[i].header
         segment_i = hdr.get ("segment", default="missing")
         if segment_i != segment:
             continue
-        min_hv = hdr.get ("min_hv", default=0.)
-        max_hv = hdr.get ("max_hv", default=0.)
-        nom_hv = hdr.get ("nom_hv", default=0.)
-        range_hv = hdr.get ("range_hv", default=0.)
-        if dethvl >= min_hv and dethvl <= max_hv:
+        hv = hdr.get (keyword, default=-999)
+        if hv == hvlevel:
             extn = i
-            if abs (dethvl - nom_hv) > range_hv:
-                message = "For selecting an extension in the gain sag " \
-                "table, the detector high voltage %.6g is farther than " \
-                "expected from nominal %.6g" % (dethvl, nom_hv)
             break
+        elif hv > hvlevel:
+            # Find the closest voltage value greater than the current
+            # commanded value.
+            if hv_diff is None or (hv - hvlevel) < hv_diff:
+                hv_diff = hv - hvlevel
+                extn_hv_min = i
+
+    if extn < 0:
+        message = "No matching extension was found in the gain sag table " \
+        "for SEGMENT=%s, %s=%d" % (segment, keyword.upper(), hvlevel)
+        if extn_hv_min is not None:
+            extn = extn_hv_min
+            message = message + ";\n  using extension %d instead" % extn
+
     fd.close()
 
     return (extn, message)

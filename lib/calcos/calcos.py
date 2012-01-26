@@ -1111,10 +1111,11 @@ class Association (object):
         return (i_timetag, i_accum)
 
     def compareConfig (self):
-        """Compare detector and opt_elem.
+        """Compare detector, opt_elem, and cenwave.
 
         All the files in an association must have been taken with the same
-        detector and grating (or mirror).
+        detector and grating (or mirror).  For spectroscopic observations,
+        the central wavelength must also be the same.
         """
 
         if len (self.obs) < 2:
@@ -1125,13 +1126,18 @@ class Association (object):
         refinfo = self.obs[0].info
         detector = refinfo["detector"]
         opt_elem = refinfo["opt_elem"]
+        cenwave = refinfo["cenwave"]            # 0 for imaging type
 
         for obs in self.obs:
             if obs.info["detector"] != detector or \
-               obs.info["opt_elem"] != opt_elem:
+               obs.info["opt_elem"] != opt_elem or \
+               obs.info["cenwave"] != cenwave:
                 cosutil.printError (obs.filenames["raw"])
-                errmess = "All files must be for the same detector" \
-                          " and opt_elem."
+                errmess = "All files must be for the same detector"
+                if obs.info["obstype"] == "SPECTROSCOPIC":
+                    errmess += ", opt_elem and cenwave."
+                else:
+                    errmess += " and opt_elem."
                 raise RuntimeError (errmess)
 
     def resetSwitches (self):
@@ -1291,11 +1297,13 @@ class Association (object):
         # temp is a temporary dictionary with just min_ver and filetype,
         # for readability; these and other values will be copied to ref,
         # which is used for the argument to findRefFile.
+        # xxx temp disable  the entry for gsagtab was:
+        #   "gsagtab":  ["2.0", "GAIN SAG REFERENCE TABLE"],
         temp = {
+            "hvtab":    ["2.0", "FUV HIGH VOLTAGE HISTORY"],
             "flatfile": ["2.0", "FLAT FIELD REFERENCE IMAGE"],
             "badttab":  ["2.0", "BAD TIME INTERVALS TABLE"],
             "bpixtab":  ["2.0", "DATA QUALITY INITIALIZATION TABLE"],
-            "gsagtab":  ["2.0", "GAIN SAG REFERENCE TABLE"],
             "deadtab":  ["2.0", "DEADTIME REFERENCE TABLE"],
             "brftab":   ["2.0", "BASELINE REFERENCE FRAME TABLE"],
             "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
@@ -1323,6 +1331,10 @@ class Association (object):
                      "filetype":   temp[keyword][1]}
             ref[keyword] = value
 
+        if reffiles["hvtab"] != NOT_APPLICABLE:
+            cosutil.findRefFile (ref["hvtab"],
+                                 missing, wrong_filetype, bad_version)
+
         if switches["flatcorr"] == "PERFORM":
             cosutil.findRefFile (ref["flatfile"],
                     missing, wrong_filetype, bad_version)
@@ -1337,9 +1349,10 @@ class Association (object):
         if switches["dqicorr"] == "PERFORM":
             cosutil.findRefFile (ref["bpixtab"],
                     missing, wrong_filetype, bad_version)
-            if reffiles["gsagtab"] != NOT_APPLICABLE:
-                cosutil.findRefFile (ref["gsagtab"],
-                            missing, wrong_filetype, bad_version)
+            # xxx temp disable  the lines for gsagtab were:
+            #if reffiles["gsagtab"] != NOT_APPLICABLE:
+            #    cosutil.findRefFile (ref["gsagtab"],
+            #                missing, wrong_filetype, bad_version)
 
         if switches["deadcorr"] == "PERFORM":
             cosutil.findRefFile (ref["deadtab"],

@@ -119,6 +119,10 @@ def createTimeline (input, fd, info, reffiles,
             if region is None:
                 continue
             (y0, y1, x0, x1) = region
+            if key == "ly_alpha" or key == "oi_1304":
+                cosutil.printMsg ("Airglow region for %s is "
+                                  "X: %d to %d, Y: %d to %d" %
+                                  (key.upper(), x0, x1+1, y0, y1+1), VERBOSE)
             # A value of 1 (True) in region_flags means the corresponding
             # event is within the area that includes the airglow line.
             region_flags = np.ones (len (xfull), dtype=np.bool8)

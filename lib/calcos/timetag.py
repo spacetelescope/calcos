@@ -135,6 +135,10 @@ def timetagBasicCalibration (input, inpha, outtag,
     # will reflect what was actually used.
     cosutil.overrideKeywords (phdr, headers[1], info, switches, reffiles)
 
+    # Update keywords for FUV high voltage.
+    if info["detector"] == "FUV":
+        updateHVKeywords (headers[1], info, reffiles["hvtab"])
+
     if nrows == 0:
         writeNull (input, ofd, output, outcounts, outcsum,
                    cl_args, info, phdr, headers)
@@ -413,6 +417,56 @@ def mkHeaders (phdr, events_header, extver=1):
     headers.append (dq_hdr)
 
     return headers
+
+def updateHVKeywords (hdr, info, hvtab):
+    """Find the commanded high voltage, and update HV keywords.
+
+    Parameters
+    ----------
+    hdr: pyfits Header object
+        Header for EVENTS extension.  Keywords "hvlevela" and "hvlevelb"
+        will be updated with the commanded high voltage (raw) for segments
+        FUVA and FUVB respectively.
+
+    info: dictionary
+        Header keywords and values.  Key "hvlevel" will be assigned the
+        commanded high voltage (raw) for the current segment.
+
+    hvtab: string
+        Name of table containing high voltage values.
+    """
+
+    if hvtab == NOT_APPLICABLE:
+        return
+
+    segment_list = ["FUVA", "FUVB"]     # update keywords for both segments
+
+    fd = pyfits.open (hvtab, mode="readonly")
+
+    kwd_root = "hvlevel"        # high voltage (commanded, raw)
+    expstart = info["expstart"]
+
+    for segment in segment_list:
+
+        hdu = fd[(segment,1)]
+        keyword = cosutil.segmentSpecificKeyword (kwd_root, segment)
+        start = hdu.data.field ("date")
+        # The column name for raw HV counts is the same as the keyword name.
+        raw = hdu.data.field (keyword)
+        # Find the row with closest time before the exposure's expstart.
+        t_diff = expstart - start[0]    # initial values
+        row_min = 0
+        for row in range (len (start)):
+            diff = expstart - start[row]
+            if diff >= 0. and diff < t_diff:
+                t_diff = diff
+                row_min = row
+        hv_raw = raw[row_min]
+        hdr.update (keyword, hv_raw)
+        if segment == info["segment"]:
+            info["hvlevel"] = hv_raw
+
+    fd.close()
 
 def doPhotcorr (info, switches, imphttab, phdr, hdr):
     """Update photometry parameter keywords for imaging data.

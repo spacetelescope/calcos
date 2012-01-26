@@ -201,9 +201,9 @@ def getGeneralInfo (phdr, hdr):
     exptime_default = hdr.get ("exptime", default=0.)
     info["exptime"] = hdr.get (exptime_key, default=exptime_default)
 
-    # FUV detector high voltage level
-    dethvl_key = cosutil.segmentSpecificKeyword ("dethvl", info["segment"])
-    info["dethvl"] = hdr.get (dethvl_key, default=NOT_APPLICABLE)
+    # FUV detector high voltage level (commanded, raw)
+    hvlevel_key = cosutil.segmentSpecificKeyword ("hvlevel", info["segment"])
+    info["hvlevel"] = hdr.get (hvlevel_key, default=NOT_APPLICABLE)
 
     # Copy exptime to orig_exptime, so we can modify exptime but save the
     # original value.  NOTE:  for TIME-TAG data this value will be replaced
@@ -291,14 +291,16 @@ def getRefFileNames (phdr):
 
     reffiles = {}
 
-    for key in ["flatfile", "bpixtab", "brftab", "geofile",
-                "walktab", "gsagtab",
+    for key in ["flatfile", "hvtab", "walktab", "bpixtab", "gsagtab",
+                "brftab", "geofile",
                 "deadtab", "phafile", "phatab",
                 "brsttab", "badttab",
                 "xtractab", "lamptab", "disptab",
                 "fluxtab", "imphttab", "phottab",
                 "spwcstab", "wcptab", "tdstab"]:
         reffiles[key+"_hdr"] = phdr.get (key, default=NOT_APPLICABLE)
+        if key == "gsagtab":                            # xxx temp disable
+            reffiles[key+"_hdr"] = NOT_APPLICABLE       # xxx temp disable
         reffiles[key] = cosutil.expandFileName (reffiles[key+"_hdr"])
 
     if phdr["obstype"] == "SPECTROSCOPIC":
