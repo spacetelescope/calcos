@@ -140,11 +140,10 @@ def createTimeline (input, fd, info, reffiles,
                 region_flags = np.where (yfull < y0,  False, region_flags)
                 npixels = 1.
             region_flags = region_flags.astype (np.bool8)
-            # scratch array for count rate in each time bin
+            # scratch array for counts per second within each time bin
             temp = np.zeros (len (tl_time), dtype=np.float32)
             if time[-1] - time[0] < 1.:         # e.g. ACCUM data
-                countrate = float (region_flags.sum(dtype=np.int32)) / exptime
-                temp[:] = countrate / float (len (tl_time))
+                temp[:] = float (region_flags.sum(dtype=np.int32)) / exptime
             else:
                 for i in range (len (tl_time)):
                     # jt0 and jt1 are indices in the TIME column, and therefore
@@ -153,7 +152,7 @@ def createTimeline (input, fd, info, reffiles,
                         (jt0, jt1) = ccos.range (time,
                                                  tl_time[i], tl_time[i]+dt)
                         temp[i] = float (
-                        (region_flags[jt0:jt1]).sum(dtype=np.int32)) / exptime
+                        (region_flags[jt0:jt1]).sum(dtype=np.int32)) / dt
                     except RuntimeError:
                         temp[i] = 0.
             if key == "ly_alpha":

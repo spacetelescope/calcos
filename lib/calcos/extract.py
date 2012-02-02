@@ -210,8 +210,8 @@ def extract1D (input, incounts=None, output=None,
         # Delete image-specific world coordinate system keywords.
         ofd[1].header = cosutil.imageHeaderToTable (ofd[1].header)
     updateArchiveSearch (ofd)           # update some keywords
-    # Fix the aperture keyword, if it's RelMvReq.
-    fixApertureKeyword (ofd, info["aperture"], info["detector"])
+    # Fix the aperture keyword, if it's RelMvReq.  [no longer needed]
+    ### fixApertureKeyword (ofd, info["aperture"], info["detector"])
     if nrows > 0:
         ofd[0].header["x1dcorr"] = "COMPLETE"
         if switches["backcorr"] == "PERFORM":

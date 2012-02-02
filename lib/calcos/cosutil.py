@@ -2377,9 +2377,10 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
     """Override the calibration switch and reference file keywords.
 
     The calibration switch and reference file keywords will be overridden
-    with values from `info`.  Keywords cal_ver, opt_elem, cenwave, fpoffset,
-    obstype, and exptype in the primary header, as well as keywords dispaxis
-    and x_offset in the extension header, will be overridden from `info`.
+    with values from `switches` and `reffiles` respectively.  Keywords
+    cal_ver, opt_elem, cenwave, fpoffset, obstype, exptype and aperture
+    in the primary header, as well as keywords dispaxis and x_offset in
+    the extension header, will be overridden from `info`.
 
     Parameters
     ----------
@@ -2416,7 +2417,7 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
             phdr[key] = reffiles[key+"_hdr"]
 
     for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype",
-                "exptype"]:
+                "exptype", "aperture"]:
         if key in phdr:
             phdr[key] = info[key]
 
