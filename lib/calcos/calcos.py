@@ -1297,13 +1297,12 @@ class Association (object):
         # temp is a temporary dictionary with just min_ver and filetype,
         # for readability; these and other values will be copied to ref,
         # which is used for the argument to findRefFile.
-        # xxx temp disable  the entry for gsagtab was:
-        #   "gsagtab":  ["2.0", "GAIN SAG REFERENCE TABLE"],
         temp = {
             "hvtab":    ["2.0", "FUV HIGH VOLTAGE HISTORY"],
             "flatfile": ["2.0", "FLAT FIELD REFERENCE IMAGE"],
             "badttab":  ["2.0", "BAD TIME INTERVALS TABLE"],
             "bpixtab":  ["2.0", "DATA QUALITY INITIALIZATION TABLE"],
+            "gsagtab":  ["2.0", "GAIN SAG REFERENCE TABLE"],
             "deadtab":  ["2.0", "DEADTIME REFERENCE TABLE"],
             "brftab":   ["2.0", "BASELINE REFERENCE FRAME TABLE"],
             "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
@@ -1337,30 +1336,29 @@ class Association (object):
 
         if switches["flatcorr"] == "PERFORM":
             cosutil.findRefFile (ref["flatfile"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
         if switches["brstcorr"] == "PERFORM":
             cosutil.findRefFile (ref["brsttab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
 
         if switches["badtcorr"] == "PERFORM":
             cosutil.findRefFile (ref["badttab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
 
         if switches["dqicorr"] == "PERFORM":
             cosutil.findRefFile (ref["bpixtab"],
-                    missing, wrong_filetype, bad_version)
-            # xxx temp disable  the lines for gsagtab were:
-            #if reffiles["gsagtab"] != NOT_APPLICABLE:
-            #    cosutil.findRefFile (ref["gsagtab"],
-            #                missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
+            if reffiles["gsagtab"] != NOT_APPLICABLE:
+                cosutil.findRefFile (ref["gsagtab"],
+                                     missing, wrong_filetype, bad_version)
 
         if switches["deadcorr"] == "PERFORM":
             cosutil.findRefFile (ref["deadtab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
 
         if switches["tempcorr"] == "PERFORM":
             cosutil.findRefFile (ref["brftab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
 
         if switches["phacorr"] == "PERFORM":
             (i_pha, j_pha) = self.first_science_tuple
@@ -1369,48 +1367,48 @@ class Association (object):
                 if reffiles["phafile"] != NOT_APPLICABLE:
                     # phafile was specified
                     cosutil.findRefFile (ref["phafile"],
-                            missing, wrong_filetype, bad_version)
+                                         missing, wrong_filetype, bad_version)
                 else:
                     # no phafile; use phatab instead
                     cosutil.findRefFile (ref["phatab"],
-                            missing, wrong_filetype, bad_version)
+                                         missing, wrong_filetype, bad_version)
             if j_pha is not None:
                 # there is an ACCUM exposure, so we need phatab
                 cosutil.findRefFile (ref["phatab"],
-                        missing, wrong_filetype, bad_version)
+                                     missing, wrong_filetype, bad_version)
 
         if switches["geocorr"] == "PERFORM":
             cosutil.findRefFile (ref["geofile"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
 
         if switches["wavecorr"] == "PERFORM":
             if self.obs[i].info["obstype"] != "IMAGING":
                 cosutil.findRefFile (ref["lamptab"],
-                        missing, wrong_filetype, bad_version)
+                                     missing, wrong_filetype, bad_version)
                 cosutil.findRefFile (ref["wcptab"],
-                        missing, wrong_filetype, bad_version)
+                                     missing, wrong_filetype, bad_version)
 
         if switches["x1dcorr"] == "PERFORM":
             cosutil.findRefFile (ref["xtractab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
             cosutil.findRefFile (ref["disptab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
             # xxx there's another test on N/A for spwcstab in allScience.
             # Remove both of these tests after this table is delivered.
             if ref["spwcstab"]["filename"] != NOT_APPLICABLE:
                 cosutil.findRefFile (ref["spwcstab"],
-                        missing, wrong_filetype, bad_version)
+                                     missing, wrong_filetype, bad_version)
 
         if switches["fluxcorr"] == "PERFORM":
             cosutil.findRefFile (ref["fluxtab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
             if switches["tdscorr"] == "PERFORM":
                 cosutil.findRefFile (ref["tdstab"],
-                        missing, wrong_filetype, bad_version)
+                                     missing, wrong_filetype, bad_version)
 
         if switches["walkcorr"] == "PERFORM":
             cosutil.findRefFile (ref["walktab"],
-                    missing, wrong_filetype, bad_version)
+                                 missing, wrong_filetype, bad_version)
 
         if switches["photcorr"] == "PERFORM":
             # xxx commented out because we don't have this table yet

@@ -299,8 +299,6 @@ def getRefFileNames (phdr):
                 "fluxtab", "imphttab", "phottab",
                 "spwcstab", "wcptab", "tdstab"]:
         reffiles[key+"_hdr"] = phdr.get (key, default=NOT_APPLICABLE)
-        if key == "gsagtab":                            # xxx temp disable
-            reffiles[key+"_hdr"] = NOT_APPLICABLE       # xxx temp disable
         reffiles[key] = cosutil.expandFileName (reffiles[key+"_hdr"])
 
     if phdr["obstype"] == "SPECTROSCOPIC":

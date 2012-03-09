@@ -241,7 +241,7 @@ class OutputX1D (object):
         self.segments = []
         self.ofd = None
         self.nrows = 0
-        self.output_nelem = 0
+        self.output_nelem = 1
         self.output_wl_range = {}
         self.output_dispersion = {}
         # This is the index of the element of self.inspec that has the
@@ -399,7 +399,12 @@ class OutputX1D (object):
         """
 
         if len (self.inspec) < 1:
-            self.output_nelem = 0
+            if self.keywords["detector"] == "FUV":
+                self.output_nelem = FUV_EXTENDED_X
+            elif self.keywords["detector"] == "NUV":
+                self.output_nelem = NUV_EXTENDED_X
+            else:
+                self.output_nelem = 1
             return
 
         # Find the maximum input nelem, and set output_nelem to that value.
@@ -443,7 +448,7 @@ class OutputX1D (object):
             nelem = (max_wl - min_wl) / dispersion
             nelem = int (round (math.ceil (nelem)))
             output_nelem = max (output_nelem, nelem)
-        if output_nelem >= 0:
+        if output_nelem > 0:
             self.output_nelem = output_nelem
 
     def createOutput (self):
