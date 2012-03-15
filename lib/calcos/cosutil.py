@@ -1178,7 +1178,7 @@ def getDQArrays (info, reffiles):
     dy = dq_info.field ("dy")
     dq = dq_info.field ("dq")
 
-    if info["detector"] == "FUV" and info["obsmode"] == "TIME-TAG":
+    if info["detector"] == "FUV":
         gsagtab = reffiles["gsagtab"]
         if gsagtab != NOT_APPLICABLE:
             (extn, message) = findGSagExtn (gsagtab, info["hvlevel"],
