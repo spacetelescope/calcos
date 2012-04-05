@@ -1109,19 +1109,16 @@ def updateDQArray (info, reffiles, dq_array,
             lx_s = lx - int (round (max_shift1))
             ux_s = ux - int (round (min_shift1))
 
-        # these are the limits of a slice
+        # These are the limits of a slice.
         lower_y_s = lower_y - int (round (max_shift2))
         upper_y_s = upper_y - int (round (min_shift2))
         if upper_y_s < 0:
             continue
         if lower_y_s >= dq_shape[0]:
             continue
-        if lower_y_s < 0:
-            lower_y_s = 0
-        if upper_y_s > dq_shape[0]:
-            upper_y_s = dq_shape[0]
+        # Truncation at lower and upper borders is done later.
 
-        # these are Y locations relative to the slice
+        # These are Y locations relative to the slice.
         # ly - max_shift2 - (lower_y - max_shift2)
         #  = ly - lower_y
         ly_s = ly - lower_y
@@ -1133,6 +1130,11 @@ def updateDQArray (info, reffiles, dq_array,
         ux_s = ux_s.astype (np.int32)
         ly_s = ly_s.astype (np.int32)
         uy_s = uy_s.astype (np.int32)
+
+        if lower_y_s < 0:
+            lower_y_s = 0
+        if upper_y_s > dq_shape[0]:
+            upper_y_s = dq_shape[0]
 
         ccos.bindq (lx_s, ly_s, ux_s, uy_s, dq,
                     dq_array[lower_y_s:upper_y_s,:], info["x_offset"])
