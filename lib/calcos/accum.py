@@ -367,7 +367,7 @@ def deadtimeCorrection (flt_sci, exptime, deadtab, info,
 
     if exptime <= 0.:
         cosutil.printWarning ("Can't do deadcorr, exptime = %.6g." % exptime)
-        return (0., "SKIPPED")
+        return (0., "SKIPPED", 1.)
 
     if livetimefile is None:
         fd = None
