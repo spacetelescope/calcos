@@ -5,7 +5,7 @@ import pyfits
 import cosutil
 from calcosparam import *
 
-def initialInfo (filename):
+def initialInfo(filename):
     """Get DETECTOR, OBSMODE, and EXPTYPE from the primary header.
 
     Parameters
@@ -20,7 +20,7 @@ def initialInfo (filename):
         file.
     """
 
-    fd = pyfits.open (filename, mode="readonly")
+    fd = pyfits.open(filename, mode="readonly")
     phdr = fd[0].header
 
     info = {}
@@ -28,28 +28,28 @@ def initialInfo (filename):
     if "DETECTOR" in phdr:
         detector = phdr["DETECTOR"]
     else:
-        raise RuntimeError ("File " + filename +
-                            " does not have DETECTOR keyword.")
+        raise RuntimeError("File " + filename +
+                           " does not have DETECTOR keyword.")
 
     if "OBSMODE" in phdr:
         obsmode = phdr["OBSMODE"]
     else:
-        raise RuntimeError ("File " + filename +
-                            " does not have OBSMODE keyword.")
+        raise RuntimeError("File " + filename +
+                           " does not have OBSMODE keyword.")
 
     if "EXPTYPE" in phdr:
         exptype = phdr["EXPTYPE"]
     else:
-        raise RuntimeError ("File " + filename +
-                            " does not have EXPTYPE keyword.")
+        raise RuntimeError("File " + filename +
+                           " does not have EXPTYPE keyword.")
 
     if detector != "FUV" and detector != "NUV":
-        raise ValueError ("File " + filename +
-                          " has invalid DETECTOR = " + detector)
+        raise ValueError("File " + filename +
+                         " has invalid DETECTOR = " + detector)
 
     if obsmode != "TIME-TAG" and obsmode != "ACCUM":
-        raise ValueError ("File " + filename +
-                          " has invalid OBSMODE = " + obsmode)
+        raise ValueError("File " + filename +
+                         " has invalid OBSMODE = " + obsmode)
 
     info["detector"] = detector
     info["obsmode"] = obsmode
@@ -59,7 +59,7 @@ def initialInfo (filename):
 
     return info
 
-def getGeneralInfo (phdr, hdr):
+def getGeneralInfo(phdr, hdr):
     """Get keyword values from the primary and extension header.
 
     The input argument phdr is the primary header, and the second hdr is
@@ -110,12 +110,14 @@ def getGeneralInfo (phdr, hdr):
         "randseed": -1,
         "fppos":     1,
         "fpoffset":  0,
+        "life_adj": -1,
+        "aperypos":  NOT_APPLICABLE,
         "coscoord":  DETECTOR_COORDINATES,
         "ra_targ":  -999.,
         "dec_targ": -999.}
 
     for key in keylist.keys():
-        info[key] = phdr.get (key, default=keylist[key])
+        info[key] = phdr.get(key, default=keylist[key])
 
     # Set output image size (variables defined in calcosparam.py).
     if info["detector"] == "FUV":
@@ -138,7 +140,12 @@ def getGeneralInfo (phdr, hdr):
     # Assign an initial value for the heliocentric velocity
     info["v_helio"] = 0.
 
-    info["aperture"] = cosutil.getApertureKeyword (phdr, truncate=1)
+    (info["aperture"], message) = cosutil.getApertureKeyword(phdr)
+    if message:
+        cosutil.printWarning(message)
+
+    # Update info["life_adj_offset"], if life_adj = -1.
+    cosutil.computeLifeAdjOffset(info)
 
     if info["tagflash"] == TAGFLASH_AUTO:
         info["tagflash"] = True
@@ -154,28 +161,27 @@ def getGeneralInfo (phdr, hdr):
 
     if info["detector"] == "FUV":
         if info["segment"] == "FUVA":
-            countrate = phdr.get ("DEVENTA", default=0.)
-            info["countrate"] = hdr.get ("DEVENTA", default=countrate)
+            countrate = phdr.get("DEVENTA", default=0.)
+            info["countrate"] = hdr.get("DEVENTA", default=countrate)
         else:
-            countrate = phdr.get ("DEVENTB", default=0.)
-            info["countrate"] = hdr.get ("DEVENTB", default=countrate)
+            countrate = phdr.get("DEVENTB", default=0.)
+            info["countrate"] = hdr.get("DEVENTB", default=countrate)
     else:
-        countrate = phdr.get ("MEVENTS", default=0.)
-        info["countrate"] = hdr.get ("MEVENTS", default=countrate)
+        countrate = phdr.get("MEVENTS", default=0.)
+        info["countrate"] = hdr.get("MEVENTS", default=countrate)
 
     # Now get keywords from the extension header.
 
     if info["detector"] == "FUV":
         # The header keyword is the rate for both stims together; we want
         # the rate for one stim.
-        info["stimrate"] = hdr.get ("STIMRATE", default=0.) / 2.
+        info["stimrate"] = hdr.get("STIMRATE", default=0.) / 2.
     else:
         info["stimrate"] = 0.
 
     # This is a list of extension header keywords and default values.
     keylist = {
         "dispaxis":  0,
-        "tc2_2":     1.,        # dispersion for spectroscopic data
         "sdqflags":  184,       # 8 + 16 + 32 + 128
         "nsubarry":  0,
         "numflash":  0,
@@ -194,16 +200,16 @@ def getGeneralInfo (phdr, hdr):
         "pa_aper":   0.}
 
     for key in keylist.keys():
-        info[key] = hdr.get (key, default=keylist[key])
+        info[key] = hdr.get(key, default=keylist[key])
 
     # For FUV, the keyword for exposure time depends on segment.
-    exptime_key = cosutil.segmentSpecificKeyword ("exptime", info["segment"])
-    exptime_default = hdr.get ("exptime", default=0.)
-    info["exptime"] = hdr.get (exptime_key, default=exptime_default)
+    exptime_key = cosutil.segmentSpecificKeyword("exptime", info["segment"])
+    exptime_default = hdr.get("exptime", default=0.)
+    info["exptime"] = hdr.get(exptime_key, default=exptime_default)
 
     # FUV detector high voltage level (commanded, raw)
-    hvlevel_key = cosutil.segmentSpecificKeyword ("hvlevel", info["segment"])
-    info["hvlevel"] = hdr.get (hvlevel_key, default=NOT_APPLICABLE)
+    hvlevel_key = cosutil.segmentSpecificKeyword("hvlevel", info["segment"])
+    info["hvlevel"] = hdr.get(hvlevel_key, default=NOT_APPLICABLE)
 
     # Copy exptime to orig_exptime, so we can modify exptime but save the
     # original value.  NOTE:  for TIME-TAG data this value will be replaced
@@ -223,8 +229,8 @@ def getGeneralInfo (phdr, hdr):
                 sub_number = "4"
         else:
             sub_number = "0"
-        xsize = hdr.get ("size"+sub_number+"x", default=0)
-        ysize = hdr.get ("size"+sub_number+"y", default=0)
+        xsize = hdr.get("size"+sub_number+"x", default=0)
+        ysize = hdr.get("size"+sub_number+"y", default=0)
         if info["detector"] == "FUV" and xsize == FUV_X and ysize == FUV_Y:
             info["subarray"] = False
         elif xsize == NUV_X and ysize == NUV_Y:
@@ -232,7 +238,7 @@ def getGeneralInfo (phdr, hdr):
 
     return info
 
-def getSwitchValues (phdr):
+def getSwitchValues(phdr):
     """Get calibration switch values from the primary header.
 
     The input argument phdr is the primary header, as provided by the fits
@@ -260,11 +266,11 @@ def getSwitchValues (phdr):
                 "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
                 "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
                 "fluxcorr", "photcorr", "tdscorr", "statflag"]:
-        switches[key]  = cosutil.getSwitch (phdr, key)
+        switches[key]  = cosutil.getSwitch(phdr, key)
 
     return switches
 
-def getRefFileNames (phdr):
+def getRefFileNames(phdr):
     """Get reference file names from the primary header.
 
     The input argument phdr is the primary header, as provided by the pyfits
@@ -298,21 +304,21 @@ def getRefFileNames (phdr):
                 "xtractab", "lamptab", "disptab",
                 "fluxtab", "imphttab", "phottab",
                 "spwcstab", "wcptab", "tdstab"]:
-        reffiles[key+"_hdr"] = phdr.get (key, default=NOT_APPLICABLE)
-        reffiles[key] = cosutil.expandFileName (reffiles[key+"_hdr"])
+        reffiles[key+"_hdr"] = phdr.get(key, default=NOT_APPLICABLE)
+        reffiles[key] = cosutil.expandFileName(reffiles[key+"_hdr"])
 
     if phdr["obstype"] == "SPECTROSCOPIC":
-        if phdr.get ("fluxtab", "missing") == "missing":
+        if phdr.get("fluxtab", "missing") == "missing":
             reffiles["fluxtab"] = reffiles["phottab"]
             reffiles["fluxtab_hdr"] = reffiles["phottab_hdr"]
     else:
-        if phdr.get ("imphttab", "missing") == "missing":
+        if phdr.get("imphttab", "missing") == "missing":
             reffiles["imphttab"] = reffiles["phottab"]
             reffiles["imphttab_hdr"] = reffiles["phottab_hdr"]
 
     return reffiles
 
-def resetSwitches (switches, reffiles):
+def resetSwitches(switches, reffiles):
     """Reset calibration switches if required reference file is "N/A".
 
     If a calibration step needs one or more reference files, and if the
@@ -347,15 +353,15 @@ def resetSwitches (switches, reffiles):
         if switches[switch_key] == "PERFORM":
             for reffile_key in check_these[switch_key]:
                 if reffiles[reffile_key] == NOT_APPLICABLE:
-                    not_specified.append (reffile_key)
+                    not_specified.append(reffile_key)
         if not_specified:
             switches[switch_key] = "SKIPPED"
-            cosutil.printWarning ("%s will be set to SKIPPED because" %
-                                  switch_key.upper())
-            for (i, reffile_key) in enumerate (not_specified):
+            cosutil.printWarning("%s will be set to SKIPPED because" %
+                                 switch_key.upper())
+            for (i, reffile_key) in enumerate(not_specified):
                 keyword = reffile_key.upper()
                 if i == 0:
                     message = "%s = %s" % (keyword, NOT_APPLICABLE)
                 else:
                     message += ", %s = %s" % (keyword, NOT_APPLICABLE)
-            cosutil.printContinuation (message)
+            cosutil.printContinuation(message)

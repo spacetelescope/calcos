@@ -23,27 +23,27 @@ NUV_X = 1024
 # finding the scatter of the shift for these values of npts.
 NPTS_RANGE = [3, 4, 6, 7, 5]
 
-class Shift1 (object):
+class Shift1(object):
     """Find the shift in the dispersion direction.
 
-    fs1 = findshift1.Shift1 (spectra, templates, info, reffiles,
-                             xc_range, fp_pixel_shift, initial_offset=0,
-                             spec_found={})
+    fs1 = findshift1.Shift1(spectra, templates, info, reffiles,
+                            xc_range, fp_pixel_shift, initial_offset=0,
+                            spec_found={})
     The public methods are:
         fs1.findShifts()
-        shift1 = fs1.getShift1 (key)
-        fs1.setShift1 (key, shift1, fp=True)
-        user_specified = fs1.getUserSpecified (key)
-        orig_shift1 = fs1.getOrigShift1 (key)
-        measured_shift1 = getMeasuredShift1 (key)
-        fp_pixel_shift = getFpPixelShift (key)
-        flag = fs1.getSpecFound (key)
-        error_estimate = fs1.getScatter (key)
-        chi_square = fs1.getChiSq (key)
-        number_of_degrees_of_freedom = fs1.getNdf (key)
+        shift1 = fs1.getShift1(key)
+        fs1.setShift1(key, shift1, fp=True)
+        user_specified = fs1.getUserSpecified(key)
+        orig_shift1 = fs1.getOrigShift1(key)
+        measured_shift1 = getMeasuredShift1(key)
+        fp_pixel_shift = getFpPixelShift(key)
+        flag = fs1.getSpecFound(key)
+        error_estimate = fs1.getScatter(key)
+        chi_square = fs1.getChiSq(key)
+        number_of_degrees_of_freedom = fs1.getNdf(key)
     The following may be used for testing/debugging:
-        spectrum = fs1.getSpec (key)    # a slice, normalized to the template
-        template = fs1.getTmpl (key)    # a slice
+        spectrum = fs1.getSpec(key)     # a slice, normalized to the template
+        template = fs1.getTmpl(key)     # a slice
 
     Parameters
     ----------
@@ -84,21 +84,21 @@ class Shift1 (object):
         attribute, updated, and may be gotten via method getSpecFound.
     """
 
-    def __init__ (self, spectra, templates,
-                  info, reffiles,
-                  xc_range, fp_pixel_shift, initial_offset=0,
-                  spec_found={}):
+    def __init__(self, spectra, templates,
+                 info, reffiles,
+                 xc_range, fp_pixel_shift, initial_offset=0,
+                 spec_found={}):
 
         # sanity check
         if initial_offset != 0:
             keys = fp_pixel_shift.keys()
             for key in keys:
                 if fp_pixel_shift[key] != 0.:
-                    raise RuntimeError ("initial_offset and fp_pixel_shift "
-                                        "cannot both be non-zero")
+                    raise RuntimeError("initial_offset and fp_pixel_shift "
+                                       "cannot both be non-zero")
 
-        self.spectra = copy.deepcopy (spectra)
-        self.templates = copy.deepcopy (templates)
+        self.spectra = copy.deepcopy(spectra)
+        self.templates = copy.deepcopy(templates)
         self.info = info
         self.reffiles = reffiles
         self.xc_range = xc_range
@@ -107,7 +107,7 @@ class Shift1 (object):
         self.initial_offset = initial_offset
 
         # These are the results.
-        self.spec_found = copy.copy (spec_found)        # may be updated
+        self.spec_found = copy.copy(spec_found)         # may be updated
         self.shift1_dict = {}
         self.orig_shift1_dict = {}      # shift1 even if poorly found
         self.user_specified_dict = {}
@@ -129,7 +129,7 @@ class Shift1 (object):
         # working parameters
         # keys = self.spectra.keys()
         # keys.sort()
-        keys = sorted (self.spectra)
+        keys = sorted(self.spectra)
         self.keys = keys
         self.current_key = ""
 
@@ -150,7 +150,7 @@ class Shift1 (object):
             self.chisq_dict[key] = 0.
             self.ndf_dict[key] = 0
 
-    def trimSpectra (self):
+    def trimSpectra(self):
         """Trim the ends of the spectra, if bright lines are found.
 
         This function checks the left and right edges of NUV wavecal spectra,
@@ -168,11 +168,11 @@ class Shift1 (object):
         BIN = 3                 # binning of spectrum to get s_l or s_r
 
         for key in self.keys:
-            nelem = len (self.spectra[key])
-            index = np.argsort (self.spectra[key])
+            nelem = len(self.spectra[key])
+            index = np.argsort(self.spectra[key])
             median = self.spectra[key][index[nelem//2]]
-            cutoff_brightness = float (BIN * max (1., median))
-            cutoff_brightness = max (BIN*10., cutoff_brightness)
+            cutoff_brightness = float(BIN * max(1., median))
+            cutoff_brightness = max(BIN*10., cutoff_brightness)
             # first and last pixels that are on the detector
             left = self.info["x_offset"]
             right = left + NUV_X - 1
@@ -214,13 +214,13 @@ class Shift1 (object):
                         break
 
             if mod_left:
-                cosutil.printMsg ("Info:  truncated line removed at left" \
-                                  " edge of %s" % key)
+                cosutil.printMsg("Info:  truncated line removed at left"
+                                 " edge of %s" % key)
             if mod_right:
-                cosutil.printMsg ("Info:  truncated line removed at right" \
-                                  " edge of %s" % key)
+                cosutil.printMsg("Info:  truncated line removed at right"
+                                 " edge of %s" % key)
 
-    def getShift1 (self, key):
+    def getShift1(self, key):
         """Return the shift in the dispersion direction."""
 
         if key in self.shift1_dict:
@@ -228,7 +228,7 @@ class Shift1 (object):
         else:
             return 0.
 
-    def setShift1 (self, key, shift1, fp=True):
+    def setShift1(self, key, shift1, fp=True):
         """Set shift1 to the value supplied by the user."""
 
         if key not in self.shift1_dict:
@@ -236,8 +236,8 @@ class Shift1 (object):
 
         spectrum = self.spectra[key]
         template = self.templates[key]
-        self.computeNormalization (spectrum, template,
-                                   shift1 - self.fp_pixel_shift[key])
+        self.computeNormalization(spectrum, template,
+                                  shift1 - self.fp_pixel_shift[key])
         if self.factor is None:
             self.chisq_dict[key] = 0.
             self.ndf_dict[key] = 0
@@ -245,7 +245,7 @@ class Shift1 (object):
             self.tmpl_dict[key] = None
         else:
             (chisq, ndf, spec, tmpl) = \
-                        self.computeChiSquare (spectrum, template)
+                        self.computeChiSquare(spectrum, template)
             self.chisq_dict[key] = chisq
             self.ndf_dict[key] = ndf
             self.spec_dict[key] = spec.copy()
@@ -260,7 +260,7 @@ class Shift1 (object):
         self.user_specified_dict[key] = True
         self.scatter_dict[key] = 0.
 
-    def getUserSpecified (self, key):
+    def getUserSpecified(self, key):
         """Return True if shift1 was specified by the user."""
 
         if key in self.user_specified_dict:
@@ -268,7 +268,7 @@ class Shift1 (object):
         else:
             return False
 
-    def getOrigShift1 (self, key):
+    def getOrigShift1(self, key):
         """Return the shift1 value even if it was poorly found."""
 
         if key in self.shift1_dict:
@@ -276,7 +276,7 @@ class Shift1 (object):
         else:
             return 0.
 
-    def getMeasuredShift1 (self, key):
+    def getMeasuredShift1(self, key):
         """Return the shift1 value that was directly measured."""
 
         if key in self.shift1_dict:
@@ -284,7 +284,7 @@ class Shift1 (object):
         else:
             return 0.
 
-    def getFpPixelShift (self, key):
+    def getFpPixelShift(self, key):
         """Return the fp_pixel_shift value."""
 
         if key in self.shift1_dict:
@@ -292,7 +292,7 @@ class Shift1 (object):
         else:
             return 0.
 
-    def getSpecFound (self, key):
+    def getSpecFound(self, key):
         """Return a flag indicating whether the spectrum was found."""
 
         if key in self.spec_found:
@@ -300,7 +300,7 @@ class Shift1 (object):
         else:
             return False
 
-    def getScatter (self, key):
+    def getScatter(self, key):
         """Return an estimate of the uncertainty in shift1."""
 
         if key in self.scatter_dict:
@@ -308,7 +308,7 @@ class Shift1 (object):
         else:
             return 0.
 
-    def getChiSq (self, key):
+    def getChiSq(self, key):
         """Return Chi square for the spectrum vs template."""
 
         if key in self.chisq_dict:
@@ -316,7 +316,7 @@ class Shift1 (object):
         else:
             return -1.
 
-    def getNdf (self, key):
+    def getNdf(self, key):
         """Return the number of number of degrees of freedom for Chi square."""
 
         if key in self.ndf_dict:
@@ -324,23 +324,23 @@ class Shift1 (object):
         else:
             return 0
 
-    def getSpec (self, key):
+    def getSpec(self, key):
         """Return the extracted spectrum for testing."""
 
         if key in self.spec_dict:
             return self.spec_dict[key]
         else:
-            return np.zeros (1, dtype=np.float32)
+            return np.zeros(1, dtype=np.float32)
 
-    def getTmpl (self, key):
+    def getTmpl(self, key):
         """Return the template spectrum for testing."""
 
         if key in self.tmpl_dict:
             return self.tmpl_dict[key]
         else:
-            return np.zeros (1, dtype=np.float32)
+            return np.zeros(1, dtype=np.float32)
 
-    def findShifts (self):
+    def findShifts(self):
         """Find the shifts in the dispersion direction.
 
         This function updates:
@@ -353,7 +353,7 @@ class Shift1 (object):
             self.tmpl_dict
         """
 
-        nelem = len (self.keys)
+        nelem = len(self.keys)
         if nelem < 1:
             return
 
@@ -364,30 +364,30 @@ class Shift1 (object):
         else:
             self.findShiftsNUV()
 
-    def findShiftsFUV (self):
+    def findShiftsFUV(self):
         """Find the shifts in the dispersion direction for FUV data."""
 
         for key in self.keys:
             if key not in self.templates.keys():
-                self.notFound (key)
+                self.notFound(key)
                 continue
             self.current_key = key
             spectrum = self.spectra[key]
             template = self.templates[key]
             (shift, orig_shift1, scatter, foundit) = \
-                        self.findShift (spectrum, template)
+                        self.findShift(spectrum, template)
             self.orig_shift1_dict[key] = orig_shift1
             self.scatter_dict[key] = scatter
             if not foundit:
-                self.notFound (key)
+                self.notFound(key)
                 continue
 
-            self.computeNormalization (spectrum, template, shift)
+            self.computeNormalization(spectrum, template, shift)
             if self.factor is None:
-                self.notFound (key)
+                self.notFound(key)
                 continue
             (chisq, ndf, spec, tmpl) = \
-                        self.computeChiSquare (spectrum, template)
+                        self.computeChiSquare(spectrum, template)
             self.chisq_dict[key] = chisq
             self.ndf_dict[key] = ndf
             self.spec_dict[key] = spec.copy()
@@ -401,36 +401,36 @@ class Shift1 (object):
                 self.spec_found[key] = False
             self.shift1_dict[key] = shift
 
-    def findShiftsNUV (self):
+    def findShiftsNUV(self):
         """Find the shifts in the dispersion direction for NUV data."""
 
         global_shift = self.globalShift()
 
         for key in self.keys:
             if key not in self.templates.keys():
-                self.notFound (key)
+                self.notFound(key)
                 continue
             self.current_key = key
             spectrum = self.spectra[key]
             template = self.templates[key]
             (shift, orig_shift1, scatter, foundit) = \
-                        self.findShift (spectrum, template)
+                        self.findShift(spectrum, template)
             self.orig_shift1_dict[key] = orig_shift1
             self.scatter_dict[key] = scatter
             if not foundit:
                 self.spec_found[key] = False
             elif global_shift is not None:
-                if abs (shift - global_shift) > SLOP:
+                if abs(shift - global_shift) > SLOP:
                     self.spec_found[key] = False
             self.shift1_dict[key] = shift
 
-            self.computeNormalization (spectrum, template, shift)
+            self.computeNormalization(spectrum, template, shift)
             if self.factor is None:
-                self.notFound (key)
+                self.notFound(key)
                 continue
 
             (chisq, ndf, spec, tmpl) = \
-                        self.computeChiSquare (spectrum, template)
+                        self.computeChiSquare(spectrum, template)
             self.chisq_dict[key] = chisq
             self.ndf_dict[key] = ndf
             self.spec_dict[key] = spec.copy()
@@ -445,13 +445,13 @@ class Shift1 (object):
 
         self.repairNUV()        # assign best-guess values for bad shifts
 
-    def notFound (self, key):
+    def notFound(self, key):
         self.shift1_dict[key] = 0.
         self.spec_found[key] = False
         self.chisq_dict[key] = 0.
         self.ndf_dict[key] = 0
 
-    def checkCounts (self):
+    def checkCounts(self):
         """Flag data with negligible counts.
 
         This function updates:
@@ -463,7 +463,7 @@ class Shift1 (object):
             if self.spectra[key].sum() < MIN_NUMBER_OF_COUNTS:
                 self.spec_found[key] = False
 
-    def globalShift (self):
+    def globalShift(self):
         """Return the shift of the sum of all NUV stripes.
 
         Returns
@@ -475,9 +475,9 @@ class Shift1 (object):
         key = self.keys[0]
 
         # Add spectra together, add templates together, find the shift.
-        nelem = len (self.spectra[key])
-        sum_spectra = np.zeros (nelem, dtype=np.float64)
-        sum_templates = np.zeros (nelem, dtype=np.float64)
+        nelem = len(self.spectra[key])
+        sum_spectra = np.zeros(nelem, dtype=np.float64)
+        sum_templates = np.zeros(nelem, dtype=np.float64)
         nsum = 0
         for key in self.keys:
             self.current_key = key
@@ -492,13 +492,13 @@ class Shift1 (object):
 
         self.current_key = "all"
         (global_shift, orig_shift1, scatter, foundit) = \
-                self.findShift (sum_spectra, sum_templates)
+                self.findShift(sum_spectra, sum_templates)
         if not foundit:
             global_shift = None
 
         return global_shift
 
-    def findShift (self, spectrum, template):
+    def findShift(self, spectrum, template):
         """Find a shift in the dispersion direction.
 
         Parameters
@@ -528,23 +528,23 @@ class Shift1 (object):
         # These arrays are for finding a minimum or maximum.
         # We expect to find a minimum rms.
         # These arrays all have length self.lenxc, and we can
-        # use the same index (e.g. imin) in all of these arrays.
-        rms = np.zeros (lenxc, dtype=np.float32)
-        chisq = np.zeros (lenxc, dtype=np.float32)
-        factor = np.zeros (lenxc, dtype=np.float32)
-        baseline = np.zeros (lenxc, dtype=np.float32)
-        flag = np.zeros (lenxc, dtype=np.int32)
+        # use the same index(e.g. imin) in all of these arrays.
+        rms = np.zeros(lenxc, dtype=np.float32)
+        chisq = np.zeros(lenxc, dtype=np.float32)
+        factor = np.zeros(lenxc, dtype=np.float32)
+        baseline = np.zeros(lenxc, dtype=np.float32)
+        flag = np.zeros(lenxc, dtype=np.int32)
         maxlag = lenxc // 2
         i = 0
         # Assign reduced chi square to chisq.
-        for shift in range (-maxlag, maxlag+1):
+        for shift in range(-maxlag, maxlag+1):
             shift_x = shift + self.initial_offset
             # compute self.rms and other values
-            self.computeNormalization (spectrum, template, shift_x)
+            self.computeNormalization(spectrum, template, shift_x)
             if self.factor is not None:
                 (chisq_i, ndf, spec, tmpl) = \
-                        self.computeChiSquare (spectrum, template)
-                chisq[i] = chisq_i / float (max (ndf, 1))
+                        self.computeChiSquare(spectrum, template)
+                chisq[i] = chisq_i / float(max(ndf, 1))
             if self.factor is None:
                 flag[i] = BAD_VALUE
             else:
@@ -553,15 +553,15 @@ class Shift1 (object):
             i += 1
         # Where factor was None, set chisq to a large value.
         max_xc = chisq.max()
-        chisq = np.where (flag == GOOD_VALUE, chisq, 2.*max_xc)
+        chisq = np.where(flag == GOOD_VALUE, chisq, 2.*max_xc)
 
-        good_values = np.where (flag == GOOD_VALUE)
+        good_values = np.where(flag == GOOD_VALUE)
         # Find all the local minima in the array of RMS values.
         n = lenxc
         # indices of local minima in rms
-        local_minima = np.where (np.logical_and (rms[1:n-1] <= rms[0:n-2],
-                                                 rms[1:n-1] <= rms[2:n]))
-        if len (good_values[0]) <= 0 or len (local_minima[0]) <= 0:
+        local_minima = np.where(np.logical_and (rms[1:n-1] <= rms[0:n-2],
+                                                rms[1:n-1] <= rms[2:n]))
+        if len(good_values[0]) <= 0 or len(local_minima[0]) <= 0:
             return (0., 0., 0., False)
         # Extract the array of indices, and add one to get indices in rms
         # (because rms[1:n-1] starts with 1).
@@ -574,27 +574,27 @@ class Shift1 (object):
         real_minima = []        # list of indices (imin) of minima of rms
         chisq_list = []         # chi square at each imin in real_minima
         rms_list = []           # value of rms at each imin in real_minima
-        npts = max (NPTS_RANGE)
+        npts = max(NPTS_RANGE)
         for imin in local_minima:
             i1 = imin - npts//2
-            i1 = max (i1, 0)
+            i1 = max(i1, 0)
             i2 = i1 + npts
-            i2 = min (i2, lenxc)
+            i2 = min(i2, lenxc)
             i1 = i2 - npts
             bad = (flag[i1:i2] == BAD_VALUE)
-            if np.any (bad):
+            if np.any(bad):
                 continue
-            real_minima.append (imin)
-            rms_list.append (rms[imin])
-            chisq_list.append (chisq[imin])
-        if len (real_minima) <= 0:
+            real_minima.append(imin)
+            rms_list.append(rms[imin])
+            chisq_list.append(chisq[imin])
+        if len(real_minima) <= 0:
             return (0., 0., 0., False)
 
         # Pick the location with the smallest RMS.  index_of_min is the
         # index in rms_list that gives the smallest RMS.
         min_rms = None
         index_of_min = 0                # initial values
-        for (i, rms_i) in enumerate (rms_list):
+        for (i, rms_i) in enumerate(rms_list):
             chisq_i = chisq_list[i]
 
         # The values in rms_index and chisq_index are indices in real_minima,
@@ -604,17 +604,17 @@ class Shift1 (object):
         # k = rms_index[0]         the point with the minimum RMS
         # imin = real_minima[k]    the index in rms, factor, baseline, flag
         # rms[imin] and rms_list[k] will be the same
-        rms_array = np.array (rms_list)
-        rms_index = np.argsort (rms_array)
-        chisq_array = np.array (chisq_list)
-        chisq_index = np.argsort (chisq_array)
+        rms_array = np.array(rms_list)
+        rms_index = np.argsort(rms_array)
+        chisq_array = np.array(chisq_list)
+        chisq_index = np.argsort(chisq_array)
 
         # Of the PICK_N points with the smallest RMS, skip ones that don't have
         # positive curvature, then select the one with smallest chi square.
-        PICK_N = min (10, len (rms_index))
-        x = np.arange (5, dtype=np.float64)     # for fitting a quadratic
+        PICK_N = min(10, len(rms_index))
+        x = np.arange(5, dtype=np.float64)      # for fitting a quadratic
         index_of_min = None                     # initial value
-        for i in range (PICK_N):
+        for i in range(PICK_N):
             # k is an index in real_minima, rms_list, and chisq_list, while
             # real_minima[k] is an index in rms.
             k = rms_index[i]
@@ -622,11 +622,11 @@ class Shift1 (object):
             # fit a quadratic to five points centered on imin, to get the
             # curvature
             j1 = imin - 2
-            j1 = max (j1, 0)
+            j1 = max(j1, 0)
             j2 = j1 + 5
-            j2 = min (j2, lenxc)
+            j2 = min(j2, lenxc)
             j1 = j2 - 5
-            (coeff, var) = cosutil.fitQuadratic (x, rms[j1:j2])
+            (coeff, var) = cosutil.fitQuadratic(x, rms[j1:j2])
             if coeff is None or coeff[2] <= 0.: # coeff[2] is the curvature
                 continue
             if index_of_min is None or chisq_list[k] < min_chisq:
@@ -637,11 +637,11 @@ class Shift1 (object):
 
         # Fit a quadratic to points near the minimum of chisq.
         imin = real_minima[index_of_min]
-        (shift, orig_shift1, scatter) = self.findMinimum (imin, maxlag, chisq)
+        (shift, orig_shift1, scatter) = self.findMinimum(imin, maxlag, chisq)
 
         return (shift, orig_shift1, scatter, True)
 
-    def findMinimum (self, imin, maxlag, chisq):
+    def findMinimum(self, imin, maxlag, chisq):
         """Fit a quadratic to points near the minimum of chisq.
 
         Parameters
@@ -670,13 +670,13 @@ class Shift1 (object):
         max_shift = None
         for npts in NPTS_RANGE:
             i1 = imin - npts//2
-            i1 = max (i1, 0)
+            i1 = max(i1, 0)
             i2 = i1 + npts
-            i2 = min (i2, lenxc)
+            i2 = min(i2, lenxc)
             i1 = i2 - npts
-            x = np.arange (npts, dtype=np.float64)
-            (coeff, var) = cosutil.fitQuadratic (x, chisq[i1:i2])
-            (x_min, sigma_shift) = cosutil.centerOfQuadratic (coeff, var)
+            x = np.arange(npts, dtype=np.float64)
+            (coeff, var) = cosutil.fitQuadratic(x, chisq[i1:i2])
+            (x_min, sigma_shift) = cosutil.centerOfQuadratic(coeff, var)
             if x_min is None:
                 shift = 0.
                 orig_shift1 = imin + self.initial_offset - maxlag
@@ -691,11 +691,11 @@ class Shift1 (object):
         if min_shift is None or max_shift is None:
             scatter = sigma_shift
         else:
-            scatter = max (sigma_shift, (max_shift - min_shift) / 2.)
+            scatter = max(sigma_shift, (max_shift - min_shift) / 2.)
 
         return (shift, orig_shift1, scatter)
 
-    def computeNormalization (self, spectrum, template, shift):
+    def computeNormalization(self, spectrum, template, shift):
         """Compute a normalization factor between spectrum and template.
 
         The following attributes are assigned, to be used by computeChiSquare:
@@ -732,9 +732,9 @@ class Shift1 (object):
 
         if shift is None:
             shift = 0.
-        shift = int (round (shift))
+        shift = int(round(shift))
 
-        len_spec = len (spectrum)
+        len_spec = len(spectrum)
 
         # Get the overlap region.
         if shift >= 0:
@@ -774,13 +774,13 @@ class Shift1 (object):
 
         # Fit the template to the spectrum:
         # spec = baseline + factor * tmpl + noise
-        n = float (s1 - s0)
+        n = float(s1 - s0)
         spec = spectrum[s0:s1]
         tmpl = template[t0:t1]
-        sum_s = spec.sum (dtype=np.float64)
-        sum_t = tmpl.sum (dtype=np.float64)
-        sum_t2 = (tmpl**2).sum (dtype=np.float64)
-        sum_st = (spec * tmpl).sum (dtype=np.float64)
+        sum_s = spec.sum(dtype=np.float64)
+        sum_t = tmpl.sum(dtype=np.float64)
+        sum_t2 = (tmpl**2).sum(dtype=np.float64)
+        sum_st = (spec * tmpl).sum(dtype=np.float64)
         denominator = sum_t**2 - n * sum_t2
         if denominator == 0.:
             self.factor = None
@@ -794,11 +794,11 @@ class Shift1 (object):
         self.baseline = (sum_s - self.factor * sum_t) / n
 
         diff = spec - (self.baseline + self.factor * tmpl)
-        nelem = len (diff)
+        nelem = len(diff)
         if nelem > 1:
-            self.rms = float (np.sqrt ((diff**2).sum() / (nelem-1.)))
+            self.rms = float(np.sqrt((diff**2).sum() / (nelem-1.)))
 
-    def computeChiSquare (self, spectrum, template):
+    def computeChiSquare(self, spectrum, template):
         """Compute chi square for spectrum and template.
 
         This method makes use of the following attributes that were
@@ -831,8 +831,8 @@ class Shift1 (object):
         # Normalize the spectrum to match the template.
         n_spec = (spec - self.baseline) / self.factor
 
-        # sigma for the template = sqrt (template);
-        # sigma for the normalized spectrum = sqrt (spectrum) / factor;
+        # sigma for the template = sqrt(template);
+        # sigma for the normalized spectrum = sqrt(spectrum) / factor;
         # variance for the normalized spectrum = spectrum / factor**2
         # add variances (add sigmas in quadrature)
         variance = spec / self.factor**2 + tmpl
@@ -840,11 +840,11 @@ class Shift1 (object):
         # When computing chi square, include only those elements for which
         # either the spectrum or the template is non-zero.
         # (see both_zero below)
-        either_positive = np.logical_or (spec > 0., tmpl > 0.)
-        nelem = either_positive.sum (dtype=np.float64)
-        ndf = max (0, nelem - 1)                # number of degrees of freedom
+        either_positive = np.logical_or(spec > 0., tmpl > 0.)
+        nelem = either_positive.sum(dtype=np.float64)
+        ndf = max(0, nelem - 1)                 # number of degrees of freedom
         # v is scratch, just so we can divide by it
-        v = np.where (variance > 0., variance, 1.)
+        v = np.where(variance > 0., variance, 1.)
 
         # Compute chi square.
         diff = (n_spec - tmpl)
@@ -852,18 +852,18 @@ class Shift1 (object):
         # Truncate chi square at 1 if both the spectrum and template are
         # 0 or 1.  This cutoff is pretty arbitrary, just a number that's
         # clearly in the noise.
-        both_small = np.logical_and (spec <= 1.5, tmpl <= 1.5)
-        a_chisq = np.where (both_small, np.minimum (a_chisq, 1.), a_chisq)
+        both_small = np.logical_and(spec <= 1.5, tmpl <= 1.5)
+        a_chisq = np.where(both_small, np.minimum(a_chisq, 1.), a_chisq)
         # If both the spectrum (not scaled) and template are zero,
         # chi square should be zero (regardless of scaling).
-        both_zero = np.logical_and (spec == 0., tmpl == 0.)
-        a_chisq = np.where (both_zero, 0., a_chisq)
+        both_zero = np.logical_and(spec == 0., tmpl == 0.)
+        a_chisq = np.where(both_zero, 0., a_chisq)
 
-        chisq = float (a_chisq.sum(dtype=np.float64))
+        chisq = float(a_chisq.sum(dtype=np.float64))
 
         return (chisq, ndf, n_spec, tmpl)
 
-    def repairNUV (self):
+    def repairNUV(self):
         """Assign reasonable values for shifts that weren't found."""
 
         # This is an estimate of the relative shifts between stripes.
@@ -905,7 +905,7 @@ class Shift1 (object):
             off_key = (key, self.info["opt_elem"])
             if self.spec_found[key]:
                 shift_0 = self.initial_offset + self.fp_pixel_shift[key]
-                shift_to_nuvb = self.evalPoly (shift_0, offset[off_key])
+                shift_to_nuvb = self.evalPoly(shift_0, offset[off_key])
                 sum_shifts += (self.shift1_dict[key] - shift_to_nuvb)
                 ngood += 1
         if ngood == 0:
@@ -920,10 +920,10 @@ class Shift1 (object):
             off_key = (key, self.info["opt_elem"])
             if not self.spec_found[key]:
                 shift_0 = self.initial_offset + self.fp_pixel_shift[key]
-                shift_to_nuvb = self.evalPoly (shift_0, offset[off_key])
+                shift_to_nuvb = self.evalPoly(shift_0, offset[off_key])
                 self.shift1_dict[key] = mean_shift + shift_to_nuvb
 
-    def evalPoly (self, x, coeff):
+    def evalPoly(self, x, coeff):
         """Evaluate a polynomial in x.
 
         Parameters
@@ -937,8 +937,8 @@ class Shift1 (object):
             coeff[0] + coeff[1] * x + coeff[2] * x**2 + ...
         """
 
-        ncoeff = len (coeff)
+        ncoeff = len(coeff)
         sum = coeff[ncoeff-1]
-        for i in range (ncoeff-2, -1, -1):
+        for i in range(ncoeff-2, -1, -1):
             sum = sum * x + coeff[i]
         return sum

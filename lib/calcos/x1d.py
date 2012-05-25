@@ -20,7 +20,7 @@ first_message = True                    # initial values
 __version__ = calcosparam.CALCOS_VERSION_NUMBER
 __vdate__   = calcosparam.CALCOS_VERSION_DATE
 
-def main (args):
+def main(args):
     """This is a driver to perform 1-D extraction for one file.
 
     The input is a corrtag file name (the complete name, e.g.
@@ -30,36 +30,36 @@ def main (args):
     so the files on disk must have these suffixes.
     """
 
-    if len (args) < 1:
+    if len(args) < 1:
         print "Specify one or more input corrtag file names."
         prtOptions()
         raise RuntimeError()
 
     try:
-        (options, pargs) = getopt.getopt (args, "qvuo:",
-                                          ["find=", "location=", "extrsize="])
+        (options, pargs) = getopt.getopt(args, "qvuo:",
+                                         ["find=", "location=", "extrsize="])
     except Exception, error:
-        print str (error)
+        print str(error)
         prtOptions()
         raise RuntimeError()
 
-    if len (options) == 0:
-        for i in range (len (pargs)):
+    if len(options) == 0:
+        for i in range(len(pargs)):
             if pargs[i][0] == '-':
                 prtOptions()
-                raise RuntimeError ("Command-line options must precede "
-                                    "the input file name(s).")
+                raise RuntimeError("Command-line options must precede "
+                                   "the input file name(s).")
 
     outdir = None               # output directory name
     update_input = False        # update keywords in corrtag files?
     find_target = {"flag": False, "cutoff": None}
     location = None
     extrsize = None
-    for i in range (len (options)):
+    for i in range(len(options)):
         if options[i][0] == "-q":
-            cosutil.setVerbosity (calcosparam.QUIET)
+            cosutil.setVerbosity(calcosparam.QUIET)
         elif options[i][0] == "-v":
-            cosutil.setVerbosity (calcosparam.VERY_VERBOSE)
+            cosutil.setVerbosity(calcosparam.VERY_VERBOSE)
 
         elif options[i][0] == "-u":
             update_input = True
@@ -75,40 +75,40 @@ def main (args):
                 find_target["flag"] = False
             else:
                 try:
-                    cutoff = float (temp)
+                    cutoff = float(temp)
                 except ValueError:
                     prtOptions()
-                    raise RuntimeError ("Don't understand '--find %s'" %
-                                        options[i][1])
+                    raise RuntimeError("Don't understand '--find %s'" %
+                                       options[i][1])
                 if cutoff < 0.:
                     prtOptions()
-                    raise RuntimeError ("Cutoff for --find cannot be negative.")
+                    raise RuntimeError("Cutoff for --find cannot be negative.")
                 find_target["flag"] = True
                 find_target["cutoff"] = cutoff
 
         elif options[i][0] == "--location":
             values = options[i][1].split()
             location = []
-            for i in range (len (values)):
+            for i in range(len(values)):
                 if values[i].lower() == "none":
-                    location.append (None)
+                    location.append(None)
                 else:
-                    location.append (float (values[i]))
+                    location.append(float(values[i]))
 
         elif options[i][0] == "--extrsize":
             values = options[i][1].split()
             extrsize = []
-            for i in range (len (values)):
+            for i in range(len(values)):
                 if values[i].lower() == "none":
-                    extrsize.append (None)
+                    extrsize.append(None)
                 else:
-                    extrsize.append (int (values[i]))
+                    extrsize.append(int(values[i]))
 
-    extractSpec (pargs, outdir, update_input,
-                 location, extrsize, find_target)
+    extractSpec(pargs, outdir, update_input,
+                location, extrsize, find_target)
 
-def extractSpec (inlist=[], outdir=None, update_input=False,
-                 location=None, extrsize=None,
+def extractSpec(inlist=[], outdir=None, update_input=False,
+                location=None, extrsize=None,
                  find_target={"flag": False, "cutoff": None},
                  verbosity=None):
     """Extract a 1-D spectrum from each set of flt and counts images.
@@ -166,59 +166,59 @@ def extractSpec (inlist=[], outdir=None, update_input=False,
 
     if verbosity is not None:
         if verbosity < 0 or verbosity > 2:
-            raise RuntimeError ("Verbosity %d is out of range (0, 1, or 2)" %
-                                verbosity)
-        cosutil.setVerbosity (verbosity)
+            raise RuntimeError("Verbosity %d is out of range (0, 1, or 2)" %
+                               verbosity)
+        cosutil.setVerbosity(verbosity)
 
     cal_ver = calcosparam.CALCOS_VERSION
 
     if outdir:
-        outdir = os.path.expandvars (outdir)
-        if not os.path.isdir (outdir):
-            raise RuntimeError ("The specified output directory "
-                                "doesn't exist:  %s" % outdir)
+        outdir = os.path.expandvars(outdir)
+        if not os.path.isdir(outdir):
+            raise RuntimeError("The specified output directory "
+                               "doesn't exist:  %s" % outdir)
     else:
         outdir = ""
 
     # Get the names of the input (corrtag), intermediate (flt, counts, x1d_ab),
     # and output (x1d) files.
-    filenames = makeFileNames (inlist, outdir)
+    filenames = makeFileNames(inlist, outdir)
 
     # Now check whether any input file is missing or any intermediate or
     # output file already exists.
-    missing = checkMissing (filenames)
-    already_exists = checkExists (filenames)
+    missing = checkMissing(filenames)
+    already_exists = checkExists(filenames)
     if missing or already_exists:
         raise IOError()
 
     # keys = filenames.keys()
     # keys.sort()
-    keys = sorted (filenames)
+    keys = sorted(filenames)
     for x1d in keys:
         corrtag_list = filenames[x1d]["corrtag"]
         flt_list = filenames[x1d]["flt"]
         counts_list = filenames[x1d]["counts"]
         x1d_ab_list = filenames[x1d]["x1d_ab"]
-        nfiles = len (corrtag_list)
-        for i in range (nfiles):
-            printFilenames (corrtag_list[i], flt_list[i], counts_list[i],
-                            x1d_ab_list[i])
-            is_wavecal = makeFltCounts (cal_ver, corrtag_list[i],
-                                        flt_list[i], counts_list[i])
-            extract.extract1D (flt_list[i], counts_list[i], x1d_ab_list[i],
-                               location=location, extrsize=extrsize,
-                               find_target=find_target)
+        nfiles = len(corrtag_list)
+        for i in range(nfiles):
+            printFilenames(corrtag_list[i], flt_list[i], counts_list[i],
+                           x1d_ab_list[i])
+            is_wavecal = makeFltCounts(cal_ver, corrtag_list[i],
+                                       flt_list[i], counts_list[i])
+            extract.extract1D(flt_list[i], counts_list[i], x1d_ab_list[i],
+                              location=location, extrsize=extrsize,
+                              find_target=find_target)
 
         # For FUV, merge the x1d_a.fits and x1d_b.fits files to x1d.fits.
-        concatenateSegments (x1d_ab_list, x1d)
+        concatenateSegments(x1d_ab_list, x1d)
 
         if is_wavecal:
-            extract.recomputeWavelengths (x1d)
+            extract.recomputeWavelengths(x1d)
 
         # Copy keywords from the x1d file to input files.
-        updateSomeKeywords (x1d, filenames, update_input)
+        updateSomeKeywords(x1d, filenames, update_input)
 
-def checkMissing (filenames):
+def checkMissing(filenames):
     """Check for missing input files.
 
     Parameters
@@ -236,20 +236,20 @@ def checkMissing (filenames):
     for x1d in filenames:
         corrtag_list = filenames[x1d]["corrtag"]
         for corrtag in corrtag_list:
-            if not os.access (corrtag, os.R_OK):
-                missing.append (corrtag)
+            if not os.access(corrtag, os.R_OK):
+                missing.append(corrtag)
     if missing:
-        if len (missing) == 1:
-            cosutil.printError ("The following input file is missing:")
-            cosutil.printContinuation (missing[0])
+        if len(missing) == 1:
+            cosutil.printError("The following input file is missing:")
+            cosutil.printContinuation(missing[0])
         else:
-            cosutil.printError ("The following input files are missing:")
+            cosutil.printError("The following input files are missing:")
             for corrtag in missing:
-                cosutil.printContinuation (corrtag)
+                cosutil.printContinuation(corrtag)
 
     return missing
 
-def checkExists (filenames):
+def checkExists(filenames):
     """Check for output files that already exist.
 
     Parameters
@@ -265,61 +265,59 @@ def checkExists (filenames):
 
     already_exists = []
 
-    # keys = filenames.keys()
-    # keys.sort()
-    keys = sorted (filenames)
+    keys = sorted(filenames)
     for x1d in keys:
         flt_list = filenames[x1d]["flt"]
         counts_list = filenames[x1d]["counts"]
         x1d_ab_list = filenames[x1d]["x1d_ab"]
         # Separate loops are used here to control the order of names
         # in `already_exists`.
-        for i in range (len (flt_list)):
-            if os.access (flt_list[i], os.R_OK):
-                already_exists.append (flt_list[i])
-        for i in range (len (counts_list)):
-            if os.access (counts_list[i], os.R_OK):
-                already_exists.append (counts_list[i])
-        for i in range (len (x1d_ab_list)):
-            if os.access (x1d_ab_list[i], os.R_OK):
-                already_exists.append (x1d_ab_list[i])
+        for i in range(len(flt_list)):
+            if os.access(flt_list[i], os.R_OK):
+                already_exists.append(flt_list[i])
+        for i in range(len(counts_list)):
+            if os.access(counts_list[i], os.R_OK):
+                already_exists.append(counts_list[i])
+        for i in range(len(x1d_ab_list)):
+            if os.access(x1d_ab_list[i], os.R_OK):
+                already_exists.append(x1d_ab_list[i])
         if x1d != x1d_ab_list[0]:               # FUV data?
-            if os.access (x1d, os.R_OK):
-                already_exists.append (x1d)
+            if os.access(x1d, os.R_OK):
+                already_exists.append(x1d)
 
     if already_exists:
-        if len (already_exists) == 1:
-            cosutil.printError ("The following output file already exists:")
-            cosutil.printContinuation (already_exists[0])
+        if len(already_exists) == 1:
+            cosutil.printError("The following output file already exists:")
+            cosutil.printContinuation(already_exists[0])
         else:
-            cosutil.printError ("The following output files already exist:")
+            cosutil.printError("The following output files already exist:")
             for filename in already_exists:
-                cosutil.printContinuation (filename)
-        cosutil.printError ("Output files will not be overwritten.")
+                cosutil.printContinuation(filename)
+        cosutil.printError("Output files will not be overwritten.")
 
     return already_exists
 
-def printFilenames (corrtag, flt, counts, x1d_ab):
+def printFilenames(corrtag, flt, counts, x1d_ab):
     """Print the names of the files."""
 
     global first_message
 
-    if not cosutil.checkVerbosity (cosutil.VERBOSE):
+    if not cosutil.checkVerbosity(cosutil.VERBOSE):
         return
 
     if not first_message:
-        cosutil.printMsg ("")
+        cosutil.printMsg("")
 
     names = [("Input", corrtag),
              ("OutFlt", flt),
              ("OutCounts", counts),
              ("x1d", x1d_ab)]
-    cosutil.printFilenames (names)
-    cosutil.printMsg ("")
+    cosutil.printFilenames(names)
+    cosutil.printMsg("")
 
     first_message = False
 
-def makeFileNames (inlist, outdir=""):
+def makeFileNames(inlist, outdir=""):
     """Replace suffixes to make the names of all files that we will need.
 
     The output is the dictionary `filenames`:
@@ -350,30 +348,30 @@ def makeFileNames (inlist, outdir=""):
     filenames = {}
     for input in inlist:
 
-        corrtag = os.path.expandvars (input)
-        i = corrtag.rfind ("corrtag")
+        corrtag = os.path.expandvars(input)
+        i = corrtag.rfind("corrtag")
         if i < 0:
-            raise RuntimeError ("File name " + input +
-                                " was expected to have suffix 'corrtag'")
+            raise RuntimeError("File name " + input +
+                               " was expected to have suffix 'corrtag'")
         # This is the corrtag file name, but in the output directory.
-        outdir_input = os.path.join (outdir, os.path.basename (corrtag))
+        outdir_input = os.path.join(outdir, os.path.basename(corrtag))
 
-        flt = replaceSuffix (outdir_input, "_corrtag", "_flt")
-        counts = replaceSuffix (outdir_input, "_corrtag", "_counts")
-        x1d_ab = replaceSuffix (outdir_input, "_corrtag", "_x1d")
-        i = x1d_ab.rfind ("_x1d_a")
+        flt = replaceSuffix(outdir_input, "_corrtag", "_flt")
+        counts = replaceSuffix(outdir_input, "_corrtag", "_counts")
+        x1d_ab = replaceSuffix(outdir_input, "_corrtag", "_x1d")
+        i = x1d_ab.rfind("_x1d_a")
         if i < 0:
-            i = x1d_ab.rfind ("_x1d_b")
+            i = x1d_ab.rfind("_x1d_b")
         if i < 0:                       # NUV file name
             x1d = x1d_ab
         else:                           # FUV file name
             x1d = x1d_ab[:i+4] + x1d_ab[i+6:]   # root_x1d.fits
 
         if x1d in filenames:
-            filenames[x1d]["corrtag"].append (corrtag)
-            filenames[x1d]["flt"].append (flt)
-            filenames[x1d]["counts"].append (counts)
-            filenames[x1d]["x1d_ab"].append (x1d_ab)
+            filenames[x1d]["corrtag"].append(corrtag)
+            filenames[x1d]["flt"].append(flt)
+            filenames[x1d]["counts"].append(counts)
+            filenames[x1d]["x1d_ab"].append(x1d_ab)
         else:
             filenames[x1d] = {
                 "corrtag": [corrtag],
@@ -390,7 +388,7 @@ def makeFileNames (inlist, outdir=""):
 
     return filenames
 
-def makeFltCounts (cal_ver, corrtag, flt, counts):
+def makeFltCounts(cal_ver, corrtag, flt, counts):
     """Create the flt and counts files.
 
     Parameters
@@ -413,23 +411,23 @@ def makeFltCounts (cal_ver, corrtag, flt, counts):
         True if the current exposure is a wavecal, based on EXPTYPE
     """
 
-    fd = pyfits.open (corrtag, mode="copyonwrite")
+    fd = pyfits.open(corrtag, mode="copyonwrite")
     phdr = fd[0].header
-    phdr.update ("cal_ver", cal_ver)
+    phdr.update("cal_ver", cal_ver)
 
-    detector = phdr.get ("detector")
-    headers = timetag.mkHeaders (phdr, fd[1].header)
-    exptime_key = cosutil.segmentSpecificKeyword ("exptime", phdr["segment"])
-    exptime_default = headers[1].get ("exptime", default=-1.)
-    exptime = headers[1].get (exptime_key, default=exptime_default)
+    detector = phdr.get("detector")
+    headers = timetag.mkHeaders(phdr, fd[1].header)
+    exptime_key = cosutil.segmentSpecificKeyword("exptime", phdr["segment"])
+    exptime_default = headers[1].get("exptime", default=-1.)
+    exptime = headers[1].get(exptime_key, default=exptime_default)
 
-    is_wavecal = phdr["exptype"].find ("WAVE") >= 0
+    is_wavecal = phdr["exptype"].find("WAVE") >= 0
 
     events = fd[1].data
-    x = events.field ("XFULL")
-    y = events.field ("YFULL")
-    epsilon = events.field ("EPSILON")
-    dq = events.field ("DQ")
+    x = events.field("XFULL")
+    y = events.field("YFULL")
+    epsilon = events.field("EPSILON")
+    dq = events.field("DQ")
     if detector == "FUV":
         npix = (calcosparam.FUV_Y, calcosparam.FUV_EXTENDED_X)
         x_offset = calcosparam.FUV_X_OFFSET
@@ -438,25 +436,25 @@ def makeFltCounts (cal_ver, corrtag, flt, counts):
         x_offset = calcosparam.NUV_X_OFFSET
 
     # Create the data quality array.
-    info = getinfo.getGeneralInfo (phdr, headers[1])
+    info = getinfo.getGeneralInfo(phdr, headers[1])
     info["corrtag_input"] = True
-    switches = getinfo.getSwitchValues (phdr)
-    reffiles = getinfo.getRefFileNames (phdr)
-    timetag.setActiveArea (events, info, reffiles["brftab"])
-    minmax_shift_dict = timetag.getWavecalOffsets (events, info,
-                                switches["wavecorr"], reffiles["xtractab"])
-    dq_array = timetag.doDqicorr (events, corrtag, info, switches, reffiles,
-                                  phdr, headers[1], minmax_shift_dict)
+    switches = getinfo.getSwitchValues(phdr)
+    reffiles = getinfo.getRefFileNames(phdr)
+    timetag.setActiveArea(events, info, reffiles["brftab"])
+    minmax_shift_dict = timetag.getWavecalOffsets(
+                events, info, switches["wavecorr"], reffiles["xtractab"])
+    dq_array = timetag.doDqicorr(events, corrtag, info, switches, reffiles,
+                                 phdr, headers[1], minmax_shift_dict)
 
-    timetag.writeImages (x, y, epsilon, dq,
-                         phdr, headers, dq_array, npix, x_offset, exptime,
-                         counts, flt)
+    timetag.writeImages(x, y, epsilon, dq,
+                        phdr, headers, dq_array, npix, x_offset, exptime,
+                        counts, flt)
 
     fd.close()
 
     return is_wavecal
 
-def concatenateSegments (x1d_ab_list, x1d):
+def concatenateSegments(x1d_ab_list, x1d):
     """Concatenate the 1-D spectra for the two FUV segments into one file.
 
     If the input list `x1d_ab_list` contains a file name that is the same
@@ -475,18 +473,18 @@ def concatenateSegments (x1d_ab_list, x1d):
         rootname_x1d.fits file name
     """
 
-    nfiles = len (x1d_ab_list)
+    nfiles = len(x1d_ab_list)
 
-    for i in range (nfiles):
+    for i in range(nfiles):
         if x1d_ab_list[i] == x1d:
             return
 
     if nfiles == 1:
-        cosutil.renameFile (x1d_ab_list[0], x1d)
+        cosutil.renameFile(x1d_ab_list[0], x1d)
     else:
-        extract.concatenateFUVSegments (x1d_ab_list, x1d)
+        extract.concatenateFUVSegments(x1d_ab_list, x1d)
 
-def updateSomeKeywords (x1d, filenames, update_input=False):
+def updateSomeKeywords(x1d, filenames, update_input=False):
     """Copy extraction location keywords from x1d.fits to other files.
 
     Parameters
@@ -503,16 +501,16 @@ def updateSomeKeywords (x1d, filenames, update_input=False):
 
     file_list = []
     x1d_ab = filenames[x1d]["x1d_ab"]
-    if len (x1d_ab) > 1:
-        file_list.extend (x1d_ab)
-    file_list.extend (filenames[x1d]["flt"])
-    file_list.extend (filenames[x1d]["counts"])
+    if len(x1d_ab) > 1:
+        file_list.extend(x1d_ab)
+    file_list.extend(filenames[x1d]["flt"])
+    file_list.extend(filenames[x1d]["counts"])
     if update_input:
-        file_list.extend (filenames[x1d]["corrtag"])
+        file_list.extend(filenames[x1d]["corrtag"])
 
-    copyKeywords (x1d, file_list)
+    copyKeywords(x1d, file_list)
 
-def copyKeywords (x1d, file_list):
+def copyKeywords(x1d, file_list):
     """Copy extraction location keywords to other headers.
 
     Parameters
@@ -525,7 +523,7 @@ def copyKeywords (x1d, file_list):
         keywords should be updated
     """
 
-    fd1 = pyfits.open (x1d, mode="readonly", memmap=False)
+    fd1 = pyfits.open(x1d, mode="readonly", memmap=False)
 
     if fd1[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
@@ -550,11 +548,11 @@ def copyKeywords (x1d, file_list):
 
     for filename in file_list:
         # check that the file still exists (might have been renamed)
-        if os.access (filename, os.R_OK):
-            fd2 = pyfits.open (filename, mode="update")
+        if os.access(filename, os.R_OK):
+            fd2 = pyfits.open(filename, mode="update")
             for key in keywords:
-                value = fd1[1].header.get (key, -999.)
-                fd2[1].header.update (key, value)
+                value = fd1[1].header.get(key, -999.)
+                fd2[1].header.update(key, value)
             fd2.close()
 
     fd1.close()
@@ -562,20 +560,20 @@ def copyKeywords (x1d, file_list):
 def prtOptions():
     """Print a list of command-line options and arguments."""
 
-    print ("The command-line arguments and options are:")
-    print ("  -q (quiet)")
-    print ("  -v (very verbose)")
-    print ("  -u (update keywords in input corrtag files)")
-    print ("  -o outdir (output directory name)")
-    print ("  --find yes (find Y location of spectrum)")
-    print ("  --find no (use Y location of spectrum "
-                      "from 1dx file and wavecal)")
-    print ("  --find cutoff (find Y location if sigma <= cutoff)")
-    print ("  --location Y location(s) at which to extract spectra")
-    print ("  --extrsize height(s) of extraction region(s)")
-    print ("  one or more corrtag file names")
+    print("The command-line arguments and options are:")
+    print("  -q (quiet)")
+    print("  -v (very verbose)")
+    print("  -u (update keywords in input corrtag files)")
+    print("  -o outdir (output directory name)")
+    print("  --find yes (find Y location of spectrum)")
+    print("  --find no (use Y location of spectrum "
+                     "from 1dx file and wavecal)")
+    print("  --find cutoff (find Y location if sigma <= cutoff)")
+    print("  --location Y location(s) at which to extract spectra")
+    print("  --extrsize height(s) of extraction region(s)")
+    print("  one or more corrtag file names")
 
-def replaceSuffix (rawname, suffix, new_suffix):
+def replaceSuffix(rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
 
     Parameters
@@ -595,17 +593,17 @@ def replaceSuffix (rawname, suffix, new_suffix):
         `rawname` with `suffix` replaced by `new_suffix`
     """
 
-    lenraw = len (rawname)
-    lensuffix = len (suffix)
-    i = rawname.rfind (suffix)
+    lenraw = len(rawname)
+    lensuffix = len(suffix)
+    i = rawname.rfind(suffix)
     if i >= 0:
         newname = rawname[0:i] + new_suffix + rawname[i+lensuffix:]
     else:
-        raise RuntimeError ("File name " + rawname +
-                            " was expected to have suffix " + suffix)
+        raise RuntimeError("File name " + rawname +
+                           " was expected to have suffix " + suffix)
 
     return newname
 
 if __name__ == "__main__":
 
-    main (sys.argv[1:])
+    main(sys.argv[1:])

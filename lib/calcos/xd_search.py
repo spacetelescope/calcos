@@ -33,8 +33,8 @@ is 1648.58 Angstroms.  Wavelengths go down to 1213.77 for G230L, 2635,
 but the throughput at short wavelengths is very low.
 """
 
-def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
-              x_offset, detector):
+def xdSearch(data, dq_data, wavelength, axis, slope, y_nominal,
+             x_offset, detector):
     """Find the cross-dispersion location of the target spectrum.
 
     Parameters
@@ -76,13 +76,13 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
         either a float or an int.
     """
 
-    (e_j, zero_point) = extractBand (data, dq_data, wavelength,
-                                     axis, slope, y_nominal,
-                                     x_offset, detector)
+    (e_j, zero_point) = extractBand(data, dq_data, wavelength,
+                                    axis, slope, y_nominal,
+                                    x_offset, detector)
 
     box = 3
 
-    (y_locn, y_locn_sigma, fwhm) = findPeak (e_j, box)
+    (y_locn, y_locn_sigma, fwhm) = findPeak(e_j, box)
 
     if y_locn is None:
         offset2 = 0.
@@ -90,13 +90,13 @@ def xdSearch (data, dq_data, wavelength, axis, slope, y_nominal,
         # Shift y_locn to account for the offset of e_j from Y = 0 in 'data',
         # and shift y_locn to where the spectrum crosses X = x_offset.
         y_locn += zero_point
-        y_locn += slope * float (x_offset)
+        y_locn += slope * float(x_offset)
         offset2 = y_locn - y_nominal
 
     return (offset2, y_locn, y_locn_sigma, fwhm)
 
-def extractBand (data, dq_data, wavelength, axis, slope, y_nominal,
-                 x_offset, detector):
+def extractBand(data, dq_data, wavelength, axis, slope, y_nominal,
+                x_offset, detector):
     """Extract a 2-D stripe centered on the nominal location of the target.
 
     Parameters
@@ -136,39 +136,39 @@ def extractBand (data, dq_data, wavelength, axis, slope, y_nominal,
 
     extr_height = SEARCH_Y
     axis_length = data.shape[axis]
-    e_ij = np.zeros ((extr_height, axis_length), dtype=np.float32)
-    ccos.extractband (data, axis, slope, y_nominal, x_offset, e_ij)
+    e_ij = np.zeros((extr_height, axis_length), dtype=np.float32)
+    ccos.extractband(data, axis, slope, y_nominal, x_offset, e_ij)
 
     # Clobber any region flagged as bad; note that this won't work well if a
     # flagged region covers part but not all of a spectral feature.
     if dq_data is not None:
-        dq_ij = np.zeros ((extr_height, axis_length), dtype=np.int16)
-        ccos.extractband (dq_data, axis, slope, y_nominal, x_offset, dq_ij)
-        dq = np.where (dq_ij == 0, 1, 0)
+        dq_ij = np.zeros((extr_height, axis_length), dtype=np.int16)
+        ccos.extractband(dq_data, axis, slope, y_nominal, x_offset, dq_ij)
+        dq = np.where(dq_ij == 0, 1, 0)
         e_ij *= dq
 
     if detector == "FUV":
         # Block out (i.e. set to zero) regions affected by airglow lines.
         for airglow in AIRGLOW_WAVELENGTHS:
-            pixel_center = findPixelNumber (wavelength, airglow)
+            pixel_center = findPixelNumber(wavelength, airglow)
             pixel0 = pixel_center - (MASK_X // 2)
             pixel1 = pixel_center + (MASK_X // 2)
             if pixel1 < 0 or pixel0 >= axis_length:
                 continue
-            pixel0 = max (pixel0, 0)
-            pixel1 = min (pixel1, axis_length-1)
+            pixel0 = max(pixel0, 0)
+            pixel1 = min(pixel1, axis_length-1)
             e_ij[:,pixel0:pixel1] = 0.
 
     # sum the data along the dispersion direction
-    e_j = e_ij.sum (axis=1)
+    e_j = e_ij.sum(axis=1)
 
     # Y pixel number in data corresponding to e_j[0]
-    zero_point = int (round (y_nominal - slope * float (x_offset))) - \
+    zero_point = int(round (y_nominal - slope * float(x_offset))) - \
                  SEARCH_Y // 2
 
     return (e_j, zero_point)
 
-def findPixelNumber (wl, wavelength):
+def findPixelNumber(wl, wavelength):
     """Find the nearest pixel to 'wavelength'.
 
     Parameters
@@ -185,15 +185,15 @@ def findPixelNumber (wl, wavelength):
         Pixel number closest to `wavelength` in the array `wl`
     """
 
-    nelem = len (wl)
+    nelem = len(wl)
 
-    dispersion = (wl[-1] - wl[0]) / float (nelem)
+    dispersion = (wl[-1] - wl[0]) / float(nelem)
     if wavelength < wl[0]:
         x = (wavelength - wl[0]) / dispersion
-        return int (round (x))
+        return int(round(x))
     elif wavelength >= wl[-1]:
-        x = (wavelength - wl[-1]) / dispersion + float (nelem) - 1.
-        return int (round (x))
+        x = (wavelength - wl[-1]) / dispersion + float(nelem) - 1.
+        return int(round(x))
 
     i0 = 0
     i1 = nelem - 1
@@ -202,25 +202,25 @@ def findPixelNumber (wl, wavelength):
             break
         slope = (wl[i1] - wl[i0]) / (i1 - i0)
         if slope == 0.:
-            raise RuntimeError ("Bad wavelength array.")
+            raise RuntimeError("Bad wavelength array.")
         mid = (i1 + i0) // 2
-        x = int (round ((wavelength - wl[mid]) / slope)) + mid
+        x = int(round((wavelength - wl[mid]) / slope)) + mid
         dx = i1 - i0
         i0 = x - dx // 16
         i1 = x + dx // 16
-        i0 = max (i0, 0)
-        i1 = min (i1, nelem-1)
+        i0 = max(i0, 0)
+        i1 = min(i1, nelem-1)
 
     x = i0
-    diff = abs (wavelength - wl[x])
-    for i in range (i0, i1+1):
-        if abs (wavelength - wl[i]) < diff:
+    diff = abs(wavelength - wl[x])
+    for i in range(i0, i1+1):
+        if abs(wavelength - wl[i]) < diff:
             x = i
-            diff = abs (wavelength - wl[x])
+            diff = abs(wavelength - wl[x])
 
     return x
 
-def findPeak (e_j, box):
+def findPeak(e_j, box):
     """Find the location of the maximum within the subset.
 
     Note that the data were collapsed to the left edge to get `e_j`, so
@@ -249,45 +249,45 @@ def findPeak (e_j, box):
         profile
     """
 
-    e_j_sm = boxcar (e_j, (box,), mode="nearest")
+    e_j_sm = boxcar(e_j, (box,), mode="nearest")
 
-    index = np.argsort (e_j_sm)
+    index = np.argsort(e_j_sm)
     ymax = index[-1]
 
-    nelem = len (e_j)
+    nelem = len(e_j)
 
     # This may be done again later, after we have found the location more
     # accurately.
-    fwhm = findFwhm (e_j, ymax)
+    fwhm = findFwhm(e_j, ymax)
 
     # fit a quadratic to at least five points centered on ymax
     MIN_NPTS = 5
-    npts = int (round (fwhm))
-    npts = max (npts, MIN_NPTS)
+    npts = int(round(fwhm))
+    npts = max(npts, MIN_NPTS)
     if npts // 2 * 2 == npts:
         npts += 1
-    x = np.arange (nelem, dtype=np.float64)
+    x = np.arange(nelem, dtype=np.float64)
     j1 = ymax - npts // 2
-    j1 = max (j1, 0)
+    j1 = max(j1, 0)
     j2 = j1 + npts
     if j2 > nelem:
         j2 = nelem
         j1 = j2 - npts
-        j1 = max (j1, 0)
-    (coeff, var) = cosutil.fitQuadratic (x[j1:j2], e_j_sm[j1:j2])
+        j1 = max(j1, 0)
+    (coeff, var) = cosutil.fitQuadratic(x[j1:j2], e_j_sm[j1:j2])
 
-    (y_locn, y_locn_sigma) = cosutil.centerOfQuadratic (coeff, var)
+    (y_locn, y_locn_sigma) = cosutil.centerOfQuadratic(coeff, var)
     if y_locn is None:
         y_locn = ymax
         y_locn_sigma = 999.
 
     # Find the FWHM again if the location is far from the brightest pixel.
-    if abs (y_locn - ymax) > fwhm / 4.:
-        fwhm = findFwhm (e_j, y_locn)
+    if abs(y_locn - ymax) > fwhm / 4.:
+        fwhm = findFwhm(e_j, y_locn)
 
     return (y_locn, y_locn_sigma, fwhm)
 
-def findFwhm (e_j, y_locn):
+def findFwhm(e_j, y_locn):
     """Find the FWHM of the cross-dispersion profile of the spectrum.
 
     Two different approaches are used to find the FWHM.  The first method
@@ -318,8 +318,8 @@ def findFwhm (e_j, y_locn):
         The full width half maximum of the peak in `e_j`.
     """
 
-    nelem = len (e_j)
-    y_locn_nint = int (round (y_locn))
+    nelem = len(e_j)
+    y_locn_nint = int(round(y_locn))
     if y_locn_nint < 0 or y_locn_nint >= nelem:
         return -1.
 
@@ -327,7 +327,7 @@ def findFwhm (e_j, y_locn):
     if e_max <= 0:
         return -1.
 
-    e_j_sorted = np.sort (e_j)
+    e_j_sorted = np.sort(e_j)
 
     third = nelem // 3
     background = e_j_sorted[0:third].mean()
@@ -363,9 +363,9 @@ def findFwhm (e_j, y_locn):
     # Use linear interpolation to find where e_j would equal find_this_level.
     denom = e_j[j_low+1] - e_j[j_low]
     if denom == 0.:
-        low = float (j_low) + 0.5       # 0.5 is an estimate
+        low = float(j_low) + 0.5        # 0.5 is an estimate
     else:
-        low = float (j_low) + (find_this_level - e_j[j_low]) / denom
+        low = float(j_low) + (find_this_level - e_j[j_low]) / denom
 
     # now the high side
     j = y_locn_nint
@@ -377,9 +377,9 @@ def findFwhm (e_j, y_locn):
 
     denom = e_j[j_high] - e_j[j_high-1]
     if denom == 0.:
-        high = float (j_high) - 0.5
+        high = float(j_high) - 0.5
     else:
-        high = float (j_high-1) + (find_this_level - e_j[j_high-1]) / denom
+        high = float(j_high-1) + (find_this_level - e_j[j_high-1]) / denom
 
     fwhm_2 = high - low         # this is a float
 

@@ -127,151 +127,151 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 # define RNG_MULTIPLIER 663608941
 
 /* nearest integer function */
-# define NINT(x)  ((int) (floor (x + 0.5)))
+# define NINT(x)  ((int)(floor(x + 0.5)))
 
-static char *DocString (void);
+static char *DocString(void);
 
-static PyObject *ccos_binevents (PyObject *, PyObject *);
-static PyObject *ccos_bindq (PyObject *, PyObject *);
-static PyObject *ccos_applydq (PyObject *, PyObject *);
-static PyObject *ccos_dq_or (PyObject *, PyObject *);
-static PyObject *ccos_applyflat (PyObject *, PyObject *);
-static PyObject *ccos_range (PyObject *, PyObject *);
-static PyObject *ccos_unbinaccum (PyObject *, PyObject *);
-static PyObject *ccos_addrandom (PyObject *, PyObject *);
-static PyObject *ccos_convolve1d (PyObject *, PyObject *);
-static PyObject *ccos_extractband (PyObject *, PyObject *);
-static PyObject *ccos_smoothbkg (PyObject *, PyObject *);
-static PyObject *ccos_addlines (PyObject *, PyObject *);
-static PyObject *ccos_geocorrection (PyObject *, PyObject *);
-static PyObject *ccos_pha_check (PyObject *, PyObject *);
-static PyObject *ccos_clear_rows (PyObject *, PyObject *);
-static PyObject *ccos_interp1d (PyObject *, PyObject *);
-static PyObject *ccos_getstartstop (PyObject *self, PyObject *args);
-static PyObject *ccos_getbkgcounts (PyObject *, PyObject *);
-static PyObject *ccos_smallerbursts (PyObject *, PyObject *);
-static PyObject *ccos_getbadtime (PyObject *, PyObject *);
-static PyObject *ccos_xy_extract (PyObject *, PyObject *);
-static PyObject *ccos_xy_collapse (PyObject *, PyObject *);
-static PyObject *ccos_csum_3d (PyObject *, PyObject *);
-static PyObject *ccos_csum_2d (PyObject *, PyObject *);
+static PyObject *ccos_binevents(PyObject *, PyObject *);
+static PyObject *ccos_bindq(PyObject *, PyObject *);
+static PyObject *ccos_applydq(PyObject *, PyObject *);
+static PyObject *ccos_dq_or(PyObject *, PyObject *);
+static PyObject *ccos_applyflat(PyObject *, PyObject *);
+static PyObject *ccos_range(PyObject *, PyObject *);
+static PyObject *ccos_unbinaccum(PyObject *, PyObject *);
+static PyObject *ccos_addrandom(PyObject *, PyObject *);
+static PyObject *ccos_convolve1d(PyObject *, PyObject *);
+static PyObject *ccos_extractband(PyObject *, PyObject *);
+static PyObject *ccos_smoothbkg(PyObject *, PyObject *);
+static PyObject *ccos_addlines(PyObject *, PyObject *);
+static PyObject *ccos_geocorrection(PyObject *, PyObject *);
+static PyObject *ccos_pha_check(PyObject *, PyObject *);
+static PyObject *ccos_clear_rows(PyObject *, PyObject *);
+static PyObject *ccos_interp1d(PyObject *, PyObject *);
+static PyObject *ccos_getstartstop(PyObject *self, PyObject *args);
+static PyObject *ccos_getbkgcounts(PyObject *, PyObject *);
+static PyObject *ccos_smallerbursts(PyObject *, PyObject *);
+static PyObject *ccos_getbadtime(PyObject *, PyObject *);
+static PyObject *ccos_xy_extract(PyObject *, PyObject *);
+static PyObject *ccos_xy_collapse(PyObject *, PyObject *);
+static PyObject *ccos_csum_3d(PyObject *, PyObject *);
+static PyObject *ccos_csum_2d(PyObject *, PyObject *);
 
-static int binEventsToImage (PyArrayObject *, PyArrayObject *,
+static int binEventsToImage(PyArrayObject *, PyArrayObject *,
 	PyArrayObject *, int, PyArrayObject *, short, PyArrayObject *);
-static int binDQToImage (
+static int binDQToImage(
 	int [], int [], int [], int [],
 	int [], int, PyArrayObject *, int);
-static int applyDQToEvents (int [], int [],
+static int applyDQToEvents(int [], int [],
 		int [], int [], int [], int,
 		PyArrayObject *, PyArrayObject *, short []);
-static int bitwiseOrDQ (short [], short [], int, int);
-static void applyFlatField (PyArrayObject *, PyArrayObject *,
+static int bitwiseOrDQ(short [], short [], int, int);
+static void applyFlatField(PyArrayObject *, PyArrayObject *,
 	PyArrayObject *, PyArrayObject *, int, int);
-static PyObject *timeRange (PyArrayObject *, double, double);
-static int search (float [], int, float);
-static int search_d (double [], int, double);
-static int unbinImage (PyArrayObject *, int, float [], float[], int);
-static int addRN (float [], int, int, int);
-static int convolveWithDopp (PyArrayObject *, int, int, float [], int, int);
-static int extract2DBand (PyArrayObject *,
+static PyObject *timeRange(PyArrayObject *, double, double);
+static int search(float [], int, float);
+static int search_d(double [], int, double);
+static int unbinImage(PyArrayObject *, int, float [], float[], int);
+static int addRN(float [], int, int, int);
+static int convolveWithDopp(PyArrayObject *, int, int, float [], int, int);
+static int extract2DBand(PyArrayObject *,
 	int, double, double, int, PyArrayObject *);
-static int smoothBackground (int, int, float [], short []);
-static int addEmissionLines (float [], double [], int,
+static int smoothBackground(int, int, float [], short []);
+static int addEmissionLines(float [], double [], int,
 		double, double [], float [], int);
-static double findPixelNumber (double, double [], int);
-static int binarySearch (double, double [], int);
-static void addLSF (double, float, double, float [], int);
-static int geoInterp2D (float [], float [], int,
+static double findPixelNumber(double, double [], int);
+static int binarySearch(double, double [], int);
+static void addLSF(double, float, double, float [], int);
+static int geoInterp2D(float [], float [], int,
 	PyArrayObject *, PyArrayObject *, int, float, float, float, float);
-static int phaCheck (int, short,
+static int phaCheck(int, short,
 	float [], float [], short [], short [],
 	PyArrayObject *, PyArrayObject *, int *, int *);
-static int clearRows (PyArrayObject *,
+static int clearRows(PyArrayObject *,
 	float [], float [], float [], float []);
-static void bilinearInterp (float, float,
+static void bilinearInterp(float, float,
 	PyArrayObject *, PyArrayObject *, int, int,
 	float *, float *);
-static int interp_check (PyArrayObject *, PyArrayObject *,
+static int interp_check(PyArrayObject *, PyArrayObject *,
 			 PyArrayObject *, PyArrayObject *);
-static void interp1d (double [], double [], int, double [], double [], int);
-static int getStartStopTimes (float [], int,
+static void interp1d(double [], double [], int, double [], double [], int);
+static int getStartStopTimes(float [], int,
 		int [], int [], int, double);
-static int getBkgCounts (PyArrayObject *, short [], int,
+static int getBkgCounts(PyArrayObject *, short [], int,
 		int [], int [], int [], int [], int,
 		int, int, int, int,
 		int, int, double);
-static int findSmallerBursts (float [], short [], int,
+static int findSmallerBursts(float [], short [], int,
 		int[], int[], int[], int[], int, double,
 		double, double, double,
 		int, int,
 		int, int, int, int);
-static int median_boxcar (int [], int [], int, int, int);
-static int compare_int (const void *, const void *);
-static double getBadTime (float [], short [], int);
-static int extrFromEvents (PyArrayObject *, PyArrayObject *, PyArrayObject *,
+static int median_boxcar(int [], int [], int, int, int);
+static int compare_int(const void *, const void *);
+static double getBadTime(float [], short [], int);
+static int extrFromEvents(PyArrayObject *, PyArrayObject *, PyArrayObject *,
 		int, double, double,
 		PyArrayObject *, short, PyArrayObject *);
-static int collapseFromEvents (PyArrayObject *, PyArrayObject *,
+static int collapseFromEvents(PyArrayObject *, PyArrayObject *,
 		short [], int,
 		double, double [], int);
-static void bin3DtoCsum (float [], int, int, int,
+static void bin3DtoCsum(float [], int, int, int,
 		int, int,
 		float [], float [],
 		float [], short [], int);
-static void bin2DtoCsum (float [], int, int,
+static void bin2DtoCsum(float [], int, int,
 		int, int,
 		float [], float [], float [], int);
-static void bin2DArray (float [], int, int,
+static void bin2DArray(float [], int, int,
 		float [], int, int);
 
 /* This function returns the documentation string to be assigned to
    __doc__.
 */
 
-static char *DocString (void) {
+static char *DocString(void) {
 
 	return (
 "This module contains the following functions:\n\n\
-    binevents (x, y, array, x_offset,\n\
-                <optional:  dq, sdqflags, epsilon>)\n\
-    bindq (lx, ly, ux, uy, flag, dq_array, x_offset)\n\
-    applydq (lx, ly, dx, dy, flag, x, y, dq)\n\
-    dq_or (dq_2d, dq_1d)\n\
-    applyflat (x, y, epsilon, flat,\n\
-                <optional:  origin_x, origin_y>)\n\
-    indices = range (time, t0, t1)\n\
-    unbinaccum (image, x, y,\n\
-                <optional:  x_offset>)\n\
-    newseed = addrandom (x, seed, use_clock)\n\
-    convolve1d (flat, dopp, axis)\n\
-    extractband (indata, axis, slope, intercept, x_offset, outdata)\n\
-    smoothbkg (data, width,\n\
-                <optional:  flags>)\n\
-    addlines (intensity, wavelength, reswidth, x1d_wl, dq, template)\n\
-    geocorrection (x, y, x_image, y_image, interp_flag,\n\
-                <optional:  origin_x, origin_y, xbin, ybin>)\n\
-    counters = pha_check (x, y, pha, dq, im_low, im_high, pha_flag)\n\
-    clear_rows (dq, y_lower, y_upper, x_left, x_right)\n\
-    interp1d (x_a, y_a, x_b, y_b)\n\
-    getstartstop (time, istart, istop, delta_t)\n\
-    getbkgcounts (y, dq,\n\
-                istart, istop, bkg_counts, src_counts,\n\
-                bkg1_low, bkg1_high, bkg2_low, bkg2_high,\n\
-                src_low, src_high, bkgsf)\n\
-    smallerbursts (time, dq,\n\
-                istart, istop, bkg_counts, src_counts,\n\
-                delta_t, smallest_burst, stdrej, source_frac,\n\
-                half_block, max_iter,\n\
-                large_burst, small_burst, dq_burst, verbose)\n\
-    getbadtime (time, dq)\n\n\
-    xy_extract (xi, eta, outdata, slope, intercept, x_offset,\n\
-                <optional:  dq, sdqflags, epsilon>)\n\
-    xy_collapse (xi, eta, dq, slope, xdisp)\n\
-    csum_3d (array, x, y, epsilon, pha,\n\
-               <optional:  binx, biny>)\n\
-    csum_2d (array, x, y, epsilon,\n\
-               <optional:  binx, biny>)\n\
-    bin2d (array, binned_array)\n\
+    binevents(x, y, array, x_offset,\n\
+              <optional:  dq, sdqflags, epsilon>)\n\
+    bindq(lx, ly, ux, uy, flag, dq_array, x_offset)\n\
+    applydq(lx, ly, dx, dy, flag, x, y, dq)\n\
+    dq_or(dq_2d, dq_1d)\n\
+    applyflat(x, y, epsilon, flat,\n\
+              <optional:  origin_x, origin_y>)\n\
+    indices = range(time, t0, t1)\n\
+    unbinaccum(image, x, y,\n\
+               <optional:  x_offset>)\n\
+    newseed = addrandom(x, seed, use_clock)\n\
+    convolve1d(flat, dopp, axis)\n\
+    extractband(indata, axis, slope, intercept, x_offset, outdata)\n\
+    smoothbkg(data, width,\n\
+              <optional:  flags>)\n\
+    addlines(intensity, wavelength, reswidth, x1d_wl, dq, template)\n\
+    geocorrection(x, y, x_image, y_image, interp_flag,\n\
+                  <optional:  origin_x, origin_y, xbin, ybin>)\n\
+    counters = pha_check(x, y, pha, dq, im_low, im_high, pha_flag)\n\
+    clear_rows(dq, y_lower, y_upper, x_left, x_right)\n\
+    interp1d(x_a, y_a, x_b, y_b)\n\
+    getstartstop(time, istart, istop, delta_t)\n\
+    getbkgcounts(y, dq,\n\
+                 istart, istop, bkg_counts, src_counts,\n\
+                 bkg1_low, bkg1_high, bkg2_low, bkg2_high,\n\
+                 src_low, src_high, bkgsf)\n\
+    smallerbursts(time, dq,\n\
+                  istart, istop, bkg_counts, src_counts,\n\
+                  delta_t, smallest_burst, stdrej, source_frac,\n\
+                  half_block, max_iter,\n\
+                  large_burst, small_burst, dq_burst, verbose)\n\
+    getbadtime(time, dq)\n\n\
+    xy_extract(xi, eta, outdata, slope, intercept, x_offset,\n\
+               <optional:  dq, sdqflags, epsilon>)\n\
+    xy_collapse(xi, eta, dq, slope, xdisp)\n\
+    csum_3d(array, x, y, epsilon, pha,\n\
+            <optional:  binx, biny>)\n\
+    csum_2d(array, x, y, epsilon,\n\
+            <optional:  binx, biny>)\n\
+    bin2d(array, binned_array)\n\
 "
         /* string split because it is too long for windows compiler */
 "\
@@ -306,7 +306,7 @@ For bindq, axis, mindopp and maxdopp are optional arguments.\n");
 
 /* calling sequence for binevents:
 
-   binevents (x, y, array, x_offset, dq, sdqflags, epsilon)
+   binevents(x, y, array, x_offset, dq, sdqflags, epsilon)
 
     x, y       i: arrays of pixel coordinates of the events
                   (int16, or default is float32)
@@ -329,7 +329,7 @@ For bindq, axis, mindopp and maxdopp are optional arguments.\n");
    out of range or within a bad time interval).
 */
 
-static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
+static PyObject *ccos_binevents(PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *oarray, *odq, *oepsilon;
 	PyArrayObject *x, *y, *array, *dq, *epsilon;
@@ -341,31 +341,31 @@ static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
 	oepsilon = NULL;
 	sdqflags = 32767;
 
-	if (!PyArg_ParseTuple (args, "OOOi|OhO",
+	if (!PyArg_ParseTuple(args, "OOOi|OhO",
 			&ox, &oy, &oarray, &x_offset,
 			&odq, &sdqflags, &oepsilon)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (ox) == NPY_INT16) {
-	    x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_INT16,
+	if (PyArray_TYPE(ox) == NPY_INT16) {
+	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	if (PyArray_TYPE (oy) == NPY_INT16) {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_INT16,
+	if (PyArray_TYPE(oy) == NPY_INT16) {
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
 	if (x == NULL || y == NULL)
 	    return NULL;
 
-	array = (PyArrayObject *)PyArray_FROM_OTF (oarray, NPY_FLOAT32,
+	array = (PyArrayObject *)PyArray_FROM_OTF(oarray, NPY_FLOAT32,
 			NPY_INOUT_ARRAY);
 	if (array == NULL)
 	    return NULL;
@@ -373,7 +373,7 @@ static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
 	if (odq == NULL) {
 	    dq = NULL;
 	} else {
-	    dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+	    dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
 			NPY_IN_ARRAY);
 	    if (dq == NULL)
 		return NULL;
@@ -381,32 +381,32 @@ static PyObject *ccos_binevents (PyObject *self, PyObject *args) {
 	if (oepsilon == NULL) {
 	    epsilon = NULL;
 	} else {
-	    epsilon = (PyArrayObject *)PyArray_FROM_OTF (oepsilon, NPY_FLOAT32,
+	    epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	    if (epsilon == NULL)
 		return NULL;
 	}
 
-	status = binEventsToImage (x, y, array, x_offset,
+	status = binEventsToImage(x, y, array, x_offset,
 			dq, sdqflags, epsilon);
 
-	Py_DECREF (x);
-	Py_DECREF (y);
-	Py_DECREF (array);
-	Py_XDECREF (dq);
-	Py_XDECREF (epsilon);
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(array);
+	Py_XDECREF(dq);
+	Py_XDECREF(epsilon);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_binevents. */
 
-static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
+static int binEventsToImage(PyArrayObject *x, PyArrayObject *y,
 	PyArrayObject *array, int x_offset,
 	PyArrayObject *dq, short sdqflags, PyArrayObject *epsilon) {
 
@@ -432,52 +432,52 @@ static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
 	x_type = x->descr->type_num;
 	y_type = y->descr->type_num;
 
-	n_events = PyArray_DIM (x, 0);
-	nx = PyArray_DIM (array, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (array, 0);
+	n_events = PyArray_DIM(x, 0);
+	nx = PyArray_DIM(array, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(array, 0);
 
 	/* Initialize array to zero, because we're going to increment
 	   a pixel value for each event in the list.
 	*/
 	for (i = 0;  i < nx;  i++)
 	    for (j = 0;  j < ny;  j++)
-		*(float *)PyArray_GETPTR2 (array, j, i) = 0.;
+		*(float *)PyArray_GETPTR2(array, j, i) = 0.;
 
 	for (k = 0;  k < n_events;  k++) {
 
 	    /* get the coordinates of the current event */
 	    if (x_type == NPY_INT16) {
-		i = *(short *)PyArray_GETPTR1 (x, k);
+		i = *(short *)PyArray_GETPTR1(x, k);
 		i += x_offset;
 	    } else {
-		c_x = *(float *)PyArray_GETPTR1 (x, k);
+		c_x = *(float *)PyArray_GETPTR1(x, k);
 		c_x += f_x_offset;
-		i = NINT (c_x);		/* the more rapidly varying index */
+		i = NINT(c_x);		/* the more rapidly varying index */
 	    }
 	    if (y_type == NPY_INT16) {
-		j = *(short *)PyArray_GETPTR1 (y, k);
+		j = *(short *)PyArray_GETPTR1(y, k);
 	    } else {
-		c_y = *(float *)PyArray_GETPTR1 (y, k);
-		j = NINT (c_y);
+		c_y = *(float *)PyArray_GETPTR1(y, k);
+		j = NINT(c_y);
 	    }
 
 	    if (dq == NULL)
 		c_dq = 0;
 	    else
-		c_dq = *(short *)PyArray_GETPTR1 (dq, k);
+		c_dq = *(short *)PyArray_GETPTR1(dq, k);
 
 	    if ((c_dq & sdqflags) == 0) {
 
 		if (epsilon == NULL)
 		    c_eps = 1.;
 		else
-		    c_eps = *(float *)PyArray_GETPTR1 (epsilon, k);
+		    c_eps = *(float *)PyArray_GETPTR1(epsilon, k);
 
 		/* truncate at borders of image */
 		if (i < 0 || i >= nx || j < 0 || j >= ny)
 		    continue;
 
-		*(float *)PyArray_GETPTR2 (array, j, i) += c_eps;
+		*(float *)PyArray_GETPTR2(array, j, i) += c_eps;
 	    }
 	}
 
@@ -486,7 +486,7 @@ static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
 
 /* calling sequence for bindq:
 
-   bindq (lx, ly, ux, uy, flag, dq_array, x_offset)
+   bindq(lx, ly, ux, uy, flag, dq_array, x_offset)
 
     lx, ly     i: arrays of lower left corners of regions (int32)
     ux, uy     i: arrays of upper right corners of regions (int32)
@@ -516,7 +516,7 @@ static int binEventsToImage (PyArrayObject *x, PyArrayObject *y,
    assumed to be valid.
 */
 
-static PyObject *ccos_bindq (PyObject *self, PyObject *args) {
+static PyObject *ccos_bindq(PyObject *self, PyObject *args) {
 
 	PyObject *olx, *oly, *oux, *ouy, *oflag, *odq_array;
 	PyArrayObject *lx, *ly, *ux, *uy, *flag, *dq_array;
@@ -524,51 +524,51 @@ static PyObject *ccos_bindq (PyObject *self, PyObject *args) {
 	int status;
 	int nrows;
 
-	if (!PyArg_ParseTuple (args, "OOOOOOi",
+	if (!PyArg_ParseTuple(args, "OOOOOOi",
 		&olx, &oly, &oux, &ouy, &oflag, &odq_array, &x_offset)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	lx = (PyArrayObject *)PyArray_FROM_OTF (olx, NPY_INT32, NPY_IN_ARRAY);
-	ly = (PyArrayObject *)PyArray_FROM_OTF (oly, NPY_INT32, NPY_IN_ARRAY);
-	ux = (PyArrayObject *)PyArray_FROM_OTF (oux, NPY_INT32, NPY_IN_ARRAY);
-	uy = (PyArrayObject *)PyArray_FROM_OTF (ouy, NPY_INT32, NPY_IN_ARRAY);
-	flag = (PyArrayObject *)PyArray_FROM_OTF (oflag, NPY_INT32,
+	lx = (PyArrayObject *)PyArray_FROM_OTF(olx, NPY_INT32, NPY_IN_ARRAY);
+	ly = (PyArrayObject *)PyArray_FROM_OTF(oly, NPY_INT32, NPY_IN_ARRAY);
+	ux = (PyArrayObject *)PyArray_FROM_OTF(oux, NPY_INT32, NPY_IN_ARRAY);
+	uy = (PyArrayObject *)PyArray_FROM_OTF(ouy, NPY_INT32, NPY_IN_ARRAY);
+	flag = (PyArrayObject *)PyArray_FROM_OTF(oflag, NPY_INT32,
 			NPY_IN_ARRAY);
 	if (lx == NULL || ly == NULL || ux == NULL || uy == NULL ||
 		flag == NULL)
 	    return NULL;
-	dq_array = (PyArrayObject *)PyArray_FROM_OTF (odq_array, NPY_INT16,
+	dq_array = (PyArrayObject *)PyArray_FROM_OTF(odq_array, NPY_INT16,
 			NPY_INOUT_ARRAY);
 	if (dq_array == NULL)
 	    return NULL;
 
-	nrows = PyArray_DIM (lx, 0);
-	status = binDQToImage (
-		(int *)PyArray_DATA (lx), (int *)PyArray_DATA (ly),
-		(int *)PyArray_DATA (ux), (int *)PyArray_DATA (uy),
-		(int *)PyArray_DATA (flag), nrows,
+	nrows = PyArray_DIM(lx, 0);
+	status = binDQToImage(
+		(int *)PyArray_DATA(lx), (int *)PyArray_DATA(ly),
+		(int *)PyArray_DATA(ux), (int *)PyArray_DATA(uy),
+		(int *)PyArray_DATA(flag), nrows,
 		dq_array, x_offset);
 
-	Py_DECREF (lx);
-	Py_DECREF (ly);
-	Py_DECREF (ux);
-	Py_DECREF (uy);
-	Py_DECREF (flag);
-	Py_DECREF (dq_array);
+	Py_DECREF(lx);
+	Py_DECREF(ly);
+	Py_DECREF(ux);
+	Py_DECREF(uy);
+	Py_DECREF(flag);
+	Py_DECREF(dq_array);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_bindq. */
 
-static int binDQToImage (
+static int binDQToImage(
 	int lx[], int ly[], int ux[], int uy[],
 	int flag[], int nrows, PyArrayObject *dq_array, int x_offset) {
 
@@ -580,8 +580,8 @@ static int binDQToImage (
 	int c_ux, c_uy;		/* upper right corner (from lx,ly and ux, uy) */
 	int temp_flag;
 
-	nx = PyArray_DIM (dq_array, 1);		/* shape (ny,nx) */
-	ny = PyArray_DIM (dq_array, 0);
+	nx = PyArray_DIM(dq_array, 1);		/* shape (ny,nx) */
+	ny = PyArray_DIM(dq_array, 0);
 
 	for (k = 0;  k < nrows;  k++) {
 
@@ -602,9 +602,9 @@ static int binDQToImage (
 
 	    for (j = c_ly;  j <= c_uy;  j++) {
 		for (i = c_lx;  i <= c_ux;  i++) {
-		    temp_flag = *(short *)PyArray_GETPTR2 (dq_array, j, i);
+		    temp_flag = *(short *)PyArray_GETPTR2(dq_array, j, i);
 		    temp_flag |= flag[k];
-		    *(short *)PyArray_GETPTR2 (dq_array, j, i) =
+		    *(short *)PyArray_GETPTR2(dq_array, j, i) =
 				(short) temp_flag;
 		}
 	    }
@@ -615,7 +615,7 @@ static int binDQToImage (
 
 /* calling sequence for applydq:
 
-   applydq (lx, ly, dx, dy, flag, x, y, dq)
+   applydq(lx, ly, dx, dy, flag, x, y, dq)
 
     lx, ly     i: arrays of lower left corners of regions (int32)
     dx, dy     i: arrays of region widths (int32)
@@ -635,75 +635,75 @@ static int binDQToImage (
    assumed to be valid (i.e. this function will not initialize dq).
 */
 
-static PyObject *ccos_applydq (PyObject *self, PyObject *args) {
+static PyObject *ccos_applydq(PyObject *self, PyObject *args) {
 
 	PyObject *olx, *oly, *odx, *ody, *oflag, *ox, *oy, *odq;
 	PyArrayObject *lx, *ly, *dx, *dy, *flag, *x, *y, *dq;
 	int status;
 	int nrows;
 
-	if (!PyArg_ParseTuple (args, "OOOOOOOO",
+	if (!PyArg_ParseTuple(args, "OOOOOOOO",
 		&olx, &oly, &odx, &ody, &oflag, &ox, &oy, &odq)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	lx = (PyArrayObject *)PyArray_FROM_OTF (olx, NPY_INT32, NPY_IN_ARRAY);
-	ly = (PyArrayObject *)PyArray_FROM_OTF (oly, NPY_INT32, NPY_IN_ARRAY);
-	dx = (PyArrayObject *)PyArray_FROM_OTF (odx, NPY_INT32, NPY_IN_ARRAY);
-	dy = (PyArrayObject *)PyArray_FROM_OTF (ody, NPY_INT32, NPY_IN_ARRAY);
-	flag = (PyArrayObject *)PyArray_FROM_OTF (oflag, NPY_INT32,
+	lx = (PyArrayObject *)PyArray_FROM_OTF(olx, NPY_INT32, NPY_IN_ARRAY);
+	ly = (PyArrayObject *)PyArray_FROM_OTF(oly, NPY_INT32, NPY_IN_ARRAY);
+	dx = (PyArrayObject *)PyArray_FROM_OTF(odx, NPY_INT32, NPY_IN_ARRAY);
+	dy = (PyArrayObject *)PyArray_FROM_OTF(ody, NPY_INT32, NPY_IN_ARRAY);
+	flag = (PyArrayObject *)PyArray_FROM_OTF(oflag, NPY_INT32,
 			NPY_IN_ARRAY);
 	if (lx == NULL || ly == NULL || dx == NULL || dy == NULL ||
 		flag == NULL)
 	    return NULL;
-	if (PyArray_TYPE (ox) == NPY_INT16) {
-	    x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_INT16,
+	if (PyArray_TYPE(ox) == NPY_INT16) {
+	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	if (PyArray_TYPE (oy) == NPY_INT16) {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_INT16,
+	if (PyArray_TYPE(oy) == NPY_INT16) {
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
 			NPY_INOUT_ARRAY);
 	if (x == NULL || y == NULL || dq == NULL)
 	    return NULL;
 
-	nrows = PyArray_DIM (lx, 0);
-	status = applyDQToEvents (
-		(int *)PyArray_DATA (lx), (int *)PyArray_DATA (ly),
-		(int *)PyArray_DATA (dx), (int *)PyArray_DATA (dy),
-		(int *)PyArray_DATA (flag), nrows,
+	nrows = PyArray_DIM(lx, 0);
+	status = applyDQToEvents(
+		(int *)PyArray_DATA(lx), (int *)PyArray_DATA(ly),
+		(int *)PyArray_DATA(dx), (int *)PyArray_DATA(dy),
+		(int *)PyArray_DATA(flag), nrows,
 		x, y,
-		(short *)PyArray_DATA (dq));
+		(short *)PyArray_DATA(dq));
 
-	Py_DECREF (lx);
-	Py_DECREF (ly);
-	Py_DECREF (dx);
-	Py_DECREF (dy);
-	Py_DECREF (flag);
-	Py_DECREF (x);
-	Py_DECREF (y);
-	Py_DECREF (dq);
+	Py_DECREF(lx);
+	Py_DECREF(ly);
+	Py_DECREF(dx);
+	Py_DECREF(dy);
+	Py_DECREF(flag);
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(dq);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_applydq. */
 
-static int applyDQToEvents (int lx[], int ly[],
+static int applyDQToEvents(int lx[], int ly[],
 		int dx[], int dy[], int flag[], int nrows,
 		PyArrayObject *x, PyArrayObject *y,
 		short dq[]) {
@@ -719,12 +719,12 @@ static int applyDQToEvents (int lx[], int ly[],
 	float c_y;		/* rawy coordinate of an event */
 	short c_dq;		/* data quality column value */
 
-	n_events = PyArray_DIM (x, 0);	/* rows in events table */
+	n_events = PyArray_DIM(x, 0);	/* rows in events table */
 	x_type = x->descr->type_num;
 	y_type = y->descr->type_num;
 
-	c_ux = PyMem_Malloc (nrows * sizeof (int));
-	c_uy = PyMem_Malloc (nrows * sizeof (int));
+	c_ux = PyMem_Malloc(nrows * sizeof(int));
+	c_uy = PyMem_Malloc(nrows * sizeof(int));
 	if (c_ux == NULL || c_uy == NULL) {
 	    PyErr_NoMemory();
 	    return 1;
@@ -744,16 +744,16 @@ static int applyDQToEvents (int lx[], int ly[],
 	for (k = 0;  k < n_events;  k++) {
 
 	    if (x_type == NPY_INT16) {
-		i = *(short *)PyArray_GETPTR1 (x, k);
+		i = *(short *)PyArray_GETPTR1(x, k);
 	    } else {
-		c_x = *(float *)PyArray_GETPTR1 (x, k);
-		i = NINT (c_x);		/* the more rapidly varying index */
+		c_x = *(float *)PyArray_GETPTR1(x, k);
+		i = NINT(c_x);		/* the more rapidly varying index */
 	    }
 	    if (y_type == NPY_INT16) {
-		j = *(short *)PyArray_GETPTR1 (y, k);
+		j = *(short *)PyArray_GETPTR1(y, k);
 	    } else {
-		c_y = *(float *)PyArray_GETPTR1 (y, k);
-		j = NINT (c_y);
+		c_y = *(float *)PyArray_GETPTR1(y, k);
+		j = NINT(c_y);
 	    }
 
 	    /* Check each row of the bpixtab for overlap with (i,j). */
@@ -766,15 +766,15 @@ static int applyDQToEvents (int lx[], int ly[],
 	    }
 	}
 
-	PyMem_Free (c_ux);
-	PyMem_Free (c_uy);
+	PyMem_Free(c_ux);
+	PyMem_Free(c_uy);
 
 	return 0;
 }
 
 /* calling sequence for dq_or:
 
-   dq_or (dq_2d, dq_1d)
+   dq_or(dq_2d, dq_1d)
 
     dq_2d      i: 2-D data quality array (int16)
     dq_1d     io: 1-D data quality array (int16)
@@ -785,49 +785,49 @@ static int applyDQToEvents (int lx[], int ly[],
    element i, dq_1d[i] will be the bitwise OR of dq_2d[:,i].
 */
 
-static PyObject *ccos_dq_or (PyObject *self, PyObject *args) {
+static PyObject *ccos_dq_or(PyObject *self, PyObject *args) {
 
 	PyObject *odq_2d, *odq_1d;
 	PyArrayObject *dq_2d, *dq_1d;
 	int nx, ny;
 	int status;
 
-	if (!PyArg_ParseTuple (args, "OO", &odq_2d, &odq_1d)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "OO", &odq_2d, &odq_1d)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	dq_2d = (PyArrayObject *)PyArray_FROM_OTF (odq_2d, NPY_INT16,
+	dq_2d = (PyArrayObject *)PyArray_FROM_OTF(odq_2d, NPY_INT16,
 			NPY_IN_ARRAY);
-	dq_1d = (PyArrayObject *)PyArray_FROM_OTF (odq_1d, NPY_INT16,
+	dq_1d = (PyArrayObject *)PyArray_FROM_OTF(odq_1d, NPY_INT16,
 			NPY_INOUT_ARRAY);
 	if (dq_2d == NULL || dq_1d == NULL)
 	    return NULL;
 
-	nx = PyArray_DIM (dq_2d, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (dq_2d, 0);
-	if (nx != PyArray_DIM (dq_1d, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	nx = PyArray_DIM(dq_2d, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(dq_2d, 0);
+	if (nx != PyArray_DIM(dq_1d, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 		"dq_1d and dq_2d must have the same X axis length");
 	    return NULL;
 	}
-	status = bitwiseOrDQ ((short *)PyArray_DATA (dq_2d),
-			      (short *)PyArray_DATA (dq_1d), nx, ny);
+	status = bitwiseOrDQ((short *)PyArray_DATA(dq_2d),
+			     (short *)PyArray_DATA(dq_1d), nx, ny);
 
-	Py_DECREF (dq_2d);
-	Py_DECREF (dq_1d);
+	Py_DECREF(dq_2d);
+	Py_DECREF(dq_1d);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_dq_or. */
 
-static int bitwiseOrDQ (short dq_2d[], short dq_1d[], int nx, int ny) {
+static int bitwiseOrDQ(short dq_2d[], short dq_1d[], int nx, int ny) {
 
 	int i, j;		/* array indices */
 	short c_dq;		/* an individual value in dq_1d */
@@ -849,7 +849,7 @@ static int bitwiseOrDQ (short dq_2d[], short dq_1d[], int nx, int ny) {
 
 /* calling sequence for applyflat:
 
-   applyflat (x, y, epsilon, flat, origin_x, origin_y)
+   applyflat(x, y, epsilon, flat, origin_x, origin_y)
 
     x, y       i: arrays of pixel coordinates of the events
                   (either float32 or int16)
@@ -872,53 +872,53 @@ static int bitwiseOrDQ (short dq_2d[], short dq_1d[], int nx, int ny) {
    e.g. by applying a deadtime correction.
 */
 
-static PyObject *ccos_applyflat (PyObject *self, PyObject *args) {
+static PyObject *ccos_applyflat(PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *oepsilon, *oflat;
 	int origin_x=0, origin_y=0;
 	PyArrayObject *x, *y, *epsilon, *flat;
 
-	if (!PyArg_ParseTuple (args, "OOOO|ii",
+	if (!PyArg_ParseTuple(args, "OOOO|ii",
 			&ox, &oy, &oepsilon, &oflat, &origin_x, &origin_y)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (ox) == NPY_INT16) {
-	    x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_INT16,
+	if (PyArray_TYPE(ox) == NPY_INT16) {
+	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	if (PyArray_TYPE (oy) == NPY_INT16) {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_INT16,
+	if (PyArray_TYPE(oy) == NPY_INT16) {
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
 			NPY_IN_ARRAY);
 	} else {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	}
-	epsilon = (PyArrayObject *)PyArray_FROM_OTF (oepsilon, NPY_FLOAT32,
+	epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
 			NPY_INOUT_ARRAY);
-	flat = (PyArrayObject *)PyArray_FROM_OTF (oflat, NPY_FLOAT32,
+	flat = (PyArrayObject *)PyArray_FROM_OTF(oflat, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	if (x == NULL || y == NULL || epsilon == NULL || flat == NULL)
 	    return NULL;
 
-	applyFlatField (x, y, epsilon, flat, origin_x, origin_y);
+	applyFlatField(x, y, epsilon, flat, origin_x, origin_y);
 
-	Py_DECREF (x);
-	Py_DECREF (y);
-	Py_DECREF (epsilon);
-	Py_DECREF (flat);
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(epsilon);
+	Py_DECREF(flat);
 
-	Py_INCREF (Py_None);
+	Py_INCREF(Py_None);
 	return Py_None;
 }
 
 /* This is called by ccos_applyflat. */
 
-static void applyFlatField (PyArrayObject *x, PyArrayObject *y,
+static void applyFlatField(PyArrayObject *x, PyArrayObject *y,
 	PyArrayObject *epsilon, PyArrayObject *flat,
 	int origin_x, int origin_y) {
 
@@ -933,9 +933,9 @@ static void applyFlatField (PyArrayObject *x, PyArrayObject *y,
 	x_type = x->descr->type_num;
 	y_type = y->descr->type_num;
 
-	n_events = PyArray_DIM (x, 0);	/* rows in events table */
-	nx = PyArray_DIM (flat, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (flat, 0);
+	n_events = PyArray_DIM(x, 0);	/* rows in events table */
+	nx = PyArray_DIM(flat, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(flat, 0);
 
 	/* For each event, find the location in the flat field, and
 	   divide the current value of epsilon by the flat field value.
@@ -944,32 +944,32 @@ static void applyFlatField (PyArrayObject *x, PyArrayObject *y,
 
 	    /* get the coordinates of the current event */
 	    if (x_type == NPY_INT16) {
-		i = *(short *)PyArray_GETPTR1 (x, k) - origin_x;
+		i = *(short *)PyArray_GETPTR1(x, k) - origin_x;
 	    } else {
-		c_x = *(float *)PyArray_GETPTR1 (x, k);
-		i = NINT (c_x) - origin_x;
+		c_x = *(float *)PyArray_GETPTR1(x, k);
+		i = NINT(c_x) - origin_x;
 	    }
 	    if (y_type == NPY_INT16) {
-		j = *(short *)PyArray_GETPTR1 (y, k) - origin_y;
+		j = *(short *)PyArray_GETPTR1(y, k) - origin_y;
 	    } else {
-		c_y = *(float *)PyArray_GETPTR1 (y, k);
-		j = NINT (c_y) - origin_y;
+		c_y = *(float *)PyArray_GETPTR1(y, k);
+		j = NINT(c_y) - origin_y;
 	    }
 
 	    /* ignore events that are outside the flat field image */
 	    if (i < 0 || i >= nx || j < 0 || j >= ny)
 		continue;
 
-	    c_flat = *(float *)PyArray_GETPTR2 (flat, j, i);
+	    c_flat = *(float *)PyArray_GETPTR2(flat, j, i);
 	    if (c_flat > 0.) {
-		*(float *)PyArray_GETPTR1 (epsilon, k) /= c_flat;
+		*(float *)PyArray_GETPTR1(epsilon, k) /= c_flat;
 	    }
 	}
 }
 
 /* calling sequence for range:
 
-   indices = range (time, t0, t1)
+   indices = range(time, t0, t1)
 
     time       i: array of times of the events (read as float64)
     t0, t1     i: the times for which the indices are needed (double)
@@ -984,33 +984,33 @@ static void applyFlatField (PyArrayObject *x, PyArrayObject *y,
    monotonically nondecreasing.
 */
 
-static PyObject *ccos_range (PyObject *self, PyObject *args) {
+static PyObject *ccos_range(PyObject *self, PyObject *args) {
 
 	PyObject *otime;
 	double t0, t1;
 	PyArrayObject *time;
 	PyObject *indices;
 
-	if (!PyArg_ParseTuple (args, "Odd", &otime, &t0, &t1)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "Odd", &otime, &t0, &t1)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	time = (PyArrayObject *)PyArray_FROM_OTF (otime, NPY_FLOAT64,
+	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT64,
 		NPY_IN_ARRAY);
 	if (time == NULL)
 	    return NULL;
 
-	indices = timeRange (time, t0, t1);
+	indices = timeRange(time, t0, t1);
 
-	Py_DECREF (time);
+	Py_DECREF(time);
 
 	return indices;
 }
 
 /* This is called by ccos_range. */
 
-static PyObject *timeRange (PyArrayObject *time, double t0, double t1) {
+static PyObject *timeRange(PyArrayObject *time, double t0, double t1) {
 
 	int i0, i1;
 	int time_type;		/* data type code for time */
@@ -1028,34 +1028,34 @@ static PyObject *timeRange (PyArrayObject *time, double t0, double t1) {
 	    t1 = temp;
 	}
 
-	n_events = PyArray_DIM (time, 0);
+	n_events = PyArray_DIM(time, 0);
 
 	/* get the times of the first and last events */
 	if (time_type == NPY_FLOAT32) {
-	    tfirst = *(float *)PyArray_GETPTR1 (time, 0);
-	    tlast = *(float *)PyArray_GETPTR1 (time, n_events-1);
+	    tfirst = *(float *)PyArray_GETPTR1(time, 0);
+	    tlast = *(float *)PyArray_GETPTR1(time, n_events-1);
 	} else {
-	    tfirst = *(double *)PyArray_GETPTR1 (time, 0);
-	    tlast = *(double *)PyArray_GETPTR1 (time, n_events-1);
+	    tfirst = *(double *)PyArray_GETPTR1(time, 0);
+	    tlast = *(double *)PyArray_GETPTR1(time, n_events-1);
 	}
 
 	if (t1 < tfirst || t0 > tlast) {
 	    char errmess[SZ_ERRMESS+1];
-	    sprintf (errmess,
+	    sprintf(errmess,
 		"(%.6g, %.6g) does not overlap the time array", t0, t1);
-	    PyErr_SetString (PyExc_RuntimeError, errmess);
+	    PyErr_SetString(PyExc_RuntimeError, errmess);
 	    return NULL;
 	}
 
 	if (time_type == NPY_FLOAT32) {
-	    i0 = search ((float *)PyArray_DATA (time), n_events, (float)t0);
-	    i1 = search ((float *)PyArray_DATA (time), n_events, (float)t1);
+	    i0 = search((float *)PyArray_DATA(time), n_events, (float)t0);
+	    i1 = search((float *)PyArray_DATA(time), n_events, (float)t1);
 	} else {
-	    i0 = search_d ((double *)PyArray_DATA (time), n_events, (float)t0);
-	    i1 = search_d ((double *)PyArray_DATA (time), n_events, (float)t1);
+	    i0 = search_d((double *)PyArray_DATA(time), n_events, (float)t0);
+	    i1 = search_d((double *)PyArray_DATA(time), n_events, (float)t1);
 	}
 
-	indices = Py_BuildValue ("(i,i)", i0, i1);
+	indices = Py_BuildValue("(i,i)", i0, i1);
 
 	return indices;
 }
@@ -1075,7 +1075,7 @@ static PyObject *timeRange (PyArrayObject *time, double t0, double t1) {
    intuitive.
 */
 
-static int search (float time[], int n_events, float t) {
+static int search(float time[], int n_events, float t) {
 
 	int low, high;		/* current limits of search range */
 	int mid;		/* middle of search range */
@@ -1106,7 +1106,7 @@ static int search (float time[], int n_events, float t) {
 
 /* This is a double precision version of search. */
 
-static int search_d (double time[], int n_events, double t) {
+static int search_d(double time[], int n_events, double t) {
 
 	int low, high;
 	int mid;
@@ -1137,7 +1137,7 @@ static int search_d (double time[], int n_events, double t) {
 
 /* calling sequence for unbinaccum:
 
-   unbinaccum (image, x, y, x_offset)
+   unbinaccum(image, x, y, x_offset)
 
     image      i: a 2-D array (int16, or default is float32)
     x, y      io: the arrays of pixel coordinates (float32)
@@ -1154,7 +1154,7 @@ static int search_d (double time[], int n_events, double t) {
    being all the same, the coordinates of the current pixel in image.
 */
 
-static PyObject *ccos_unbinaccum (PyObject *self, PyObject *args) {
+static PyObject *ccos_unbinaccum(PyObject *self, PyObject *args) {
 
 	PyObject *oimage, *ox, *oy;
 	PyArrayObject *image, *x, *y;
@@ -1162,46 +1162,46 @@ static PyObject *ccos_unbinaccum (PyObject *self, PyObject *args) {
 	int status;
 	int n_events;
 
-	if (!PyArg_ParseTuple (args, "OOO|i", &oimage, &ox, &oy, &x_offset)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "OOO|i", &oimage, &ox, &oy, &x_offset)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (oimage) == NPY_INT16) {
-	    image = (PyArrayObject *)PyArray_FROM_OTF (oimage, NPY_INT16,
+	if (PyArray_TYPE(oimage) == NPY_INT16) {
+	    image = (PyArrayObject *)PyArray_FROM_OTF(oimage, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    image = (PyArrayObject *)PyArray_FROM_OTF (oimage, NPY_FLOAT32,
+	    image = (PyArrayObject *)PyArray_FROM_OTF(oimage, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 		NPY_INOUT_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 		NPY_INOUT_ARRAY);
 	if (image == NULL || x == NULL || y == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (x, 0);
-	if (PyArray_DIM (y, 0) < n_events)
-	    n_events = PyArray_DIM (y, 0);
-	status = unbinImage (image, x_offset,
-		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y), n_events);
+	n_events = PyArray_DIM(x, 0);
+	if (PyArray_DIM(y, 0) < n_events)
+	    n_events = PyArray_DIM(y, 0);
+	status = unbinImage(image, x_offset,
+		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y), n_events);
 
-	Py_DECREF (image);
-	Py_DECREF (x);
-	Py_DECREF (y);
+	Py_DECREF(image);
+	Py_DECREF(x);
+	Py_DECREF(y);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_unbinaccum. */
 
-static int unbinImage (PyArrayObject *image, int x_offset,
+static int unbinImage(PyArrayObject *image, int x_offset,
 		float x[], float y[], int n_events) {
 
 	float im_data_f32;		/* value before finding nearest int */
@@ -1214,8 +1214,8 @@ static int unbinImage (PyArrayObject *image, int x_offset,
 
 	image_type = image->descr->type_num;
 
-	nx = PyArray_DIM (image, 1);		/* shape (ny,nx) */
-	ny = PyArray_DIM (image, 0);
+	nx = PyArray_DIM(image, 1);		/* shape (ny,nx) */
+	ny = PyArray_DIM(image, 0);
 
 	/* Now extract counts into arrays. */
 	k = 0;
@@ -1224,14 +1224,14 @@ static int unbinImage (PyArrayObject *image, int x_offset,
 	    for (i = 0;  i < nx;  i++) {
 
 		if (image_type == NPY_INT16) {
-		    counts = *(short *)PyArray_GETPTR2 (image, j, i);
+		    counts = *(short *)PyArray_GETPTR2(image, j, i);
 		} else {
-		    im_data_f32 = *(float *)PyArray_GETPTR2 (image, j, i);
-		    counts = NINT (im_data_f32);
+		    im_data_f32 = *(float *)PyArray_GETPTR2(image, j, i);
+		    counts = NINT(im_data_f32);
 		}
 
 		if (k+counts > n_events) {
-		    PyErr_SetString (PyExc_RuntimeError,
+		    PyErr_SetString(PyExc_RuntimeError,
 				"x and y arrays are too short");
 		    return 1;
 		}
@@ -1251,7 +1251,7 @@ static int unbinImage (PyArrayObject *image, int x_offset,
 
 /* calling sequence for addrandom:
 
-   newseed = addrandom (x, seed, use_clock)
+   newseed = addrandom(x, seed, use_clock)
 
     x         io: an array of pixel coordinates, either X or Y axis (float32)
     seed       i: a 32-bit integer for the pseudo-random number generator
@@ -1271,7 +1271,7 @@ static int unbinImage (PyArrayObject *image, int x_offset,
    equal to -0.5 or +0.5, depending on roundoff.
 */
 
-static PyObject *ccos_addrandom (PyObject *self, PyObject *args) {
+static PyObject *ccos_addrandom(PyObject *self, PyObject *args) {
 
 	PyObject *ox;
 	PyArrayObject *x;
@@ -1280,34 +1280,34 @@ static PyObject *ccos_addrandom (PyObject *self, PyObject *args) {
 	int use_clock;
 	int n_events;
 
-	if (!PyArg_ParseTuple (args, "Oii", &ox, &seed, &use_clock)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "Oii", &ox, &seed, &use_clock)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 		NPY_INOUT_ARRAY);
 	if (x == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (x, 0);
-	newseed = addRN ((float *)PyArray_DATA (x), n_events, seed, use_clock);
+	n_events = PyArray_DIM(x, 0);
+	newseed = addRN((float *)PyArray_DATA(x), n_events, seed, use_clock);
 
-	Py_DECREF (x);
+	Py_DECREF(x);
 
-	return Py_BuildValue ("i", newseed);
+	return Py_BuildValue("i", newseed);
 }
 
 /* This is called by ccos_addrandom. */
 
-static int addRN (float x[], int n_events, int seed, int use_clock) {
+static int addRN(float x[], int n_events, int seed, int use_clock) {
 
 	double normalize;
 	int k;
 
 	/* Use the system clock to get a seed? */
 	if (use_clock)
-	    seed = time (NULL);
+	    seed = time(NULL);
 
 	/* Dividing by this normalization factor will make the pseudo-random
 	   numbers cover the range from -0.5 to +0.5.
@@ -1324,7 +1324,7 @@ static int addRN (float x[], int n_events, int seed, int use_clock) {
 
 /* calling sequence for convolve1d:
 
-   convolve1d (flat, dopp, axis)
+   convolve1d(flat, dopp, axis)
 
     flat      io: 2-D flat field image array (float32)
     dopp       i: 1-D array with which flat will be convolved (float32)
@@ -1340,7 +1340,7 @@ static int addRN (float x[], int n_events, int seed, int use_clock) {
    The convolution will be done along just one axis, specified by axis.
 */
 
-static PyObject *ccos_convolve1d (PyObject *self, PyObject *args) {
+static PyObject *ccos_convolve1d(PyObject *self, PyObject *args) {
 
 	PyObject *oflat, *odopp;
 	PyArrayObject *flat, *dopp;
@@ -1349,47 +1349,47 @@ static PyObject *ccos_convolve1d (PyObject *self, PyObject *args) {
 	int nx, ny;
 	int lendopp;
 
-	if (!PyArg_ParseTuple (args, "OOi", &oflat, &odopp, &axis)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "OOi", &oflat, &odopp, &axis)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	flat = (PyArrayObject *)PyArray_FROM_OTF (oflat, NPY_FLOAT32,
+	flat = (PyArrayObject *)PyArray_FROM_OTF(oflat, NPY_FLOAT32,
 		NPY_INOUT_ARRAY);
-	dopp = (PyArrayObject *)PyArray_FROM_OTF (odopp, NPY_FLOAT32,
+	dopp = (PyArrayObject *)PyArray_FROM_OTF(odopp, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	if (flat == NULL || dopp == NULL)
 	    return NULL;
 
-	if (PyArray_NDIM (flat) > 2) {
-	    PyErr_SetString (PyExc_RuntimeError, "flat must be only 2-D");
+	if (PyArray_NDIM(flat) > 2) {
+	    PyErr_SetString(PyExc_RuntimeError, "flat must be only 2-D");
 	    return NULL;
 	}
-	if (PyArray_NDIM (dopp) > 1) {
-	    PyErr_SetString (PyExc_RuntimeError, "dopp must be only 1-D");
+	if (PyArray_NDIM(dopp) > 1) {
+	    PyErr_SetString(PyExc_RuntimeError, "dopp must be only 1-D");
 	    return NULL;
 	}
-	nx = PyArray_DIM (flat, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (flat, 0);
-	lendopp = PyArray_DIM (dopp, 0);
+	nx = PyArray_DIM(flat, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(flat, 0);
+	lendopp = PyArray_DIM(dopp, 0);
 
-	status = convolveWithDopp (flat, nx, ny,
-		(float *)PyArray_DATA (dopp), lendopp, axis);
+	status = convolveWithDopp(flat, nx, ny,
+		(float *)PyArray_DATA(dopp), lendopp, axis);
 
-	Py_DECREF (flat);
-	Py_DECREF (dopp);
+	Py_DECREF(flat);
+	Py_DECREF(dopp);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_convolve1d. */
 
-static int convolveWithDopp (PyArrayObject *flat, int nx, int ny,
+static int convolveWithDopp(PyArrayObject *flat, int nx, int ny,
 		float dopp[], int lendopp, int axis) {
 
 	int m;			/* middle of dopp */
@@ -1398,9 +1398,9 @@ static int convolveWithDopp (PyArrayObject *flat, int nx, int ny,
 	float *c_flat;		/* a copy of one line or column of flat */
 
 	if (axis == 1)
-	    c_flat = PyMem_Malloc ((nx + lendopp) * sizeof (float));
+	    c_flat = PyMem_Malloc((nx + lendopp) * sizeof(float));
 	else
-	    c_flat = PyMem_Malloc ((ny + lendopp) * sizeof (float));
+	    c_flat = PyMem_Malloc((ny + lendopp) * sizeof(float));
 	if (c_flat == NULL) {
 	    PyErr_NoMemory();
 	    return 1;
@@ -1421,13 +1421,13 @@ static int convolveWithDopp (PyArrayObject *flat, int nx, int ny,
 	    for (j = 0;  j < ny;  j++) {	/* for each image line */
 
 		for (i = 0;  i < nx;  i++)
-		    c_flat[m+i] = *(float *)PyArray_GETPTR2 (flat, j, i);
+		    c_flat[m+i] = *(float *)PyArray_GETPTR2(flat, j, i);
 
 		for (i = 0;  i < nx;  i++) {
 		    sum = 0.;
 		    for (k = 0;  k < lendopp;  k++)
 			sum += (dopp[lendopp-1-k] * c_flat[i+k]);
-		    *(float *)PyArray_GETPTR2 (flat, j, i) = sum;
+		    *(float *)PyArray_GETPTR2(flat, j, i) = sum;
 		}
 	    }
 
@@ -1441,25 +1441,25 @@ static int convolveWithDopp (PyArrayObject *flat, int nx, int ny,
 	    for (i = 0;  i < nx;  i++) {	/* for each image column */
 
 		for (j = 0;  j < ny;  j++)
-		    c_flat[m+i] = *(float *)PyArray_GETPTR2 (flat, j, i);
+		    c_flat[m+i] = *(float *)PyArray_GETPTR2(flat, j, i);
 
 		for (j = 0;  j < ny;  j++) {
 		    sum = 0.;
 		    for (k = 0;  k < lendopp;  k++)
 			sum += (dopp[lendopp-1-k] * c_flat[j+k]);
-		    *(float *)PyArray_GETPTR2 (flat, j, i) = sum;
+		    *(float *)PyArray_GETPTR2(flat, j, i) = sum;
 		}
 	    }
 	}
 
-	PyMem_Free (c_flat);
+	PyMem_Free(c_flat);
 
 	return 0;
 }
 
 /* calling sequence for extractband:
 
-   extractband (indata, axis, slope, intercept, x_offset, outdata)
+   extractband(indata, axis, slope, intercept, x_offset, outdata)
 
     indata     i: 2-D image array, from which a band will be extracted
                   (either float32 or int16)
@@ -1502,7 +1502,7 @@ static int convolveWithDopp (PyArrayObject *flat, int nx, int ny,
    to outdata.
 */
 
-static PyObject *ccos_extractband (PyObject *self, PyObject *args) {
+static PyObject *ccos_extractband(PyObject *self, PyObject *args) {
 
 	PyObject *oindata, *ooutdata;
 	int axis;
@@ -1511,54 +1511,54 @@ static PyObject *ccos_extractband (PyObject *self, PyObject *args) {
 	PyArrayObject *indata, *outdata;
 	int status;
 
-	if (!PyArg_ParseTuple (args, "OiddiO",
+	if (!PyArg_ParseTuple(args, "OiddiO",
 			&oindata, &axis, &slope, &intercept, &x_offset,
 			&ooutdata)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
 	if (axis < 0 || axis > 1) {
-	    PyErr_SetString (PyExc_RuntimeError, "axis must be 0 or 1");
+	    PyErr_SetString(PyExc_RuntimeError, "axis must be 0 or 1");
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (oindata) == NPY_INT16) {
-	    indata = (PyArrayObject *)PyArray_FROM_OTF (oindata, NPY_INT16,
+	if (PyArray_TYPE(oindata) == NPY_INT16) {
+	    indata = (PyArrayObject *)PyArray_FROM_OTF(oindata, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    indata = (PyArrayObject *)PyArray_FROM_OTF (oindata, NPY_FLOAT32,
+	    indata = (PyArrayObject *)PyArray_FROM_OTF(oindata, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
 	if (indata == NULL)
 	    return NULL;
-	if (PyArray_TYPE (ooutdata) == NPY_INT16) {
-	    outdata = (PyArrayObject *)PyArray_FROM_OTF (ooutdata, NPY_INT16,
+	if (PyArray_TYPE(ooutdata) == NPY_INT16) {
+	    outdata = (PyArrayObject *)PyArray_FROM_OTF(ooutdata, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    outdata = (PyArrayObject *)PyArray_FROM_OTF (ooutdata, NPY_FLOAT32,
+	    outdata = (PyArrayObject *)PyArray_FROM_OTF(ooutdata, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
 	if (outdata == NULL)
 	    return NULL;
 
-	status = extract2DBand (indata, axis, slope, intercept, x_offset,
+	status = extract2DBand(indata, axis, slope, intercept, x_offset,
 			outdata);
 
-	Py_DECREF (indata);
-	Py_DECREF (outdata);
+	Py_DECREF(indata);
+	Py_DECREF(outdata);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_extractband. */
 
-static int extract2DBand (PyArrayObject *indata,
+static int extract2DBand(PyArrayObject *indata,
 		int axis, double slope, double intercept,
 		int x_offset,
 		PyArrayObject *outdata) {
@@ -1583,13 +1583,13 @@ static int extract2DBand (PyArrayObject *indata,
 
 	data_type = indata->descr->type_num;
 	if (data_type != outdata->descr->type_num) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	    PyErr_SetString(PyExc_RuntimeError,
 			"indata and outdata must be of the same data type");
 	    return 1;
 	}
 
 	/* this is expected to be odd, so truncate when dividing by two */
-	extr_height = PyArray_DIM (outdata, 0);
+	extr_height = PyArray_DIM(outdata, 0);
 	half_height = extr_height / 2;
 
 	/* length is the axis length in the dispersion direction;
@@ -1597,16 +1597,16 @@ static int extract2DBand (PyArrayObject *indata,
 	*/
 	if (axis == 0) {
 	    /* dispersion is in the vertical direction (NUV) */
-	    length = PyArray_DIM (indata, 0);
-	    width = PyArray_DIM (indata, 1);
+	    length = PyArray_DIM(indata, 0);
+	    width = PyArray_DIM(indata, 1);
 	} else {
 	    /* dispersion is in the horizontal direction (FUV) */
-	    length = PyArray_DIM (indata, 1);
-	    width = PyArray_DIM (indata, 0);
+	    length = PyArray_DIM(indata, 1);
+	    width = PyArray_DIM(indata, 0);
 	}
 
-	if (length != PyArray_DIM (outdata, 1)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	if (length != PyArray_DIM(outdata, 1)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 		"second axis of outdata must agree with size of indata");
 	    return 1;
 	}
@@ -1614,25 +1614,25 @@ static int extract2DBand (PyArrayObject *indata,
 	/* Check for out of bounds. */
 	bounds_error = 0;
 	y0 = intercept - half_height;
-	j = NINT (y0);
+	j = NINT(y0);
 	if (j < 0)
 	    bounds_error = 1;
 	y0 = intercept - half_height + (length-1) * slope;
-	j = NINT (y0);
+	j = NINT(y0);
 	if (j < 0)
 	    bounds_error = 1;
 
 	y0 = intercept + half_height;
-	j = NINT (y0);
+	j = NINT(y0);
 	if (j >= width)
 	    bounds_error = 1;
 	y0 = intercept + half_height + (length-1) * slope;
-	j = NINT (y0);
+	j = NINT(y0);
 	if (j >= width)
 	    bounds_error = 1;
 
 	if (bounds_error) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	    PyErr_SetString(PyExc_RuntimeError,
 		"the band would extend beyond the boundary of indata");
 	    return 1;
 	}
@@ -1641,15 +1641,15 @@ static int extract2DBand (PyArrayObject *indata,
 
 	    for (i = 0;  i < length;  i++) {
 		y = (intercept - half_height) + slope * i;
-		j = NINT (y);
+		j = NINT(y);
 		for (k = 0;  k < extr_height;  k++, j++) {
 		    /* output[k,i] = input[j,i] */
 		    if (data_type == NPY_INT16) {
-			*(short *)PyArray_GETPTR2 (outdata, k, i) =
-			*(short *)PyArray_GETPTR2 (indata, j, i);
+			*(short *)PyArray_GETPTR2(outdata, k, i) =
+			*(short *)PyArray_GETPTR2(indata, j, i);
 		    } else {
-			*(float *)PyArray_GETPTR2 (outdata, k, i) =
-			*(float *)PyArray_GETPTR2 (indata, j, i);
+			*(float *)PyArray_GETPTR2(outdata, k, i) =
+			*(float *)PyArray_GETPTR2(indata, j, i);
 		    }
 		}
 	    }
@@ -1658,16 +1658,16 @@ static int extract2DBand (PyArrayObject *indata,
 
 	    for (i = 0;  i < length;  i++) {
 		y = (intercept - half_height) + slope * i;
-		j = NINT (y);
+		j = NINT(y);
 		for (k = 0;  k < extr_height;  k++, j++) {
 		    /* output[k,i] = input[i,j] */
 		    if (data_type == NPY_INT16) {
-			*(short *)PyArray_GETPTR2 (outdata, k, i) =
-			*(short *)PyArray_GETPTR2 (indata, i, j);
+			*(short *)PyArray_GETPTR2(outdata, k, i) =
+			*(short *)PyArray_GETPTR2(indata, i, j);
 		    } else {
-			*(float *)PyArray_GETPTR2 (outdata, k, i) =
-			*(float *)PyArray_GETPTR2 (indata, i, j);
-			/*                                 ^^^^        */
+			*(float *)PyArray_GETPTR2(outdata, k, i) =
+			*(float *)PyArray_GETPTR2(indata, i, j);
+			/*                                ^^^^        */
 			/* swapped, as compared with code for axis = 1 */
 		    }
 		}
@@ -1679,7 +1679,7 @@ static int extract2DBand (PyArrayObject *indata,
 
 /* calling sequence for smoothbkg:
 
-   smoothbkg (data, width, flags)
+   smoothbkg(data, width, flags)
 
     data      io: a 1-D array to be smoothed in-place (float32)
     width      i: the width (pixels) of the boxcar smoothing function (int)
@@ -1691,7 +1691,7 @@ static int extract2DBand (PyArrayObject *indata,
    1-D array 'data' in-place, with a width of 'width' pixels.
 */
 
-static PyObject *ccos_smoothbkg (PyObject *self, PyObject *args) {
+static PyObject *ccos_smoothbkg(PyObject *self, PyObject *args) {
 
 	PyObject *odata, *oflags;
 	PyArrayObject *data;
@@ -1702,62 +1702,62 @@ static PyObject *ccos_smoothbkg (PyObject *self, PyObject *args) {
 
 	oflags = NULL;
 
-	if (!PyArg_ParseTuple (args, "Oi|O", &odata, &width, &oflags)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "Oi|O", &odata, &width, &oflags)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	data = (PyArrayObject *)PyArray_FROM_OTF (odata, NPY_FLOAT32,
+	data = (PyArrayObject *)PyArray_FROM_OTF(odata, NPY_FLOAT32,
 		NPY_INOUT_ARRAY);
 	if (data == NULL)
 	    return NULL;
-	if (PyArray_NDIM (data) != 1) {
-	    PyErr_SetString (PyExc_RuntimeError, "arrays must be 1-D");
+	if (PyArray_NDIM(data) != 1) {
+	    PyErr_SetString(PyExc_RuntimeError, "arrays must be 1-D");
 	    return NULL;
 	}
 
-	length = PyArray_DIM (data, 0);
+	length = PyArray_DIM(data, 0);
 
 	if (oflags == NULL) {
 	    short *dummy_flags;
 	    int i;
-	    dummy_flags = PyMem_Malloc (length * sizeof (short));
+	    dummy_flags = PyMem_Malloc(length * sizeof(short));
 	    for (i = 0;  i < length;  i++)
 		dummy_flags[i] = 0;
-	    status = smoothBackground (length, width,
-			(float *)PyArray_DATA (data), dummy_flags);
-	    PyMem_Free (dummy_flags);
+	    status = smoothBackground(length, width,
+			(float *)PyArray_DATA(data), dummy_flags);
+	    PyMem_Free(dummy_flags);
 	} else {
-	    flags = (PyArrayObject *)PyArray_FROM_OTF (oflags, NPY_INT16,
+	    flags = (PyArrayObject *)PyArray_FROM_OTF(oflags, NPY_INT16,
 			NPY_IN_ARRAY);
 	    if (flags == NULL) {
-		Py_DECREF (data);
+		Py_DECREF(data);
 		return NULL;
 	    }
-	    if (PyArray_NDIM (flags) != 1) {
-		PyErr_SetString (PyExc_RuntimeError, "flags must be 1-D");
-		Py_DECREF (data);
+	    if (PyArray_NDIM(flags) != 1) {
+		PyErr_SetString(PyExc_RuntimeError, "flags must be 1-D");
+		Py_DECREF(data);
 		return NULL;
 	    }
-	    status = smoothBackground (length, width,
-			(float *)PyArray_DATA (data),
-			(short *)PyArray_DATA (flags));
-	    Py_DECREF (flags);
+	    status = smoothBackground(length, width,
+			(float *)PyArray_DATA(data),
+			(short *)PyArray_DATA(flags));
+	    Py_DECREF(flags);
 	}
 
-	Py_DECREF (data);
+	Py_DECREF(data);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_smoothbkg. */
 
-static int smoothBackground (int length, int width,
+static int smoothBackground(int length, int width,
 		float data[], short flags[]) {
 
 	double sum;		/* sum of elements not flagged as bad */
@@ -1770,13 +1770,13 @@ static int smoothBackground (int length, int width,
 	int istart, iend;	/* first and last pixels not flagged as bad */
 
 	ext_nelem = length + width;
-	scr_data = PyMem_Malloc (ext_nelem * sizeof (float));
-	scr_flags = PyMem_Malloc (ext_nelem * sizeof (short));
+	scr_data = PyMem_Malloc(ext_nelem * sizeof(float));
+	scr_flags = PyMem_Malloc(ext_nelem * sizeof(short));
 	if (scr_data == NULL || scr_flags == NULL) {
 	    PyErr_NoMemory();
 	    return 1;
 	}
-	memset (scr_data, 0, (ext_nelem) * sizeof (float));
+	memset(scr_data, 0, (ext_nelem) * sizeof(float));
 	for (i = 0;  i < ext_nelem;  i++)
 	    scr_flags[i] = 1;		/* initially all bad */
 
@@ -1834,15 +1834,15 @@ static int smoothBackground (int length, int width,
 		data[i-offset] = sum / ngood;
 	}
 
-	PyMem_Free (scr_flags);
-	PyMem_Free (scr_data);
+	PyMem_Free(scr_flags);
+	PyMem_Free(scr_data);
 
 	return 0;
 }
 
 /* calling sequence for addlines:
 
-   addlines (intensity, wavelength, reswidth, x1d_wl, template)
+   addlines(intensity, wavelength, reswidth, x1d_wl, template)
 
     intensity   i: array of amplitudes of lines (float32)
     wavelength  i: array of wavelengths of lines (float64)
@@ -1861,7 +1861,7 @@ static int smoothBackground (int length, int width,
    and the full-width-half-maximum of the Gaussian is reswidth.
 */
 
-static PyObject *ccos_addlines (PyObject *self, PyObject *args) {
+static PyObject *ccos_addlines(PyObject *self, PyObject *args) {
 
 	PyObject *ointensity, *owavelength, *ox1d_wl, *otemplate;
 	double reswidth;
@@ -1870,60 +1870,60 @@ static PyObject *ccos_addlines (PyObject *self, PyObject *args) {
 	int nrows;		/* length of intensity & wavelength arrays */
 	int nelem;		/* length of x1d_wl and template arrays */
 
-	if (!PyArg_ParseTuple (args, "OOdOO",
+	if (!PyArg_ParseTuple(args, "OOdOO",
 		&ointensity, &owavelength, &reswidth, &ox1d_wl, &otemplate)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	intensity = (PyArrayObject *)PyArray_FROM_OTF (ointensity,
+	intensity = (PyArrayObject *)PyArray_FROM_OTF(ointensity,
 			NPY_FLOAT32, NPY_IN_ARRAY);
-	wavelength = (PyArrayObject *)PyArray_FROM_OTF (owavelength,
+	wavelength = (PyArrayObject *)PyArray_FROM_OTF(owavelength,
 			NPY_FLOAT64, NPY_IN_ARRAY);
-	x1d_wl = (PyArrayObject *)PyArray_FROM_OTF (ox1d_wl,
+	x1d_wl = (PyArrayObject *)PyArray_FROM_OTF(ox1d_wl,
 			NPY_FLOAT64, NPY_IN_ARRAY);
-	template = (PyArrayObject *)PyArray_FROM_OTF (otemplate,
+	template = (PyArrayObject *)PyArray_FROM_OTF(otemplate,
 			NPY_FLOAT32, NPY_INOUT_ARRAY);
 	if (intensity == NULL || wavelength == NULL ||
 		x1d_wl == NULL || template == NULL)
 	    return NULL;
 
-	nrows = PyArray_DIM (wavelength, 0);
-	nelem = PyArray_DIM (x1d_wl, 0);
-	if (nrows != PyArray_DIM (intensity, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	nrows = PyArray_DIM(wavelength, 0);
+	nelem = PyArray_DIM(x1d_wl, 0);
+	if (nrows != PyArray_DIM(intensity, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 		"intensity and wavelength arrays are not the same length");
 	    return NULL;
 	}
-	if (nelem != PyArray_DIM (template, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	if (nelem != PyArray_DIM(template, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 		"x1d_wl and template arrays are not the same length");
 	    return NULL;
 	}
 
-	status = addEmissionLines (
-		(float *)PyArray_DATA (intensity),
-		(double *)PyArray_DATA (wavelength), nrows,
+	status = addEmissionLines(
+		(float *)PyArray_DATA(intensity),
+		(double *)PyArray_DATA(wavelength), nrows,
 		reswidth,
-		(double *)PyArray_DATA (x1d_wl),
-		(float *)PyArray_DATA (template), nelem);
+		(double *)PyArray_DATA(x1d_wl),
+		(float *)PyArray_DATA(template), nelem);
 
-	Py_DECREF (intensity);
-	Py_DECREF (wavelength);
-	Py_DECREF (x1d_wl);
-	Py_DECREF (template);
+	Py_DECREF(intensity);
+	Py_DECREF(wavelength);
+	Py_DECREF(x1d_wl);
+	Py_DECREF(template);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_addlines. */
 
-static int addEmissionLines (
+static int addEmissionLines(
 		float intensity[], double wavelength[], int nrows,
 		double reswidth,
 		double x1d_wl[], float template[], int nelem) {
@@ -1933,7 +1933,7 @@ static int addEmissionLines (
 	double wl;		/* for swapping minwl and maxwl */
 	int i;
 
-	memset (template, 0, nelem * sizeof (float));
+	memset(template, 0, nelem * sizeof(float));
 
 	minwl = x1d_wl[nelem-1];
 	maxwl = x1d_wl[0];
@@ -1948,19 +1948,19 @@ static int addEmissionLines (
 		continue;
 	    if (intensity[i] <= 0.)
 		continue;
-	    x = findPixelNumber (wavelength[i], x1d_wl, nelem);
-	    addLSF (reswidth, intensity[i], x, template, nelem);
+	    x = findPixelNumber(wavelength[i], x1d_wl, nelem);
+	    addLSF(reswidth, intensity[i], x, template, nelem);
 	}
 
 	return (0);
 }
 
-static double findPixelNumber (double wl, double x1d_wl[], int nelem) {
+static double findPixelNumber(double wl, double x1d_wl[], int nelem) {
 
 	double x;		/* pixel coordinate */
 	int i;
 
-	i = binarySearch (wl, x1d_wl, nelem);
+	i = binarySearch(wl, x1d_wl, nelem);
 	if (i == -1 || i == nelem)
 	    x = (double)i;		/* out of range */
 	else
@@ -1981,7 +1981,7 @@ static double findPixelNumber (double wl, double x1d_wl[], int nelem) {
    will never be equal to nelem-1.
 */
 
-static int binarySearch (double wl, double array[], int nelem) {
+static int binarySearch(double wl, double array[], int nelem) {
 
 	int low, high;		/* range of elements to consider */
 	int k;			/* middle element between low and high */
@@ -2047,7 +2047,7 @@ static int binarySearch (double wl, double array[], int nelem) {
    truncated after about 2.5 * reswidth.
 */
 
-static void addLSF (double reswidth, float ampl, double x,
+static void addLSF(double reswidth, float ampl, double x,
 		float template[], int nelem) {
 
 /* arguments:
@@ -2081,15 +2081,15 @@ int nelem            i: size of template
 	   ...
 	*/
 	mid = len_temp / 2;
-	ix = (int) floor (x);
+	ix = (int) floor(x);
 	dx = x - (double)ix;
 
-	/* fwhm / 2 = sigma * sqrt (2 * ln (2)) */
+	/* fwhm / 2 = sigma * sqrt(2 * ln(2)) */
 	sigma = reswidth / 2.35482;
 
 	for (i = 0;  i < len_temp;  i++) {
 	    x2 = (double)(i - mid) - dx;
-	    temp[i] = ampl * exp (-(x2*x2) / (2.*sigma*sigma));
+	    temp[i] = ampl * exp(-(x2*x2) / (2.*sigma*sigma));
 	}
 
 	/* Add to template, assuming a slit width of three pixels. */
@@ -2103,7 +2103,7 @@ int nelem            i: size of template
 
 /* calling sequence for geocorrection:
 
-   geocorrection (x, y, x_image, y_image, interp_flag, \
+   geocorrection(x, y, x_image, y_image, interp_flag, \
 		origin_x, origin_y, xbin, ybin)
 
     x, y       io: arrays of pixel coordinates of the events (float32)
@@ -2135,7 +2135,7 @@ int nelem            i: size of template
    y; otherwise, the nearest pixel in x_image and y_image will be used.
 */
 
-static PyObject *ccos_geocorrection (PyObject *self, PyObject *args) {
+static PyObject *ccos_geocorrection(PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *ox_image, *oy_image;
 	int interp_flag;
@@ -2150,46 +2150,46 @@ static PyObject *ccos_geocorrection (PyObject *self, PyObject *args) {
 	xbin = 1;
 	ybin = 1;
 
-	if (!PyArg_ParseTuple (args, "OOOOi|iiii",
+	if (!PyArg_ParseTuple(args, "OOOOi|iiii",
 			&ox, &oy, &ox_image, &oy_image, &interp_flag,
 			&origin_x, &origin_y, &xbin, &ybin)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 			NPY_INOUT_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 			NPY_INOUT_ARRAY);
-	x_image = (PyArrayObject *)PyArray_FROM_OTF (ox_image, NPY_FLOAT32,
+	x_image = (PyArrayObject *)PyArray_FROM_OTF(ox_image, NPY_FLOAT32,
 			NPY_IN_ARRAY);
-	y_image = (PyArrayObject *)PyArray_FROM_OTF (oy_image, NPY_FLOAT32,
+	y_image = (PyArrayObject *)PyArray_FROM_OTF(oy_image, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	if (x == NULL || y == NULL || x_image == NULL || y_image == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (x, 0);	/* rows in events table */
-	status = geoInterp2D (
-		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y), n_events,
+	n_events = PyArray_DIM(x, 0);	/* rows in events table */
+	status = geoInterp2D(
+		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y), n_events,
 		x_image, y_image, interp_flag,
 		(float)origin_x, (float)origin_y, (float)xbin, (float)ybin);
 
-	Py_DECREF (x);
-	Py_DECREF (y);
-	Py_DECREF (x_image);
-	Py_DECREF (y_image);
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(x_image);
+	Py_DECREF(y_image);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_geocorrection. */
 
-static int geoInterp2D (float x[], float y[], int n_events,
+static int geoInterp2D(float x[], float y[], int n_events,
 	PyArrayObject *x_image, PyArrayObject *y_image, int interp_flag,
 	float origin_x, float origin_y, float xbin, float ybin) {
 
@@ -2203,10 +2203,10 @@ static int geoInterp2D (float x[], float y[], int n_events,
 	int i, j;		/* indices in 2-D array */
 	float ix, jy;		/* pixel coordinates in x_image and y_image */
 
-	nx = PyArray_DIM (x_image, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (x_image, 0);
-	if (nx != PyArray_DIM (y_image, 1) || ny != PyArray_DIM (y_image, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	nx = PyArray_DIM(x_image, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(x_image, 0);
+	if (nx != PyArray_DIM(y_image, 1) || ny != PyArray_DIM(y_image, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 		"x_image and y_image are not the same shape");
 	    return 1;
 	}
@@ -2221,16 +2221,16 @@ static int geoInterp2D (float x[], float y[], int n_events,
 
 		if (ix <= -0.5 || ix >= nx-0.5 || jy <= -0.5 || jy >= ny-0.5)
 		    continue;
-		bilinearInterp (ix, jy, x_image, y_image, nx, ny, &dx, &dy);
+		bilinearInterp(ix, jy, x_image, y_image, nx, ny, &dx, &dy);
 
 	    } else {
 
-		i = NINT (ix);
-		j = NINT (jy);
+		i = NINT(ix);
+		j = NINT(jy);
 		if (i < 0 || i >= nx || j < 0 || j >= ny)
 		    continue;
-		dx = *(float *)PyArray_GETPTR2 (x_image, j, i);
-		dy = *(float *)PyArray_GETPTR2 (y_image, j, i);
+		dx = *(float *)PyArray_GETPTR2(x_image, j, i);
+		dy = *(float *)PyArray_GETPTR2(y_image, j, i);
 	    }
 
 	    /* Update x and y in-place. */
@@ -2243,7 +2243,7 @@ static int geoInterp2D (float x[], float y[], int n_events,
 
 /* calling sequence for pha_check:
 
-   counters = pha_check (x, y, pha, dq, im_low, im_high, pha_flag)
+   counters = pha_check(x, y, pha, dq, im_low, im_high, pha_flag)
 
     x, y        i: arrays of pixel coordinates of the events (float32)
     pha         i: array of pulse heights (int16)
@@ -2263,7 +2263,7 @@ static int geoInterp2D (float x[], float y[], int n_events,
    Values that are out of range will be flagged in the dq array.
 */
 
-static PyObject *ccos_pha_check (PyObject *self, PyObject *args) {
+static PyObject *ccos_pha_check(PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *opha, *odq, *oim_low, *oim_high;
         int pha_flag;
@@ -2275,53 +2275,53 @@ static PyObject *ccos_pha_check (PyObject *self, PyObject *args) {
 	int nlow, nhigh;
 	PyObject *counters;
 
-	if (!PyArg_ParseTuple (args, "OOOOOOi",
+	if (!PyArg_ParseTuple(args, "OOOOOOi",
 			&ox, &oy, &opha, &odq, &oim_low, &oim_high,
 			&pha_flag)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32,
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 			NPY_IN_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 			NPY_IN_ARRAY);
-	pha = (PyArrayObject *)PyArray_FROM_OTF (opha, NPY_INT16,
+	pha = (PyArrayObject *)PyArray_FROM_OTF(opha, NPY_INT16,
 			NPY_IN_ARRAY);
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
 			NPY_INOUT_ARRAY);
-	im_low = (PyArrayObject *)PyArray_FROM_OTF (oim_low, NPY_INT16,
+	im_low = (PyArrayObject *)PyArray_FROM_OTF(oim_low, NPY_INT16,
 			NPY_IN_ARRAY);
-	im_high = (PyArrayObject *)PyArray_FROM_OTF (oim_high, NPY_INT16,
+	im_high = (PyArrayObject *)PyArray_FROM_OTF(oim_high, NPY_INT16,
 			NPY_IN_ARRAY);
 	if (x == NULL || y == NULL || pha == NULL || dq == NULL ||
 		im_low == NULL || im_high == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (x, 0);	/* rows in events table */
-	status = phaCheck (n_events, pha_flag,
-		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
-		(short *)PyArray_DATA (pha), (short *)PyArray_DATA (dq),
+	n_events = PyArray_DIM(x, 0);	/* rows in events table */
+	status = phaCheck(n_events, pha_flag,
+		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y),
+		(short *)PyArray_DATA(pha), (short *)PyArray_DATA(dq),
 		im_low, im_high, &nlow, &nhigh);
 
-	Py_DECREF (x);
-	Py_DECREF (y);
-	Py_DECREF (pha);
-	Py_DECREF (dq);
-	Py_DECREF (im_low);
-	Py_DECREF (im_high);
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(pha);
+	Py_DECREF(dq);
+	Py_DECREF(im_low);
+	Py_DECREF(im_high);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    counters = Py_BuildValue ("(i,i)", nlow, nhigh);
+	    counters = Py_BuildValue("(i,i)", nlow, nhigh);
 	    return counters;
 	}
 }
 
 /* This is called by ccos_pha_check. */
 
-static int phaCheck (int n_events, short pha_flag,
+static int phaCheck(int n_events, short pha_flag,
 	float x[], float y[], short pha[], short dq[],
 	PyArrayObject *im_low, PyArrayObject *im_high,
 	int *nlow, int *nhigh) {
@@ -2330,10 +2330,10 @@ static int phaCheck (int n_events, short pha_flag,
 	int k;			/* loop index for events */
 	int i, j;		/* indices in 2-D array */
 
-	nx = PyArray_DIM (im_low, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (im_low, 0);
-	if (nx != PyArray_DIM (im_high, 1) || ny != PyArray_DIM (im_high, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	nx = PyArray_DIM(im_low, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(im_low, 0);
+	if (nx != PyArray_DIM(im_high, 1) || ny != PyArray_DIM(im_high, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 		"im_low and im_high are not the same shape");
 	    return 1;
 	}
@@ -2342,8 +2342,8 @@ static int phaCheck (int n_events, short pha_flag,
 
 	for (k = 0;  k < n_events;  k++) {
 
-	    i = NINT (x[k]);
-	    j = NINT (y[k]);
+	    i = NINT(x[k]);
+	    j = NINT(y[k]);
 	    /* pixels outside the image array will not be checked */
 	    if (i < 0 || i >= nx || j < 0 || j >= ny)
 		continue;
@@ -2352,11 +2352,11 @@ static int phaCheck (int n_events, short pha_flag,
 	       at the current location, and flag it as bad if it's out
 	       of range.
 	    */
-	    if (pha[k] < *(short *)PyArray_GETPTR2 (im_low, j, i)) {
+	    if (pha[k] < *(short *)PyArray_GETPTR2(im_low, j, i)) {
 		dq[k] |= pha_flag;		/* update dq in-place */
 		(*nlow)++;
 	    }
-	    if (pha[k] > *(short *)PyArray_GETPTR2 (im_high, j, i)) {
+	    if (pha[k] > *(short *)PyArray_GETPTR2(im_high, j, i)) {
 		dq[k] |= pha_flag;
 		(*nhigh)++;
 	    }
@@ -2371,7 +2371,7 @@ static int phaCheck (int n_events, short pha_flag,
    image arrays.
 */
 
-static void bilinearInterp (float x, float y,
+static void bilinearInterp(float x, float y,
 		PyArrayObject *x_image, PyArrayObject *y_image,
 		int nx, int ny, float *dx, float *dy) {
 
@@ -2402,20 +2402,20 @@ static void bilinearInterp (float x, float y,
 	s = y - (float)j;
 	r = 1.0F - s;
 
-	*dx = p * r * *(float *)PyArray_GETPTR2 (x_image, j, i) +
-	      q * r * *(float *)PyArray_GETPTR2 (x_image, j, i+1) +
-	      p * s * *(float *)PyArray_GETPTR2 (x_image, j+1, i) +
-	      q * s * *(float *)PyArray_GETPTR2 (x_image, j+1, i+1);
+	*dx = p * r * *(float *)PyArray_GETPTR2(x_image, j, i) +
+	      q * r * *(float *)PyArray_GETPTR2(x_image, j, i+1) +
+	      p * s * *(float *)PyArray_GETPTR2(x_image, j+1, i) +
+	      q * s * *(float *)PyArray_GETPTR2(x_image, j+1, i+1);
 
-	*dy = p * r * *(float *)PyArray_GETPTR2 (y_image, j, i) +
-	      q * r * *(float *)PyArray_GETPTR2 (y_image, j, i+1) +
-	      p * s * *(float *)PyArray_GETPTR2 (y_image, j+1, i) +
-	      q * s * *(float *)PyArray_GETPTR2 (y_image, j+1, i+1);
+	*dy = p * r * *(float *)PyArray_GETPTR2(y_image, j, i) +
+	      q * r * *(float *)PyArray_GETPTR2(y_image, j, i+1) +
+	      p * s * *(float *)PyArray_GETPTR2(y_image, j+1, i) +
+	      q * s * *(float *)PyArray_GETPTR2(y_image, j+1, i+1);
 }
 
 /* calling sequence for clear_rows:
 
-   clear_rows (dq, y_lower, y_upper, x_left, x_right)
+   clear_rows(dq, y_lower, y_upper, x_left, x_right)
 
     dq             io: array of data quality flags (int16)
     y_lower         i: array of Y coordinates at lower edge (float32)
@@ -2427,56 +2427,56 @@ static void bilinearInterp (float x, float y,
    the specified (curved) borders.
 */
 
-static PyObject *ccos_clear_rows (PyObject *self, PyObject *args) {
+static PyObject *ccos_clear_rows(PyObject *self, PyObject *args) {
 
 	PyObject *odq, *oy_lower, *oy_upper, *ox_left, *ox_right;
 	PyArrayObject *dq, *y_lower, *y_upper, *x_left, *x_right;
 	int status;
 
-	if (!PyArg_ParseTuple (args, "OOOOO",
+	if (!PyArg_ParseTuple(args, "OOOOO",
 			&odq, &oy_lower, &oy_upper, &ox_left, &ox_right)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
 			NPY_INOUT_ARRAY);
-	y_lower = (PyArrayObject *)PyArray_FROM_OTF (oy_lower, NPY_FLOAT32,
+	y_lower = (PyArrayObject *)PyArray_FROM_OTF(oy_lower, NPY_FLOAT32,
 			NPY_IN_ARRAY);
-	y_upper = (PyArrayObject *)PyArray_FROM_OTF (oy_upper, NPY_FLOAT32,
+	y_upper = (PyArrayObject *)PyArray_FROM_OTF(oy_upper, NPY_FLOAT32,
 			NPY_IN_ARRAY);
-	x_left  = (PyArrayObject *)PyArray_FROM_OTF (ox_left, NPY_FLOAT32,
+	x_left  = (PyArrayObject *)PyArray_FROM_OTF(ox_left, NPY_FLOAT32,
 			NPY_IN_ARRAY);
-	x_right = (PyArrayObject *)PyArray_FROM_OTF (ox_right, NPY_FLOAT32,
+	x_right = (PyArrayObject *)PyArray_FROM_OTF(ox_right, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	if (dq == NULL ||
 	    y_lower == NULL || y_upper == NULL ||
 	    x_left  == NULL || x_right == NULL)
 	    return NULL;
 
-	status = clearRows (dq,
-		(float *)PyArray_DATA (y_lower),
-		(float *)PyArray_DATA (y_upper),
-		(float *)PyArray_DATA (x_left),
-		(float *)PyArray_DATA (x_right));
+	status = clearRows(dq,
+		(float *)PyArray_DATA(y_lower),
+		(float *)PyArray_DATA(y_upper),
+		(float *)PyArray_DATA(x_left),
+		(float *)PyArray_DATA(x_right));
 
-	Py_DECREF (dq);
-	Py_DECREF (y_lower);
-	Py_DECREF (y_upper);
-	Py_DECREF (x_left);
-	Py_DECREF (x_right);
+	Py_DECREF(dq);
+	Py_DECREF(y_lower);
+	Py_DECREF(y_upper);
+	Py_DECREF(x_left);
+	Py_DECREF(x_right);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_clear_rows. */
 
-static int clearRows (PyArrayObject *dq,
+static int clearRows(PyArrayObject *dq,
 	float y_lower[], float y_upper[], float x_left[], float x_right[]) {
 
 	int nx, ny;		/* size of DQ array */
@@ -2485,13 +2485,13 @@ static int clearRows (PyArrayObject *dq,
 	int iymin, iymax;	/* int ymin and ymax for loop indices */
 	int *i_x_left, *i_x_right, *i_y_lower, *i_y_upper;
 
-	nx = PyArray_DIM (dq, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (dq, 0);
+	nx = PyArray_DIM(dq, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(dq, 0);
 
-	i_x_left  = PyMem_Malloc (ny * sizeof (int));
-	i_x_right = PyMem_Malloc (ny * sizeof (int));
-	i_y_lower = PyMem_Malloc (nx * sizeof (int));
-	i_y_upper = PyMem_Malloc (nx * sizeof (int));
+	i_x_left  = PyMem_Malloc(ny * sizeof(int));
+	i_x_right = PyMem_Malloc(ny * sizeof(int));
+	i_y_lower = PyMem_Malloc(nx * sizeof(int));
+	i_y_upper = PyMem_Malloc(nx * sizeof(int));
 	if (i_x_left == NULL || i_x_right == NULL ||
 	    i_y_lower == NULL || i_y_upper == NULL) {
 	    PyErr_NoMemory();
@@ -2499,12 +2499,12 @@ static int clearRows (PyArrayObject *dq,
 	}
 	/* Copy to integer arrays, and compress the range in X. */
 	for (j = 0;  j < ny;  j++) {
-	    i_x_left[j] = (int) (ceil (x_left[j]));
-	    i_x_right[j] = (int) (floor (x_right[j]));
+	    i_x_left[j] = (int)(ceil(x_left[j]));
+	    i_x_right[j] = (int)(floor(x_right[j]));
 	}
 	for (i = 0;  i < nx;  i++) {
-	    i_y_lower[i] = NINT (y_lower[i]);
-	    i_y_upper[i] = NINT (y_upper[i]);
+	    i_y_lower[i] = NINT(y_lower[i]);
+	    i_y_upper[i] = NINT(y_upper[i]);
 	}
 
 	/* Find the min of y_lower and the max of y_upper. */
@@ -2515,30 +2515,30 @@ static int clearRows (PyArrayObject *dq,
 	    ymax = (y_upper[i] > ymax) ? y_upper[i] : ymax;
 	}
 	/* Convert to integer, and compress the range. */
-	iymin = (int) (ceil (ymin));
-	iymax = (int) (floor (ymax));
+	iymin = (int)(ceil(ymin));
+	iymax = (int)(floor(ymax));
 
 	for (j = iymin;  j <= iymax;  j++) {
 	    for (i = i_x_left[j];  i <= i_x_right[j];  i++) {
 		if (i < 0 || i >= nx)
 		    continue;
 		if (j >= i_y_lower[i] && j <= i_y_upper[i]) {
-		    *(short *)PyArray_GETPTR2 (dq, j, i) = 0;
+		    *(short *)PyArray_GETPTR2(dq, j, i) = 0;
 		}
 	    }
 	}
 
-	PyMem_Free (i_x_left);
-	PyMem_Free (i_x_right);
-	PyMem_Free (i_y_lower);
-	PyMem_Free (i_y_upper);
+	PyMem_Free(i_x_left);
+	PyMem_Free(i_x_right);
+	PyMem_Free(i_y_lower);
+	PyMem_Free(i_y_upper);
 
 	return 0;
 }
 
 /* calling sequence for interp1d:
 
-   interp1d (x_a, y_a, x_b, y_b)
+   interp1d(x_a, y_a, x_b, y_b)
 
     x_a, y_a   i: input independent and dependent variable arrays
     x_b        i: independent variable array
@@ -2551,49 +2551,49 @@ static int clearRows (PyArrayObject *dq,
    if they aren't already.
 */
 
-static PyObject *ccos_interp1d (PyObject *self, PyObject *args) {
+static PyObject *ccos_interp1d(PyObject *self, PyObject *args) {
 
 	PyObject *ox_a, *oy_a, *ox_b, *oy_b;
 	PyArrayObject *x_a, *y_a, *x_b, *y_b;
 	int n_a, n_b;
 	int status;
 
-	if (!PyArg_ParseTuple (args, "OOOO",
+	if (!PyArg_ParseTuple(args, "OOOO",
 			&ox_a, &oy_a, &ox_b, &oy_b)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	x_a = (PyArrayObject *)PyArray_FROM_OTF (ox_a, NPY_FLOAT64,
+	x_a = (PyArrayObject *)PyArray_FROM_OTF(ox_a, NPY_FLOAT64,
 		NPY_IN_ARRAY);
-	y_a = (PyArrayObject *)PyArray_FROM_OTF (oy_a, NPY_FLOAT64,
+	y_a = (PyArrayObject *)PyArray_FROM_OTF(oy_a, NPY_FLOAT64,
 		NPY_IN_ARRAY);
-	x_b = (PyArrayObject *)PyArray_FROM_OTF (ox_b, NPY_FLOAT64,
+	x_b = (PyArrayObject *)PyArray_FROM_OTF(ox_b, NPY_FLOAT64,
 		NPY_IN_ARRAY);
-	y_b = (PyArrayObject *)PyArray_FROM_OTF (oy_b, NPY_FLOAT64,
+	y_b = (PyArrayObject *)PyArray_FROM_OTF(oy_b, NPY_FLOAT64,
 		NPY_INOUT_ARRAY);
 	if (x_a == NULL || y_a == NULL || x_b == NULL || y_b == NULL)
 	    return NULL;
 
-	status = interp_check (x_a, y_a, x_b, y_b);
+	status = interp_check(x_a, y_a, x_b, y_b);
 	if (status) {
-	    Py_DECREF (x_a); Py_DECREF (y_a); Py_DECREF (x_b); Py_DECREF (y_b);
+	    Py_DECREF(x_a); Py_DECREF(y_a); Py_DECREF(x_b); Py_DECREF(y_b);
 	    return NULL;
 	}
 
-	n_a = PyArray_DIM (x_a, 0);
-	n_b = PyArray_DIM (x_b, 0);
-	interp1d ((double *)PyArray_DATA (x_a),
-		  (double *)PyArray_DATA (y_a), n_a,
-		  (double *)PyArray_DATA (x_b),
-		  (double *)PyArray_DATA (y_b), n_b);
+	n_a = PyArray_DIM(x_a, 0);
+	n_b = PyArray_DIM(x_b, 0);
+	interp1d((double *)PyArray_DATA(x_a),
+		 (double *)PyArray_DATA(y_a), n_a,
+		 (double *)PyArray_DATA(x_b),
+		 (double *)PyArray_DATA(y_b), n_b);
 
-	Py_DECREF (x_a);
-	Py_DECREF (y_a);
-	Py_DECREF (x_b);
-	Py_DECREF (y_b);
+	Py_DECREF(x_a);
+	Py_DECREF(y_a);
+	Py_DECREF(x_b);
+	Py_DECREF(y_b);
 
-	Py_INCREF (Py_None);
+	Py_INCREF(Py_None);
 	return Py_None;
 }
 
@@ -2602,26 +2602,26 @@ static PyObject *ccos_interp1d (PyObject *self, PyObject *args) {
    be the same as the length of x_a).  All arrays must be 1-D.
 */
 
-static int interp_check (PyArrayObject *x_a, PyArrayObject *y_a,
-			 PyArrayObject *x_b, PyArrayObject *y_b) {
+static int interp_check(PyArrayObject *x_a, PyArrayObject *y_a,
+		        PyArrayObject *x_b, PyArrayObject *y_b) {
 
 	int n_a, n_b;
 
-	n_a = PyArray_DIM (x_a, 0);
-	n_b = PyArray_DIM (x_b, 0);
+	n_a = PyArray_DIM(x_a, 0);
+	n_b = PyArray_DIM(x_b, 0);
 	if (n_a < 1) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	    PyErr_SetString(PyExc_RuntimeError,
 			"no data in input independent variable array");
 	    return 1;
 	}
 
-	if (n_a != PyArray_DIM (y_a, 0) || n_b != PyArray_DIM (y_b, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	if (n_a != PyArray_DIM(y_a, 0) || n_b != PyArray_DIM(y_b, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 			"arrays have inconsistent shapes");
 	    return 1;
 	}
-	if (PyArray_NDIM (x_a) != 1 || PyArray_NDIM (x_b) != 1) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	if (PyArray_NDIM(x_a) != 1 || PyArray_NDIM(x_b) != 1) {
+	    PyErr_SetString(PyExc_RuntimeError,
 			"arrays must all be 1-D");
 	    return 1;
 	}
@@ -2634,7 +2634,7 @@ static int interp_check (PyArrayObject *x_a, PyArrayObject *y_a,
    or last value of y_a will be assigned to y_b.
 */
 
-static void interp1d (double x_a[], double y_a[], int n_a,
+static void interp1d(double x_a[], double y_a[], int n_a,
 		      double x_b[], double y_b[], int n_b) {
 
 /* arguments:
@@ -2659,7 +2659,7 @@ int n_b            i: size of x_b and y_b
 
 	    for (i_b = 0;  i_b < n_b;  i_b++) {
 
-		i_a = binarySearch (x_b[i_b], x_a, n_a);
+		i_a = binarySearch(x_b[i_b], x_a, n_a);
 
 		/* extrapolate with first or last value, if out of bounds */
 		if (i_a == -1) {
@@ -2677,7 +2677,7 @@ int n_b            i: size of x_b and y_b
 
 /* calling sequence for getstartstop:
 
-   getstartstop (time, istart, istop, delta_t)
+   getstartstop(time, istart, istop, delta_t)
 
     time          i: array of times (seconds) of the events (float32)
     istart        o: array of indices in events list of the start of
@@ -2690,7 +2690,7 @@ int n_b            i: size of x_b and y_b
    to be used as the limits of a Python slice for time interval i.
 */
 
-static PyObject *ccos_getstartstop (PyObject *self, PyObject *args) {
+static PyObject *ccos_getstartstop(PyObject *self, PyObject *args) {
 
 	PyObject *otime, *oistart, *oistop;
 	PyArrayObject *time, *istart, *istop;
@@ -2700,36 +2700,36 @@ static PyObject *ccos_getstartstop (PyObject *self, PyObject *args) {
 	int n_events;		/* size of input arrays (number of events) */
 	int nbins;		/* length of istart and istop arrays */
 
-	if (!PyArg_ParseTuple (args, "OOOd",
+	if (!PyArg_ParseTuple(args, "OOOd",
 			&otime, &oistart, &oistop, &delta_t)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	time = (PyArrayObject *)PyArray_FROM_OTF (otime, NPY_FLOAT32,
+	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT32,
 		NPY_IN_ARRAY);
-	istart = (PyArrayObject *)PyArray_FROM_OTF (oistart, NPY_INT32,
+	istart = (PyArrayObject *)PyArray_FROM_OTF(oistart, NPY_INT32,
 		NPY_INOUT_ARRAY);
-	istop = (PyArrayObject *)PyArray_FROM_OTF (oistop, NPY_INT32,
+	istop = (PyArrayObject *)PyArray_FROM_OTF(oistop, NPY_INT32,
 		NPY_INOUT_ARRAY);
 	if (time == NULL || istart == NULL || istop == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (time, 0);
-	nbins = PyArray_DIM (istart, 0);
+	n_events = PyArray_DIM(time, 0);
+	nbins = PyArray_DIM(istart, 0);
 
-	status = getStartStopTimes ((float *)PyArray_DATA (time), n_events,
-		(int *)PyArray_DATA (istart), (int *)PyArray_DATA (istop),
+	status = getStartStopTimes((float *)PyArray_DATA(time), n_events,
+		(int *)PyArray_DATA(istart), (int *)PyArray_DATA(istop),
 		nbins, delta_t);
 
-	Py_DECREF (time);
-	Py_DECREF (istart);
-	Py_DECREF (istop);
+	Py_DECREF(time);
+	Py_DECREF(istart);
+	Py_DECREF(istop);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
@@ -2739,7 +2739,7 @@ static PyObject *ccos_getstartstop (PyObject *self, PyObject *args) {
    such intervals, uniformly spaced in time, starting at time[0]).
 */
 
-static int getStartStopTimes (float time[], int n_events,
+static int getStartStopTimes(float time[], int n_events,
 		int istart[], int istop[],
 		int nbins, double delta_t) {
 
@@ -2823,7 +2823,7 @@ delta_t			i: length of time interval
 
 /* calling sequence for getbkgcounts:
 
-   getbkgcounts (y, dq,
+   getbkgcounts(y, dq,
 	istart, istop, bkg_counts, src_counts,
 	bkg1_low, bkg1_high, bkg2_low, bkg2_high,
 	src_low, src_high, bkgsf)
@@ -2849,7 +2849,7 @@ delta_t			i: length of time interval
    each interval [istart[i]:istop[i]].
 */
 
-static PyObject *ccos_getbkgcounts (PyObject *self, PyObject *args) {
+static PyObject *ccos_getbkgcounts(PyObject *self, PyObject *args) {
 
 	PyObject *oy, *odq, *oistart, *oistop,
 		*obkg_counts, *osrc_counts;
@@ -2863,56 +2863,56 @@ static PyObject *ccos_getbkgcounts (PyObject *self, PyObject *args) {
 	int n_events;		/* length of y and dq arrays */
 	int nbins;		/* length of bkg_counts (and other) arrays */
 
-	if (!PyArg_ParseTuple (args, "OOOOOOiiiiiid",
+	if (!PyArg_ParseTuple(args, "OOOOOOiiiiiid",
 			&oy, &odq, &oistart, &oistop,
 			&obkg_counts, &osrc_counts,
 			&bkg1_low, &bkg1_high, &bkg2_low, &bkg2_high,
 			&src_low, &src_high, &bkgsf)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (oy) == NPY_INT16) {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_INT16,
+	if (PyArray_TYPE(oy) == NPY_INT16) {
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32,
+	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16, NPY_IN_ARRAY);
-	istart = (PyArrayObject *)PyArray_FROM_OTF (oistart, NPY_INT32,
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_IN_ARRAY);
+	istart = (PyArrayObject *)PyArray_FROM_OTF(oistart, NPY_INT32,
 		NPY_IN_ARRAY);
-	istop = (PyArrayObject *)PyArray_FROM_OTF (oistop, NPY_INT32,
+	istop = (PyArrayObject *)PyArray_FROM_OTF(oistop, NPY_INT32,
 		NPY_IN_ARRAY);
-	bkg_counts = (PyArrayObject *)PyArray_FROM_OTF (obkg_counts, NPY_INT32,
+	bkg_counts = (PyArrayObject *)PyArray_FROM_OTF(obkg_counts, NPY_INT32,
 		NPY_INOUT_ARRAY);
-	src_counts = (PyArrayObject *)PyArray_FROM_OTF (osrc_counts, NPY_INT32,
+	src_counts = (PyArrayObject *)PyArray_FROM_OTF(osrc_counts, NPY_INT32,
 		NPY_INOUT_ARRAY);
 	if (y == NULL || dq == NULL || istart == NULL || istop == NULL ||
 		bkg_counts == NULL || src_counts == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (y, 0);
-	nbins = PyArray_DIM (bkg_counts, 0);
+	n_events = PyArray_DIM(y, 0);
+	nbins = PyArray_DIM(bkg_counts, 0);
 
-	status = getBkgCounts (y, (short *)PyArray_DATA (dq), n_events,
-		(int *)PyArray_DATA (istart), (int *)PyArray_DATA (istop),
-		(int *)PyArray_DATA (bkg_counts),
-		(int *)PyArray_DATA (src_counts), nbins,
+	status = getBkgCounts(y, (short *)PyArray_DATA(dq), n_events,
+		(int *)PyArray_DATA(istart), (int *)PyArray_DATA(istop),
+		(int *)PyArray_DATA(bkg_counts),
+		(int *)PyArray_DATA(src_counts), nbins,
 		bkg1_low, bkg1_high, bkg2_low, bkg2_high,
 		src_low, src_high, bkgsf);
 
-	Py_DECREF (y);
-	Py_DECREF (dq);
-	Py_DECREF (istart);
-	Py_DECREF (istop);
-	Py_DECREF (bkg_counts);
-	Py_DECREF (src_counts);
+	Py_DECREF(y);
+	Py_DECREF(dq);
+	Py_DECREF(istart);
+	Py_DECREF(istop);
+	Py_DECREF(bkg_counts);
+	Py_DECREF(src_counts);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
@@ -2921,7 +2921,7 @@ static PyObject *ccos_getbkgcounts (PyObject *self, PyObject *args) {
    source and background counts within each interval.
 */
 
-static int getBkgCounts (PyArrayObject *y, short dq[], int n_events,
+static int getBkgCounts(PyArrayObject *y, short dq[], int n_events,
 		int istart[], int istop[],
 		int bkg_counts[], int src_counts[],
 		int nbins,
@@ -2957,7 +2957,7 @@ bkgsf 			i: background scale factor
 	*/
 	for (i = 0;  i < nbins;  i++) {
 	    if (istart[i] > n_events || istop[i] > n_events) {
-		PyErr_SetString (PyExc_RuntimeError,
+		PyErr_SetString(PyExc_RuntimeError,
 			"value of istart or istop is too large");
 		return 1;
 	    }
@@ -2966,10 +2966,10 @@ bkgsf 			i: background scale factor
 	    for (k = istart[i];  k < istop[i];  k++) {
 		if (dq[k] == 0) {
 		    if (y_type == NPY_INT16) {
-			jy = *(short *)PyArray_GETPTR1 (y, k);
+			jy = *(short *)PyArray_GETPTR1(y, k);
 		    } else {
-			c_y = *(float *)PyArray_GETPTR1 (y, k);
-			jy = NINT (c_y);
+			c_y = *(float *)PyArray_GETPTR1(y, k);
+			jy = NINT(c_y);
 		    }
 		    if (jy >= src_low && jy <= src_high) {
 			n_src++;		/* within source region */
@@ -2991,7 +2991,7 @@ bkgsf 			i: background scale factor
 
 /* calling sequence for smallerbursts:
 
-   smallerbursts (time, dq,
+   smallerbursts(time, dq,
 	istart, istop, bkg_counts, src_counts,
 	smallest_burst, stdrej, source_frac,
 	half_block, max_iter,
@@ -3021,7 +3021,7 @@ bkgsf 			i: background scale factor
    (assumed to be negative).
 */
 
-static PyObject *ccos_smallerbursts (PyObject *self, PyObject *args) {
+static PyObject *ccos_smallerbursts(PyObject *self, PyObject *args) {
 
 	PyObject *otime, *odq, *oistart, *oistop, *obkg_counts, *osrc_counts;
 	PyArrayObject *time, *dq, *istart, *istop, *bkg_counts, *src_counts;
@@ -3032,55 +3032,55 @@ static PyObject *ccos_smallerbursts (PyObject *self, PyObject *args) {
 	int nbins;		/* length of bkg_counts (and other) arrays */
 	int status;
 
-	if (!PyArg_ParseTuple (args, "OOOOOOddddiiiiii",
+	if (!PyArg_ParseTuple(args, "OOOOOOddddiiiiii",
 			&otime, &odq, &oistart, &oistop,
 			&obkg_counts, &osrc_counts,
 			&delta_t, &smallest_burst, &stdrej, &source_frac,
 			&half_block, &max_iter,
 			&large_burst, &small_burst, &dq_burst, &verbose)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	time = (PyArrayObject *)PyArray_FROM_OTF (otime, NPY_FLOAT32,
+	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT32,
 		NPY_IN_ARRAY);
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
 		NPY_INOUT_ARRAY);
-	istart = (PyArrayObject *)PyArray_FROM_OTF (oistart, NPY_INT32,
+	istart = (PyArrayObject *)PyArray_FROM_OTF(oistart, NPY_INT32,
 		NPY_IN_ARRAY);
-	istop = (PyArrayObject *)PyArray_FROM_OTF (oistop, NPY_INT32,
+	istop = (PyArrayObject *)PyArray_FROM_OTF(oistop, NPY_INT32,
 		NPY_IN_ARRAY);
-	bkg_counts = (PyArrayObject *)PyArray_FROM_OTF (obkg_counts, NPY_INT32,
+	bkg_counts = (PyArrayObject *)PyArray_FROM_OTF(obkg_counts, NPY_INT32,
 		NPY_INOUT_ARRAY);
-	src_counts = (PyArrayObject *)PyArray_FROM_OTF (osrc_counts, NPY_INT32,
+	src_counts = (PyArrayObject *)PyArray_FROM_OTF(osrc_counts, NPY_INT32,
 		NPY_IN_ARRAY);
 	if (time == NULL || dq == NULL || istart == NULL || istop == NULL ||
 		bkg_counts == NULL || src_counts == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (dq, 0);
-	nbins = PyArray_DIM (bkg_counts, 0);
+	n_events = PyArray_DIM(dq, 0);
+	nbins = PyArray_DIM(bkg_counts, 0);
 
-	status = findSmallerBursts ((float *)PyArray_DATA (time),
-		(short *)PyArray_DATA (dq), n_events,
-		(int *)PyArray_DATA (istart), (int *)PyArray_DATA (istop),
-		(int *)PyArray_DATA (bkg_counts),
-		(int *)PyArray_DATA (src_counts), nbins, delta_t,
+	status = findSmallerBursts((float *)PyArray_DATA(time),
+		(short *)PyArray_DATA(dq), n_events,
+		(int *)PyArray_DATA(istart), (int *)PyArray_DATA(istop),
+		(int *)PyArray_DATA(bkg_counts),
+		(int *)PyArray_DATA(src_counts), nbins, delta_t,
 		smallest_burst, stdrej, source_frac,
 		half_block, max_iter,
 		large_burst, small_burst, dq_burst, verbose);
 
-	Py_DECREF (time);
-	Py_DECREF (dq);
-	Py_DECREF (istart);
-	Py_DECREF (istop);
-	Py_DECREF (bkg_counts);
-	Py_DECREF (src_counts);
+	Py_DECREF(time);
+	Py_DECREF(dq);
+	Py_DECREF(istart);
+	Py_DECREF(istop);
+	Py_DECREF(bkg_counts);
+	Py_DECREF(src_counts);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
@@ -3098,11 +3098,11 @@ static PyObject *ccos_smallerbursts (PyObject *self, PyObject *args) {
    flagged as a burst, the following three criteria must all be met:
 
 	delta_counts > smallest_burst
-	delta_counts > stdrej * sqrt (bkg_counts[i])
+	delta_counts > stdrej * sqrt(bkg_counts[i])
 	delta_counts > source_frac * src_counts[i]
 */
 
-static int findSmallerBursts (float time[], short dq[], int n_events,
+static int findSmallerBursts(float time[], short dq[], int n_events,
 	int istart[], int istop[],
 	int bkg_counts[], int src_counts[], int nbins, double delta_t,
 	double smallest_burst, double stdrej, double source_frac,
@@ -3138,33 +3138,33 @@ verbose			 i: if true, print info about bursts
 	/* difference between bkg_counts and median filtered bkg_counts */
 	int delta_counts;
 
-	m_filtered = PyMem_Malloc (nbins * sizeof (int));
+	m_filtered = PyMem_Malloc(nbins * sizeof(int));
 	if (m_filtered == NULL)
 	    return 1;
 
 	for (iter = 0;  iter < max_iter;  iter++) {
 
 	    nreject = 0;
-	    if (median_boxcar (bkg_counts, m_filtered,
+	    if (median_boxcar(bkg_counts, m_filtered,
 			nbins, half_block, large_burst))
 		return 1;
 
 	    for (i = 0;  i < nbins;  i++) {
 		if (istart[i] > n_events || istop[i] > n_events) {
-		    PyErr_SetString (PyExc_RuntimeError,
+		    PyErr_SetString(PyExc_RuntimeError,
 			"value of istart or istop is too large");
 		    return 1;
 		}
 		delta_counts = bkg_counts[i] - m_filtered[i];
 		if (bkg_counts[i] > 0 &&
 		    delta_counts > smallest_burst &&
-		    delta_counts > stdrej * sqrt ((double)bkg_counts[i]) &&
+		    delta_counts > stdrej * sqrt((double)bkg_counts[i]) &&
 		    delta_counts > source_frac * src_counts[i]) {
 
 		    nreject++;
 		    if (verbose) {
 			c_time = time[istart[i]];
-			printf ("burst at time %d, counts = %d,"
+			printf("burst at time %d, counts = %d,"
 				" median = %d, diff = %d, source = %d\n",
 				(int)(c_time + delta_t/2.),
 				bkg_counts[i], m_filtered[i],
@@ -3180,19 +3180,19 @@ verbose			 i: if true, print info about bursts
 	    if (verbose) {
 		if (nreject < 1) {
 		    if (iter == 0)
-			printf ("No small burst detected.\n");
+			printf("No small burst detected.\n");
 		    else
-			printf ("No further bursts detected after"
+			printf("No further bursts detected after"
 				" iteration %d.\n", iter+1);
 		} else {
-		    printf ("After iteration %d, we found %d intervals"
+		    printf("After iteration %d, we found %d intervals"
 			" affected by bursts.\n", iter+1, nreject);
 		}
 	    }
 	    if (nreject < 1)
 		break;
 	}
-	PyMem_Free (m_filtered);
+	PyMem_Free(m_filtered);
 
 	return 0;
 }
@@ -3206,7 +3206,7 @@ verbose			 i: if true, print info about bursts
    The result is returned in the array m_filtered.
 */
 
-static int median_boxcar (int bkg_counts[], int m_filtered[],
+static int median_boxcar(int bkg_counts[], int m_filtered[],
 		int nbins, int half_block, int large_burst) {
 
 /*
@@ -3225,7 +3225,7 @@ large_burst		i: flag value for a "large" burst
 	int base;	/* index of first non-negative element of sorted data */
 	int mid;	/* index of midpoint of non-negative data */
 
-	temp = PyMem_Malloc ((2*half_block+1) * sizeof (int));
+	temp = PyMem_Malloc((2*half_block+1) * sizeof(int));
 	if (temp == NULL)
 	    return 1;
 
@@ -3237,8 +3237,8 @@ large_burst		i: flag value for a "large" burst
 	    if (i1 >= nbins) i1 = nbins-1;
 	    lenblk = i1 - i0 + 1;
 
-	    memcpy (temp, bkg_counts+i0, lenblk*sizeof (int));
-	    qsort (temp, lenblk, sizeof (int), compare_int);
+	    memcpy(temp, bkg_counts+i0, lenblk*sizeof(int));
+	    qsort(temp, lenblk, sizeof(int), compare_int);
 	    /* Ignore values less than 0 (used to flag rejected elements). */
 	    for (base = 0;  base < lenblk;  base++) {
 		if (temp[base] >= 0)
@@ -3251,11 +3251,11 @@ large_burst		i: flag value for a "large" burst
 		m_filtered[i] = temp[base+mid];
 	    }
 	}
-	PyMem_Free (temp);
+	PyMem_Free(temp);
 	return 0;
 }
 
-static int compare_int (const void *vp, const void *vq) {
+static int compare_int(const void *vp, const void *vq) {
 
 	const int *p = vp;
 	const int *q = vq;
@@ -3270,7 +3270,7 @@ static int compare_int (const void *vp, const void *vq) {
 
 /* calling sequence for getbadtime:
 
-   badtime = getbadtime (time, dq)
+   badtime = getbadtime(time, dq)
 
     time       i: array of times of the events (float32)
     dq         i: array of data quality flags for the events (int16)
@@ -3279,36 +3279,36 @@ static int compare_int (const void *vp, const void *vq) {
    the data quality flag was non-zero for every event in the intervals.
 */
 
-static PyObject *ccos_getbadtime (PyObject *self, PyObject *args) {
+static PyObject *ccos_getbadtime(PyObject *self, PyObject *args) {
 
 	PyObject *otime, *odq;
 	PyArrayObject *time, *dq;
 	double badtime;
 	int n_events;
 
-	if (!PyArg_ParseTuple (args, "OO", &otime, &odq)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "OO", &otime, &odq)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	time = (PyArrayObject *)PyArray_FROM_OTF (otime, NPY_FLOAT32,
+	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT32,
 		NPY_IN_ARRAY);
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16, NPY_IN_ARRAY);
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_IN_ARRAY);
 	if (time == NULL || dq == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (dq, 0);
+	n_events = PyArray_DIM(dq, 0);
 
-	badtime = getBadTime ((float *)PyArray_DATA (time),
-		(short *)PyArray_DATA (dq), n_events);
+	badtime = getBadTime((float *)PyArray_DATA(time),
+		(short *)PyArray_DATA(dq), n_events);
 
-	Py_DECREF (time);
-	Py_DECREF (dq);
+	Py_DECREF(time);
+	Py_DECREF(dq);
 
-	return Py_BuildValue ("d", badtime);	/* return badtime */
+	return Py_BuildValue("d", badtime);	/* return badtime */
 }
 
-static double getBadTime (float time[], short dq[], int n_events) {
+static double getBadTime(float time[], short dq[], int n_events) {
 
 	double badtime;		/* sum of bad time intervals */
 	int in_bad_interval;	/* true if we're in a flagged interval */
@@ -3339,7 +3339,7 @@ static double getBadTime (float time[], short dq[], int n_events) {
 
 /* calling sequence for xy_extract:
 
-   xy_extract (xi, eta, outdata, slope, intercept, x_offset,
+   xy_extract(xi, eta, outdata, slope, intercept, x_offset,
                dq, sdqflags, epsilon)
 
     xi, eta     i: arrays of pixel coordinates of the events
@@ -3380,7 +3380,7 @@ static double getBadTime (float time[], short dq[], int n_events) {
    of the region to be extracted meets the edge.  No interpolation is done.
 */
 
-static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
+static PyObject *ccos_xy_extract(PyObject *self, PyObject *args) {
 
 	PyObject *oxi, *oeta, *ooutdata, *odq, *oepsilon;
 	PyArrayObject *xi, *eta, *outdata, *dq, *epsilon;
@@ -3394,32 +3394,32 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 	oepsilon = NULL;
 	sdqflags = 0;
 
-	if (!PyArg_ParseTuple (args, "OOOddi|OhO",
+	if (!PyArg_ParseTuple(args, "OOOddi|OhO",
 			&oxi, &oeta, &ooutdata,
 			&slope, &intercept, &x_offset,
 			&odq, &sdqflags, &oepsilon)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (oxi) == NPY_INT16) {
-	    xi = (PyArrayObject *)PyArray_FROM_OTF (oxi, NPY_INT16,
+	if (PyArray_TYPE(oxi) == NPY_INT16) {
+	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    xi = (PyArrayObject *)PyArray_FROM_OTF (oxi, NPY_FLOAT32,
+	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	if (PyArray_TYPE (oeta) == NPY_INT16) {
-	    eta = (PyArrayObject *)PyArray_FROM_OTF (oeta, NPY_INT16,
+	if (PyArray_TYPE(oeta) == NPY_INT16) {
+	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    eta = (PyArrayObject *)PyArray_FROM_OTF (oeta, NPY_FLOAT32,
+	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
 	if (xi == NULL || eta == NULL)
 	    return NULL;
 
-	outdata = (PyArrayObject *)PyArray_FROM_OTF (ooutdata, NPY_FLOAT64,
+	outdata = (PyArrayObject *)PyArray_FROM_OTF(ooutdata, NPY_FLOAT64,
 		NPY_INOUT_ARRAY);
 	if (outdata == NULL)
 	    return NULL;
@@ -3427,7 +3427,7 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 	if (odq == NULL) {
 	    dq = NULL;
 	} else {
-	    dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16,
+	    dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
 			NPY_IN_ARRAY);
 	    if (dq == NULL)
 		return NULL;
@@ -3435,33 +3435,33 @@ static PyObject *ccos_xy_extract (PyObject *self, PyObject *args) {
 	if (oepsilon == NULL) {
 	    epsilon = NULL;
 	} else {
-	    epsilon = (PyArrayObject *)PyArray_FROM_OTF (oepsilon, NPY_FLOAT32,
+	    epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	    if (epsilon == NULL)
 		return NULL;
 	}
 
-	status = extrFromEvents (xi, eta, outdata,
+	status = extrFromEvents(xi, eta, outdata,
 			x_offset, slope, intercept,
 			dq, sdqflags, epsilon);
 
-	Py_DECREF (xi);
-	Py_DECREF (eta);
-	Py_DECREF (outdata);
-	Py_XDECREF (dq);
-	Py_XDECREF (epsilon);
+	Py_DECREF(xi);
+	Py_DECREF(eta);
+	Py_DECREF(outdata);
+	Py_XDECREF(dq);
+	Py_XDECREF(epsilon);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_xy_extract. */
 
-static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
+static int extrFromEvents(PyArrayObject *xi, PyArrayObject *eta,
 		PyArrayObject *outdata,
 		int x_offset, double slope, double intercept,
 		PyArrayObject *dq, short sdqflags, PyArrayObject *epsilon) {
@@ -3482,9 +3482,9 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 	int i, j;		/* nearest integers to c_xi, c_eta */
 	int i_z;		/* i + zero-point offset */
 
-	n_events = PyArray_DIM (xi, 0);
-	if (n_events != PyArray_DIM (eta, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	n_events = PyArray_DIM(xi, 0);
+	if (n_events != PyArray_DIM(eta, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 			"xi and eta must both be the same length");
 	    return 1;
 	}
@@ -3493,8 +3493,8 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 	eta_type = eta->descr->type_num;
 
 	/* shape is (ny,nx), nx is in the dispersion direction */
-	nx = PyArray_DIM (outdata, 1);
-	ny = PyArray_DIM (outdata, 0);
+	nx = PyArray_DIM(outdata, 1);
+	ny = PyArray_DIM(outdata, 0);
 
 	half_height = ny / 2;			/* truncate */
 
@@ -3503,36 +3503,36 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 	*/
 	for (i = 0;  i < nx;  i++)
 	    for (j = 0;  j < ny;  j++)
-		*(double *)PyArray_GETPTR2 (outdata, j, i) = 0.;
+		*(double *)PyArray_GETPTR2(outdata, j, i) = 0.;
 
 	y0 = intercept - half_height;
 	for (k = 0;  k < n_events;  k++) {	/* for each event ... */
 	    if (dq != NULL)
-		c_dq = *(short *)PyArray_GETPTR1 (dq, k);
+		c_dq = *(short *)PyArray_GETPTR1(dq, k);
 	    if ((c_dq & sdqflags) == 0) {
 		if (xi_type == NPY_INT16) {
-		    i = *(short *)PyArray_GETPTR1 (xi, k);
+		    i = *(short *)PyArray_GETPTR1(xi, k);
 		    c_xi = (double)i;
 		} else {
-		    c_xi = *(float *)PyArray_GETPTR1 (xi, k);
-		    i = NINT (c_xi);
+		    c_xi = *(float *)PyArray_GETPTR1(xi, k);
+		    i = NINT(c_xi);
 		}
 		i_z = i + x_offset;	/* note:  don't add x_offset to c_xi */
 		if (i_z < 0 || i_z > nx-1)
 		    continue;
 		if (eta_type == NPY_INT16) {
-		    j = *(short *)PyArray_GETPTR1 (eta, k);
+		    j = *(short *)PyArray_GETPTR1(eta, k);
 		    c_eta = (double)j;
 		} else {
-		    c_eta = *(float *)PyArray_GETPTR1 (eta, k);
+		    c_eta = *(float *)PyArray_GETPTR1(eta, k);
 		}
 		y = c_eta - (y0 + slope * c_xi);
-		j = NINT (y);
+		j = NINT(y);
 		/* include this event if it's within the extraction region */
 		if (j >= 0 && j < ny) {
 		    if (epsilon != NULL)
-			c_eps = *(float *)PyArray_GETPTR1 (epsilon, k);
-		    *(double *)PyArray_GETPTR2 (outdata, j, i_z) += c_eps;
+			c_eps = *(float *)PyArray_GETPTR1(epsilon, k);
+		    *(double *)PyArray_GETPTR2(outdata, j, i_z) += c_eps;
 		}
 	    }
 	}
@@ -3542,7 +3542,7 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 
 /* calling sequence for xy_collapse:
 
-   xy_collapse (xi, eta, dq, slope, xdisp)
+   xy_collapse(xi, eta, dq, slope, xdisp)
 
     xi, eta     i: arrays of pixel coordinates of the events
                    (either float32 or int16); xi is in the dispersion
@@ -3571,7 +3571,7 @@ static int extrFromEvents (PyArrayObject *xi, PyArrayObject *eta,
    convention as for the intercept as given in the xtractab reference table.
 */
 
-static PyObject *ccos_xy_collapse (PyObject *self, PyObject *args) {
+static PyObject *ccos_xy_collapse(PyObject *self, PyObject *args) {
 
 	PyObject *oxi, *oeta, *odq, *oxdisp;
 	PyArrayObject *xi, *eta, *dq, *xdisp;
@@ -3580,61 +3580,61 @@ static PyObject *ccos_xy_collapse (PyObject *self, PyObject *args) {
 	int n_events;		/* length of xi, eta, dq arrays */
 	int length;		/* length of xdisp array */
 
-	if (!PyArg_ParseTuple (args, "OOOdO",
+	if (!PyArg_ParseTuple(args, "OOOdO",
 			&oxi, &oeta, &odq, &slope, &oxdisp)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	if (PyArray_TYPE (oxi) == NPY_INT16) {
-	    xi = (PyArrayObject *)PyArray_FROM_OTF (oxi, NPY_INT16,
+	if (PyArray_TYPE(oxi) == NPY_INT16) {
+	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    xi = (PyArrayObject *)PyArray_FROM_OTF (oxi, NPY_FLOAT32,
+	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	if (PyArray_TYPE (oeta) == NPY_INT16) {
-	    eta = (PyArrayObject *)PyArray_FROM_OTF (oeta, NPY_INT16,
+	if (PyArray_TYPE(oeta) == NPY_INT16) {
+	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_INT16,
 		NPY_IN_ARRAY);
 	} else {
-	    eta = (PyArrayObject *)PyArray_FROM_OTF (oeta, NPY_FLOAT32,
+	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	}
-	dq = (PyArrayObject *)PyArray_FROM_OTF (odq, NPY_INT16, NPY_IN_ARRAY);
-	xdisp = (PyArrayObject *)PyArray_FROM_OTF (oxdisp, NPY_FLOAT64,
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_IN_ARRAY);
+	xdisp = (PyArrayObject *)PyArray_FROM_OTF(oxdisp, NPY_FLOAT64,
 		NPY_INOUT_ARRAY);
 	if (xi == NULL || eta == NULL || dq == NULL || xdisp == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (xi, 0);
-	if (n_events != PyArray_DIM (eta, 0) ||
-	    n_events != PyArray_DIM (dq, 0)) {
-	    PyErr_SetString (PyExc_RuntimeError,
+	n_events = PyArray_DIM(xi, 0);
+	if (n_events != PyArray_DIM(eta, 0) ||
+	    n_events != PyArray_DIM(dq, 0)) {
+	    PyErr_SetString(PyExc_RuntimeError,
 			"xi, eta and dq must all be the same length");
 	    return NULL;
 	}
-	length = PyArray_DIM (xdisp, 0);
-	status = collapseFromEvents (xi, eta,
-		(short *)PyArray_DATA (dq), n_events,
+	length = PyArray_DIM(xdisp, 0);
+	status = collapseFromEvents(xi, eta,
+		(short *)PyArray_DATA(dq), n_events,
 		slope,
-		(double *)PyArray_DATA (xdisp), length);
+		(double *)PyArray_DATA(xdisp), length);
 
-	Py_DECREF (xi);
-	Py_DECREF (eta);
-	Py_DECREF (dq);
-	Py_DECREF (xdisp);
+	Py_DECREF(xi);
+	Py_DECREF(eta);
+	Py_DECREF(dq);
+	Py_DECREF(xdisp);
 
 	if (status) {
 	    return NULL;
 	} else {
-	    Py_INCREF (Py_None);
+	    Py_INCREF(Py_None);
 	    return Py_None;
 	}
 }
 
 /* This is called by ccos_xy_collapse. */
 
-static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
+static int collapseFromEvents(PyArrayObject *xi, PyArrayObject *eta,
 		short dq[], int n_events,
 		double slope,
 		double xdisp[], int length) {
@@ -3654,20 +3654,20 @@ static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 	for (k = 0;  k < n_events;  k++) {
 	    if (dq[k] == 0) {
 		if (xi_type == NPY_INT16) {
-		    i = *(short *)PyArray_GETPTR1 (xi, k);
+		    i = *(short *)PyArray_GETPTR1(xi, k);
 		    c_xi = (double)i;
 		} else {
-		    c_xi = *(float *)PyArray_GETPTR1 (xi, k);
+		    c_xi = *(float *)PyArray_GETPTR1(xi, k);
 		}
 		if (eta_type == NPY_INT16) {
-		    j = *(short *)PyArray_GETPTR1 (eta, k);
+		    j = *(short *)PyArray_GETPTR1(eta, k);
 		    c_eta = (double)j;
 		} else {
-		    c_eta = *(float *)PyArray_GETPTR1 (eta, k);
+		    c_eta = *(float *)PyArray_GETPTR1(eta, k);
 		}
 		/* shift to where spectrum crosses left edge */
 		c_eta -= slope * c_xi;
-		j = NINT (c_eta);
+		j = NINT(c_eta);
 		if (j >= 0 && j < length)
 		    xdisp[j] += 1.;
 	    }
@@ -3678,7 +3678,7 @@ static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
 
 /* calling sequence for csum_3d:
 
-   csum_3d (array, x, y, epsilon, pha, binx, biny)
+   csum_3d(array, x, y, epsilon, pha, binx, biny)
 
     array     io: the output 3-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (float32)
@@ -3695,69 +3695,69 @@ static int collapseFromEvents (PyArrayObject *xi, PyArrayObject *eta,
    array element at [pha[n],y[n],x[n]] will be incremented by epsilon[n].
 */
 
-static PyObject *ccos_csum_3d (PyObject *self, PyObject *args) {
+static PyObject *ccos_csum_3d(PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon, *opha;
 	PyArrayObject *array, *x, *y, *epsilon, *pha;
 	int binx=1, biny=1;
 	int n_events, nx, ny, nz;
 
-	if (!PyArg_ParseTuple (args, "OOOOO|ii",
+	if (!PyArg_ParseTuple(args, "OOOOO|ii",
 			&oarray, &ox, &oy, &oepsilon, &opha, &binx, &biny)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	array = (PyArrayObject *)PyArray_FROM_OTF (oarray, NPY_FLOAT32,
+	array = (PyArrayObject *)PyArray_FROM_OTF(oarray, NPY_FLOAT32,
 			NPY_INOUT_ARRAY);
 	if (array == NULL)
 	    return NULL;
 
-	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32, NPY_IN_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32, NPY_IN_ARRAY);
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32, NPY_IN_ARRAY);
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32, NPY_IN_ARRAY);
 
-	epsilon = (PyArrayObject *)PyArray_FROM_OTF (oepsilon, NPY_FLOAT32,
+	epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
 			NPY_IN_ARRAY);
-	pha = (PyArrayObject *)PyArray_FROM_OTF (opha, NPY_INT16, NPY_IN_ARRAY);
+	pha = (PyArrayObject *)PyArray_FROM_OTF(opha, NPY_INT16, NPY_IN_ARRAY);
 
 	if (x == NULL || y == NULL || epsilon == NULL || pha == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (x, 0);
+	n_events = PyArray_DIM(x, 0);
 
-	if (PyArray_NDIM (array) == 3) {
-	    nx = PyArray_DIM (array, 2);	/* shape (nz,ny,nx) */
-	    ny = PyArray_DIM (array, 1);
-	    nz = PyArray_DIM (array, 0);
-	} else if (PyArray_NDIM (array) == 2) {
-	    nx = PyArray_DIM (array, 1);	/* shape (ny,nx) */
-	    ny = PyArray_DIM (array, 0);
+	if (PyArray_NDIM(array) == 3) {
+	    nx = PyArray_DIM(array, 2);		/* shape (nz,ny,nx) */
+	    ny = PyArray_DIM(array, 1);
+	    nz = PyArray_DIM(array, 0);
+	} else if (PyArray_NDIM(array) == 2) {
+	    nx = PyArray_DIM(array, 1);		/* shape (ny,nx) */
+	    ny = PyArray_DIM(array, 0);
 	    nz = 1;
 	} else {
-	    PyErr_SetString (PyExc_RuntimeError,
+	    PyErr_SetString(PyExc_RuntimeError,
 		"the array must be either 2-D or 3-D");
 	    return NULL;
 	}
 
-	bin3DtoCsum ((float *)PyArray_DATA (array), nx, ny, nz,
+	bin3DtoCsum((float *)PyArray_DATA(array), nx, ny, nz,
 		binx, biny,
-		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
-		(float *)PyArray_DATA (epsilon),
-		(short *)PyArray_DATA (pha), n_events);
+		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y),
+		(float *)PyArray_DATA(epsilon),
+		(short *)PyArray_DATA(pha), n_events);
 
-	Py_DECREF (array);
-	Py_DECREF (x);
-	Py_DECREF (y);
-	Py_DECREF (epsilon);
-	Py_DECREF (pha);
+	Py_DECREF(array);
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(epsilon);
+	Py_DECREF(pha);
 
-	Py_INCREF (Py_None);
+	Py_INCREF(Py_None);
 	return Py_None;
 }
 
 /* This is called by ccos_csum_3d. */
 
-static void bin3DtoCsum (float array[], int nx, int ny, int nz,
+static void bin3DtoCsum(float array[], int nx, int ny, int nz,
 		int binx, int biny,
 		float x[], float y[],
 		float epsilon[], short pha[], int n_events) {
@@ -3774,8 +3774,8 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = NINT (x[n]) / binx;
-	    j = NINT (y[n]) / biny;
+	    i = NINT(x[n]) / binx;
+	    j = NINT(y[n]) / biny;
 	    k = pha[n];
 
 	    /* truncate at borders of image */
@@ -3789,7 +3789,7 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
 
 /* calling sequence for csum_2d:
 
-   csum_2d (array, x, y, epsilon, binx, biny)
+   csum_2d(array, x, y, epsilon, binx, biny)
 
     array     io: the output 2-D array (float32)
     x, y       i: arrays of pixel coordinates of the events (float32)
@@ -3805,54 +3805,54 @@ static void bin3DtoCsum (float array[], int nx, int ny, int nz,
    array element at [y[n],x[n]] will be incremented by epsilon[n].
 */
 
-static PyObject *ccos_csum_2d (PyObject *self, PyObject *args) {
+static PyObject *ccos_csum_2d(PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *ox, *oy, *oepsilon;
 	PyArrayObject *array, *x, *y, *epsilon;
 	int binx=1, biny=1;
 	int n_events, nx, ny;
 
-	if (!PyArg_ParseTuple (args, "OOOO|ii",
+	if (!PyArg_ParseTuple(args, "OOOO|ii",
 			&oarray, &ox, &oy, &oepsilon, &binx, &biny)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	array = (PyArrayObject *)PyArray_FROM_OTF (oarray, NPY_FLOAT32,
+	array = (PyArrayObject *)PyArray_FROM_OTF(oarray, NPY_FLOAT32,
 			NPY_INOUT_ARRAY);
 	if (array == NULL)
 	    return NULL;
 
-	x = (PyArrayObject *)PyArray_FROM_OTF (ox, NPY_FLOAT32, NPY_IN_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF (oy, NPY_FLOAT32, NPY_IN_ARRAY);
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32, NPY_IN_ARRAY);
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32, NPY_IN_ARRAY);
 
-	epsilon = (PyArrayObject *)PyArray_FROM_OTF (oepsilon, NPY_FLOAT32,
+	epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 
 	if (x == NULL || y == NULL || epsilon == NULL)
 	    return NULL;
 
-	n_events = PyArray_DIM (x, 0);
-	nx = PyArray_DIM (array, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (array, 0);
+	n_events = PyArray_DIM(x, 0);
+	nx = PyArray_DIM(array, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(array, 0);
 
-	bin2DtoCsum ((float *)PyArray_DATA (array), nx, ny,
+	bin2DtoCsum((float *)PyArray_DATA(array), nx, ny,
 		binx, biny,
-		(float *)PyArray_DATA (x), (float *)PyArray_DATA (y),
-		(float *)PyArray_DATA (epsilon), n_events);
+		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y),
+		(float *)PyArray_DATA(epsilon), n_events);
 
-	Py_DECREF (array);
-	Py_DECREF (x);
-	Py_DECREF (y);
-	Py_DECREF (epsilon);
+	Py_DECREF(array);
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(epsilon);
 
-	Py_INCREF (Py_None);
+	Py_INCREF(Py_None);
 	return Py_None;
 }
 
 /* This is called by ccos_csum_2d. */
 
-static void bin2DtoCsum (float array[], int nx, int ny,
+static void bin2DtoCsum(float array[], int nx, int ny,
 		int binx, int biny,
 		float x[], float y[],
 		float epsilon[], int n_events) {
@@ -3868,8 +3868,8 @@ static void bin2DtoCsum (float array[], int nx, int ny,
 	for (n = 0;  n < n_events;  n++) {
 
 	    /* the pixel coordinates of the current event */
-	    i = NINT (x[n]) / binx;
-	    j = NINT (y[n]) / biny;
+	    i = NINT(x[n]) / binx;
+	    j = NINT(y[n]) / biny;
 
 	    /* truncate at borders of image */
 	    if (i < 0 || i >= nx || j < 0 || j >= ny)
@@ -3881,7 +3881,7 @@ static void bin2DtoCsum (float array[], int nx, int ny,
 
 /* calling sequence for bin2d:
 
-   bin2d (array, binned_array)
+   bin2d(array, binned_array)
 
     array        i: the input 2-D array (float32)
     binned_array o: the output 2-D array (float32)
@@ -3892,46 +3892,46 @@ static void bin2DtoCsum (float array[], int nx, int ny,
    of 'binned_array' must divide the shape of 'array'.
 */
 
-static PyObject *ccos_bin2d (PyObject *self, PyObject *args) {
+static PyObject *ccos_bin2d(PyObject *self, PyObject *args) {
 
 	PyObject *oarray, *obinned_array;
 	PyArrayObject *array, *binned_array;
 	int nx, ny, nxb, nyb;
 
-	if (!PyArg_ParseTuple (args, "OO", &oarray, &obinned_array)) {
-	    PyErr_SetString (PyExc_RuntimeError, "can't read arguments");
+	if (!PyArg_ParseTuple(args, "OO", &oarray, &obinned_array)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
 
-	array = (PyArrayObject *)PyArray_FROM_OTF (oarray,
+	array = (PyArrayObject *)PyArray_FROM_OTF(oarray,
 			NPY_FLOAT32, NPY_IN_ARRAY);
-	binned_array = (PyArrayObject *)PyArray_FROM_OTF (obinned_array,
+	binned_array = (PyArrayObject *)PyArray_FROM_OTF(obinned_array,
 			NPY_FLOAT32, NPY_INOUT_ARRAY);
 	if (array == NULL || binned_array == NULL)
 	    return NULL;
 
-	nx = PyArray_DIM (array, 1);	/* shape (ny,nx) */
-	ny = PyArray_DIM (array, 0);
-	nxb = PyArray_DIM (binned_array, 1);
-	nyb = PyArray_DIM (binned_array, 0);
+	nx = PyArray_DIM(array, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(array, 0);
+	nxb = PyArray_DIM(binned_array, 1);
+	nyb = PyArray_DIM(binned_array, 0);
 	if (nx / nxb * nxb != nx || ny / nyb * nyb != ny) {
-	    PyErr_SetString (PyExc_RuntimeError, "bin factors must be integer");
+	    PyErr_SetString(PyExc_RuntimeError, "bin factors must be integer");
 	    return NULL;
 	}
 
-	bin2DArray ((float *)PyArray_DATA (array), nx, ny,
-		    (float *)PyArray_DATA (binned_array), nxb, nyb);
+	bin2DArray((float *)PyArray_DATA(array), nx, ny,
+		   (float *)PyArray_DATA(binned_array), nxb, nyb);
 
-	Py_DECREF (array);
-	Py_DECREF (binned_array);
+	Py_DECREF(array);
+	Py_DECREF(binned_array);
 
-	Py_INCREF (Py_None);
+	Py_INCREF(Py_None);
 	return Py_None;
 }
 
 /* This is called by ccos_bin2d. */
 
-static void bin2DArray (float array[], int nx, int ny,
+static void bin2DArray(float array[], int nx, int ny,
 		float binned_array[], int nxb, int nyb) {
 
 	int binx, biny;
@@ -4032,16 +4032,16 @@ static PyMethodDef ccos_methods[] = {
 	{NULL, NULL, 0, NULL}
 };
 
-PyMODINIT_FUNC initccos (void) {
+PyMODINIT_FUNC initccos(void) {
 
 	PyObject *mod;		/* the module */
 	PyObject *dict;		/* the module's dictionary */
 
-	mod = Py_InitModule ("ccos", ccos_methods);
+	mod = Py_InitModule("ccos", ccos_methods);
 	import_array();
 
 	/* set the doc string */
-	dict = PyModule_GetDict (mod);
-	PyDict_SetItemString (dict, "__doc__",
-		PyString_FromString (DocString()));
+	dict = PyModule_GetDict(mod);
+	PyDict_SetItemString(dict, "__doc__",
+		PyString_FromString(DocString()));
 }

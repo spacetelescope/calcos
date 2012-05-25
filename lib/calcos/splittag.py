@@ -10,8 +10,8 @@ import ccos
 NOT_APPLICABLE = "N/A"
 SEC_PER_DAY = 86400.            # seconds in a day
 
-def splittag (infiles, outroot, starttime=None, increment=None, endtime=None,
-              time_list=None, verbosity=1):
+def splittag(infiles, outroot, starttime=None, increment=None, endtime=None,
+             time_list=None, verbosity=1):
     """Split TIME-TAG files into multiple files.
 
     All times are in seconds, and the zero point is EXPSTART.
@@ -45,15 +45,15 @@ def splittag (infiles, outroot, starttime=None, increment=None, endtime=None,
         2 --> print more info
     """
 
-    infiles = os.path.expandvars (infiles)
-    outroot = os.path.expandvars (outroot)
-    inlist = glob.glob (infiles)
+    infiles = os.path.expandvars(infiles)
+    outroot = os.path.expandvars(outroot)
+    inlist = glob.glob(infiles)
     for input in inlist:
-        splitOneTag (input, outroot, starttime, increment, endtime,
-                     time_list, verbosity)
+        splitOneTag(input, outroot, starttime, increment, endtime,
+                    time_list, verbosity)
 
-def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
-              time_list=None, verbosity=1):
+def splitOneTag(input, outroot, starttime=None, increment=None, endtime=None,
+                time_list=None, verbosity=1):
     """Split a TIME-TAG file into multiple files.
 
     Parameters
@@ -81,14 +81,14 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
         Indicates how much should be printed
     """
 
-    cosutil.setVerbosity (verbosity)
+    cosutil.setVerbosity(verbosity)
 
-    if not cosutil.isCorrtag (input):
+    if not cosutil.isCorrtag(input):
         raise RuntimeError, "%s is not a corrtag file" % input
 
-    (inroot, suffix) = splitName (input)
+    (inroot, suffix) = splitName(input)
 
-    ifd = pyfits.open (input, mode="copyonwrite")
+    ifd = pyfits.open(input, mode="copyonwrite")
     phdr = ifd[0].header
     try:
         hdr = ifd[("events")].header
@@ -96,16 +96,16 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
         ifd.close()
         raise RuntimeError, "%s is not a corrtag file" % input
     data = ifd[("events")].data
-    time_col = cosutil.getColCopy (filename="", column="time", data=data)
+    time_col = cosutil.getColCopy(filename="", column="time", data=data)
 
-    info = getInfo (input, phdr, hdr)
+    info = getInfo(input, phdr, hdr)
     if info["wavecorr"] != "COMPLETE":
-        cosutil.printWarning ("WAVECORR was not done for " + input)
-    gti_hdu = getGTI (ifd)
-    timeline_hdu = getTimeline (ifd)
-    time_list = convertToSlices (time_col,
-                                 starttime, increment, endtime, time_list)
-    cosutil.printMsg ("time_list = %s" % repr (time_list), 2)
+        cosutil.printWarning("WAVECORR was not done for " + input)
+    gti_hdu = getGTI(ifd)
+    timeline_hdu = getTimeline(ifd)
+    time_list = convertToSlices(time_col,
+                                starttime, increment, endtime, time_list)
+    cosutil.printMsg("time_list = %s" % repr(time_list), 2)
 
     # define output columns based on input table
     cd = ifd[("events")].columns
@@ -113,38 +113,38 @@ def splitOneTag (input, outroot, starttime=None, increment=None, endtime=None,
     file_index = 1              # one indexing for output file names
     for (t0, t1) in time_list:
 
-        (i, j) = determineSlice (time_col, t0, t1)
+        (i, j) = determineSlice(time_col, t0, t1)
         nrows = j - i
         if nrows <= 0:
-            cosutil.printWarning ("no rows in increment %.2f to %.2f" %
-                                  (t0, t1))
+            cosutil.printWarning("no rows in increment %.2f to %.2f" %
+                                 (t0, t1))
             continue
 
-        filename = constructOutputName (outroot, file_index, suffix)
-        ofd = pyfits.HDUList (pyfits.PrimaryHDU (header=phdr))
-        hdu = pyfits.new_table (cd, header=hdr, nrows=nrows)
-        ofd.append (hdu)
+        filename = constructOutputName(outroot, file_index, suffix)
+        ofd = pyfits.HDUList(pyfits.PrimaryHDU(header=phdr))
+        hdu = pyfits.new_table(cd, header=hdr, nrows=nrows)
+        ofd.append(hdu)
 
-        copyRows (data, ofd, i, j)
+        copyRows(data, ofd, i, j)
         nevents = j - i
 
-        out_gti_hdu = createNewGTI (gti_hdu, t0, t1)
+        out_gti_hdu = createNewGTI(gti_hdu, t0, t1)
         if out_gti_hdu is not None:
-            ofd.append (out_gti_hdu)
+            ofd.append(out_gti_hdu)
 
-        out_timeline_hdu = createNewTimeline (timeline_hdu, t0, t1)
+        out_timeline_hdu = createNewTimeline(timeline_hdu, t0, t1)
         if out_timeline_hdu is not None:
-            ofd.append (out_timeline_hdu)
+            ofd.append(out_timeline_hdu)
 
-        updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd)
+        updateKeywords(info, out_gti_hdu, t0, t1, nevents, ofd)
 
-        ofd.writeto (filename)
+        ofd.writeto(filename)
         ofd.close()
         del ofd
-        cosutil.printMsg ("%s written" % filename)
+        cosutil.printMsg("%s written" % filename)
         file_index += 1
 
-def splitName (input):
+def splitName(input):
     """Split the input name into rootname and suffix.
 
     Parameters
@@ -161,9 +161,9 @@ def splitName (input):
         ("xyz", "_corrtag_a.fits").
     """
 
-    i = input.find ("_corrtag")
+    i = input.find("_corrtag")
     if i < 0:
-        i = input.find (".fit")
+        i = input.find(".fit")
 
     if i < 0:
         inroot = input
@@ -174,7 +174,7 @@ def splitName (input):
 
     return (inroot, suffix)
 
-def getInfo (input, phdr, hdr):
+def getInfo(input, phdr, hdr):
     """Get header information.
 
     The input file name is included in the calling sequence just so it
@@ -212,7 +212,7 @@ def getInfo (input, phdr, hdr):
         "opt_elem":  NOT_APPLICABLE}
 
     for key in keylist.keys():
-        info[key] = phdr.get (key, default=keylist[key])
+        info[key] = phdr.get(key, default=keylist[key])
 
     # This is a list of extension header keywords and default values.
     # (also exptime; see below)
@@ -221,14 +221,14 @@ def getInfo (input, phdr, hdr):
         "expend":   -1.}
 
     for key in keylist.keys():
-        info[key] = hdr.get (key, default=keylist[key])
-    exptime_key = cosutil.segmentSpecificKeyword ("exptime", info["segment"])
-    exptime_default = hdr.get ("exptime", default=-1.)
-    info["exptime"] = hdr.get (exptime_key, default=exptime_default)
+        info[key] = hdr.get(key, default=keylist[key])
+    exptime_key = cosutil.segmentSpecificKeyword("exptime", info["segment"])
+    exptime_default = hdr.get("exptime", default=-1.)
+    info["exptime"] = hdr.get(exptime_key, default=exptime_default)
 
     return info
 
-def convertToSlices (time_col, starttime, increment, endtime, time_list):
+def convertToSlices(time_col, starttime, increment, endtime, time_list):
     """Return a list of two-element tuples, giving time intervals.
 
     Parameters
@@ -260,28 +260,28 @@ def convertToSlices (time_col, starttime, increment, endtime, time_list):
     """
 
     if not increment and not time_list:
-        raise RuntimeError ("Must specify either increment or time_list.")
+        raise RuntimeError("Must specify either increment or time_list.")
 
-    if time_list and len (time_list) < 2:
-        raise RuntimeError ("time_list must have at least two elements.")
+    if time_list and len(time_list) < 2:
+        raise RuntimeError("time_list must have at least two elements.")
 
     if increment and time_list:
-        cosutil.printWarning ("Both increment and time_list were specified;"
-                              " time_list will be used.")
+        cosutil.printWarning("Both increment and time_list were specified;"
+                             " time_list will be used.")
 
     if time_list:
 
-        if isinstance (time_list, str):
-            time_list = convertToList (time_list)
+        if isinstance(time_list, str):
+            time_list = convertToList(time_list)
         else:
             # If time_list is already a list of two-element tuples (or lists),
             # just return it.
             is_a_list_of_tuples = True          # default
             for value in time_list:
-                if not isinstance (value, (list, tuple, numpy.ndarray)):
+                if not isinstance(value, (list, tuple, numpy.ndarray)):
                     is_a_list_of_tuples = False
                     break
-                if len (value) != 2:
+                if len(value) != 2:
                     is_a_list_of_tuples = False
                     break
             if is_a_list_of_tuples:
@@ -291,37 +291,37 @@ def convertToSlices (time_col, starttime, increment, endtime, time_list):
         # two-element tuples.
         new_time_list = []
 
-        if isinstance (time_list[0], str):
+        if isinstance(time_list[0], str):
             value = time_list[0].lower()
             if value == "start":
                 t0 = 0.
             else:
-                raise RuntimeError ("First element of time_list is '%s'." %
-                                    time_list[0])
+                raise RuntimeError("First element of time_list is '%s'." %
+                                   time_list[0])
         else:
             t0 = time_list[0]
 
-        nelem = len (time_list)
-        for i in range (1, nelem):
-            if isinstance (time_list[i], str):
+        nelem = len(time_list)
+        for i in range(1, nelem):
+            if isinstance(time_list[i], str):
                 value = time_list[i].lower()
                 if value == "start":
                     t1 = 0.
                 elif value == "stop" or value == "end":
                     t1 = time_col[-1]
                 else:
-                    raise RuntimeError (
+                    raise RuntimeError(
                     "Don't understand time_list[%d] = '%s'." %
                         (i, time_list[i]))
             else:
                 t1 = time_list[i]
             if t1 < t0:
-                cosutil.printError ("time_list = %s" % repr (time_list))
-                raise RuntimeError ("Values in time_list must be "
-                                    "in increasing order.")
+                cosutil.printError("time_list = %s" % repr(time_list))
+                raise RuntimeError("Values in time_list must be "
+                                   "in increasing order.")
             elif t0 == t1:
                 continue
-            new_time_list.append ((t0, t1))
+            new_time_list.append((t0, t1))
             t0 = t1
 
     else:
@@ -344,18 +344,18 @@ def convertToSlices (time_col, starttime, increment, endtime, time_list):
                 if t1 >= endtime:
                     t1 = endtime
                     done = True
-                new_time_list.append ((t0, t1))
+                new_time_list.append((t0, t1))
                 t0 = t1
 
     # Remove intervals that are outside the range of the data.
     trimmed_list = []
     for interval in new_time_list:
         if interval[1] > time_col[0] and interval[0] <= time_col[-1]:
-            trimmed_list.append (interval)
+            trimmed_list.append(interval)
 
     return trimmed_list
 
-def convertToList (time_string):
+def convertToList(time_string):
     """Split a string of times on commas and/or blanks.
 
     Parameters
@@ -372,12 +372,12 @@ def convertToList (time_string):
         the input string
     """
 
-    if time_string.find (",") >= 0:
+    if time_string.find(",") >= 0:
         # split the string on commas, then strip whitespace
         words = []
-        temp_words = time_string.split (",")
+        temp_words = time_string.split(",")
         for word in temp_words:
-            words.extend (word.split())
+            words.extend(word.split())
     else:
         # split the string on blanks
         words = time_string.split()
@@ -386,19 +386,19 @@ def convertToList (time_string):
     for word in words:
         word = word.lower()
         if word == "start" or word == "stop" or word == "end":
-            time_list.append (word)
+            time_list.append(word)
         else:
             try:
-                t_value = float (word)
+                t_value = float(word)
             except ValueError:
-                cosutil.printError ("Values in time_list must be a number," \
-                                    " or 'start', 'stop', or 'end'.")
+                cosutil.printError("Values in time_list must be a number," \
+                                   " or 'start', 'stop', or 'end'.")
                 raise
-            time_list.append (t_value)
+            time_list.append(t_value)
 
     return time_list
 
-def determineSlice (time_col, t0, t1):
+def determineSlice(time_col, t0, t1):
     """Find the indices correspond to the start and end times of an interval.
 
     Parameters
@@ -419,9 +419,9 @@ def determineSlice (time_col, t0, t1):
         with times >= t0 and < t1
     """
 
-    return ccos.range (time_col, t0, t1)
+    return ccos.range(time_col, t0, t1)
 
-def constructOutputName (outroot, file_index, suffix):
+def constructOutputName(outroot, file_index, suffix):
     """Construct an output file name.
 
     For example, if outroot="abc", file_index=3, and suffix="_corrtag_a.fits",
@@ -452,26 +452,26 @@ def constructOutputName (outroot, file_index, suffix):
     upper_limit = 10000
 
     filename = "%s_%d%s" % (outroot, file_index, suffix)
-    if os.access (filename, os.R_OK):
+    if os.access(filename, os.R_OK):
         save_filename = filename
         i = 1
         done = False
         while not done:
             filename = "%s_%d_%d%s" % (outroot, file_index, i, suffix)
-            if os.access (filename, os.R_OK):
+            if os.access(filename, os.R_OK):
                 i += 1
                 if i > upper_limit:
-                    raise RuntimeError ("Output file already exists,"
+                    raise RuntimeError("Output file already exists,"
                           " and upper limit of names has been exceeded.")
             else:
                 done = True
-        cosutil.printWarning ("Output file %s already exists,"
-                              " will use name %s instead." %
-                              (save_filename, filename))
+        cosutil.printWarning("Output file %s already exists,"
+                             " will use name %s instead." %
+                             (save_filename, filename))
 
     return filename
 
-def copyRows (data, ofd, i, j):
+def copyRows(data, ofd, i, j):
     """Copy rows from the input file to an output file.
 
     Parameters
@@ -492,7 +492,7 @@ def copyRows (data, ofd, i, j):
 
     ofd[1].data = data[i:j]
 
-def getGTI (ifd):
+def getGTI(ifd):
     """Find the most up-to-date GTI table in the input file.
 
     Parameters
@@ -509,11 +509,11 @@ def getGTI (ifd):
     # Find the GTI table with the largest value of EXTVER.
     last_extver = 0                     # initial value
     hdunum = 0
-    for i in range (1, len(ifd)):
+    for i in range(1, len(ifd)):
         hdu = ifd[i]
-        extname = hdu.header.get ("extname", "MISSING")
+        extname = hdu.header.get("extname", "MISSING")
         if extname.upper() == "GTI":
-            extver = hdu.header.get ("extver", 1)
+            extver = hdu.header.get("extver", 1)
             if extver > last_extver:
                 last_extver = extver
                 hdunum = i
@@ -524,7 +524,7 @@ def getGTI (ifd):
         gti_hdu = ifd[hdunum]
     return gti_hdu
 
-def createNewGTI (gti_hdu, t0, t1):
+def createNewGTI(gti_hdu, t0, t1):
     """Create a GTI table for the output table.
 
     Parameters
@@ -548,47 +548,47 @@ def createNewGTI (gti_hdu, t0, t1):
 
     if gti_hdu is None or gti_hdu.data is None:
         # No GTI table means the entire exposure is good.
-        out_gti_hdu = pyfits.new_table (cd, header=gti_hdu.header, nrows=0)
-        out_start_col = out_gti_hdu.data.field ("start")
-        out_stop_col = out_gti_hdu.data.field ("stop")
+        out_gti_hdu = pyfits.new_table(cd, header=gti_hdu.header, nrows=0)
+        out_start_col = out_gti_hdu.data.field("start")
+        out_stop_col = out_gti_hdu.data.field("stop")
         out_start_col[0] = t0
         out_stop_col[0] = t1
         return out_gti_hdu
 
     data = gti_hdu.data
-    in_nrows = len (data)
+    in_nrows = len(data)
 
     # columns in the GTI table from the input file
-    start_col = data.field ("start")
-    stop_col = data.field ("stop")
+    start_col = data.field("start")
+    stop_col = data.field("stop")
 
     gti = []                    # list of good (start, stop) intervals
-    for i in range (in_nrows):
+    for i in range(in_nrows):
         start = start_col[i]
         stop = stop_col[i]
         if start >= t1 or stop <= t0:
             continue
-        start = max (start, t0)
-        stop = min (stop, t1)
+        start = max(start, t0)
+        stop = min(stop, t1)
         if (stop - start) <= 0.:
             continue
-        gti.append ((start, stop))
+        gti.append((start, stop))
 
     if not gti:
-        gti.append ((0., 0.))
-    out_nrows = len (gti)
+        gti.append((0., 0.))
+    out_nrows = len(gti)
 
-    out_gti_hdu = pyfits.new_table (cd, header=gti_hdu.header, nrows=out_nrows)
-    out_start_col = out_gti_hdu.data.field ("start")
-    out_stop_col = out_gti_hdu.data.field ("stop")
-    for i in range (out_nrows):
+    out_gti_hdu = pyfits.new_table(cd, header=gti_hdu.header, nrows=out_nrows)
+    out_start_col = out_gti_hdu.data.field("start")
+    out_stop_col = out_gti_hdu.data.field("stop")
+    for i in range(out_nrows):
         (start, stop) = gti[i]
         out_start_col[i] = start
         out_stop_col[i] = stop
 
     return out_gti_hdu
 
-def getTimeline (ifd):
+def getTimeline(ifd):
     """Get the TIMELINE extension (if there is one) from the input file.
 
     Parameters
@@ -603,9 +603,9 @@ def getTimeline (ifd):
     """
 
     hdunum = 0
-    for i in range (1, len(ifd)):
+    for i in range(1, len(ifd)):
         hdu = ifd[i]
-        extname = hdu.header.get ("extname", "MISSING")
+        extname = hdu.header.get("extname", "MISSING")
         if extname.upper() == "TIMELINE":
             hdunum = i
             break               # assume there's only one
@@ -619,7 +619,7 @@ def getTimeline (ifd):
 
     return timeline_hdu
 
-def createNewTimeline (timeline_hdu, t0, t1):
+def createNewTimeline(timeline_hdu, t0, t1):
     """Create a TIMELINE table for the output table.
 
     Parameters
@@ -650,27 +650,27 @@ def createNewTimeline (timeline_hdu, t0, t1):
     cd = timeline_hdu.columns
 
     in_data = timeline_hdu.data
-    in_nrows = len (in_data)
+    in_nrows = len(in_data)
 
-    time_col = in_data.field ("time")
+    time_col = in_data.field("time")
 
     # The "ceil(t1) + 0.1" here is to ensure that the time range (specifically
     # i_end) actually includes all the relevant rows of the input TIMELINE
     # table.  This implicitly assumes that the time increment is one second.
-    (i_start, i_end)= ccos.range (time_col, t0, math.ceil(t1) + 0.1)
+    (i_start, i_end)= ccos.range(time_col, t0, math.ceil(t1) + 0.1)
     out_nrows = i_end - i_start
 
-    out_timeline_hdu = pyfits.new_table (cd, header=timeline_hdu.header,
-                                         nrows=out_nrows)
+    out_timeline_hdu = pyfits.new_table(cd, header=timeline_hdu.header,
+                                        nrows=out_nrows)
     out_data = out_timeline_hdu.data
     i = i_start
-    for j in range (out_nrows):
+    for j in range(out_nrows):
         out_data[j] = in_data[i]
         i += 1
 
     return out_timeline_hdu
 
-def updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd):
+def updateKeywords(info, out_gti_hdu, t0, t1, nevents, ofd):
     """Update keywords in an output file.
 
     This function adds two HISTORY records to the output primary header and
@@ -701,41 +701,41 @@ def updateKeywords (info, out_gti_hdu, t0, t1, nevents, ofd):
     phdr = ofd[0].header
     hdr = ofd[1].header
 
-    filename = os.path.basename (info["input"])         # just the file name
-    phdr.add_history ("Copied from %s" % filename)
-    phdr.add_history ("Time slice from input was %.3f to %.3f" % (t0, t1))
+    filename = os.path.basename(info["input"])          # just the file name
+    phdr.add_history("Copied from %s" % filename)
+    phdr.add_history("Time slice from input was %.3f to %.3f" % (t0, t1))
 
     if out_gti_hdu is None:
         exptime = t1 - t0
     else:
-        start_col = out_gti_hdu.data.field ("start")
-        stop_col = out_gti_hdu.data.field ("stop")
+        start_col = out_gti_hdu.data.field("start")
+        stop_col = out_gti_hdu.data.field("stop")
         exptime = 0.
-        n = len (start_col)
-        for i in range (n):
+        n = len(start_col)
+        for i in range(n):
             exptime += (stop_col[i] - start_col[i])
 
     # Modified 2011 May 13 to update exptimea or exptimeb, depending on
     # segment.  Also update nevents and either neventsa or neventsb.
-    hdr.update ("exptime", exptime)
-    hdr.update ("nevents", nevents)
+    hdr.update("exptime", exptime)
+    hdr.update("nevents", nevents)
     if info["detector"] == "FUV":
         # first assign default values, so keywords for the "other" segment
         # will have the default
-        hdr.update ("exptimea", 0.)
-        hdr.update ("exptimeb", 0.)
-        hdr.update ("neventsa", 0)
-        hdr.update ("neventsb", 0)
+        hdr.update("exptimea", 0.)
+        hdr.update("exptimeb", 0.)
+        hdr.update("neventsa", 0)
+        hdr.update("neventsb", 0)
         # "exptimea" or "exptimeb"
-        exptime_key = cosutil.segmentSpecificKeyword ("exptime",
-                                                      info["segment"])
-        hdr.update (exptime_key, exptime)
+        exptime_key = cosutil.segmentSpecificKeyword("exptime",
+                                                     info["segment"])
+        hdr.update(exptime_key, exptime)
         nevents_key = "nevents" + info["segment"][-1].lower()
-        hdr.update (nevents_key, nevents)
+        hdr.update(nevents_key, nevents)
 
     expstart = info["expstart"]
     if expstart > 0.:
         expend = expstart + t1/SEC_PER_DAY
-        hdr.update ("expend", expend)
+        hdr.update("expend", expend)
         expend_j = expend + 2400000.5
-        hdr.update ("expendj", expend_j)
+        hdr.update("expendj", expend_j)

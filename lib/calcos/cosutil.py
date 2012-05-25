@@ -21,7 +21,7 @@ fd_trl = None
 # if this is False, writing to trailer files will be disabled
 write_to_trailer = True
 
-def writeOutputEvents (infile, outfile):
+def writeOutputEvents(infile, outfile):
     """
     This function creates a recarray object with the column definitions
     appropriate for a corrected time-tag table, reads an input events table
@@ -42,7 +42,7 @@ def writeOutputEvents (infile, outfile):
         Name of file for output EVENTS table (and GTI table).
     """
 
-    ifd = pyfits.open (infile, mode="copyonwrite")
+    ifd = pyfits.open(infile, mode="copyonwrite")
     events_extn = ifd["EVENTS"]
     indata = events_extn.data
     if indata is None:
@@ -51,25 +51,25 @@ def writeOutputEvents (infile, outfile):
         nrows = indata.shape[0]
 
     # If the input is already a corrtag file, just copy it.
-    if isCorrtag (infile):
+    if isCorrtag(infile):
         ifd.close()
-        shutil.copy (infile, outfile)
+        shutil.copy(infile, outfile)
         return nrows
 
-    detector = ifd[0].header.get ("detector", "FUV")
-    tagflash = (ifd[0].header.get ("tagflash", default="NONE") != "NONE")
+    detector = ifd[0].header.get("detector", "FUV")
+    tagflash = (ifd[0].header.get("tagflash", default="NONE") != "NONE")
 
     # Create the output events HDU.
-    hdu = createCorrtagHDU (nrows, detector, events_extn.header)
+    hdu = createCorrtagHDU(nrows, detector, events_extn.header)
 
     if nrows == 0:
-        primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
-        ofd = pyfits.HDUList (primary_hdu)
-        updateFilename (ofd[0].header, outfile)
-        ofd.append (hdu)
-        if len (ifd) == 3:
-            ofd.append (ifd["GTI"])
-        ofd.writeto (outfile)
+        primary_hdu = pyfits.PrimaryHDU(header=ifd[0].header)
+        ofd = pyfits.HDUList(primary_hdu)
+        updateFilename(ofd[0].header, outfile)
+        ofd.append(hdu)
+        if len(ifd) == 3:
+            ofd.append(ifd["GTI"])
+        ofd.writeto(outfile)
         ifd.close()
         return nrows
 
@@ -77,40 +77,40 @@ def writeOutputEvents (infile, outfile):
 
     # Copy data from the input table to the output HDU object.
 
-    outdata.field ("TIME")[:] = indata.field ("TIME")
+    outdata.field("TIME")[:] = indata.field("TIME")
 
-    outdata.field ("RAWX")[:] = indata.field ("RAWX")
-    outdata.field ("RAWY")[:] = indata.field ("RAWY")
-    outdata.field ("XCORR")[:] = indata.field ("RAWX")
-    outdata.field ("YCORR")[:] = indata.field ("RAWY")
+    outdata.field("RAWX")[:] = indata.field("RAWX")
+    outdata.field("RAWY")[:] = indata.field("RAWY")
+    outdata.field("XCORR")[:] = indata.field("RAWX")
+    outdata.field("YCORR")[:] = indata.field("RAWY")
 
-    outdata.field ("XDOPP")[:] = np.zeros (nrows, dtype=np.float32)
-    outdata.field ("XFULL")[:] = np.zeros (nrows, dtype=np.float32)
-    outdata.field ("YFULL")[:] = np.zeros (nrows, dtype=np.float32)
-    outdata.field ("WAVELENGTH")[:] = np.zeros (nrows, dtype=np.float32)
+    outdata.field("XDOPP")[:] = np.zeros(nrows, dtype=np.float32)
+    outdata.field("XFULL")[:] = np.zeros(nrows, dtype=np.float32)
+    outdata.field("YFULL")[:] = np.zeros(nrows, dtype=np.float32)
+    outdata.field("WAVELENGTH")[:] = np.zeros(nrows, dtype=np.float32)
 
-    outdata.field ("EPSILON")[:] = np.ones (nrows, dtype=np.float32)
-    outdata.field ("DQ")[:] = np.zeros (nrows, dtype=np.int16)
+    outdata.field("EPSILON")[:] = np.ones(nrows, dtype=np.float32)
+    outdata.field("DQ")[:] = np.zeros(nrows, dtype=np.int16)
     if detector == "FUV":
-        outdata.field ("PHA")[:] = indata.field ("PHA")
+        outdata.field("PHA")[:] = indata.field("PHA")
     else:
-        outdata.field ("PHA")[:] = 0
+        outdata.field("PHA")[:] = 0
 
-    primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
-    ofd = pyfits.HDUList (primary_hdu)
-    updateFilename (ofd[0].header, outfile)
-    ofd.append (hdu)
+    primary_hdu = pyfits.PrimaryHDU(header=ifd[0].header)
+    ofd = pyfits.HDUList(primary_hdu)
+    updateFilename(ofd[0].header, outfile)
+    ofd.append(hdu)
 
     # GTI table.
-    if len (ifd) == 3:
-        ofd.append (ifd["GTI"])
+    if len(ifd) == 3:
+        ofd.append(ifd["GTI"])
 
-    ofd.writeto (outfile)
+    ofd.writeto(outfile)
     ifd.close()
 
     return nrows
 
-def isCorrtag (filename):
+def isCorrtag(filename):
     """Determine whether 'filename' is a corrtag file.
 
     A corrtag file contains a table in the first extension, and there
@@ -127,16 +127,16 @@ def isCorrtag (filename):
         True if the first extension of 'filename' is a corrtag table.
     """
 
-    fd = pyfits.open (filename, mode="readonly")
-    if len (fd) < 2:                    # no extensions?
+    fd = pyfits.open(filename, mode="readonly")
+    if len(fd) < 2:                     # no extensions?
         fd.close()
         return False
 
     # Find an EVENTS table (any one, if there is more than one).
     hdunum = 0
-    for i in range (1, len(fd)):
+    for i in range(1, len(fd)):
         hdu = fd[i]
-        extname = hdu.header.get ("extname", "MISSING")
+        extname = hdu.header.get("extname", "MISSING")
         if extname.upper() == "EVENTS":
             hdunum = i
             break
@@ -150,20 +150,20 @@ def isCorrtag (filename):
     got_xfull = False                   # initial value
     if data is None:
         # check each of the TTYPEi keywords
-        ncols = hdr.get ("tfields", 0)
-        for i in range (1, ncols+1):
+        ncols = hdr.get("tfields", 0)
+        for i in range(1, ncols+1):
             key = "ttype%d" % i
-            ttype = hdr.get (key, "missing").lower()
+            ttype = hdr.get(key, "missing").lower()
             if ttype == "xfull":
                 got_xfull = True
                 break
     else:
-        got_xfull = findColumn (data, "xfull")
+        got_xfull = findColumn(data, "xfull")
     fd.close()
 
     return got_xfull
 
-def createCorrtagHDU (nrows, detector, header):
+def createCorrtagHDU(nrows, detector, header):
     """Create the output events HDU.
 
     Parameters
@@ -184,29 +184,29 @@ def createCorrtagHDU (nrows, detector, header):
     """
 
     col = []
-    col.append (pyfits.Column (name="TIME", format="1E", unit="s"))
-    col.append (pyfits.Column (name="RAWX", format="1I", unit="pixel"))
-    col.append (pyfits.Column (name="RAWY", format="1I", unit="pixel"))
-    col.append (pyfits.Column (name="XCORR", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="YCORR", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="XDOPP", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="XFULL", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="YFULL", format="1E", unit="pixel"))
-    col.append (pyfits.Column (name="WAVELENGTH", format="1E",
+    col.append(pyfits.Column(name="TIME", format="1E", unit="s"))
+    col.append(pyfits.Column(name="RAWX", format="1I", unit="pixel"))
+    col.append(pyfits.Column(name="RAWY", format="1I", unit="pixel"))
+    col.append(pyfits.Column(name="XCORR", format="1E", unit="pixel"))
+    col.append(pyfits.Column(name="YCORR", format="1E", unit="pixel"))
+    col.append(pyfits.Column(name="XDOPP", format="1E", unit="pixel"))
+    col.append(pyfits.Column(name="XFULL", format="1E", unit="pixel"))
+    col.append(pyfits.Column(name="YFULL", format="1E", unit="pixel"))
+    col.append(pyfits.Column(name="WAVELENGTH", format="1E",
                                unit="angstrom", disp="F9.4"))
-    col.append (pyfits.Column (name="EPSILON", format="1E"))
-    col.append (pyfits.Column (name="DQ", format="1I"))
-    col.append (pyfits.Column (name="PHA", format="1B"))
-    cd = pyfits.ColDefs (col)
+    col.append(pyfits.Column(name="EPSILON", format="1E"))
+    col.append(pyfits.Column(name="DQ", format="1I"))
+    col.append(pyfits.Column(name="PHA", format="1B"))
+    cd = pyfits.ColDefs(col)
 
-    # delete some image-specific keywords
-    header = imageHeaderToTable (header)
+    # Rename or delete some image-specific keywords.
+    header = imageHeaderToCorrtag(header)
 
-    hdu = pyfits.new_table (cd, header=header, nrows=nrows)
+    hdu = pyfits.new_table(cd, header=header, nrows=nrows)
 
     return hdu
 
-def copyExptimeKeywords (inhdr, outhdr):
+def copyExptimeKeywords(inhdr, outhdr):
     """Copy the exposure time keywords from one header to another.
 
     This is for copying the exposure time keywords from the input extension
@@ -221,13 +221,13 @@ def copyExptimeKeywords (inhdr, outhdr):
         Output header.
     """
 
-    outhdr.update ("expstart", inhdr.get ("expstart", -999.))
-    outhdr.update ("expend", inhdr.get ("expend", -999.))
-    exptime = inhdr.get ("exptime", -999.)
-    outhdr.update ("exptime", exptime)
-    outhdr.update ("rawtime", inhdr.get ("rawtime", exptime))
+    outhdr.update("expstart", inhdr.get("expstart", -999.))
+    outhdr.update("expend", inhdr.get("expend", -999.))
+    exptime = inhdr.get("exptime", -999.)
+    outhdr.update("exptime", exptime)
+    outhdr.update("rawtime", inhdr.get("rawtime", exptime))
 
-def copyVoltageKeywords (inhdr, outhdr, detector):
+def copyVoltageKeywords(inhdr, outhdr, detector):
     """Copy keywords for high voltages from one header to another.
 
     This is for copying the high voltage keywords from the input extension
@@ -246,17 +246,17 @@ def copyVoltageKeywords (inhdr, outhdr, detector):
     """
 
     if detector == "FUV":
-        outhdr.update ("dethvla", inhdr.get ("dethvla", -999.))
-        outhdr.update ("dethvlb", inhdr.get ("dethvlb", -999.))
-        outhdr.update ("dethvca", inhdr.get ("dethvca", -999.))
-        outhdr.update ("dethvcb", inhdr.get ("dethvcb", -999.))
-        outhdr.update ("dethvna", inhdr.get ("dethvna", -999.))
-        outhdr.update ("dethvnb", inhdr.get ("dethvnb", -999.))
+        outhdr.update("dethvla", inhdr.get("dethvla", -999.))
+        outhdr.update("dethvlb", inhdr.get("dethvlb", -999.))
+        outhdr.update("dethvca", inhdr.get("dethvca", -999.))
+        outhdr.update("dethvcb", inhdr.get("dethvcb", -999.))
+        outhdr.update("dethvna", inhdr.get("dethvna", -999.))
+        outhdr.update("dethvnb", inhdr.get("dethvnb", -999.))
     elif detector == "NUV":
-        outhdr.update ("dethvl", inhdr.get ("dethvl", -999.))
-        outhdr.update ("dethvc", inhdr.get ("dethvc", -999.))
+        outhdr.update("dethvl", inhdr.get("dethvl", -999.))
+        outhdr.update("dethvc", inhdr.get("dethvc", -999.))
 
-def copySubKeywords (inhdr, outhdr, subarray):
+def copySubKeywords(inhdr, outhdr, subarray):
     """Copy the subarray keywords from one header to another.
 
     This is for copying the subarray keywords from the input extension
@@ -275,20 +275,20 @@ def copySubKeywords (inhdr, outhdr, subarray):
     """
 
     if subarray:
-        outhdr.update ("nsubarry", inhdr.get ("nsubarry", 0))
+        outhdr.update("nsubarry", inhdr.get("nsubarry", 0))
     else:
-        outhdr.update ("nsubarry", 0)
-    for i in range (8):
+        outhdr.update("nsubarry", 0)
+    for i in range(8):
         x_corner_kwd = "corner%1dx" % i
         y_corner_kwd = "corner%1dy" % i
         x_size_kwd = "size%1dx" % i
         y_size_kwd = "size%1dy" % i
-        outhdr.update (x_corner_kwd, inhdr.get (x_corner_kwd, -1))
-        outhdr.update (y_corner_kwd, inhdr.get (y_corner_kwd, -1))
-        outhdr.update (x_size_kwd, inhdr.get (x_size_kwd, -1))
-        outhdr.update (y_size_kwd, inhdr.get (y_size_kwd, -1))
+        outhdr.update(x_corner_kwd, inhdr.get(x_corner_kwd, -1))
+        outhdr.update(y_corner_kwd, inhdr.get(y_corner_kwd, -1))
+        outhdr.update(x_size_kwd, inhdr.get(x_size_kwd, -1))
+        outhdr.update(y_size_kwd, inhdr.get(y_size_kwd, -1))
 
-def dummyGTI (exptime):
+def dummyGTI(exptime):
     """Return a GTI table.
 
     Parameters
@@ -303,18 +303,18 @@ def dummyGTI (exptime):
     """
 
     col = []
-    col.append (pyfits.Column (name="START", format="1D", unit="s"))
-    col.append (pyfits.Column (name="STOP", format="1D", unit="s"))
-    cd = pyfits.ColDefs (col)
-    hdu = pyfits.new_table (cd, nrows=1)
-    hdu.header.update ("extname", "GTI")
+    col.append(pyfits.Column(name="START", format="1D", unit="s"))
+    col.append(pyfits.Column(name="STOP", format="1D", unit="s"))
+    cd = pyfits.ColDefs(col)
+    hdu = pyfits.new_table(cd, nrows=1)
+    hdu.header.update("extname", "GTI")
     outdata = hdu.data
-    outdata.field ("START")[:] = 0.
-    outdata.field ("STOP")[:] = exptime
+    outdata.field("START")[:] = 0.
+    outdata.field("STOP")[:] = exptime
 
     return hdu
 
-def returnGTI (infile):
+def returnGTI(infile):
     """Return a list of (start, stop) good time intervals.
 
     Parameters
@@ -323,16 +323,16 @@ def returnGTI (infile):
         Name of the input FITS file containing a GTI table.
     """
 
-    fd = pyfits.open (infile, mode="copyonwrite")
+    fd = pyfits.open(infile, mode="copyonwrite")
 
     # Find the GTI table with the largest value of EXTVER.
     last_extver = 0                     # initial value
     hdunum = 0
-    for i in range (1, len(fd)):
+    for i in range(1, len(fd)):
         hdu = fd[i]
-        extname = hdu.header.get ("extname", "MISSING")
+        extname = hdu.header.get("extname", "MISSING")
         if extname.upper() == "GTI":
-            extver = hdu.header.get ("extver", 1)
+            extver = hdu.header.get("extver", 1)
             if extver > last_extver:
                 last_extver = extver
                 hdunum = i
@@ -345,13 +345,13 @@ def returnGTI (infile):
             gti = []
         else:
             nrows = indata.shape[0]
-            start = indata.field ("START")
-            stop = indata.field ("STOP")
-            gti = [(start[i], stop[i]) for i in range (nrows)]
+            start = indata.field("START")
+            stop = indata.field("STOP")
+            gti = [(start[i], stop[i]) for i in range(nrows)]
 
     return gti
 
-def findColumn (table, colname):
+def findColumn(table, colname):
     """Return True if colname is found (case-insensitive) in table.
 
     Parameters
@@ -368,8 +368,8 @@ def findColumn (table, colname):
         True if `colname` is in the table (without regard to case).
     """
 
-    if isinstance (table, str):
-        fd = pyfits.open (table, mode="copyonwrite")
+    if isinstance(table, str):
+        fd = pyfits.open(table, mode="copyonwrite")
         fits_rec = fd[1].data
         fd.close()
     else:
@@ -377,15 +377,15 @@ def findColumn (table, colname):
 
     names = []
     for name in fits_rec.names:
-        names.append (name.lower())
+        names.append(name.lower())
 
     if colname.lower() in names:
         return True
     else:
         return False
 
-def getTable (table, filter, extension=1,
-              exactly_one=False, at_least_one=False):
+def getTable(table, filter, extension=1,
+             exactly_one=False, at_least_one=False):
     """Return the data portion of a table.
 
     All rows that match the filter (a dictionary of column_name = value)
@@ -437,7 +437,7 @@ def getTable (table, filter, extension=1,
         Pyfits table data object containing the selected row(s).
     """
 
-    fd = pyfits.open (table, mode="copyonwrite")
+    fd = pyfits.open(table, mode="copyonwrite")
     data = fd[extension].data
 
     # There will be one element of select_arrays for each non-trivial
@@ -448,51 +448,51 @@ def getTable (table, filter, extension=1,
 
         if filter[key] == STRING_WILDCARD or filter[key] == NOT_APPLICABLE:
             continue
-        column = data.field (key)
-        if isinstance (filter[key], tuple) or isinstance (filter[key], list):
+        column = data.field(key)
+        if isinstance(filter[key], tuple) or isinstance(filter[key], list):
             (relation_fcn, value) = filter[key]
-            selected = relation_fcn (column, value)
+            selected = relation_fcn(column, value)
         else:
             selected = (column == filter[key])
 
         # Test for for wildcards in the table.
         wild = None
-        if isinstance (column, np.chararray):
+        if isinstance(column, np.chararray):
             wild = (column == STRING_WILDCARD)
         if wild is not None:
-            selected = np.logical_or (selected, wild)
+            selected = np.logical_or(selected, wild)
 
-        select_arrays.append (selected)
+        select_arrays.append(selected)
 
-    if len (select_arrays) > 0:
+    if len(select_arrays) > 0:
         selected = select_arrays[0]
         for sel_i in select_arrays[1:]:
-             selected = np.logical_and (selected, sel_i)
+             selected = np.logical_and(selected, sel_i)
         newdata = data[selected]
     else:
         newdata = data.copy()
 
     fd.close()
 
-    nselect = len (newdata)
+    nselect = len(newdata)
     if nselect < 1:
         newdata = None
 
     if (exactly_one or at_least_one) and nselect < 1:
         message = "Table has no matching row;\n" + \
                   "table name is " + table + "\n" + \
-                  "row selection is " + repr (filter)
-        raise RuntimeError (message)
+                  "row selection is " + repr(filter)
+        raise RuntimeError(message)
 
     if exactly_one and nselect > 1:
-        printWarning ("Table has more than one matching row;")
-        printContinuation ("table name is " + table)
-        printContinuation ("row selection is " + repr (filter))
-        printContinuation ("only the first will be used.")
+        printWarning("Table has more than one matching row;")
+        printContinuation("table name is " + table)
+        printContinuation("row selection is " + repr(filter))
+        printContinuation("only the first will be used.")
 
     return newdata
 
-def getColCopy (filename="", column=None, extension=1, data=None):
+def getColCopy(filename="", column=None, extension=1, data=None):
     """Return the specified column in native format.
 
     Specify either the data block (`data`) or the name of a file
@@ -519,23 +519,23 @@ def getColCopy (filename="", column=None, extension=1, data=None):
     """
 
     if filename and data is not None:
-        raise RuntimeError ("Specify either filename or data, but not both.")
+        raise RuntimeError("Specify either filename or data, but not both.")
 
     if filename:
-        fd = pyfits.open (filename, mode="copyonwrite")
-        temp = fd[extension].data.field (column)
+        fd = pyfits.open(filename, mode="copyonwrite")
+        temp = fd[extension].data.field(column)
         fd.close()
     elif data is not None:
-        temp = data.field (column)
+        temp = data.field(column)
     else:
-        raise RuntimeError ("Either filename or data must be specified.")
+        raise RuntimeError("Either filename or data must be specified.")
 
-    x = np.empty (temp.shape, dtype=temp.dtype.type)
+    x = np.empty(temp.shape, dtype=temp.dtype.type)
     x[...] = temp
 
     return x
 
-def getTemplate (raw_template, x_offset, nelem):
+def getTemplate(raw_template, x_offset, nelem):
     """Return the template spectrum embedded in a possibly larger array.
 
     Parameters
@@ -556,17 +556,17 @@ def getTemplate (raw_template, x_offset, nelem):
         and right.
     """
 
-    len_raw = len (raw_template)
+    len_raw = len(raw_template)
 
     if x_offset == 0 and nelem == len_raw:
         return raw_template.copy()
 
-    template = np.zeros (nelem, dtype=raw_template.dtype)
+    template = np.zeros(nelem, dtype=raw_template.dtype)
     template[x_offset:len_raw+x_offset] = raw_template
 
     return template
 
-def determineLivetime (countrate, obs_rate, live_factor):
+def determineLivetime(countrate, obs_rate, live_factor):
     """Compute livetime factor from observed count rate.
 
     This is just linear interpolation in live_factor vs obs_rate.
@@ -588,7 +588,7 @@ def determineLivetime (countrate, obs_rate, live_factor):
         The interpolated livetime factor.
     """
 
-    n = len (obs_rate)
+    n = len(obs_rate)
 
     if countrate <= 0.:
         livetime = 1.
@@ -600,7 +600,7 @@ def determineLivetime (countrate, obs_rate, live_factor):
         livetime = live_factor[n-1]
     else:
         # Find the interval containing the observed count rate, and interpolate.
-        for i in range (n-1):
+        for i in range(n-1):
             if countrate < obs_rate[i+1]:
                 p = (countrate - obs_rate[i]) / (obs_rate[i+1] - obs_rate[i])
                 q = 1. - p
@@ -609,7 +609,7 @@ def determineLivetime (countrate, obs_rate, live_factor):
 
     return livetime
 
-def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
+def isLampOn(xi, eta, dq, info, xtractab, shift2=0.):
     """Test whether a lamp was on.
 
     This function returns True if a wavecal lamp was on, i.e. if the
@@ -656,25 +656,25 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
         b_bkg1 = 705.
         b_bkg2 = 505.
         b_hgt = 50
-        source = np.zeros ((height, len_spectrum), dtype=np.float64)
-        background1 = np.zeros ((b_hgt, len_spectrum), dtype=np.float64)
-        background2 = np.zeros ((b_hgt, len_spectrum), dtype=np.float64)
-        ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
-                         dq, info["sdqflags"])
-        ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
-                         dq, info["sdqflags"])
-        ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
-                         dq, info["sdqflags"])
-        ns = source.sum (dtype=np.float64)
-        nb = background1.sum (dtype=np.float64) + \
-             background2.sum (dtype=np.float64)
-        sigma_s = math.sqrt (ns)
-        sigma_b = math.sqrt (nb)
-        printMsg ("Counts from lamp = %.0f, background = %.1f, " \
-                  "stddev of difference = %.2f" % \
-                  (ns, nb, math.sqrt (sigma_s**2 + sigma_b**2)),
-                  level=VERY_VERBOSE)
-        sigma_s_b = math.sqrt (sigma_s**2 + sigma_b**2)
+        source = np.zeros((height, len_spectrum), dtype=np.float64)
+        background1 = np.zeros((b_hgt, len_spectrum), dtype=np.float64)
+        background2 = np.zeros((b_hgt, len_spectrum), dtype=np.float64)
+        ccos.xy_extract(xi, eta, source, slope, b_spec, x_offset,
+                        dq, info["sdqflags"])
+        ccos.xy_extract(xi, eta, background1, slope, b_bkg1, x_offset,
+                        dq, info["sdqflags"])
+        ccos.xy_extract(xi, eta, background2, slope, b_bkg2, x_offset,
+                        dq, info["sdqflags"])
+        ns = source.sum(dtype=np.float64)
+        nb = background1.sum(dtype=np.float64) + \
+             background2.sum(dtype=np.float64)
+        sigma_s = math.sqrt(ns)
+        sigma_b = math.sqrt(nb)
+        printMsg("Counts from lamp = %.0f, background = %.1f, " \
+                 "stddev of difference = %.2f" % \
+                 (ns, nb, math.sqrt(sigma_s**2 + sigma_b**2)),
+                 level=VERY_VERBOSE)
+        sigma_s_b = math.sqrt(sigma_s**2 + sigma_b**2)
         if sigma_s_b > 0.:
             signal_to_noise = (ns - nb) / sigma_s_b
         else:
@@ -708,31 +708,31 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
     # nearly the same place for all stripes, so take the background region
     # for just NUVB.
     filter["segment"] = segment_list[0]         # if NUV, use NUVB
-    xtract_info = getTable (xtractab, filter)
+    xtract_info = getTable(xtractab, filter)
     if xtract_info is None:
-        printWarning ("(isLampOn) matching row not found in xtractab %s" \
-                      % xtractab)
-        printContinuation ("filter = %s" % str (filter))
+        printWarning("(isLampOn) matching row not found in xtractab %s" \
+                     % xtractab)
+        printContinuation("filter = %s" % str(filter))
         return False
 
-    slope  = xtract_info.field ("slope")[0]
-    b_bkg1 = xtract_info.field ("b_bkg1")[0] + shift2
-    b_bkg2 = xtract_info.field ("b_bkg2")[0] + shift2
-    if findColumn (xtract_info, "b_hgt1"):
-        bkg_height1 = xtract_info.field ("b_hgt1")[0]
-        bkg_height2 = xtract_info.field ("b_hgt2")[0]
+    slope  = xtract_info.field("slope")[0]
+    b_bkg1 = xtract_info.field("b_bkg1")[0] + shift2
+    b_bkg2 = xtract_info.field("b_bkg2")[0] + shift2
+    if findColumn(xtract_info, "b_hgt1"):
+        bkg_height1 = xtract_info.field("b_hgt1")[0]
+        bkg_height2 = xtract_info.field("b_hgt2")[0]
     else:
-        bkg_height1 = xtract_info.field ("bheight")[0]
+        bkg_height1 = xtract_info.field("bheight")[0]
         bkg_height2 = bkg_height1
-    background1 = np.zeros ((bkg_height1, len_spectrum), dtype=np.float64)
-    background2 = np.zeros ((bkg_height2, len_spectrum), dtype=np.float64)
-    ccos.xy_extract (xi, eta, background1, slope, b_bkg1, x_offset,
-                     dq, info["sdqflags"])
-    ccos.xy_extract (xi, eta, background2, slope, b_bkg2, x_offset,
-                     dq, info["sdqflags"])
+    background1 = np.zeros((bkg_height1, len_spectrum), dtype=np.float64)
+    background2 = np.zeros((bkg_height2, len_spectrum), dtype=np.float64)
+    ccos.xy_extract(xi, eta, background1, slope, b_bkg1, x_offset,
+                    dq, info["sdqflags"])
+    ccos.xy_extract(xi, eta, background2, slope, b_bkg2, x_offset,
+                    dq, info["sdqflags"])
     # number of background counts
-    unscaled_nb = background1.sum (dtype=np.float64) + \
-                  background2.sum (dtype=np.float64)
+    unscaled_nb = background1.sum(dtype=np.float64) + \
+                  background2.sum(dtype=np.float64)
     sum_bkg_height = bkg_height1 + bkg_height2
     del background1, background2
 
@@ -741,30 +741,30 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
     sum_height = 0
     for segment in segment_list:
         filter["segment"] = segment
-        xtract_info = getTable (xtractab, filter, exactly_one=True)
-        slope  = xtract_info.field ("slope")[0]
-        b_spec = xtract_info.field ("b_spec")[0] + shift2
-        height = xtract_info.field ("height")[0]
-        source = np.zeros ((height, len_spectrum), dtype=np.float64)
-        ccos.xy_extract (xi, eta, source, slope, b_spec, x_offset,
-                         dq, info["sdqflags"])
-        ns += source.sum (dtype=np.float64)
+        xtract_info = getTable(xtractab, filter, exactly_one=True)
+        slope  = xtract_info.field("slope")[0]
+        b_spec = xtract_info.field("b_spec")[0] + shift2
+        height = xtract_info.field("height")[0]
+        source = np.zeros((height, len_spectrum), dtype=np.float64)
+        ccos.xy_extract(xi, eta, source, slope, b_spec, x_offset,
+                        dq, info["sdqflags"])
+        ns += source.sum(dtype=np.float64)
         sum_height += height
         del source
 
     # The heights of the source and background regions differ, so the
     # background counts will be multiplied by this factor.
-    normalization = float (sum_height) / float (sum_bkg_height)
-    nb = float (unscaled_nb) * normalization
-    sigma_s = math.sqrt (ns)
-    sigma_b = normalization * math.sqrt (unscaled_nb)
+    normalization = float(sum_height) / float(sum_bkg_height)
+    nb = float(unscaled_nb) * normalization
+    sigma_s = math.sqrt(ns)
+    sigma_b = normalization * math.sqrt(unscaled_nb)
 
-    printMsg ("Counts in wavecal = %.0f, background = %.1f, " \
-              "stddev of difference = %.2f" % \
-              (ns, nb, math.sqrt (sigma_s**2 + sigma_b**2)),
-              level=VERY_VERBOSE)
+    printMsg("Counts in wavecal = %.0f, background = %.1f, " \
+             "stddev of difference = %.2f" % \
+             (ns, nb, math.sqrt(sigma_s**2 + sigma_b**2)),
+             level=VERY_VERBOSE)
 
-    sigma_s_b = math.sqrt (sigma_s**2 + sigma_b**2)
+    sigma_s_b = math.sqrt(sigma_s**2 + sigma_b**2)
     if sigma_s_b > 0.:
         signal_to_noise = (ns - nb) / sigma_s_b
     else:
@@ -775,7 +775,7 @@ def isLampOn (xi, eta, dq, info, xtractab, shift2=0.):
     else:
         return False
 
-def getHeaders (input):
+def getHeaders(input):
     """Return a list of all the headers in the file.
 
     Parameters
@@ -789,7 +789,7 @@ def getHeaders (input):
         A list of all the headers in the input FITS file.
     """
 
-    fd = pyfits.open (input, mode="copyonwrite")
+    fd = pyfits.open(input, mode="copyonwrite")
 
     headers = [hdu.header.copy() for hdu in fd]
 
@@ -797,7 +797,7 @@ def getHeaders (input):
 
     return headers
 
-def timeAtMidpoint (info):
+def timeAtMidpoint(info):
     """Return the time (MJD) at the midpoint of an exposure.
 
     Parameters
@@ -813,7 +813,7 @@ def timeAtMidpoint (info):
 
     return (info["expstart"] + info["expend"]) / 2.
 
-def timelineTimes (first_time, last_time, dt=1.):
+def timelineTimes(first_time, last_time, dt=1.):
     """Create an array of times.
 
     Parameters
@@ -836,15 +836,15 @@ def timelineTimes (first_time, last_time, dt=1.):
     """
 
     if first_time is None or (last_time - first_time) <= 0.:
-        tl_time = np.arange (1, dtype=np.float32)
+        tl_time = np.arange(1, dtype=np.float32)
     else:
         # add one so every event will be within the array of times
-        nelem = int (round ((last_time - first_time) / dt)) + 1
-        tl_time = first_time + dt * np.arange (nelem, dtype=np.float32)
+        nelem = int(round((last_time - first_time) / dt)) + 1
+        tl_time = first_time + dt * np.arange(nelem, dtype=np.float32)
 
     return tl_time
 
-def geometricDistortion (x, y, geofile, segment, igeocorr):
+def geometricDistortion(x, y, geofile, segment, igeocorr):
     """Apply geometric (INL) correction.
 
     Parameters
@@ -865,30 +865,30 @@ def geometricDistortion (x, y, geofile, segment, igeocorr):
         "PERFORM" if interpolation should be used within the geofile.
     """
 
-    fd = pyfits.open (geofile, mode="copyonwrite")
+    fd = pyfits.open(geofile, mode="copyonwrite")
     x_hdu = fd[(segment,1)]
     y_hdu = fd[(segment,2)]
 
-    origin_x = x_hdu.header.get ("origin_x", 0)
-    origin_y = x_hdu.header.get ("origin_y", 0)
+    origin_x = x_hdu.header.get("origin_x", 0)
+    origin_y = x_hdu.header.get("origin_y", 0)
 
-    if origin_x != y_hdu.header.get ("origin_x", 0) or \
-       origin_y != y_hdu.header.get ("origin_y", 0):
-        raise RuntimeError ("Inconsistent ORIGIN_X or _Y keywords in GEOFILE")
+    if origin_x != y_hdu.header.get("origin_x", 0) or \
+       origin_y != y_hdu.header.get("origin_y", 0):
+        raise RuntimeError("Inconsistent ORIGIN_X or _Y keywords in GEOFILE")
 
-    xbin = x_hdu.header.get ("xbin", 1)
-    ybin = x_hdu.header.get ("ybin", 1)
-    if xbin != y_hdu.header.get ("xbin", 1) or \
-       ybin != y_hdu.header.get ("ybin", 1):
-        raise RuntimeError ("Inconsistent XBIN or YBIN keywords in GEOFILE")
+    xbin = x_hdu.header.get("xbin", 1)
+    ybin = x_hdu.header.get("ybin", 1)
+    if xbin != y_hdu.header.get("xbin", 1) or \
+       ybin != y_hdu.header.get("ybin", 1):
+        raise RuntimeError("Inconsistent XBIN or YBIN keywords in GEOFILE")
 
     interp_flag = (igeocorr == "PERFORM")
-    ccos.geocorrection (x, y, x_hdu.data, y_hdu.data, interp_flag,
-                origin_x, origin_y, xbin, ybin)
+    ccos.geocorrection(x, y, x_hdu.data, y_hdu.data, interp_flag,
+                       origin_x, origin_y, xbin, ybin)
 
     fd.close()
 
-def activeArea (segment, brftab):
+def activeArea(segment, brftab):
     """Return the limits of the FUV active area.
 
     Parameters
@@ -910,16 +910,16 @@ def activeArea (segment, brftab):
     if segment[0] == "N":
         return (0, NUV_Y-1, 0, NUV_X-1)
 
-    brf_info = getTable (brftab, {"segment": segment}, exactly_one=True)
+    brf_info = getTable(brftab, {"segment": segment}, exactly_one=True)
 
-    a_low = brf_info.field ("a_low")[0]
-    a_high = brf_info.field ("a_high")[0]
-    a_left = brf_info.field ("a_left")[0]
-    a_right = brf_info.field ("a_right")[0]
+    a_low = brf_info.field("a_low")[0]
+    a_high = brf_info.field("a_high")[0]
+    a_left = brf_info.field("a_left")[0]
+    a_right = brf_info.field("a_right")[0]
 
     return (a_low, a_high, a_left, a_right)
 
-def getInputDQ (input, imset=1):
+def getInputDQ(input, imset=1):
     """Return the data quality array, or an array of zeros.
 
     If the data quality extension (EXTNAME = "DQ", EXTVER = imset) actually
@@ -943,7 +943,7 @@ def getInputDQ (input, imset=1):
         Data quality array read from input file, or array of zeros.
     """
 
-    fd = pyfits.open (input, mode="copyonwrite")
+    fd = pyfits.open(input, mode="copyonwrite")
 
     hdr = fd[("DQ",imset)].header
     detector = fd[0].header["detector"]
@@ -970,10 +970,10 @@ def getInputDQ (input, imset=1):
             # undo the flagging of regions outside subarrays
             dq_array = np.bitwise_and (dq_array, 16383-(64+128))
         else:
-            dq_array = np.zeros (npix, dtype=np.int16)
+            dq_array = np.zeros(npix, dtype=np.int16)
             dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",imset)].data
     else:
-        dq_array = np.zeros (npix, dtype=np.int16)
+        dq_array = np.zeros(npix, dtype=np.int16)
         if "pixvalue" in hdr:
             pixvalue = hdr["pixvalue"]
             if pixvalue != 0:
@@ -983,7 +983,7 @@ def getInputDQ (input, imset=1):
 
     return dq_array
 
-def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
+def minmaxDoppler(info, doppcorr, doppmag, doppzero, orbitper):
     """Compute the range of Doppler shifts.
 
     Parameters
@@ -994,21 +994,23 @@ def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
     doppcorr: str
         Calibration switch from header; if doppcorr is "PERFORM", the DQ
         positions will be shifted to track the Doppler shift during the
-        exposure
+        exposure.
 
     doppmag: float
-        Magnitude (pixels) of the Doppler shift
+        Magnitude (pixels) of the Doppler shift.
 
     doppzero: float
-        Time (MJD) when the Doppler shift is zero and increasing
+        Time (MJD) when the Doppler shift is zero and increasing.
 
     orbitper: float
-        Orbital period (s) of HST
+        Orbital period (s) of HST.
 
     Returns
     -------
     tuple of two floats
-        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
+        Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit).
+        The sign is such that the Doppler shift should be added to XCORR
+        to get XDOPP (the Doppler corrected X pixel coordinate).
     """
 
     if doppcorr == "PERFORM" or doppcorr == "COMPLETE":
@@ -1016,13 +1018,13 @@ def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
         exptime  = info["exptime"]
 
         # time is the time in seconds since doppzero.
-        nelem = int (round (exptime))           # one element per sec
-        nelem = max (nelem, 1)
-        time = np.arange (nelem, dtype=np.float64) + \
-                   (expstart - doppzero) * SEC_PER_DAY
+        nelem = int(round(exptime))             # one element per sec
+        nelem = max(nelem, 1)
+        time = np.arange(nelem, dtype=np.float64) + \
+                         (expstart - doppzero) * SEC_PER_DAY
 
         # shift is in pixels (wavelengths increase toward larger pixel number).
-        shift = -doppmag * np.sin (2. * np.pi * time / orbitper)
+        shift = -doppmag * np.sin(2. * np.pi * time / orbitper)
         mindopp = shift.min()
         maxdopp = shift.max()
     else:
@@ -1031,9 +1033,9 @@ def minmaxDoppler (info, doppcorr, doppmag, doppzero, orbitper):
 
     return (mindopp, maxdopp)
 
-def updateDQArray (info, reffiles, dq_array,
-                   minmax_shift_dict,
-                   minmax_doppler, doppler_boundary):
+def updateDQArray(info, reffiles, dq_array,
+                  minmax_shift_dict,
+                  minmax_doppler, doppler_boundary):
     """Apply the data quality initialization table to DQ array.
 
     dq_array is a 2-D array, to be written as the DQ extension in an
@@ -1067,14 +1069,19 @@ def updateDQArray (info, reffiles, dq_array,
             Y >= doppler_boundary is the WCA
     """
 
-    (lx, ly, dx, dy, dq, extn, message) = getDQArrays (info, reffiles)
-    if len (lx) < 1:
+    (lx, ly, dx, dy, dq, extn, message) = getDQArrays(info, reffiles)
+    if len(lx) < 1:
         return
 
     dq_shape = dq_array.shape
 
+    # Upper limits (inclusive) of regions to flag.
     ux = lx + dx - 1
     uy = ly + dy - 1
+
+    # A comment on notation for lower and upper limits of regions to flag:
+    # suffix _s means shifted, i.e. wavecal and/or Doppler shift
+    # suffix _s_s means shifted and relative to the lower limit of a slice
 
     (mindopp, maxdopp) = minmax_doppler
 
@@ -1095,7 +1102,7 @@ def updateDQArray (info, reffiles, dq_array,
     #   the minimum shift will be subtracted from the upper limit.
     # It is explicitly assumed here that the slice is only in the cross-
     # dispersion direction.
-    keys = sorted (minmax_dict)
+    keys = sorted(minmax_dict)
     for key in keys:
         (lower_y, upper_y) = key
         [min_shift1, max_shift1, min_shift2, max_shift2] = \
@@ -1103,43 +1110,38 @@ def updateDQArray (info, reffiles, dq_array,
 
         if doppler_boundary > 0. and \
            ((lower_y + upper_y) // 2 < doppler_boundary):
-            lx_s = lx - int (round (max_shift1 - mindopp))
-            ux_s = ux - int (round (min_shift1 - maxdopp))
+            lx_s = lx - int(round(max_shift1 - mindopp))
+            ux_s = ux - int(round(min_shift1 - maxdopp))
         else:
-            lx_s = lx - int (round (max_shift1))
-            ux_s = ux - int (round (min_shift1))
+            lx_s = lx - int(round(max_shift1))
+            ux_s = ux - int(round(min_shift1))
+        lx_s = lx_s.astype(np.int32)
+        ux_s = ux_s.astype(np.int32)
 
-        # These are the limits of a slice.
-        lower_y_s = lower_y - int (round (max_shift2))
-        upper_y_s = upper_y - int (round (min_shift2))
+        # Correct the Y limits of the regions for the wavecal shift.
+        ly_s = (ly.astype(np.float64) - max_shift2).round()
+        uy_s = (uy.astype(np.float64) - min_shift2).round()
+
+        # These are the limits of a slice, corrected for the wavecal shift.
+        lower_y_s = int(round(lower_y - max_shift2))
+        upper_y_s = int(round(upper_y - min_shift2))
         if upper_y_s < 0:
             continue
         if lower_y_s >= dq_shape[0]:
             continue
-        # Truncation at lower and upper borders is done later.
-
-        # These are Y locations relative to the slice.
-        # ly - max_shift2 - (lower_y - max_shift2)
-        #  = ly - lower_y
-        ly_s = ly - lower_y
-        # uy - min_shift2 - (lower_y - max_shift2)
-        #  = uy - min_shift2 - lower_y_s
-        uy_s = uy - int (round (min_shift2)) - lower_y_s
-
-        lx_s = lx_s.astype (np.int32)
-        ux_s = ux_s.astype (np.int32)
-        ly_s = ly_s.astype (np.int32)
-        uy_s = uy_s.astype (np.int32)
-
-        if lower_y_s < 0:
-            lower_y_s = 0
+        if lower_y_s < 0.:
+            lower_y_s = 0.
         if upper_y_s > dq_shape[0]:
             upper_y_s = dq_shape[0]
 
-        ccos.bindq (lx_s, ly_s, ux_s, uy_s, dq,
-                    dq_array[lower_y_s:upper_y_s,:], info["x_offset"])
+        # These are the shifted Y region limits relative to the slice.
+        ly_s_slice = (ly_s - lower_y_s).astype(np.int32)
+        uy_s_slice = (uy_s - lower_y_s).astype(np.int32)
 
-def getDQArrays (info, reffiles):
+        ccos.bindq(lx_s, ly_s_slice, ux_s, uy_s_slice, dq,
+                   dq_array[lower_y_s:upper_y_s,:], info["x_offset"])
+
+def getDQArrays(info, reffiles):
     """Get DQ info from BPIXTAB and possibly GSAGTAB.
 
     Parameters
@@ -1170,41 +1172,41 @@ def getDQArrays (info, reffiles):
     lx = []; ly = []; dx = []; dy = []; dq = []; extn = None; message = ""
 
     bpixtab = reffiles["bpixtab"]
-    dq_info = getTable (bpixtab, filter={"segment": info["segment"]})
+    dq_info = getTable(bpixtab, filter={"segment": info["segment"]})
     if dq_info is None:
         return (lx, ly, dx, dy, dq, extn, message)
 
-    lx = dq_info.field ("lx")
-    ly = dq_info.field ("ly")
-    dx = dq_info.field ("dx")
-    dy = dq_info.field ("dy")
-    dq = dq_info.field ("dq")
+    lx = dq_info.field("lx")
+    ly = dq_info.field("ly")
+    dx = dq_info.field("dx")
+    dy = dq_info.field("dy")
+    dq = dq_info.field("dq")
 
     if info["detector"] == "FUV":
         gsagtab = reffiles["gsagtab"]
         if gsagtab != NOT_APPLICABLE:
-            (extn, message) = findGSagExtn (gsagtab, info["hvlevel"],
-                                            info["segment"])
+            (extn, message) = findGSagExtn(gsagtab, info["hvlevel"],
+                                           info["segment"])
             if extn > 0:        # was an appropriate extension found?
-                gsag_info = getTable (gsagtab,
+                gsag_info = getTable(gsagtab,
                         filter={"date": (np.less_equal, info["expstart"])},
                         extension=extn)
                 if gsag_info is not None:
-                    gsag_lx = gsag_info.field ("lx")
-                    gsag_ly = gsag_info.field ("ly")
-                    gsag_dx = gsag_info.field ("dx")
-                    gsag_dy = gsag_info.field ("dy")
-                    gsag_dq = gsag_info.field ("dq")
+                    gsag_lx = gsag_info.field("lx")
+                    gsag_ly = gsag_info.field("ly")
+                    gsag_dx = gsag_info.field("dx")
+                    gsag_dy = gsag_info.field("dy")
+                    gsag_dq = gsag_info.field("dq")
 
-                    lx = concatArrays (lx, gsag_lx)
-                    ly = concatArrays (ly, gsag_ly)
-                    dx = concatArrays (dx, gsag_dx)
-                    dy = concatArrays (dy, gsag_dy)
-                    dq = concatArrays (dq, gsag_dq)
+                    lx = concatArrays(lx, gsag_lx)
+                    ly = concatArrays(ly, gsag_ly)
+                    dx = concatArrays(dx, gsag_dx)
+                    dy = concatArrays(dy, gsag_dy)
+                    dq = concatArrays(dq, gsag_dq)
 
     return (lx, ly, dx, dy, dq, extn, message)
 
-def concatArrays (x0, x1):
+def concatArrays(x0, x1):
     """Concatenate two arrays.
 
     Parameters
@@ -1221,17 +1223,17 @@ def concatArrays (x0, x1):
         This is the result of appending x1 to x0.
     """
 
-    length0 = len (x0)
-    length1 = len (x1)
+    length0 = len(x0)
+    length1 = len(x1)
     length = length0 + length1
     dtype = x0.dtype
-    x = np.zeros (length, dtype=dtype)
+    x = np.zeros(length, dtype=dtype)
     x[0:length0] = x0
     x[length0:length] = x1
 
     return x
 
-def findGSagExtn (gsagtab, hvlevel, segment):
+def findGSagExtn(gsagtab, hvlevel, segment):
     """Find the appropriate extension in the gain sag table.
 
     Parameters
@@ -1264,19 +1266,19 @@ def findGSagExtn (gsagtab, hvlevel, segment):
     """
 
     kwd_root = "hvlevel"        # high voltage (commanded, raw)
-    keyword = segmentSpecificKeyword (kwd_root, segment)
+    keyword = segmentSpecificKeyword(kwd_root, segment)
 
-    fd = pyfits.open (gsagtab)
+    fd = pyfits.open(gsagtab)
     extn = -1           # default indicates that no extension matched the HV
     message = ""
     extn_hv_min = None
     hv_diff = None
-    for i in range (1, len (fd)):
+    for i in range(1, len(fd)):
         hdr = fd[i].header
-        segment_i = hdr.get ("segment", default="missing")
+        segment_i = hdr.get("segment", default="missing")
         if segment_i != segment:
             continue
-        hv = hdr.get (keyword, default=-999)
+        hv = hdr.get(keyword, default=-999)
         if hv == hvlevel:
             extn = i
             break
@@ -1298,7 +1300,7 @@ def findGSagExtn (gsagtab, hvlevel, segment):
 
     return (extn, message)
 
-def flagOutOfBounds (hdr, dq_array, info, switches,
+def flagOutOfBounds(hdr, dq_array, info, switches,
                      brftab, geofile, minmax_shift_dict,
                      minmax_doppler, doppler_boundary):
     """Flag regions that are outside all subarrays (done in-place).
@@ -1338,17 +1340,17 @@ def flagOutOfBounds (hdr, dq_array, info, switches,
     """
 
     if info["detector"] == "FUV":
-        fuvFlagOutOfBounds (hdr, dq_array, info, switches,
-                            brftab, geofile, minmax_shift_dict,
-                            minmax_doppler)
+        fuvFlagOutOfBounds(hdr, dq_array, info, switches,
+                           brftab, geofile, minmax_shift_dict,
+                           minmax_doppler)
     else:
-        nuvFlagOutOfBounds (hdr, dq_array, info, switches,
-                            minmax_shift_dict,
-                            minmax_doppler, doppler_boundary)
+        nuvFlagOutOfBounds(hdr, dq_array, info, switches,
+                           minmax_shift_dict,
+                           minmax_doppler, doppler_boundary)
 
-def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
-                        brftab, geofile, minmax_shift_dict,
-                        minmax_doppler):
+def fuvFlagOutOfBounds(hdr, dq_array, info, switches,
+                       brftab, geofile, minmax_shift_dict,
+                       minmax_doppler):
     """In FUV data, flag regions that are outside all subarrays (in-place).
 
     Parameters
@@ -1385,7 +1387,7 @@ def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
     segment = info["segment"]
 
     # Indices 0, 1, 2, 3 are for FUVA, while 4, 5, 6, 7 are for FUVB.
-    indices = np.arange (4, dtype=np.int32)
+    indices = np.arange(4, dtype=np.int32)
     if segment == "FUVB":
         indices += 4
 
@@ -1402,16 +1404,16 @@ def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
     dx = min_shift1
     dy = min_shift2
     dx -= maxdopp
-    dx = int (round (dx))
-    dy = int (round (dy))
-    xwidth = int (round (max_shift1 - min_shift1 + maxdopp - mindopp))
-    ywidth = int (round (max_shift2 - min_shift2))
+    dx = int(round(dx))
+    dy = int(round(dy))
+    xwidth = int(round(max_shift1 - min_shift1 + maxdopp - mindopp))
+    ywidth = int(round(max_shift2 - min_shift2))
 
     # get a list of subarray locations
     subarrays = []
     for i in indices:
         sub = {}
-        sub_number = str (i)
+        sub_number = str(i)
         # these keywords are 0-indexed
         x0 = hdr["corner"+sub_number+"x"]
         y0 = hdr["corner"+sub_number+"y"]
@@ -1427,7 +1429,7 @@ def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
         sub["y0"] = y0
         sub["x1"] = x1
         sub["y1"] = y1
-        subarrays.append (sub)
+        subarrays.append(sub)
     if not subarrays:
         # Create one full-size "subarray" in order to account for the NUV
         # image being larger than the detector and because of fpoffset.
@@ -1442,7 +1444,7 @@ def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
         sub["y0"] = x0
         sub["x1"] = x1
         sub["y1"] = y1
-        subarrays.append (sub)
+        subarrays.append(sub)
 
     # Initially flag the entire image as out of bounds, then remove the
     # flag (set it to zero) for each subarray.
@@ -1455,15 +1457,15 @@ def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
         # Get the parameters found by computeThermalParam.
         seg = segment[-1]           # "A" or "B"
         # reference positions
-        sx1r = hdr.get ("STIM"+seg+"0LX", -1.)
-        sy1r = hdr.get ("STIM"+seg+"0LY", -1.)
-        sx2r = hdr.get ("STIM"+seg+"0RX", -1.)
-        sy2r = hdr.get ("STIM"+seg+"0RY", -1.)
+        sx1r = hdr.get("STIM"+seg+"0LX", -1.)
+        sy1r = hdr.get("STIM"+seg+"0LY", -1.)
+        sx2r = hdr.get("STIM"+seg+"0RX", -1.)
+        sy2r = hdr.get("STIM"+seg+"0RY", -1.)
         # measured positions of the stims
-        sx1 = hdr.get ("STIM"+seg+"_LX", sx1r)
-        sy1 = hdr.get ("STIM"+seg+"_LY", sy1r)
-        sx2 = hdr.get ("STIM"+seg+"_RX", sx2r)
-        sy2 = hdr.get ("STIM"+seg+"_RY", sy2r)
+        sx1 = hdr.get("STIM"+seg+"_LX", sx1r)
+        sy1 = hdr.get("STIM"+seg+"_LY", sy1r)
+        sx2 = hdr.get("STIM"+seg+"_RX", sx2r)
+        sy2 = hdr.get("STIM"+seg+"_RY", sy2r)
         if sx1 < 0:
             sx1 = sx1r
         if sy1 < 0:
@@ -1499,13 +1501,13 @@ def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
             sub["y0"] = yintercept + y0 * yslope
             sub["x1"] = xintercept + (x1 - 1.) * xslope + 1.
             sub["y1"] = yintercept + (y1 - 1.) * yslope + 1.
-            new_subarrays.append (sub)
+            new_subarrays.append(sub)
         del subarrays
         subarrays = new_subarrays
 
     # Add shifts, apply geometric correction to the subarray for the
     # source spectrum, and set flags to zero in temp within subarrays.
-    (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
+    (b_low, b_high, b_left, b_right) = activeArea(segment, brftab)
     nfound = 0
     save_sub = None
     for sub in subarrays:
@@ -1515,83 +1517,83 @@ def fuvFlagOutOfBounds (hdr, dq_array, info, switches,
         y1 = sub["y1"]
         # the subarrays for the stims are outside the active area
         if y1 < b_low or y0 > b_high:
-            clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset)
+            clearSubarray(temp, x0, x1, y0, y1, dx, dy, x_offset)
             continue
         nfound += 1
         # These are arrays of pixel coordinates just inside the borders
         # of the subarray.
-        x_lower = np.arange (x0, x1, dtype=np.float32)
-        x_upper = np.arange (x0, x1, dtype=np.float32)
-        y_left  = np.arange (y0, y1, dtype=np.float32)
-        y_right = np.arange (y0, y1, dtype=np.float32)
+        x_lower = np.arange(x0, x1, dtype=np.float32)
+        x_upper = np.arange(x0, x1, dtype=np.float32)
+        y_left  = np.arange(y0, y1, dtype=np.float32)
+        y_right = np.arange(y0, y1, dtype=np.float32)
         y_lower = y0 + 0. * x_lower
         y_upper = (y1 - 1.) + 0. * x_upper
         x_left  = x0 + 0. * y_left
         x_right = (x1 - 1.) + 0. * y_right
         # These are independent variable arrays for interpolation.
-        x_lower_uniform = np.arange (nx, dtype=np.float32)
-        x_upper_uniform = np.arange (nx, dtype=np.float32)
-        y_left_uniform  = np.arange (ny, dtype=np.float32)
-        y_right_uniform = np.arange (ny, dtype=np.float32)
+        x_lower_uniform = np.arange(nx, dtype=np.float32)
+        x_upper_uniform = np.arange(nx, dtype=np.float32)
+        y_left_uniform  = np.arange(ny, dtype=np.float32)
+        y_right_uniform = np.arange(ny, dtype=np.float32)
         # These will be the arrays of interpolated edge coordinates.
-        y_lower_interp = np.arange (nx, dtype=np.float32)
-        y_upper_interp = np.arange (nx, dtype=np.float32)
-        x_left_interp  = np.arange (ny, dtype=np.float32)
-        x_right_interp = np.arange (ny, dtype=np.float32)
+        y_lower_interp = np.arange(nx, dtype=np.float32)
+        y_upper_interp = np.arange(nx, dtype=np.float32)
+        x_left_interp  = np.arange(ny, dtype=np.float32)
+        x_right_interp = np.arange(ny, dtype=np.float32)
         save_sub = (x0, x1, y0, y1)             # in case geocorr is omit
     if nfound == 0:
-        printWarning ("in fuvFlagOutOfBounds,"
-                      " there should be at least one full-size 'subarray'")
+        printWarning("in fuvFlagOutOfBounds,"
+                     " there should be at least one full-size 'subarray'")
     if nfound > 1:
-        printWarning ("in fuvFlagOutOfBounds, more subarrays than expected")
+        printWarning("in fuvFlagOutOfBounds, more subarrays than expected")
     # The test on COMPLETE is for corrtag input.
     if switches["geocorr"] == "PERFORM" or switches["geocorr"] == "COMPLETE":
         interp_flag = (switches["igeocorr"] == "PERFORM")
         (x_data, origin_x, xbin, y_data, origin_y, ybin) = \
-                        getGeoData (geofile, segment)
+                        getGeoData(geofile, segment)
         # Undistort x_lower, y_lower, etc., in-place.
-        ccos.geocorrection (x_lower, y_lower, x_data, y_data, interp_flag,
-                            origin_x, origin_y, xbin, ybin)
-        ccos.geocorrection (x_upper, y_upper, x_data, y_data, interp_flag,
-                            origin_x, origin_y, xbin, ybin)
-        ccos.geocorrection (x_left, y_left, x_data, y_data, interp_flag,
-                            origin_x, origin_y, xbin, ybin)
-        ccos.geocorrection (x_right, y_right, x_data, y_data, interp_flag,
-                            origin_x, origin_y, xbin, ybin)
-        del (x_data, y_data)
+        ccos.geocorrection(x_lower, y_lower, x_data, y_data, interp_flag,
+                           origin_x, origin_y, xbin, ybin)
+        ccos.geocorrection(x_upper, y_upper, x_data, y_data, interp_flag,
+                           origin_x, origin_y, xbin, ybin)
+        ccos.geocorrection(x_left, y_left, x_data, y_data, interp_flag,
+                           origin_x, origin_y, xbin, ybin)
+        ccos.geocorrection(x_right, y_right, x_data, y_data, interp_flag,
+                           origin_x, origin_y, xbin, ybin)
+        del(x_data, y_data)
         # Interpolate to uniform spacing (pixel spacing).
-        ccos.interp1d (x_lower, y_lower, x_lower_uniform, y_lower_interp)
-        ccos.interp1d (x_upper, y_upper, x_upper_uniform, y_upper_interp)
-        ccos.interp1d (y_left,  x_left,  y_left_uniform,  x_left_interp)
-        ccos.interp1d (y_right, x_right, y_right_uniform, x_right_interp)
+        ccos.interp1d(x_lower, y_lower, x_lower_uniform, y_lower_interp)
+        ccos.interp1d(x_upper, y_upper, x_upper_uniform, y_upper_interp)
+        ccos.interp1d(y_left,  x_left,  y_left_uniform,  x_left_interp)
+        ccos.interp1d(y_right, x_right, y_right_uniform, x_right_interp)
         # Apply offsets for zero point and wavecal shifts, replacing the
         # previous x_lower, y_lower, etc.  The independent variable arrays
         # will now be uniform, and the dependent variable arrays will have
         # been interpolated onto the uniform grid.
-        (y_lower, y_upper) = applyOffsets (y_lower_interp, y_upper_interp,
-                                           ny, dy)
-        (x_left, x_right)  = applyOffsets (x_left_interp, x_right_interp,
-                                           nx, dx, x_offset)
+        (y_lower, y_upper) = applyOffsets(y_lower_interp, y_upper_interp,
+                                          ny, dy)
+        (x_left, x_right)  = applyOffsets(x_left_interp, x_right_interp,
+                                          nx, dx, x_offset)
 
-        ccos.clear_rows (temp, y_lower, y_upper, x_left, x_right)
+        ccos.clear_rows(temp, y_lower, y_upper, x_left, x_right)
     elif save_sub is not None:
         (x0, x1, y0, y1) = save_sub
-        clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset)
+        clearSubarray(temp, x0, x1, y0, y1, dx, dy, x_offset)
 
-    dq_array[:,:] = np.bitwise_or (dq_array, temp)
+    dq_array[:,:] = np.bitwise_or(dq_array, temp)
 
-def applyOffsets (x_left, x_right, nx, dx, x_offset=0):
+def applyOffsets(x_left, x_right, nx, dx, x_offset=0):
 
     x_left += x_offset
     x_right += x_offset
     x_left -= dx
     x_right -= dx
-    x_left = np.where (x_left < 0., 0., x_left)
-    x_right = np.where (x_right > nx-1., nx-1., x_right)
+    x_left = np.where(x_left < 0., 0., x_left)
+    x_right = np.where(x_right > nx-1., nx-1., x_right)
 
     return (x_left, x_right)
 
-def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
+def clearSubarray(temp, x0, x1, y0, y1, dx, dy, x_offset):
     """Set the subarray to zero in temp."""
 
     (ny, nx) = temp.shape
@@ -1601,14 +1603,14 @@ def clearSubarray (temp, x0, x1, y0, y1, dx, dy, x_offset):
     x1 += x_offset
     x1 -= dx
     y1 -= dy
-    x0 = max (x0, 0)
-    y0 = max (y0, 0)
-    x1 = min (x1, nx)
-    y1 = min (y1, ny)
+    x0 = max(x0, 0)
+    y0 = max(y0, 0)
+    x1 = min(x1, nx)
+    y1 = min(y1, ny)
     temp[y0:y1,x0:x1] = DQ_OK
 
-def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
-                        minmax_shift_dict, minmax_doppler, doppler_boundary):
+def nuvFlagOutOfBounds(hdr, dq_array, info, switches,
+                       minmax_shift_dict, minmax_doppler, doppler_boundary):
     """In NUV data, flag regions that are outside all subarrays (in-place).
 
     Parameters
@@ -1643,7 +1645,7 @@ def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
     x_offset = info["x_offset"]
     segment = info["segment"]
 
-    indices = np.arange (nsubarrays, dtype=np.int32)
+    indices = np.arange(nsubarrays, dtype=np.int32)
 
     # Initially flag the entire image as out of bounds, then remove the
     # flag (set it to zero) for each subarray.
@@ -1670,7 +1672,7 @@ def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
         subarrays = []
         for i in indices:
             sub = {}
-            sub_number = str (i)
+            sub_number = str(i)
             # these keywords are 0-indexed
             x0 = hdr["corner"+sub_number+"x"]
             y0 = hdr["corner"+sub_number+"y"]
@@ -1680,23 +1682,23 @@ def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
             y1 = y0 + ysize                     # modified below
             if xsize <= 0 or ysize <= 0:
                 continue
-            y0 = max (y0, lower_y)
-            y1 = min (y1, upper_y)
+            y0 = max(y0, lower_y)
+            y1 = min(y1, upper_y)
             if y0 >= y1:
                 continue
             if (lower_y + upper_y) // 2 < doppler_boundary:
-                x0 -= int (round (min_shift1 - maxdopp))
-                x1 -= int (round (max_shift1 - mindopp))
+                x0 -= int(round(min_shift1 - maxdopp))
+                x1 -= int(round(max_shift1 - mindopp))
             else:
-                x0 -= int (round (min_shift1))
-                x1 -= int (round (max_shift1))
-            y0 -= int (round (min_shift2))
-            y1 -= int (round (max_shift2))
+                x0 -= int(round(min_shift1))
+                x1 -= int(round(max_shift1))
+            y0 -= int(round(min_shift2))
+            y1 -= int(round(max_shift2))
             sub["x0"] = x0
             sub["y0"] = y0
             sub["x1"] = x1
             sub["y1"] = y1
-            subarrays.append (sub)
+            subarrays.append(sub)
         if not subarrays:
             # Create one full-size "subarray" in order to account for the NUV
             # image being larger than the detector and because of fpoffset.
@@ -1704,18 +1706,18 @@ def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
             x0 = 0
             x1 = x0 + NUV_X
             if (lower_y + upper_y) // 2 < doppler_boundary:
-                x0 -= int (round (min_shift1 - maxdopp))
-                x1 -= int (round (max_shift1 - mindopp))
+                x0 -= int(round(min_shift1 - maxdopp))
+                x1 -= int(round(max_shift1 - mindopp))
             else:
-                x0 -= int (round (min_shift1))
-                x1 -= int (round (max_shift1))
-            y0 = lower_y - int (round (min_shift2))
-            y1 = upper_y - int (round (max_shift2))
+                x0 -= int(round(min_shift1))
+                x1 -= int(round(max_shift1))
+            y0 = lower_y - int(round(min_shift2))
+            y1 = upper_y - int(round(max_shift2))
             sub["x0"] = x0
             sub["y0"] = x0
             sub["x1"] = x1
             sub["y1"] = y1
-            subarrays.append (sub)
+            subarrays.append(sub)
 
         # Add shifts, and set flags to zero in temp within subarrays.
         for sub in subarrays:
@@ -1723,16 +1725,16 @@ def nuvFlagOutOfBounds (hdr, dq_array, info, switches,
             x1 = sub["x1"] + x_offset
             y0 = sub["y0"]
             y1 = sub["y1"]
-            x0 = max (x0, 0)
-            y0 = max (y0, 0)
-            x1 = min (x1, nx)
-            y1 = min (y1, ny)
+            x0 = max(x0, 0)
+            y0 = max(y0, 0)
+            x1 = min(x1, nx)
+            y1 = min(y1, ny)
             temp[y0:y1,x0:x1] = DQ_OK
 
-    dq_array[:,:] = np.bitwise_or (dq_array, temp)
+    dq_array[:,:] = np.bitwise_or(dq_array, temp)
 
-def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
-                           minmax_shift_dict, minmax_doppler):
+def flagOutsideActiveArea(dq_array, segment, brftab, x_offset,
+                          minmax_shift_dict, minmax_doppler):
     """Flag the region that is outside the active area.
 
     This is only relevant for FUV data.
@@ -1760,7 +1762,7 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
         Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit)
     """
 
-    (b_low, b_high, b_left, b_right) = activeArea (segment, brftab)
+    (b_low, b_high, b_left, b_right) = activeArea(segment, brftab)
 
     # These are for shifting and smearing the out-of-bounds region into
     # the active region due to the wavecal offset and Doppler shift and
@@ -1769,13 +1771,13 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
     [min_shift1, max_shift1, min_shift2, max_shift2] = minmax_shift_dict[key]
     (mindopp, maxdopp) = minmax_doppler
 
-    b_left -= int (round (min_shift1))
-    b_right -= int (round (max_shift1))
-    b_low -= int (round (min_shift2))
-    b_high -= int (round (max_shift2))
+    b_left -= int(round(min_shift1))
+    b_right -= int(round(max_shift1))
+    b_low -= int(round(min_shift2))
+    b_high -= int(round(max_shift2))
 
-    b_left += int (round (maxdopp))
-    b_right += int (round (mindopp))
+    b_left += int(round(maxdopp))
+    b_right += int(round(mindopp))
 
     b_left += x_offset
     b_right += x_offset
@@ -1791,7 +1793,7 @@ def flagOutsideActiveArea (dq_array, segment, brftab, x_offset,
     if b_right < nx-1:
         dq_array[:,b_right+1:] |= DQ_PIXEL_OUT_OF_BOUNDS
 
-def getGeoData (geofile, segment):
+def getGeoData(geofile, segment):
     """Open and read the geofile.
 
     This is no longer used, and it can be deleted.
@@ -1816,25 +1818,25 @@ def getGeoData (geofile, segment):
         ybin:  binning (int) in the Y direction
     """
 
-    fd = pyfits.open (geofile, mode="copyonwrite")
+    fd = pyfits.open(geofile, mode="copyonwrite")
     x_hdu = fd[(segment,1)]
     y_hdu = fd[(segment,2)]
 
     # The images in the geofile will typically be smaller than the full
     # detector.  These offsets give the location of geofile pixel [0,0]
     # on the detector.
-    origin_x = x_hdu.header.get ("origin_x", 0)
-    origin_y = x_hdu.header.get ("origin_y", 0)
+    origin_x = x_hdu.header.get("origin_x", 0)
+    origin_y = x_hdu.header.get("origin_y", 0)
 
-    if origin_x != y_hdu.header.get ("origin_x", 0) or \
-       origin_y != y_hdu.header.get ("origin_y", 0):
-        raise RuntimeError ("Inconsistent ORIGIN_X or _Y keywords in GEOFILE")
+    if origin_x != y_hdu.header.get("origin_x", 0) or \
+       origin_y != y_hdu.header.get("origin_y", 0):
+        raise RuntimeError("Inconsistent ORIGIN_X or _Y keywords in GEOFILE")
 
-    xbin = x_hdu.header.get ("xbin", 1)
-    ybin = x_hdu.header.get ("ybin", 1)
-    if xbin != y_hdu.header.get ("xbin", 1) or \
-       ybin != y_hdu.header.get ("ybin", 1):
-        raise RuntimeError ("Inconsistent XBIN or YBIN keywords in GEOFILE")
+    xbin = x_hdu.header.get("xbin", 1)
+    ybin = x_hdu.header.get("ybin", 1)
+    if xbin != y_hdu.header.get("xbin", 1) or \
+       ybin != y_hdu.header.get("ybin", 1):
+        raise RuntimeError("Inconsistent XBIN or YBIN keywords in GEOFILE")
 
     # "touch" the data before closing the file.  Is this necessary?
     x_data = x_hdu.data
@@ -1844,7 +1846,7 @@ def getGeoData (geofile, segment):
 
     return (x_data, origin_x, xbin, y_data, origin_y, ybin)
 
-def tableHeaderToImage (thdr):
+def tableHeaderToImage(thdr):
     """Rename table WCS keywords to image WCS keywords.
 
     The function returns a copy of the header with table-specific WCS
@@ -1872,18 +1874,59 @@ def tableHeaderToImage (thdr):
     ikey = ["CTYPE1", "CRVAL1", "CRPIX1", "CDELT1", "CUNIT1", "CD1_1", "CD1_2",
             "CTYPE2", "CRVAL2", "CRPIX2", "CDELT2", "CUNIT2", "CD2_1", "CD2_2"]
     # Rename events table WCS keywords to the corresponding image WCS keywords.
-    for i in range (len (tkey)):
+    for i in range(len(tkey)):
         if tkey[i] in hdr:
             if ikey[i] in hdr:
-                printWarning ("Can't rename %s to %s" % (tkey[i], ikey[i]))
-                printContinuation ("keyword already exists")
-                del (hdr[tkey[i]])
+                printWarning("Can't rename %s to %s" % (tkey[i], ikey[i]))
+                printContinuation("keyword already exists")
+                del(hdr[tkey[i]])
             else:
-                hdr.rename_key (tkey[i], ikey[i])
+                hdr.rename_keyword(tkey[i], ikey[i])
 
     return hdr
 
-def imageHeaderToTable (imhdr):
+def imageHeaderToCorrtag(imhdr):
+    """Modify keywords to turn an image header into an EVENTS table header.
+
+    The function returns a copy of the header with some image-specific
+    keywords (e.g. world coordinate system keywords and BUNIT) either
+    renamed or deleted.
+
+    Parameters
+    ----------
+    imhdr: pyfits Header object
+        A header for a FITS IMAGE HDU.
+
+    Returns
+    -------
+    hdr: pyfits Header object
+        A copy of imhdr, with certain image-specific keywords either
+        renamed or deleted.
+    """
+
+    hdr = imhdr.copy()
+
+    tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
+            "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
+    ikey = ["CTYPE1", "CRVAL1", "CRPIX1", "CDELT1", "CUNIT1", "CD1_1", "CD1_2",
+            "CTYPE2", "CRVAL2", "CRPIX2", "CDELT2", "CUNIT2", "CD2_1", "CD2_2"]
+    delkey = ["BSCALE", "BZERO", "BUNIT", "DATAMIN", "DATAMAX"]
+    # Rename image WCS keywords to the corresponding events table WCS keywords.
+    for i in range(len(ikey)):
+        if ikey[i] in hdr:
+            if tkey[i] in hdr:
+                printWarning("Can't rename %s to %s" % (ikey[i], tkey[i]))
+                printContinuation("keyword already exists")
+                del(hdr[ikey[i]])
+            else:
+                hdr.rename_keyword(ikey[i], tkey[i])
+    for keyword in delkey:
+        if keyword in hdr:
+            del hdr[keyword]
+
+    return hdr
+
+def imageHeaderToTable(imhdr):
     """Modify keywords to turn an image header into a table header.
 
     The function returns a copy of the header with some image-specific
@@ -1911,7 +1954,7 @@ def imageHeaderToTable (imhdr):
 
     return hdr
 
-def delCorrtagWCS (thdr):
+def delCorrtagWCS(thdr):
     """Delete table WCS keywords.
 
     The function returns a copy of the header with table-specific WCS keywords
@@ -1942,7 +1985,7 @@ def delCorrtagWCS (thdr):
 
     return hdr
 
-def updateFilename (phdr, filename):
+def updateFilename(phdr, filename):
     """Update the FILENAME keyword in a primary header.
 
     This routine will update (or add) the FILENAME keyword.  If filename
@@ -1957,9 +2000,9 @@ def updateFilename (phdr, filename):
         Name of file, possibly including directory.
     """
 
-    phdr.update ("filename", os.path.basename (filename))
+    phdr.update("filename", os.path.basename(filename))
 
-def renameFile (infile, outfile):
+def renameFile(infile, outfile):
     """Rename a FITS file, and update the FILENAME keyword.
 
     Parameters
@@ -1971,24 +2014,24 @@ def renameFile (infile, outfile):
         New name for the file.
     """
 
-    printMsg ("rename " + infile + " --> " + outfile, VERY_VERBOSE)
+    printMsg("rename " + infile + " --> " + outfile, VERY_VERBOSE)
 
-    os.rename (infile, outfile)
+    os.rename(infile, outfile)
 
-    fd = pyfits.open (outfile, mode="update")
+    fd = pyfits.open(outfile, mode="update")
 
     # If the output file name is a product name (ends with '0' before
     # the suffix), change the value of the extension keyword ASN_MTYP.
-    if isProduct (outfile):
-        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
-        asn_mtyp = modifyAsnMtyp (asn_mtyp)
+    if isProduct(outfile):
+        asn_mtyp = fd[1].header.get("asn_mtyp", "missing")
+        asn_mtyp = modifyAsnMtyp(asn_mtyp)
         if asn_mtyp != "missing":
             fd[1].header["asn_mtyp"] = asn_mtyp
-    updateFilename (fd[0].header, outfile)
+    updateFilename(fd[0].header, outfile)
 
     fd.close()
 
-def copyFile (infile, outfile):
+def copyFile(infile, outfile):
     """Copy a FITS file, and update the FILENAME keyword.
 
     Parameters
@@ -2000,24 +2043,24 @@ def copyFile (infile, outfile):
         Name of output FITS file.
     """
 
-    printMsg ("copy " + infile + " --> " + outfile, VERY_VERBOSE)
+    printMsg("copy " + infile + " --> " + outfile, VERY_VERBOSE)
 
-    shutil.copy (infile, outfile)
+    shutil.copy(infile, outfile)
 
-    fd = pyfits.open (outfile, mode="update")
+    fd = pyfits.open(outfile, mode="update")
 
     # If the output file name is a product name (ends with '0' before
     # the suffix), change the value of the extension keyword ASN_MTYP.
-    if isProduct (outfile):
-        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
-        asn_mtyp = modifyAsnMtyp (asn_mtyp)
+    if isProduct(outfile):
+        asn_mtyp = fd[1].header.get("asn_mtyp", "missing")
+        asn_mtyp = modifyAsnMtyp(asn_mtyp)
         if asn_mtyp != "missing":
             fd[1].header["asn_mtyp"] = asn_mtyp
-    updateFilename (fd[0].header, outfile)
+    updateFilename(fd[0].header, outfile)
 
     fd.close()
 
-def isProduct (filename):
+def isProduct(filename):
     """Return True if 'filename' is a "product" name.
 
     Parameters
@@ -2033,15 +2076,15 @@ def isProduct (filename):
     """
 
     is_product = False          # may be changed below
-    i = filename.rfind ("_")
+    i = filename.rfind("_")
     if i > 0 and filename[i:] == "_a.fits" or filename[i:] == "_b.fits":
-        i = filename[0:i-1].rfind ("_")
+        i = filename[0:i-1].rfind("_")
     if i > 0 and filename[i-1] == '0':
         is_product = True
 
     return is_product
 
-def modifyAsnMtyp (asn_mtyp):
+def modifyAsnMtyp(asn_mtyp):
     """Replace 'EXP' with 'PROD' in the ASN_MTYP keyword string.
 
     Parameters
@@ -2055,12 +2098,12 @@ def modifyAsnMtyp (asn_mtyp):
         asn_mtyp string, but with "EXP" replaced by "PROD".
     """
 
-    if asn_mtyp.startswith ("EXP-") or asn_mtyp.startswith ("EXP_"):
+    if asn_mtyp.startswith("EXP-") or asn_mtyp.startswith("EXP_"):
         asn_mtyp = "PROD" + asn_mtyp[3:]
 
     return asn_mtyp
 
-def doImageStat (input):
+def doImageStat(input):
     """Compute statistics for an image, and update keywords in header.
 
     Parameters
@@ -2069,23 +2112,23 @@ def doImageStat (input):
         Name of FITS file; keywords in the file will be modified in-place.
     """
 
-    fd = pyfits.open (input, mode="update")
+    fd = pyfits.open(input, mode="update")
 
     if fd[1].data is None:
         fd.close()
         return
     phdr = fd[0].header
-    xtractab = expandFileName (phdr.get ("xtractab", ""))
-    detector = phdr.get ("detector", "")
-    segment = phdr.get ("segment", "")          # used for FUV
-    opt_elem = phdr.get ("opt_elem", "")
-    cenwave = phdr.get ("cenwave", 0)
-    aperture = getApertureKeyword (phdr, truncate=1)
-    exptype = phdr.get ("exptype", "")
-    nextend = len (fd) - 1      # number of extensions
+    xtractab = expandFileName(phdr.get("xtractab", ""))
+    detector = phdr.get("detector", "")
+    segment = phdr.get("segment", "")           # used for FUV
+    opt_elem = phdr.get("opt_elem", "")
+    cenwave = phdr.get("cenwave", 0)
+    (aperture, message) = getApertureKeyword(phdr)
+    exptype = phdr.get("exptype", "")
+    nextend = len(fd) - 1       # number of extensions
     nimsets = nextend // 3      # number of image sets
 
-    for k in range (nimsets):
+    for k in range(nimsets):
         extver = k + 1          # extver is one indexed
 
         hdr = fd[("SCI",extver)].header
@@ -2093,11 +2136,11 @@ def doImageStat (input):
         err = fd[("ERR",extver)].data
         dq = fd[("DQ",extver)].data
 
-        dispaxis = hdr.get ("dispaxis", 0)
-        key = segmentSpecificKeyword ("exptime", segment)
-        exptime = hdr.get (key, 0.)
-        sdqflags = hdr.get ("sdqflags", 3832)
-        x_offset = hdr.get ("x_offset", 0)
+        dispaxis = hdr.get("dispaxis", 0)
+        key = segmentSpecificKeyword("exptime", segment)
+        exptime = hdr.get(key, 0.)
+        sdqflags = hdr.get("sdqflags", 3832)
+        x_offset = hdr.get("x_offset", 0)
 
         if exptype == "ACQ/IMAGE":
             dispaxis = 0
@@ -2124,59 +2167,59 @@ def doImageStat (input):
                           "cenwave": cenwave,
                           "aperture": aperture}
 
-                xtract_info = getTable (xtractab, filter)
+                xtract_info = getTable(xtractab, filter)
                 if xtract_info is None:
                     continue
 
-                slope = xtract_info.field ("slope")[0]
-                b_spec = xtract_info.field ("b_spec")[0]
-                extr_height = xtract_info.field ("height")[0]
+                slope = xtract_info.field("slope")[0]
+                b_spec = xtract_info.field("b_spec")[0]
+                extr_height = xtract_info.field("height")[0]
 
-                sci_band = np.zeros ((extr_height, axis_length),
-                                     dtype=np.float32)
-                ccos.extractband (sci, axis, slope, b_spec, x_offset,
-                                  sci_band)
+                sci_band = np.zeros((extr_height, axis_length),
+                                    dtype=np.float32)
+                ccos.extractband(sci, axis, slope, b_spec, x_offset,
+                                 sci_band)
 
                 if err is None:
                     err_band = None
                 else:
-                    err_band = np.zeros ((extr_height, axis_length),
-                                         dtype=np.float32)
-                    ccos.extractband (err, axis, slope, b_spec, x_offset,
-                                      err_band)
+                    err_band = np.zeros((extr_height, axis_length),
+                                        dtype=np.float32)
+                    ccos.extractband(err, axis, slope, b_spec, x_offset,
+                                     err_band)
 
                 if dq is None:
                     dq_band = None
                 else:
-                    dq_band = np.zeros ((extr_height, axis_length),
-                                        dtype=np.int16)
-                    ccos.extractband (dq, axis, slope, b_spec, x_offset,
-                                      dq_band)
+                    dq_band = np.zeros((extr_height, axis_length),
+                                       dtype=np.int16)
+                    ccos.extractband(dq, axis, slope, b_spec, x_offset,
+                                     dq_band)
 
-                stat_info.append (computeStat (sci_band,
-                              err_band, dq_band, sdqflags))
+                stat_info.append(computeStat (sci_band,
+                                 err_band, dq_band, sdqflags))
 
             else:
                 # This is presumably a target-acquisition image.  Compute info
                 # for the entire image.
-                stat_info.append (computeStat (sci, err, dq, sdqflags))
+                stat_info.append(computeStat(sci, err, dq, sdqflags))
 
         # Combine the three NUV stripes, or for FUV return the first element.
-        stat_avg = combineStat (stat_info)
+        stat_avg = combineStat(stat_info)
 
         sci_hdr = fd[("SCI",extver)].header
-        sci_hdr.update ("ngoodpix", stat_avg["ngoodpix"])
-        sci_hdr.update ("goodmean", exptime * stat_avg["sci_goodmean"])
-        sci_hdr.update ("goodmax", exptime * stat_avg["sci_goodmax"])
+        sci_hdr.update("ngoodpix", stat_avg["ngoodpix"])
+        sci_hdr.update("goodmean", exptime * stat_avg["sci_goodmean"])
+        sci_hdr.update("goodmax", exptime * stat_avg["sci_goodmax"])
         if err is not None:
             err_hdr = fd[("ERR",extver)].header
-            err_hdr.update ("ngoodpix", stat_avg["ngoodpix"])
-            err_hdr.update ("goodmean", exptime * stat_avg["err_goodmean"])
-            err_hdr.update ("goodmax", exptime * stat_avg["err_goodmax"])
+            err_hdr.update("ngoodpix", stat_avg["ngoodpix"])
+            err_hdr.update("goodmean", exptime * stat_avg["err_goodmean"])
+            err_hdr.update("goodmax", exptime * stat_avg["err_goodmax"])
 
     fd.close()
 
-def doSpecStat (input):
+def doSpecStat(input):
     """Compute statistics for a table, and update keywords in header.
 
     The NET column will be read, and statistics computed for all rows.
@@ -2187,11 +2230,11 @@ def doSpecStat (input):
         Name of FITS file; keywords in the file will be modified in-place.
     """
 
-    fd = pyfits.open (input, mode="update")
+    fd = pyfits.open(input, mode="update")
     try:
         sci_extn = fd["SCI"]
     except KeyError:
-        doTagFlashStat (fd)                     # extname is "LAMPFLASH"
+        doTagFlashStat(fd)                      # extname is "LAMPFLASH"
         fd.close()
         return
 
@@ -2204,31 +2247,31 @@ def doSpecStat (input):
     if nrows < 1:
         fd.close()
         return
-    exptime_col = outdata.field ("EXPTIME")
-    net = outdata.field ("NET")
-    error = outdata.field ("ERROR")
-    dq = outdata.field ("DQ")
+    exptime_col = outdata.field("EXPTIME")
+    net = outdata.field("NET")
+    error = outdata.field("ERROR")
+    dq = outdata.field("DQ")
 
     # This will be a list of dictionaries, one for each segment or stripe.
     # (statistics for the error array are computed but then ignored)
     stat_info = []
     sum_exptime = 0.
-    for row in range (nrows):
+    for row in range(nrows):
         sum_exptime += exptime_col[row]
-        onestat = computeStat (net[row], error[row], dq[row], sdqflags)
-        stat_info.append (onestat)
+        onestat = computeStat(net[row], error[row], dq[row], sdqflags)
+        stat_info.append(onestat)
     exptime = sum_exptime / nrows
 
     # Combine the segments or stripes.
-    stat_avg = combineStat (stat_info)
+    stat_avg = combineStat(stat_info)
 
-    sci_extn.header.update ("ngoodpix", stat_avg["ngoodpix"])
-    sci_extn.header.update ("goodmean", exptime * stat_avg["sci_goodmean"])
-    sci_extn.header.update ("goodmax", exptime * stat_avg["sci_goodmax"])
+    sci_extn.header.update("ngoodpix", stat_avg["ngoodpix"])
+    sci_extn.header.update("goodmean", exptime * stat_avg["sci_goodmean"])
+    sci_extn.header.update("goodmax", exptime * stat_avg["sci_goodmax"])
 
     fd.close()
 
-def doTagFlashStat (fd):
+def doTagFlashStat(fd):
     """Compute statistics for an (already open) tagflash output file.
 
     The GROSS column will be read, and statistics computed for all rows.
@@ -2247,22 +2290,22 @@ def doTagFlashStat (fd):
     nrows = outdata.shape[0]
     if nrows < 1:
         return
-    nelem = outdata.field ("NELEM")
-    gross = outdata.field ("GROSS")
+    nelem = outdata.field("NELEM")
+    gross = outdata.field("GROSS")
 
     sum_gross = 0.
     max_gross = 0.
     n = 0
-    for row in range (nrows):
-        max_gross = max (max_gross, np.maximum.reduce (gross[row]))
-        sum_gross += np.sum (gross[row])
+    for row in range(nrows):
+        max_gross = max(max_gross, np.maximum.reduce(gross[row]))
+        sum_gross += np.sum(gross[row])
         n += nelem[row]
 
-    sci_extn.header.update ("ngoodpix", n)
-    sci_extn.header.update ("goodmean", sum_gross / float (n))
-    sci_extn.header.update ("goodmax", max_gross)
+    sci_extn.header.update("ngoodpix", n)
+    sci_extn.header.update("goodmean", sum_gross / float(n))
+    sci_extn.header.update("goodmax", max_gross)
 
-def computeStat (sci_band, err_band=None, dq_band=None, sdqflags=3832):
+def computeStat(sci_band, err_band=None, dq_band=None, sdqflags=3832):
     """Compute statistics.
 
     The function value is a dictionary with the info.  The keys are the
@@ -2296,39 +2339,39 @@ def computeStat (sci_band, err_band=None, dq_band=None, sdqflags=3832):
                                 "err_goodmax": 0., "err_goodmean": 0.}
 
     # Don't quit if there are numpy exceptions.
-    # xxx np.Error.setMode (all="warn", underflow="ignore")
+    # xxx np.Error.setMode(all="warn", underflow="ignore")
 
     # Compute statistics for the sci array.  Note that mask is used
-    # for both the sci and err arrays (if there is a dq_band).
+    # for both the sci and err arrays(if there is a dq_band).
     if dq_band is None:
-        sci_good = np.ravel (sci_band)
+        sci_good = np.ravel(sci_band)
     else:
         serious_dq = dq_band & sdqflags
         # mask = 1 where dq == 0
-        mask = np.where (serious_dq == 0)
+        mask = np.where(serious_dq == 0)
         sci_good = sci_band[mask]
 
-    ngoodpix = len (sci_good)
+    ngoodpix = len(sci_good)
     stat_info["ngoodpix"] = ngoodpix
     if ngoodpix > 0:
-        stat_info["sci_goodmax"] = np.maximum.reduce (sci_good)
-        stat_info["sci_goodmean"] = np.sum (sci_good) / ngoodpix
+        stat_info["sci_goodmax"] = np.maximum.reduce(sci_good)
+        stat_info["sci_goodmean"] = np.sum(sci_good) / ngoodpix
     del sci_good
 
     # Compute statistics for the err array.
     if err_band is not None:
         if dq_band is None:
-            err_good = np.ravel (err_band)
+            err_good = np.ravel(err_band)
         else:
             err_good = err_band[mask]
         if ngoodpix > 0:
-            stat_info["err_goodmax"] = np.maximum.reduce (err_good)
+            stat_info["err_goodmax"] = np.maximum.reduce(err_good)
             stat_info["err_goodmean"] = \
-                      np.sum (err_good) / ngoodpix
+                      np.sum(err_good) / ngoodpix
 
     return stat_info
 
-def combineStat (stat_info):
+def combineStat(stat_info):
     """Combine statistical info for the segments or stripes.
 
     The input is a list of dictionaries.  The output is one dictionary
@@ -2347,7 +2390,7 @@ def combineStat (stat_info):
         the values in the input.
     """
 
-    if len (stat_info) == 1:
+    if len(stat_info) == 1:
         return stat_info[0]
 
     # Initialize these variables.
@@ -2361,21 +2404,21 @@ def combineStat (stat_info):
         n = stat["ngoodpix"]
         if n > 0:
             sum_n += n
-            sci_max = max (sci_max, stat["sci_goodmax"])
+            sci_max = max(sci_max, stat["sci_goodmax"])
             sci_sum += (n * stat["sci_goodmean"])
             if "err_goodmax" in stat:
-                err_max = max (err_max, stat["err_goodmax"])
+                err_max = max(err_max, stat["err_goodmax"])
                 err_sum += (n * stat["err_goodmean"])
 
     if sum_n > 0:
-        sci_sum /= float (sum_n)
-        err_sum /= float (sum_n)
+        sci_sum /= float(sum_n)
+        err_sum /= float(sum_n)
 
     return {"ngoodpix": sum_n,
             "sci_goodmax": sci_max, "sci_goodmean": sci_sum,
             "err_goodmax": err_max, "err_goodmean": err_sum}
 
-def overrideKeywords (phdr, hdr, info, switches, reffiles):
+def overrideKeywords(phdr, hdr, info, switches, reffiles):
     """Override the calibration switch and reference file keywords.
 
     The calibration switch and reference file keywords will be overridden
@@ -2415,7 +2458,7 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
     for key in reffiles.keys():
         # Skip the _hdr keys (they're redundant), and skip any keyword
         # that isn't already in the header.
-        if key.find ("_hdr") < 0 and key in phdr:
+        if key.find("_hdr") < 0 and key in phdr:
             phdr[key] = reffiles[key+"_hdr"]
 
     for key in ["cal_ver", "opt_elem", "cenwave", "fpoffset", "obstype",
@@ -2426,9 +2469,9 @@ def overrideKeywords (phdr, hdr, info, switches, reffiles):
     if "dispaxis" in hdr:
         hdr["dispaxis"] = info["dispaxis"]
 
-    hdr.update ("x_offset", info["x_offset"])
+    hdr.update("x_offset", info["x_offset"])
 
-def updatePulseHeightKeywords (hdr, segment, low, high):
+def updatePulseHeightKeywords(hdr, segment, low, high):
     """Update the screening limit keywords for pulse height.
 
     This is only used for FUV data, since NUV doesn't have pulse height info.
@@ -2449,11 +2492,11 @@ def updatePulseHeightKeywords (hdr, segment, low, high):
     """
 
     key_low  = "PHALOWR" + segment[-1]
-    hdr.update (key_low, low)
+    hdr.update(key_low, low)
     key_high = "PHAUPPR" + segment[-1]
-    hdr.update (key_high, high)
+    hdr.update(key_high, high)
 
-def getPulseHeightRange (hdr, segment):
+def getPulseHeightRange(hdr, segment):
     """Get the pulse height range that was used for PHACORR.
 
     Parameters
@@ -2475,9 +2518,9 @@ def getPulseHeightRange (hdr, segment):
 
     # These keywords were assigned when PHACORR was done.
     key_low  = "PHALOWR" + segment[-1]
-    low = hdr.get (key_low, -1)
+    low = hdr.get(key_low, -1)
     key_high = "PHAUPPR" + segment[-1]
-    high = hdr.get (key_high, -1)
+    high = hdr.get(key_high, -1)
 
     if low < 0:
         low = None
@@ -2489,7 +2532,7 @@ def getPulseHeightRange (hdr, segment):
 
     return "%2d_%2d" % (low, high)
 
-def tempPulseHeightRange (ref):
+def tempPulseHeightRange(ref):
     """Get keyword PHARANGE from the primary header of a reference file.
 
     Parameters
@@ -2503,13 +2546,13 @@ def tempPulseHeightRange (ref):
         Value of keyword PHARANGE, or None if the keyword is missing
     """
 
-    fd = pyfits.open (ref, "readonly")
-    ref_pharange = fd[0].header.get ("pharange", None)
+    fd = pyfits.open(ref, "readonly")
+    ref_pharange = fd[0].header.get("pharange", None)
     fd.close()
 
     return ref_pharange
 
-def comparePulseHeightRanges (pharange, ref_pharange, refname):
+def comparePulseHeightRanges(pharange, ref_pharange, refname):
     """Compare pharange with the pulse height range from the phatab.
 
     Parameters
@@ -2531,24 +2574,24 @@ def comparePulseHeightRanges (pharange, ref_pharange, refname):
     if pharange is None or ref_pharange is None:
         return
 
-    words = pharange.split ("_")
-    low = int (words[0])
-    high = int (words[1])
+    words = pharange.split("_")
+    low = int(words[0])
+    high = int(words[1])
 
-    ref_words = ref_pharange.split ("_")
-    if len (ref_words) != 2:
-        printWarning ("Can't compare pulse height ranges for %s; "
-                      "PHARANGE = %s" % (refname, ref_pharange))
+    ref_words = ref_pharange.split("_")
+    if len(ref_words) != 2:
+        printWarning("Can't compare pulse height ranges for %s; "
+                     "PHARANGE = %s" % (refname, ref_pharange))
         return
-    ref_low = int (ref_words[0])
-    ref_high = int (ref_words[1])
+    ref_low = int(ref_words[0])
+    ref_high = int(ref_words[1])
     if ref_low != low or ref_high != high:
-        printWarning ("Pulse height ranges for %s don't agree:" % refname)
-        printContinuation ("PHATAB limits are %d to %d, "
-                           "but PHARANGE limits are %d to %d" %
-                           (low, high, ref_low, ref_high))
+        printWarning("Pulse height ranges for %s don't agree:" % refname)
+        printContinuation("PHATAB limits are %d to %d, "
+                          "but PHARANGE limits are %d to %d" %
+                          (low, high, ref_low, ref_high))
 
-def getSwitch (phdr, keyword):
+def getSwitch(phdr, keyword):
     """Get the value of a calibration switch from a primary header.
 
     The value will be converted to upper case.
@@ -2582,7 +2625,7 @@ def getSwitch (phdr, keyword):
 
     return switch
 
-def setVerbosity (verbosity_level):
+def setVerbosity(verbosity_level):
     """Copy verbosity to a variable that is global for this file.
 
     Parameters
@@ -2596,7 +2639,7 @@ def setVerbosity (verbosity_level):
     global verbosity
     verbosity = verbosity_level
 
-def checkVerbosity (level):
+def checkVerbosity(level):
     """Return True if verbosity is at least as great as level.
 
     Returns
@@ -2606,18 +2649,18 @@ def checkVerbosity (level):
 
     Examples
     --------
-    >>> setVerbosity (VERBOSE)
-    >>> print checkVerbosity (QUIET)
+    >>> setVerbosity(VERBOSE)
+    >>> print checkVerbosity(QUIET)
     1
-    >>> print checkVerbosity (VERBOSE)
+    >>> print checkVerbosity(VERBOSE)
     1
-    >>> print checkVerbosity (VERY_VERBOSE)
+    >>> print checkVerbosity(VERY_VERBOSE)
     0
     """
 
     return (verbosity >= level)
 
-def setWriteToTrailer (flag=False):
+def setWriteToTrailer(flag=False):
     """Set the flag to indicate whether we should write to trailer files.
 
     flag: boolean
@@ -2630,7 +2673,7 @@ def setWriteToTrailer (flag=False):
 
     write_to_trailer = flag
 
-def openTrailer (filename):
+def openTrailer(filename):
     """Open the trailer file for `filename` in append mode.
 
     Parameters
@@ -2649,13 +2692,13 @@ def openTrailer (filename):
 
     closeTrailer()
 
-    fd_trl = open (filename, 'a')
+    fd_trl = open(filename, 'a')
 
 def writeVersionToTrailer():
     """Write the calcos version string to the trailer file."""
 
     if fd_trl is not None:
-        fd_trl.write ("CALCOS version " + CALCOS_VERSION + "\n")
+        fd_trl.write("CALCOS version " + CALCOS_VERSION + "\n")
         fd_trl.flush()
 
 def closeTrailer():
@@ -2667,30 +2710,30 @@ def closeTrailer():
         fd_trl.close()
     fd_trl = None
 
-def printMsg (message, level=QUIET):
+def printMsg(message, level=QUIET):
     """Print 'message' if verbosity is at least as great as 'level'.
 
     Examples
     --------
-    >>> setVerbosity (VERBOSE)
+    >>> setVerbosity(VERBOSE)
 
-    >>> printMsg ("quiet", QUIET)
+    >>> printMsg("quiet", QUIET)
     quiet
 
-    >>> printMsg ("verbose", VERBOSE)
+    >>> printMsg("verbose", VERBOSE)
     verbose
 
-    >>> printMsg ("very verbose", VERY_VERBOSE)
+    >>> printMsg("very verbose", VERY_VERBOSE)
     """
 
     if verbosity >= level:
-        print (message)
+        print(message)
         sys.stdout.flush()
         if fd_trl is not None:
-            fd_trl.write (message+"\n")
+            fd_trl.write(message+"\n")
             fd_trl.flush()
 
-def printIntro (str):
+def printIntro(str):
     """Print introductory message.
 
     Parameters
@@ -2699,10 +2742,10 @@ def printIntro (str):
         String to be printed
     """
 
-    printMsg ("", VERBOSE)
-    printMsg (str + " -- " + returnTime(), VERBOSE)
+    printMsg("", VERBOSE)
+    printMsg(str + " -- " + returnTime(), VERBOSE)
 
-def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
+def printFilenames(names, shift_file=None, stimfile=None, livetimefile=None):
     """Print input and output filenames.
 
     Parameters
@@ -2727,13 +2770,13 @@ def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
 
     Examples
     --------
-    >>> setVerbosity (VERBOSE)
+    >>> setVerbosity(VERBOSE)
     >>> names = [("Input", "abc_raw.fits"), ("Output", "abc_flt.fits")]
-    >>> printFilenames (names)
+    >>> printFilenames(names)
     Input     abc_raw.fits
     Output    abc_flt.fits
 
-    >>> printFilenames (names, stimfile="stim.txt", livetimefile="live.txt")
+    >>> printFilenames(names, stimfile="stim.txt", livetimefile="live.txt")
     Input     abc_raw.fits
     Output    abc_flt.fits
     stim locations log file   stim.txt
@@ -2741,16 +2784,16 @@ def printFilenames (names, shift_file=None, stimfile=None, livetimefile=None):
     """
 
     for (label, filename) in names:
-        printMsg ("%-10s%s" % (label, filename), VERBOSE)
+        printMsg("%-10s%s" % (label, filename), VERBOSE)
 
     if shift_file is not None:
-        printMsg ("wavecal shifts overridden by file " + shift_file, VERBOSE)
+        printMsg("wavecal shifts overridden by file " + shift_file, VERBOSE)
     if stimfile is not None:
-        printMsg ("stim locations log file   " + stimfile, VERBOSE)
+        printMsg("stim locations log file   " + stimfile, VERBOSE)
     if livetimefile is not None:
-        printMsg ("livetime factors log file " + livetimefile, VERBOSE)
+        printMsg("livetime factors log file " + livetimefile, VERBOSE)
 
-def printMode (info):
+def printMode(info):
     """Print info about the observation mode.
 
     Parameters
@@ -2760,21 +2803,21 @@ def printMode (info):
     """
 
     if info["detector"] == "FUV":
-        printMsg ("DETECTOR  FUV, segment " + info["segment"][-1], VERBOSE)
+        printMsg("DETECTOR  FUV, segment " + info["segment"][-1], VERBOSE)
     else:
-        printMsg ("DETECTOR  NUV", VERBOSE)
-    printMsg ("EXPTYPE   " + info["exptype"], VERBOSE)
+        printMsg("DETECTOR  NUV", VERBOSE)
+    printMsg("EXPTYPE   " + info["exptype"], VERBOSE)
     if info["obstype"] == "SPECTROSCOPIC":
-        printMsg ("OPT_ELEM  " + info["opt_elem"] + \
-              ", CENWAVE " + str (info["cenwave"]) + \
-              ", FPOFFSET " + str (info["fpoffset"]), VERBOSE)
+        printMsg("OPT_ELEM  " + info["opt_elem"] + \
+                 ", CENWAVE " + str(info["cenwave"]) + \
+                 ", FPOFFSET " + str(info["fpoffset"]), VERBOSE)
     else:
-        printMsg ("OPT_ELEM  " + info["opt_elem"], VERBOSE)
-    printMsg ("APERTURE  " + info["aperture"], VERBOSE)
+        printMsg("OPT_ELEM  " + info["opt_elem"], VERBOSE)
+    printMsg("APERTURE  " + info["aperture"], VERBOSE)
 
-    printMsg ("", VERBOSE)
+    printMsg("", VERBOSE)
 
-def printSwitch (keyword, switches):
+def printSwitch(keyword, switches):
     """Print calibration switch name and value.
 
     Parameters
@@ -2787,18 +2830,18 @@ def printSwitch (keyword, switches):
 
     Examples
     --------
-    >>> setVerbosity (VERBOSE)
+    >>> setVerbosity(VERBOSE)
     >>> switches = {"statflag": "PERFORM", "flatcorr": "PERFORM", "geocorr": "COMPLETE", "randcorr": "SKIPPED"}
-    >>> printSwitch ("statflag", switches)
+    >>> printSwitch("statflag", switches)
     STATFLAG  T
 
-    >>> printSwitch ("flatcorr", switches)
+    >>> printSwitch("flatcorr", switches)
     FLATCORR  PERFORM
 
-    >>> printSwitch ("geocorr", switches)
+    >>> printSwitch("geocorr", switches)
     GEOCORR   OMIT (already complete)
 
-    >>> printSwitch ("randcorr", switches)
+    >>> printSwitch("randcorr", switches)
     RANDCORR  OMIT (skipped)
     """
 
@@ -2816,9 +2859,9 @@ def printSwitch (keyword, switches):
             message = "%-9s OMIT (skipped)" % key_upper
         else:
             message = "%-9s %s" % (key_upper, value)
-    printMsg (message, VERBOSE)
+    printMsg(message, VERBOSE)
 
-def printRef (keyword, reffiles):
+def printRef(keyword, reffiles):
     """Print reference file keyword and file name.
 
     Parameters
@@ -2831,17 +2874,17 @@ def printRef (keyword, reffiles):
 
     Examples
     --------
-    >>> setVerbosity (VERBOSE)
+    >>> setVerbosity(VERBOSE)
     >>> reffiles = {"flatfile": "abc_flat.fits", "flatfile_hdr": "lref$abc_flat.fits"}
-    >>> printRef ("flatfile", reffiles)
+    >>> printRef("flatfile", reffiles)
     FLATFILE= lref$abc_flat.fits
     """
 
     key_upper = keyword.upper()
     key_lower = keyword.lower()
-    printMsg ("%-8s= %s" % (key_upper, reffiles[key_lower+"_hdr"]), VERBOSE)
+    printMsg("%-8s= %s" % (key_upper, reffiles[key_lower+"_hdr"]), VERBOSE)
 
-def printWarning (message, level=QUIET):
+def printWarning(message, level=QUIET):
     """Print a warning message.
 
     Parameters
@@ -2850,9 +2893,9 @@ def printWarning (message, level=QUIET):
         Warning message to be printed
     """
 
-    printMsg ("Warning:  " + message, level)
+    printMsg("Warning:  " + message, level)
 
-def printError (message):
+def printError(message):
     """Print an error message.
 
     Parameters
@@ -2861,9 +2904,9 @@ def printError (message):
         Error message to be printed
     """
 
-    printMsg ("ERROR:  " + message, level=QUIET)
+    printMsg("ERROR:  " + message, level=QUIET)
 
-def printContinuation (message, level=QUIET):
+def printContinuation(message, level=QUIET):
     """Print a continuation line of a warning or error message.
 
     Parameters
@@ -2872,7 +2915,7 @@ def printContinuation (message, level=QUIET):
         Continuation message to be printed
     """
 
-    printMsg ("    " + message, level)
+    printMsg("    " + message, level)
 
 def returnTime():
     """Return the current date and time, formatted into a string.
@@ -2883,9 +2926,9 @@ def returnTime():
         The current local time, e.g. "20-Oct-2010 16:28:08 EDT"
     """
 
-    return time.strftime ("%d-%b-%Y %H:%M:%S %Z", time.localtime (time.time()))
+    return time.strftime("%d-%b-%Y %H:%M:%S %Z", time.localtime(time.time()))
 
-def getPedigree (switch, refkey, filename, level=VERBOSE):
+def getPedigree(switch, refkey, filename, level=VERBOSE):
     """Return the value of the PEDIGREE keyword.
 
     Parameters
@@ -2911,48 +2954,144 @@ def getPedigree (switch, refkey, filename, level=VERBOSE):
     if filename == "N/A":
         return "OK"
 
-    fd = pyfits.open (filename, mode="readonly")
-    pedigree = fd[0].header.get ("pedigree", "OK")
+    fd = pyfits.open(filename, mode="readonly")
+    pedigree = fd[0].header.get("pedigree", "OK")
     fd.close()
     if pedigree == "DUMMY":
-        printWarning ("%s %s is a dummy file" % (refkey.upper(), filename),
-                      level=VERBOSE)
-        printContinuation ("so %s will not be done." %
-                           switch.upper(), level=VERBOSE)
+        printWarning("%s %s is a dummy file" % (refkey.upper(), filename),
+                     level=VERBOSE)
+        printContinuation("so %s will not be done." %
+                          switch.upper(), level=VERBOSE)
 
     return pedigree
 
-def getApertureKeyword (hdr, truncate=1):
+def getApertureKeyword(hdr):
     """Get the value of the APERTURE keyword.
 
     The reason for this function is that some thermal-vac data had "-FUV"
     or "-NUV" appended to the aperture name, and in some cases the keyword
     value was "RelMvReq".  This function will strip off "-FUV" or "-NUV"
-    (if found), and it will replace "RelMvReq" with "PSA".
+    (if found), and it will replace "RelMvReq" with the value of PROPAPER.
 
     Parameters
     ----------
     hdr: pyfits Header object
         Primary header from which to get the APERTURE keyword
 
-    truncate: boolean
-        if true, strip "-FUV" or "-NUV" from keyword value
+    Returns
+    -------
+    tuple (str, str)
+        The value of the APERTURE keyword, corrected if necessary,
+        and a message (may be empty) about what was changed.
+    """
+
+    message = ""
+
+    aperture = hdr.get("aperture", NOT_APPLICABLE)
+    propaper = hdr.get("propaper", NOT_APPLICABLE)
+    hdr_aper = aperture                         # save keyword value
+    if len(aperture) > 3 and aperture[3] == "-":        # e.g. "PSA-FUV"
+        aperture = aperture[0:3]
+        message = "APERTURE changed from %s to %s" % (hdr_aper, aperture)
+    if aperture == "RelMvReq":
+        if propaper in APERTURE_NAMES:
+            message = "APERTURE changed from %s to %s " \
+                       "(copied from PROPAPER)" % (hdr_aper, propaper)
+            aperture = propaper
+        else:
+            message = "Guessing correct APERTURE ... was %s" % hdr_aper
+            shutter = hdr.get("shutter", NOT_APPLICABLE)
+            lampused = hdr.get("lampused", NOT_APPLICABLE)
+            if shutter.lower() == "closed":
+                if lampused[0] == "P":          # Platinum lamp
+                    message += ", now set to WCA"
+                    aperture = "WCA"
+                elif lampused[0] == "D":        # Deuterium lamp
+                    message += ", now set to FCA"
+                    aperture = "FCA"
+                else:           # shutter closed, no lamp --> dark exposure
+                    message += ", now set to PSA"
+                    aperture = "PSA"
+            else:
+                life_adj = hdr.get("life_adj", NOT_APPLICABLE)
+                aperypos = hdr.get("aperypos", NOT_APPLICABLE)
+                aperture = guessAperFromLocn(life_adj, aperypos)
+                message += ", now set to PSA"
+
+    return (aperture, message)
+
+def guessAperFromLocn(life_adj, aperypos):
+    """Infer which aperture was in use from the aperture position.
+
+    Parameters
+    ----------
+    life_adj: int or "N/A"
+        Integer code for the "lifetime position," or "N/A" if the LIFE_ADJ
+        keyword was not found in the header.
+
+    aperypos: float or "N/A"
+        Location (in steps) of the aperture block, or "N/A" if the keyword
+        was not found in the header.
 
     Returns
     -------
-    str
-        The value of the APERTURE keyword, corrected if necessary
+    aperture: str or None
+        An educated guess as to which aperture was in use, either "PSA" or
+        "BOA".  None will be returned if the input arguments were not
+        sufficient for determining the aperture.
     """
 
-    aperture = hdr.get ("aperture", NOT_APPLICABLE)
-    if aperture == "RelMvReq":
-        aperture = "PSA"
-    elif truncate and aperture != NOT_APPLICABLE:
-        aperture = aperture[0:3]
+    if life_adj == 1:
+        if 116. < aperypos and aperypos < 136.:
+            aperture = "PSA"
+        elif -163. < aperypos and aperypos < -143.:
+            aperture = "BOA"
+        else:
+            aperture = None
+    elif life_adj == 2:
+        # -64 steps from life_adj = 1
+        if 52. < aperypos and aperypos < 72.:
+            aperture = "PSA"
+        elif -227. < aperypos and aperypos < -207.:
+            aperture = "BOA"
+        else:
+            aperture = None
+    else:
+        aperture = None
 
     return aperture
 
-def segmentSpecificKeyword (keyword_root, segment):
+def computeLifeAdjOffset(info):
+    """Compute offset in pixels from LIFE_ADJ = 1.
+
+    Parameters
+    ----------
+    info: dictionary
+        General information.  info["life_adj_offset"] will be updated with
+        the offset (may be 0.) from life_adj = 1 to the location of the
+        aperture, as determined from aperture and aperypos.
+    """
+
+    if info["life_adj"] > 0 or info["aperypos"] == NOT_APPLICABLE:
+        info["life_adj_offset"] = 0.
+        return
+
+    aperture = info["aperture"]
+    aperypos = info["aperypos"]
+    opt_elem = info["opt_elem"]
+
+    # These parameters are in calcosparam.py.
+
+    if aperture in APERTURE_POSN1:
+        offset = aperypos - APERTURE_POSN1[aperture]
+    else:
+        offset = aperypos - APERTURE_POSN1["PSA"]       # reasonable default
+
+    # Positive is toward larger pixel numbers in cross-dispersion.
+    offset_arcsec = offset * ARCSEC_PER_XD_APER_STEP
+    info["life_adj_offset"] = offset_arcsec * XD_PLATE_SCALE[opt_elem]
+
+def segmentSpecificKeyword(keyword_root, segment):
     """Construct a segment-specific keyword.
 
     Parameters
@@ -2978,7 +3117,7 @@ def segmentSpecificKeyword (keyword_root, segment):
 
     return key
 
-def expandFileName (filename):
+def expandFileName(filename):
     """Expand environment variable in a file name.
 
     If the input file name begins with either a Unix-style or IRAF-style
@@ -2997,24 +3136,24 @@ def expandFileName (filename):
         The name of the file, with any environment variable expanded
     """
 
-    n = filename.find ("$")
+    n = filename.find("$")
     if n == 0:
         if filename != NOT_APPLICABLE:
             # Unix-style file name.
-            filename = os.path.expandvars (filename)
+            filename = os.path.expandvars(filename)
     elif n > 0:
         # IRAF-style file name.
         temp = "$" + filename[0:n] + os.sep + filename[n+1:]
-        filename = os.path.expandvars (temp)
+        filename = os.path.expandvars(temp)
         # If filename contains "//", delete one of them.
         double_sep = os.sep + os.sep
-        i = filename.find (double_sep)
+        i = filename.find(double_sep)
         if i != -1:
             filename = filename[:i+1] + filename[i+2:]
 
     return filename
 
-def changeSegment (filename, detector, segment):
+def changeSegment(filename, detector, segment):
     """Replace '_a' with '_b' or vice versa, if appropriate.
 
     This was written for auto/GO wavecal file names for FUV data.  Wavecals
@@ -3050,24 +3189,24 @@ def changeSegment (filename, detector, segment):
         names = filename.split()
         new_names = []
         for name in names:
-            if name.endswith ("_a.fits"):
-                n = len (name) - 7
+            if name.endswith("_a.fits"):
+                n = len(name) - 7
                 name = name[:n] + "_b.fits"
-            new_names.append (name)
+            new_names.append(name)
         filename = " ".join(new_names)
     elif segment == "FUVA":
         names = filename.split()
         new_names = []
         for name in names:
-            if name.endswith ("_b.fits"):
-                n = len (name) - 7
+            if name.endswith("_b.fits"):
+                n = len(name) - 7
                 name = name[:n] + "_a.fits"
-            new_names.append (name)
+            new_names.append(name)
         filename = " ".join(new_names)
 
     return filename
 
-def findRefFile (ref, missing, wrong_filetype, bad_version):
+def findRefFile(ref, missing, wrong_filetype, bad_version):
     """Check for the existence of a reference file.
 
     If the reference file does not exist, its name is added to the
@@ -3109,20 +3248,20 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
     min_ver    = ref["min_ver"]
     filetype   = ref["filetype"]
 
-    if os.access (filename, os.R_OK):
+    if os.access(filename, os.R_OK):
 
-        fd = pyfits.open (filename, mode="readonly")
+        fd = pyfits.open(filename, mode="readonly")
         phdr = fd[0].header
 
-        phdr_filetype = phdr.get ("FILETYPE", "ANY")
+        phdr_filetype = phdr.get("FILETYPE", "ANY")
         if phdr_filetype != "ANY" and phdr_filetype != filetype:
             wrong_filetype[keyword] = (filename, filetype)
 
         if min_ver != "ANY":
-            vcalcos = phdr.get ("VCALCOS", "1.0")
-            if not isinstance (vcalcos, str):
-                vcalcos = str (vcalcos)
-            compare = cmpVersion (min_ver, vcalcos, calcos_ver)
+            vcalcos = phdr.get("VCALCOS", "1.0")
+            if not isinstance(vcalcos, str):
+                vcalcos = str(vcalcos)
+            compare = cmpVersion(min_ver, vcalcos, calcos_ver)
             if compare < 0:
                 bad_version[keyword] = (filename,
                 "  the reference file must be at least version " + min_ver)
@@ -3137,7 +3276,7 @@ def findRefFile (ref, missing, wrong_filetype, bad_version):
 
         missing[keyword] = filename
 
-def fitQuadratic (x, y):
+def fitQuadratic(x, y):
     """Fit a quadratic to y vs x.
 
     Parameters
@@ -3156,29 +3295,29 @@ def fitQuadratic (x, y):
         was a LinAlgError.
     """
 
-    assert len (x) == len (y)
-    n = float (len (x))
+    assert len(x) == len(y)
+    n = float(len(x))
 
     y0 = y[0]
     yp = (y - y0)
 
-    sum_x = x.sum (dtype=np.float64).item()
-    sum_x2 = (x**2).sum (dtype=np.float64).item()
-    sum_x3 = (x**3).sum (dtype=np.float64).item()
-    sum_x4 = (x**4).sum (dtype=np.float64).item()
-    sum_y = yp.sum (dtype=np.float64).item()
-    sum_yx = (yp*x).sum (dtype=np.float64).item()
-    sum_yx2 = (yp*x**2).sum (dtype=np.float64).item()
+    sum_x = x.sum(dtype=np.float64).item()
+    sum_x2 = (x**2).sum(dtype=np.float64).item()
+    sum_x3 = (x**3).sum(dtype=np.float64).item()
+    sum_x4 = (x**4).sum(dtype=np.float64).item()
+    sum_y = yp.sum(dtype=np.float64).item()
+    sum_yx = (yp*x).sum(dtype=np.float64).item()
+    sum_yx2 = (yp*x**2).sum(dtype=np.float64).item()
 
-    m = np.array ([[n,      sum_x,  sum_x2],
-                   [sum_x,  sum_x2, sum_x3],
-                   [sum_x2, sum_x3, sum_x4]])
-    v = np.array ([sum_y, sum_yx, sum_yx2])
+    m = np.array([[n,      sum_x,  sum_x2],
+                  [sum_x,  sum_x2, sum_x3],
+                  [sum_x2, sum_x3, sum_x4]])
+    v = np.array([sum_y, sum_yx, sum_yx2])
 
     succeeded = True
     try:
-        coeff = LA.solve (m, v)
-        m_inv = LA.inv (m)
+        coeff = LA.solve(m, v)
+        m_inv = LA.inv(m)
     except LA.LinAlgError:
         succeeded = False
 
@@ -3188,17 +3327,17 @@ def fitQuadratic (x, y):
     else:
         coeff[0] += y0
         (a0, a1, a2) = coeff
-        if len (x) > 3:
+        if len(x) > 3:
             residual = y - (a0 + a1*x + a2*x**2)
             chisq = (residual**2).sum()
-            scatter = math.sqrt (chisq / (n - 3.))
+            scatter = math.sqrt(chisq / (n - 3.))
         else:
             scatter = 0.
-        var = np.array ([m_inv[0,0], m_inv[1,1], m_inv[2,2]]) * scatter
+        var = np.array([m_inv[0,0], m_inv[1,1], m_inv[2,2]]) * scatter
 
     return (coeff, var)
 
-def centerOfQuadratic (coeff, var):
+def centerOfQuadratic(coeff, var):
     """Find the center of a quadratic function from its coefficients.
 
     Parameters
@@ -3229,11 +3368,11 @@ def centerOfQuadratic (coeff, var):
         var1 = var[1].item()
         var2 = var[2].item()
         x_min = -a1 / (2. * a2)
-        x_min_sigma = 0.5 * math.sqrt (var1 / a2**2 + var2 * a1**2 / a2**4)
+        x_min_sigma = 0.5 * math.sqrt(var1 / a2**2 + var2 * a1**2 / a2**4)
 
     return (x_min, x_min_sigma)
 
-def fitQuartic (x, y):
+def fitQuartic(x, y):
     """Fit a fourth-order polynomial to y vs x.
 
     not currently used
@@ -3254,36 +3393,36 @@ def fitQuartic (x, y):
         variances; coeff and var will be None if there was a LinAlgError.
     """
 
-    assert len (x) == len (y)
-    n = float (len (x))
+    assert len(x) == len(y)
+    n = float(len(x))
 
     y0 = y[0]
     yp = (y - y0)
 
-    sum_x = x.sum (dtype=np.float64).item()
-    sum_x2 = (x**2).sum (dtype=np.float64).item()
-    sum_x3 = (x**3).sum (dtype=np.float64).item()
-    sum_x4 = (x**4).sum (dtype=np.float64).item()
-    sum_x5 = (x**5).sum (dtype=np.float64).item()
-    sum_x6 = (x**6).sum (dtype=np.float64).item()
-    sum_x7 = (x**7).sum (dtype=np.float64).item()
-    sum_x8 = (x**8).sum (dtype=np.float64).item()
-    sum_y = yp.sum (dtype=np.float64).item()
-    sum_yx = (yp*x).sum (dtype=np.float64).item()
-    sum_yx2 = (yp*x**2).sum (dtype=np.float64).item()
-    sum_yx3 = (yp*x**3).sum (dtype=np.float64).item()
-    sum_yx4 = (yp*x**4).sum (dtype=np.float64).item()
+    sum_x = x.sum(dtype=np.float64).item()
+    sum_x2 = (x**2).sum(dtype=np.float64).item()
+    sum_x3 = (x**3).sum(dtype=np.float64).item()
+    sum_x4 = (x**4).sum(dtype=np.float64).item()
+    sum_x5 = (x**5).sum(dtype=np.float64).item()
+    sum_x6 = (x**6).sum(dtype=np.float64).item()
+    sum_x7 = (x**7).sum(dtype=np.float64).item()
+    sum_x8 = (x**8).sum(dtype=np.float64).item()
+    sum_y = yp.sum(dtype=np.float64).item()
+    sum_yx = (yp*x).sum(dtype=np.float64).item()
+    sum_yx2 = (yp*x**2).sum(dtype=np.float64).item()
+    sum_yx3 = (yp*x**3).sum(dtype=np.float64).item()
+    sum_yx4 = (yp*x**4).sum(dtype=np.float64).item()
 
-    m = np.array ([[n,      sum_x,  sum_x2,  sum_x3, sum_x4],
-                   [sum_x,  sum_x2, sum_x3,  sum_x4, sum_x5],
-                   [sum_x2, sum_x3, sum_x4,  sum_x5, sum_x6],
-                   [sum_x3, sum_x4, sum_x5,  sum_x6, sum_x7],
-                   [sum_x4, sum_x5, sum_x6,  sum_x7, sum_x8]])
-    v = np.array ([sum_y, sum_yx, sum_yx2, sum_yx3, sum_yx4])
+    m = np.array([[n,      sum_x,  sum_x2,  sum_x3, sum_x4],
+                  [sum_x,  sum_x2, sum_x3,  sum_x4, sum_x5],
+                  [sum_x2, sum_x3, sum_x4,  sum_x5, sum_x6],
+                  [sum_x3, sum_x4, sum_x5,  sum_x6, sum_x7],
+                  [sum_x4, sum_x5, sum_x6,  sum_x7, sum_x8]])
+    v = np.array([sum_y, sum_yx, sum_yx2, sum_yx3, sum_yx4])
 
     try:
-        coeff = LA.solve (m, v)
-        m_inv = LA.inv (m)
+        coeff = LA.solve(m, v)
+        m_inv = LA.inv(m)
     except LA.LinAlgError:
         succeeded = False
 
@@ -3293,18 +3432,18 @@ def fitQuartic (x, y):
     else:
         (a0, a1, a2, a3, a4) = coeff
         a0 += y0
-        if len (x) > 5:
+        if len(x) > 5:
             residual = y - (a0 + a1*x + a2*x**2 + a3*x**3 + a4*x**4)
             chisq = (residual**2).sum()
-            scatter = math.sqrt (chisq / (n - 3.))
+            scatter = math.sqrt(chisq / (n - 3.))
         else:
             scatter = 0.
-        var = np.array ([m_inv[0,0], m_inv[1,1], m_inv[2,2],
-                         m_inv[3,3], m_inv[4,4]]) * scatter
+        var = np.array([m_inv[0,0], m_inv[1,1], m_inv[2,2],
+                        m_inv[3,3], m_inv[4,4]]) * scatter
 
     return (coeff, var)
 
-def centerOfQuartic (x, coeff):
+def centerOfQuartic(x, coeff):
     """Find the center of a fourth-order function from its coefficients.
 
     not currently used
@@ -3335,22 +3474,22 @@ def centerOfQuartic (x, coeff):
     yp = a1 + 2.*a2*x + 3.*a3*x**2 + 4.*a4*x**3
 
     xminmax = []
-    for i in range (len (x) - 1):
+    for i in range(len(x) - 1):
         # opposite slopes at i and i+1?
         if yp[i] * yp[i+1] < 0.:
-            value = x[i] + abs (yp[i] / (yp[i+1] - yp[i]))
-            xminmax.append ((i, value))
-    if len (xminmax) == 0:
+            value = x[i] + abs(yp[i] / (yp[i+1] - yp[i]))
+            xminmax.append((i, value))
+    if len(xminmax) == 0:
         return None
     x_min = xminmax[0][1]
-    if len (xminmax) > 1:
-        for (i, value) in enumerate (xminmax):
+    if len(xminmax) > 1:
+        for (i, value) in enumerate(xminmax):
             if value < minvalue:
                 x_min = xminmax[i][1]
 
     return x_min
 
-def precess (t, target):
+def precess(t, target):
     """Precess `target` to the time of observation.
 
     This function is currently not used.
@@ -3382,30 +3521,30 @@ def precess (t, target):
     theta = 2004.3109 * dt - 0.42665 * dt2 - 0.041833 * dt3
 
     # convert from arc seconds to radians
-    zeta = math.radians (zeta / 3600.)
-    z = math.radians (z / 3600.)
-    theta = math.radians (theta / 3600.)
+    zeta = math.radians(zeta / 3600.)
+    z = math.radians(z / 3600.)
+    theta = math.radians(theta / 3600.)
 
     # convert zeta, z, theta to a rotation matrix
     a = [0., 0., 0., 0., 0., 0., 0., 0., 0.]
     # first row
-    a[0] =  math.cos (z) * math.cos (theta) * math.cos (zeta) - \
-            math.sin (z) *                    math.sin (zeta)
-    a[1] = -math.cos (z) * math.cos (theta) * math.sin (zeta) - \
-            math.sin (z) *                    math.cos (zeta)
-    a[2] = -math.cos (z) * math.sin (theta)
+    a[0] =  math.cos(z) * math.cos(theta) * math.cos(zeta) - \
+            math.sin(z) *                   math.sin(zeta)
+    a[1] = -math.cos(z) * math.cos(theta) * math.sin(zeta) - \
+            math.sin(z) *                   math.cos(zeta)
+    a[2] = -math.cos(z) * math.sin(theta)
 
     # second row
-    a[3] =  math.sin (z) * math.cos (theta) * math.cos (zeta) + \
-            math.cos (z) *                    math.sin (zeta)
-    a[4] = -math.sin (z) * math.cos (theta) * math.sin (zeta) + \
-            math.cos (z) *                    math.cos (zeta)
-    a[5] = -math.sin (z) * math.sin (theta)
+    a[3] =  math.sin(z) * math.cos(theta) * math.cos(zeta) + \
+            math.cos(z) *                   math.sin(zeta)
+    a[4] = -math.sin(z) * math.cos(theta) * math.sin(zeta) + \
+            math.cos(z) *                   math.cos(zeta)
+    a[5] = -math.sin(z) * math.sin(theta)
 
     # third row
-    a[6] =                 math.sin (theta) * math.cos (zeta)
-    a[7] =                -math.sin (theta) * math.sin (zeta)
-    a[8] =                 math.cos (theta)
+    a[6] =                math.sin(theta) * math.cos(zeta)
+    a[7] =               -math.sin(theta) * math.sin(zeta)
+    a[8] =                math.cos(theta)
 
     # Multiply:  a * target
     targ = [0., 0., 0.]
@@ -3415,7 +3554,7 @@ def precess (t, target):
 
     return targ
 
-def cmpVersion (min_ver, vcalcos, calcos_ver):
+def cmpVersion(min_ver, vcalcos, calcos_ver):
     """Compare version strings.
 
     The test passes if min_ver <= vcalcos <= calcos_ver, in which case
@@ -3449,69 +3588,69 @@ def cmpVersion (min_ver, vcalcos, calcos_ver):
 
     Examples
     --------
-    >>> print cmpVersion ("1", "1", "1.1")
+    >>> print cmpVersion("1", "1", "1.1")
     0
 
-    >>> print cmpVersion ("1", "1.1", "1")
+    >>> print cmpVersion("1", "1.1", "1")
     1
 
-    >>> print cmpVersion ("1.1", "1", "1")
+    >>> print cmpVersion("1.1", "1", "1")
     -1
 
-    >>> print cmpVersion ("1.1", "1.1", "1.2")
+    >>> print cmpVersion("1.1", "1.1", "1.2")
     0
 
-    >>> print cmpVersion ("1.1", "1.2", "1.1")
+    >>> print cmpVersion("1.1", "1.2", "1.1")
     1
 
-    >>> print cmpVersion ("1.2", "1.1", "1.1")
+    >>> print cmpVersion("1.2", "1.1", "1.1")
     -1
 
-    >>> print cmpVersion ("1.0", "1.7", "2.3")
+    >>> print cmpVersion("1.0", "1.7", "2.3")
     0
 
-    >>> print cmpVersion ("2.7", "2.8", "2.8a")
+    >>> print cmpVersion("2.7", "2.8", "2.8a")
     0
 
-    >>> print cmpVersion ("2.0", "2.13.1", "2.13")
+    >>> print cmpVersion("2.0", "2.13.1", "2.13")
     1
 
-    >>> print cmpVersion ("2.9", "2.9", "2.13.1")
+    >>> print cmpVersion("2.9", "2.9", "2.13.1")
     0
 
-    >>> print cmpVersion ("2.12d", "2.13b", "2.13a")
+    >>> print cmpVersion("2.12d", "2.13b", "2.13a")
     1
 
-    >>> print cmpVersion ("2.13d", "2.13b", "2.13a")
+    >>> print cmpVersion("2.13d", "2.13b", "2.13a")
     -1
 
-    >>> print cmpVersion ("2.13", "2.13b", "2.13c")
+    >>> print cmpVersion("2.13", "2.13b", "2.13c")
     0
     """
 
-    minv = min_ver.split ('.')
-    phdrv = vcalcos.split ('.')
-    calv = calcos_ver.split ('.')
+    minv = min_ver.split('.')
+    phdrv = vcalcos.split('.')
+    calv = calcos_ver.split('.')
 
     # Replace any element that ends with one or more letters by two
     # elements, the integer part and the string part.
-    splitIntLetter (minv)
-    splitIntLetter (phdrv)
-    splitIntLetter (calv)
+    splitIntLetter(minv)
+    splitIntLetter(phdrv)
+    splitIntLetter(calv)
 
-    len_minv = len (minv)
-    len_phdrv = len (phdrv)
-    len_calv = len (calv)
+    len_minv = len(minv)
+    len_phdrv = len(phdrv)
+    len_calv = len(calv)
 
     # Pad these lists with "0" to make them all the same length.
-    maxlength = max (len (minv), len (phdrv), len (calv))
-    for i in range (len_minv, maxlength):
-        minv.append ("0")
-    for i in range (len_phdrv, maxlength):
-        phdrv.append ("0")
-    for i in range (len_calv, maxlength):
-        calv.append ("0")
-    length = min (len (minv), len (phdrv), len (calv))
+    maxlength = max(len(minv), len(phdrv), len(calv))
+    for i in range(len_minv, maxlength):
+        minv.append("0")
+    for i in range(len_phdrv, maxlength):
+        phdrv.append("0")
+    for i in range(len_calv, maxlength):
+        calv.append("0")
+    length = min(len(minv), len(phdrv), len(calv))
 
     # These are initial values.  They'll be reset if either test passes
     # (because of an inequality in a part of the version string), in which
@@ -3521,15 +3660,15 @@ def cmpVersion (min_ver, vcalcos, calcos_ver):
     passed_min_test = False
     passed_calcos_test = False
 
-    for i in range (length):
+    for i in range(length):
         if not passed_min_test:
-            cmp = cmpPart (minv[i], phdrv[i])
+            cmp = cmpPart(minv[i], phdrv[i])
             if cmp < 0:
                 passed_min_test = True
             elif cmp > 0:
                 return -1
         if not passed_calcos_test:
-            cmp = cmpPart (phdrv[i], calv[i])
+            cmp = cmpPart(phdrv[i], calv[i])
             if cmp < 0:
                 passed_calcos_test = True
             elif cmp > 0:
@@ -3540,7 +3679,7 @@ def cmpVersion (min_ver, vcalcos, calcos_ver):
 
     return 0
 
-def splitIntLetter (x):
+def splitIntLetter(x):
     """Split each part of x that has an appended letter or letters.
 
     Parameters
@@ -3552,30 +3691,30 @@ def splitIntLetter (x):
         would be modified to x = ["2", "13", "b"].
     """
 
-    nine = ord ("9")
-    nelem = len (x)
+    nine = ord("9")
+    nelem = len(x)
     mixed_parts = []
     breakpoint = []
-    for i in range (nelem):
+    for i in range(nelem):
         part = x[i]
-        for j in range (len (part)):
-            if ord (part[j]) > nine:
-                mixed_parts.append (i)
-                breakpoint.append (j)
+        for j in range(len(part)):
+            if ord(part[j]) > nine:
+                mixed_parts.append(i)
+                breakpoint.append(j)
                 break
 
-    for n in range (len (mixed_parts) - 1, -1, -1):
+    for n in range(len(mixed_parts) - 1, -1, -1):
         k = mixed_parts[n]
         j = breakpoint[n]
         part = x[k]
         p1 = part[0:j]
-        if len (p1) < 1:
+        if len(p1) < 1:
             p1 = "0"
         p2 = part[j:]
         x[k] = p2
-        x.insert (k, p1)
+        x.insert(k, p1)
 
-def cmpPart (s1, s2):
+def cmpPart(s1, s2):
     """Compare two strings.
 
     s1 and s2 are "parts" of version strings; each is expected to be an
@@ -3593,11 +3732,11 @@ def cmpPart (s1, s2):
     s1_is_int = True            # initial values
     s2_is_int = True
     try:
-        int_s1 = int (s1)
+        int_s1 = int(s1)
     except ValueError:
         s1_is_int = False
     try:
-        int_s2 = int (s2)
+        int_s2 = int(s2)
     except ValueError:
         s2_is_int = False
 
@@ -3622,7 +3761,7 @@ def cmpPart (s1, s2):
 
 def _test():
     import doctest, cosutil
-    return doctest.testmod (cosutil)
+    return doctest.testmod(cosutil)
 
 if __name__ == "__main__":
     _test()

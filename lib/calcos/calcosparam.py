@@ -2,8 +2,8 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.17.7"
-CALCOS_VERSION_DATE = "2012-04-20"
+CALCOS_VERSION_NUMBER = "2.18"
+CALCOS_VERSION_DATE = "2012-05-17"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
@@ -62,6 +62,36 @@ TAGFLASH_TYPE_NONE = 0
 TAGFLASH_TYPE_AUTO = 1
 TAGFLASH_TYPE_UNIFORMLY_SPACED = 2
 
+# The following section pertains to changes in the position of the aperture
+# block to move the target on the detector, to extend the lifetime of the
+# FUV detector.
+
+# These are the names of the apertures.
+APERTURE_NAMES = ["PSA", "WCA", "BOA", "FCA"]
+
+# Nominal values of aperypos for life_adj = 1.
+APERTURE_POSN1 = {"PSA": 126.,
+                  "WCA": 126.,
+                  "BOA": -153.,
+                  "FCA": -153.}
+
+# pixels per arcsecond in the cross-dispersion direction
+XD_PLATE_SCALE = {
+    "G130M": 11.9,      # email from Charles, 2012 Feb 2
+    "G160M": 11.9,
+    "G140L": 11.9,
+    "G185M": 41.85,
+    "G225M": 41.89,
+    "G285M": 41.80,
+    "G230L": 42.27}
+
+# arcseconds per step of the aperture block in the cross-dispersion direction
+ARCSEC_PER_XD_APER_STEP = -0.0476
+
+# This value is read/write.  It can be set to a value other than zero
+# if LIFE_ADJ = -1.
+LIFE_ADJ_OFFSET = 0.            # pixels
+
 # This is the list of segment-specific (or in some cases stripe-specific)
 # keywords, with "X" (case sensitive) replaced by "a", "b" or "c".
 segment_specific_keywords = \
@@ -116,3 +146,10 @@ DQ_UNUSED = 16384               # [currently unused]
 # Use this when binning TIME-TAG data to images, or extracting spectra from
 # TIME-TAG data.
 SERIOUS_DQ_FLAGS = (DQ_BURST | DQ_BAD_TIME | DQ_PHA_OUT_OF_BOUNDS)
+
+# Define an exception for the case that the APERTURE keyword is not recognized.
+class BadApertureError(Exception):
+    def __init__(self, message=None):
+        self.message = message
+    def __str__(self):
+        return self.message

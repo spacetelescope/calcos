@@ -1,11 +1,12 @@
 from __future__ import division         # confidence high
+import copy
 import math
 import numpy as np
 import pyfits
 import cosutil
 from calcosparam import *       # parameter definitions
 
-def fpAvgSpec (input, output):
+def fpAvgSpec(input, output):
     """Average 1-D extracted FP-POS spectra.
 
     It is assumed that the arrays in all the input tables have the same
@@ -41,20 +42,20 @@ def fpAvgSpec (input, output):
         Name of a file for the averaged spectra.
     """
 
-    nfiles = len (input)
+    nfiles = len(input)
 
     assert nfiles >= 1
 
-    cosutil.printIntro ("Average 1-D spectra")
-    names = [("Input", repr (input)), ("Output", output)]
-    cosutil.printFilenames (names)
+    cosutil.printIntro("Average 1-D spectra")
+    names = [("Input", repr(input)), ("Output", output)]
+    cosutil.printFilenames(names)
 
     if nfiles == 1:
-        oneInputFile (input[0], output)
+        oneInputFile(input[0], output)
     else:
-        outspec = OutputX1D (input, output)
+        outspec = OutputX1D(input, output)
 
-def oneInputFile (input, output):
+def oneInputFile(input, output):
     """Copy input to output, setting values to zero if dq_wgt is zero.
 
     Parameters
@@ -66,47 +67,49 @@ def oneInputFile (input, output):
         Name of a file for the modified copy of input
     """
 
-    fd = pyfits.open (input, mode="copyonwrite")
+    fd = pyfits.open(input, mode="copyonwrite")
     data = fd[1].data
     if data is None:
         fd.close()
-        cosutil.copyFile (input, output)
+        cosutil.copyFile(input, output)
         return
 
-    flux = data.field ("flux")
-    error = data.field ("error")
-    gross = data.field ("gross")
-    net = data.field ("net")
-    background = data.field ("background")
-    dq_wgt = data.field ("dq_wgt")
+    flux = data.field("flux")
+    error = data.field("error")
+    gross = data.field("gross")
+    net = data.field("net")
+    background = data.field("background")
+    dq_wgt = data.field("dq_wgt")
 
-    for row in range (len (data)):
-        flux[row,:] = np.where (dq_wgt[row] <= 0., 0., flux[row])
-        error[row,:] = np.where (dq_wgt[row] <= 0., 0., error[row])
-        gross[row,:] = np.where (dq_wgt[row] <= 0., 0., gross[row])
-        net[row,:] = np.where (dq_wgt[row] <= 0., 0., net[row])
-        background[row,:] = np.where (dq_wgt[row] <= 0., 0., background[row])
+    for row in range(len(data)):
+        flux[row,:] = np.where(dq_wgt[row] <= 0., 0., flux[row])
+        error[row,:] = np.where(dq_wgt[row] <= 0., 0., error[row])
+        gross[row,:] = np.where(dq_wgt[row] <= 0., 0., gross[row])
+        net[row,:] = np.where(dq_wgt[row] <= 0., 0., net[row])
+        background[row,:] = np.where(dq_wgt[row] <= 0., 0., background[row])
 
-    cosutil.updateFilename (fd[0].header, output)
-    if cosutil.isProduct (output):
-        asn_mtyp = fd[1].header.get ("asn_mtyp", "missing")
-        asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
+    cosutil.updateFilename(fd[0].header, output)
+    if cosutil.isProduct(output):
+        asn_mtyp = fd[1].header.get("asn_mtyp", "missing")
+        asn_mtyp = cosutil.modifyAsnMtyp(asn_mtyp)
         if asn_mtyp != "missing":
             fd[1].header["asn_mtyp"] = asn_mtyp
-    if "segment" in fd[0].header:
-        del (fd[0].header["segment"])
-    if "wavecals" in fd[0].header:
-        del (fd[0].header["wavecals"])
-    if "fppos" in fd[0].header:
-        del (fd[0].header["fppos"])
-    if "fpoffset" in fd[0].header:
-        del (fd[0].header["fpoffset"])
-    delSomeKeywords (fd[1].header)
+    list_keywords = [("MFPPOS", "fppos", fd[0].header["fppos"]),
+                     ("MFPOFSET", "fpoffset", fd[0].header["fpoffset"]),
+                     ("MCENWAVE", "cenwave", fd[0].header["cenwave"])]
+    for (new_kwd, old_kwd, value) in list_keywords:
+        str_value = str(value)
+        fd[0].header.update(new_kwd, str_value, after=old_kwd)
+    del_these = ["segment", "wavecals", "fppos", "fpoffset"]
+    for keyword in del_these:
+        if keyword in fd[0].header:
+            del(fd[0].header[keyword])
+    delSomeKeywords(fd[1].header)
 
-    fd.writeto (output)
+    fd.writeto(output)
     fd.close()
 
-def delSomeKeywords (hdr):
+def delSomeKeywords(hdr):
     """Delete exposure-specific keywords.
 
     Parameters
@@ -121,9 +124,34 @@ def delSomeKeywords (hdr):
                 "shift2a", "shift2b", "shift2c",
                 "dpixel1a", "dpixel1b", "dpixel1c"]:
         if key in hdr:
-            del (hdr[key])
+            del(hdr[key])
 
-def pixelsFromWl (input_wavelength, output_wavelength):
+def makeStringList(inlist):
+    """Construct a comma-separated string from elements of a list.
+
+    Parameters
+    ----------
+    inlist: list
+        Items to be written to a string.
+
+    Returns
+    -------
+    outstr: str
+        The elements of `inlist` as a string, with a comma and blank
+        between each element.
+    """
+
+    nelem = len(inlist)
+    outstr = ""
+    for i in range(nelem):
+        if i == 0:
+            outstr += "%s" % str(inlist[i])
+        else:
+            outstr += ", %s" % str(inlist[i])
+
+    return outstr
+
+def pixelsFromWl(input_wavelength, output_wavelength):
     """Find pixel numbers in input corresponding to wavelengths in output.
 
     This function returns an array of pixel coordinates (floating point)
@@ -157,7 +185,7 @@ def pixelsFromWl (input_wavelength, output_wavelength):
         Pixel numbers (but not integer values) in input spectrum
     """
 
-    nelem = len (input_wavelength)
+    nelem = len(input_wavelength)
 
     avgdisp = (input_wavelength[-1] - input_wavelength[0]) / (nelem - 1.)
 
@@ -170,25 +198,25 @@ def pixelsFromWl (input_wavelength, output_wavelength):
 
     # x0 is a rough first estimate of the pixel numbers.
     x0 = (output_wavelength - input_wavelength[0]) / avgdisp
-    x0 = np.where (x0 < 0., 0., x0)
-    ix0 = x0.astype (np.int32)
-    ix0 = np.where (ix0 > nelem-1, nelem-1, ix0)
+    x0 = np.where(x0 < 0., 0., x0)
+    ix0 = x0.astype(np.int32)
+    ix0 = np.where(ix0 > nelem-1, nelem-1, ix0)
 
     # wavelengths in input at pixels ix0 are input_wavelength[ix0]
     diff = (output_wavelength - input_wavelength[ix0])
 
     # x1 should be very close to the correct pixel numbers.
     x1 = ix0 + diff / disp[ix0]
-    x1 = np.where (x1 < 0., 0., x1)
-    ix1 = x1.astype (np.int32)
-    ix1 = np.where (ix1 > nelem-1, nelem-1, ix1)
+    x1 = np.where(x1 < 0., 0., x1)
+    ix1 = x1.astype(np.int32)
+    ix1 = np.where(ix1 > nelem-1, nelem-1, ix1)
 
     diff = (output_wavelength - input_wavelength[ix1])
     ipixel = ix1 + diff / disp[ix1]
 
     return ipixel
 
-class OutputX1D (object):
+class OutputX1D(object):
     """Average 1-D FP-POS spectra.
 
     Parameters
@@ -231,7 +259,7 @@ class OutputX1D (object):
         segment or stripe
     """
 
-    def __init__ (self, input, output):
+    def __init__(self, input, output):
         """Constructor."""
 
         self.input = input
@@ -263,21 +291,21 @@ class OutputX1D (object):
 
         # Fill in the data in the output table.
         for segment in self.segments:           # for each output row ...
-            osp = OutputSpectrum (self.ofd, self.inspec, self.keywords,
-                        segment, self.output_wl_range[segment],
-                        self.output_dispersion[segment])
-        if cosutil.isProduct (self.output):
-            asn_mtyp = self.ofd[1].header.get ("asn_mtyp", "missing")
-            asn_mtyp = cosutil.modifyAsnMtyp (asn_mtyp)
+            osp = OutputSpectrum(self.ofd, self.inspec, self.keywords,
+                                 segment, self.output_wl_range[segment],
+                                 self.output_dispersion[segment])
+        if cosutil.isProduct(self.output):
+            asn_mtyp = self.ofd[1].header.get("asn_mtyp", "missing")
+            asn_mtyp = cosutil.modifyAsnMtyp(asn_mtyp)
             if asn_mtyp != "missing":
                 self.ofd[1].header["asn_mtyp"] = asn_mtyp
-        self.updateArchiveSearch (self.ofd)     # minwave & maxwave
-        self.ofd.writeto (self.output)
+        self.updateArchiveSearch(self.ofd)      # minwave & maxwave
+        self.ofd.writeto(self.output)
 
         if self.keywords["statflag"]:
-            cosutil.doSpecStat (self.output)
+            cosutil.doSpecStat(self.output)
 
-    def getInputInfo (self):
+    def getInputInfo(self):
         """Get info and data from input files.
 
         This routine creates Spectrum objects (one for each row of each input
@@ -296,77 +324,83 @@ class OutputX1D (object):
 
         first = True            # true for first input file
         for input in self.input:
-            ifd = pyfits.open (input, mode="readonly")
+            ifd = pyfits.open(input, mode="readonly")
             phdr = ifd[0].header
             hdr = ifd[1].header
             # Get keyword values.
             if first:
                 detector = phdr["detector"]
                 opt_elem = phdr["opt_elem"]
-                cenwave = [phdr["cenwave"]]     # may have multiple values
-                aperture = cosutil.getApertureKeyword (phdr, truncate=1)
-                statflag = phdr.get ("statflag", False)
+                cenwave_list = [phdr["cenwave"]]    # may have multiple values
+                fppos_list = [phdr["fppos"]]        # may have multiple values
+                fpoffset_list = [phdr["fpoffset"]]  # may have multiple values
+                (aperture, message) = cosutil.getApertureKeyword(phdr)
+                statflag = phdr.get("statflag", False)
                 sum_plantime = hdr["plantime"]
                 expstart = hdr["expstart"]
                 expend = hdr["expend"]
                 first = False
             else:
                 sum_plantime += hdr["plantime"]
-                expstart = min (expstart, hdr["expstart"])
-                expend = max (expend, hdr["expend"])
-                # If there are multiple input cenwaves, we'll delete the
-                # keyword before writing the output file.
-                if phdr["cenwave"] not in cenwave:
-                    cenwave.append (phdr["cenwave"])
+                expstart = min(expstart, hdr["expstart"])
+                expend = max(expend, hdr["expend"])
+                if phdr["cenwave"] not in cenwave_list:
+                    cenwave_list.append(phdr["cenwave"])
+                if phdr["fppos"] not in fppos_list:
+                    fppos_list.append(phdr["fppos"])
+                if phdr["fpoffset"] not in fpoffset_list:
+                    fpoffset_list.append(phdr["fpoffset"])
             fpoffset = phdr["fpoffset"]
 
             if ifd[1].data is not None:
-                nrows = len (ifd[1].data)
+                nrows = len(ifd[1].data)
                 # for each row in the current input table
-                for row in range (nrows):
-                    sp = Spectrum (ifd, row, fpoffset)
+                for row in range(nrows):
+                    sp = Spectrum(ifd, row, fpoffset)
                     segment = sp.segment
                     if segment not in self.segments:
-                        self.segments.append (segment)
-                    self.inspec.append (sp)
+                        self.segments.append(segment)
+                    self.inspec.append(sp)
                     if detector == "NUV":
-                        sum_exptime_kwd[0] += hdr.get ("exptime", default=0.)
-                        globrate = hdr.get ("globrate", -1.)
+                        sum_exptime_kwd[0] += hdr.get("exptime", default=0.)
+                        globrate = hdr.get("globrate", -1.)
                         if globrate >= 0.:
                             sum_globrate[0] += (globrate * sp.exptime)
                             sum_exptime[0] += sp.exptime
                     elif segment == "FUVA":
-                        sum_exptime_kwd[1] += hdr.get ("exptimea",
-                                              default=hdr.get ("exptime", 0.))
-                        globrate = hdr.get ("globrt_a", -1.)
+                        sum_exptime_kwd[1] += hdr.get("exptimea",
+                                              default=hdr.get("exptime", 0.))
+                        globrate = hdr.get("globrt_a", -1.)
                         if globrate >= 0.:
                             sum_globrate[1] += (globrate * sp.exptime)
                             sum_exptime[1] += sp.exptime
                     elif segment == "FUVB":
-                        sum_exptime_kwd[2] += hdr.get ("exptimeb",
-                                              default=hdr.get ("exptime", 0.))
-                        globrate = hdr.get ("globrt_b", -1.)
+                        sum_exptime_kwd[2] += hdr.get("exptimeb",
+                                              default=hdr.get("exptime", 0.))
+                        globrate = hdr.get("globrt_b", -1.)
                         if globrate >= 0.:
                             sum_globrate[2] += (globrate * sp.exptime)
                             sum_exptime[2] += sp.exptime
 
             ifd.close()
 
-        for i in range (3):
+        for i in range(3):
             if sum_exptime[i] > 0.:
                 avg_globrate[i] = sum_globrate[i] / sum_exptime[i]
 
         # number of rows to be written to the output table
-        self.nrows = len (self.segments)
+        self.nrows = len(self.segments)
 
         if detector == "NUV":
             exptime = sum_exptime_kwd[0]
         else:
-            exptime = max (sum_exptime_kwd[1], sum_exptime_kwd[2])
+            exptime = max(sum_exptime_kwd[1], sum_exptime_kwd[2])
         self.keywords = {
              "detector": detector,
              "opt_elem": opt_elem,
-             "cenwave":  cenwave,               # this is a list
+             "cenwave":  cenwave_list,          # this is a list
+             "fppos":    fppos_list,            # this is a list
+             "fpoffset": fpoffset_list,         # this is a list
              "aperture": aperture,
              "exptime":  exptime,
              "exptimea": sum_exptime_kwd[1],
@@ -381,7 +415,7 @@ class OutputX1D (object):
              "globrt_b": avg_globrate[2],       # average for FUVB spectra
              "statflag": statflag}
 
-    def compareX1d (self):
+    def compareX1d(self):
         """Check that the rows of two x1d tables contain comparable info.
 
         Currently, the only check is on the array sizes.
@@ -389,16 +423,16 @@ class OutputX1D (object):
 
         for sp in self.inspec:
             if sp.nelem != self.inspec[0].nelem:
-                raise RuntimeError ("x1d tables have different array sizes.")
+                raise RuntimeError("x1d tables have different array sizes.")
 
-    def computeOutputInfo (self):
+    def computeOutputInfo(self):
         """Compute length of output arrays, and info for output wavelengths.
 
         This routine assigns values to the attributes output_nelem,
         index_max_nelem, output_wl_range, and output_dispersion.
         """
 
-        if len (self.inspec) < 1:
+        if len(self.inspec) < 1:
             if self.keywords["detector"] == "FUV":
                 self.output_nelem = FUV_EXTENDED_X
             elif self.keywords["detector"] == "NUV":
@@ -413,7 +447,7 @@ class OutputX1D (object):
         # Also set self.index_max_nelem, which we'll use in createOutput
         # for getting the initial column definitions for the output table.
         min_output_nelem = -1
-        for (k, sp) in enumerate (self.inspec):
+        for (k, sp) in enumerate(self.inspec):
             if sp.nelem > min_output_nelem:
                 self.index_max_nelem = k
                 min_output_nelem = sp.nelem
@@ -429,9 +463,9 @@ class OutputX1D (object):
                 if sp.segment == segment:
                     if sp.nelem < 2:
                         continue
-                    min_wl = min (min_wl, sp.wavelength[0])
-                    max_wl = max (max_wl, sp.wavelength[-1])
-                    min_dispersion = min (min_dispersion,
+                    min_wl = min(min_wl, sp.wavelength[0])
+                    max_wl = max(max_wl, sp.wavelength[-1])
+                    min_dispersion = min(min_dispersion,
                         (sp.wavelength[-1] - sp.wavelength[0]) / (sp.nelem - 1))
             self.output_wl_range[segment] = (min_wl, max_wl)
             self.output_dispersion[segment] = min_dispersion
@@ -446,127 +480,130 @@ class OutputX1D (object):
             if dispersion <= 0.:
                 continue
             nelem = (max_wl - min_wl) / dispersion
-            nelem = int (round (math.ceil (nelem)))
-            output_nelem = max (output_nelem, nelem)
+            nelem = int(round(math.ceil(nelem)))
+            output_nelem = max(output_nelem, nelem)
         if output_nelem > 0:
             self.output_nelem = output_nelem
 
-    def createOutput (self):
+    def createOutput(self):
         """Create pyfits object for output file."""
 
         # Get header info from the input.
-        ifd = pyfits.open (self.input[self.index_max_nelem],
-                           mode="copyonwrite")
+        ifd = pyfits.open(self.input[self.index_max_nelem],
+                          mode="copyonwrite")
         detector = ifd[0].header["detector"]
 
-        primary_hdu = pyfits.PrimaryHDU (header=ifd[0].header)
-        cosutil.updateFilename (primary_hdu.header, self.output)
-        if "segment" in primary_hdu.header:
-            del (primary_hdu.header["segment"])
-        if "wavecals" in primary_hdu.header:
-            del (primary_hdu.header["wavecals"])
-        if "fppos" in primary_hdu.header:
-            del (primary_hdu.header["fppos"])
-        if "fpoffset" in primary_hdu.header:
-            del (primary_hdu.header["fpoffset"])
-        if len (self.keywords["cenwave"]) > 1:
-            del (primary_hdu.header["cenwave"])
-        ofd = pyfits.HDUList (primary_hdu)
+        primary_hdu = pyfits.PrimaryHDU(header=ifd[0].header)
+        cosutil.updateFilename(primary_hdu.header, self.output)
+        # Add new keywords with comma-separated values.
+        list_keywords = [("MFPPOS", "fppos", self.keywords["fppos"]),
+                         ("MFPOFSET", "fpoffset", self.keywords["fpoffset"]),
+                         ("MCENWAVE", "cenwave", self.keywords["cenwave"])]
+        for (new_kwd, old_kwd, list_value) in list_keywords:
+            str_value = makeStringList(list_value)
+            primary_hdu.header.update(new_kwd, str_value, after=old_kwd)
+        del_these = ["segment", "wavecals", "fppos", "fpoffset"]
+        for keyword in del_these:
+            if keyword in primary_hdu.header:
+                del(primary_hdu.header[keyword])
+        if len(self.keywords["cenwave"]) > 1:
+            del(primary_hdu.header["cenwave"])
+        ofd = pyfits.HDUList(primary_hdu)
 
-        rpt = str (self.output_nelem)   # used for defining columns
+        rpt = str(self.output_nelem)    # used for defining columns
 
         # Define the columns explicitly, rather than using an input table
         # as a template and then modifying the lengths of arrays (see below),
         # because the modified columns kept reverting to the original length.
         col = []
-        col.append (pyfits.Column (name="SEGMENT", format="4A"))
-        col.append (pyfits.Column (name="EXPTIME", format="1D",
-                    disp="F8.3", unit="s"))
-        col.append (pyfits.Column (name="NELEM", format="1J", disp="I6"))
-        col.append (pyfits.Column (name="WAVELENGTH", format=rpt+"D",
-                    unit="angstrom"))
-        col.append (pyfits.Column (name="FLUX", format=rpt+"E",
-                    unit="erg /s /cm**2 /angstrom"))
-        col.append (pyfits.Column (name="ERROR", format=rpt+"E",
-                    unit="erg /s /cm**2 /angstrom"))
-        col.append (pyfits.Column (name="GROSS", format=rpt+"E",
-                    unit="count /s"))
-        col.append (pyfits.Column (name="GCOUNTS", format=rpt+"E",
-                    unit="count"))
-        col.append (pyfits.Column (name="NET", format=rpt+"E",
-                    unit="count /s"))
-        col.append (pyfits.Column (name="BACKGROUND", format=rpt+"E",
-                    unit="count /s"))
-        col.append (pyfits.Column (name="DQ", format=rpt+"I"))
-        col.append (pyfits.Column (name="DQ_WGT", format=rpt+"E"))
-        cd = pyfits.ColDefs (col)
+        col.append(pyfits.Column(name="SEGMENT", format="4A"))
+        col.append(pyfits.Column(name="EXPTIME", format="1D",
+                   disp="F8.3", unit="s"))
+        col.append(pyfits.Column(name="NELEM", format="1J", disp="I6"))
+        col.append(pyfits.Column(name="WAVELENGTH", format=rpt+"D",
+                   unit="angstrom"))
+        col.append(pyfits.Column(name="FLUX", format=rpt+"E",
+                   unit="erg /s /cm**2 /angstrom"))
+        col.append(pyfits.Column(name="ERROR", format=rpt+"E",
+                   unit="erg /s /cm**2 /angstrom"))
+        col.append(pyfits.Column(name="GROSS", format=rpt+"E",
+                   unit="count /s"))
+        col.append(pyfits.Column(name="GCOUNTS", format=rpt+"E",
+                   unit="count"))
+        col.append(pyfits.Column(name="NET", format=rpt+"E",
+                   unit="count /s"))
+        col.append(pyfits.Column(name="BACKGROUND", format=rpt+"E",
+                   unit="count /s"))
+        col.append(pyfits.Column(name="DQ", format=rpt+"I"))
+        col.append(pyfits.Column(name="DQ_WGT", format=rpt+"E"))
+        cd = pyfits.ColDefs(col)
 
         # Modify some of the output columns.
         #cd = ifd[1].columns             # this is a ColDefs object
         #col_names = cd.names
         #col_formats = cd.formats
-        #ncols = len (col_names)
+        #ncols = len(col_names)
         # xxx x = ifd[1].data                 # xxx touch the data
-        #for i in range (ncols):
+        #for i in range(ncols):
         #    fmt = col_formats[i]
         #    if fmt[-1] in ["D", "E", "I", "J"] and fmt[0] in "123456789":
         #        x = ifd[1].data         # xxx touch the data
         #        newfmt = rpt + fmt[-1]
-        #        cd.change_attrib (col_names[i], "format", newfmt)
+        #        cd.change_attrib(col_names[i], "format", newfmt)
 
         # Create output HDU for the table.
-        hdu = pyfits.new_table (cd, header=ifd[1].header, nrows=self.nrows)
+        hdu = pyfits.new_table(cd, header=ifd[1].header, nrows=self.nrows)
 
-        hdu.header.update ("exptime", self.keywords["exptime"])
+        hdu.header.update("exptime", self.keywords["exptime"])
         if detector == "FUV":
-            hdu.header.update ("exptimea", self.keywords["exptimea"])
-            hdu.header.update ("exptimeb", self.keywords["exptimeb"])
+            hdu.header.update("exptimea", self.keywords["exptimea"])
+            hdu.header.update("exptimeb", self.keywords["exptimeb"])
 
-        hdu.header.update ("expstart", self.keywords["expstart"])
-        hdu.header.update ("expend", self.keywords["expend"])
-        hdu.header.update ("expstrtj", self.keywords["expstrtj"])
-        hdu.header.update ("expendj", self.keywords["expendj"])
-        hdu.header.update ("plantime", self.keywords["plantime"])
+        hdu.header.update("expstart", self.keywords["expstart"])
+        hdu.header.update("expend", self.keywords["expend"])
+        hdu.header.update("expstrtj", self.keywords["expstrtj"])
+        hdu.header.update("expendj", self.keywords["expendj"])
+        hdu.header.update("plantime", self.keywords["plantime"])
         if self.keywords["globrate"] >= 0.:
-            hdu.header.update ("globrate", round (self.keywords["globrate"], 4))
+            hdu.header.update("globrate", round(self.keywords["globrate"], 4))
         if self.keywords["globrt_a"] >= 0.:
-            hdu.header.update ("globrt_a", round (self.keywords["globrt_a"], 4))
+            hdu.header.update("globrt_a", round(self.keywords["globrt_a"], 4))
         if self.keywords["globrt_b"] >= 0.:
-            hdu.header.update ("globrt_b", round (self.keywords["globrt_b"], 4))
+            hdu.header.update("globrt_b", round(self.keywords["globrt_b"], 4))
 
         # Delete some keywords because they are specific to one exposure.
-        delSomeKeywords (hdu.header)
+        delSomeKeywords(hdu.header)
 
-        ofd.append (hdu)
-        self.fpInitData (ofd)           # initialize data in output hdu
+        ofd.append(hdu)
+        self.fpInitData(ofd)            # initialize data in output hdu
 
         ifd.close()
 
         self.ofd = ofd
 
-    def fpInitData (self, ofd):
+    def fpInitData(self, ofd):
         """Initialize the output data block.
 
         Two scalar columns, SEGMENT and NELEM, will be set to their actual
         values.  EXPTIME and the array columns will be initialized to zero.
         """
 
-        ofd[1].data.field ("segment")[:] = self.segments
-        ofd[1].data.field ("nelem")[:] = self.output_nelem
+        ofd[1].data.field("segment")[:] = self.segments
+        ofd[1].data.field("nelem")[:] = self.output_nelem
 
-        ofd[1].data.field ("exptime")[:] = 0.
+        ofd[1].data.field("exptime")[:] = 0.
 
-        ofd[1].data.field ("wavelength")[:] = 0.
-        ofd[1].data.field ("flux")[:] = 0.
-        ofd[1].data.field ("error")[:] = 0.
-        ofd[1].data.field ("gross")[:] = 0.
-        ofd[1].data.field ("gcounts")[:] = 0.
-        ofd[1].data.field ("net")[:] = 0.
-        ofd[1].data.field ("background")[:] = 0.
-        ofd[1].data.field ("dq")[:] = 0
-        ofd[1].data.field ("dq_wgt")[:] = 0.
+        ofd[1].data.field("wavelength")[:] = 0.
+        ofd[1].data.field("flux")[:] = 0.
+        ofd[1].data.field("error")[:] = 0.
+        ofd[1].data.field("gross")[:] = 0.
+        ofd[1].data.field("gcounts")[:] = 0.
+        ofd[1].data.field("net")[:] = 0.
+        ofd[1].data.field("background")[:] = 0.
+        ofd[1].data.field("dq")[:] = 0
+        ofd[1].data.field("dq_wgt")[:] = 0.
 
-    def updateArchiveSearch (self, ofd):
+    def updateArchiveSearch(self, ofd):
         """Update the keywords giving min & max wavelengths.
 
         ofd: pyfits HDUList object
@@ -576,32 +613,32 @@ class OutputX1D (object):
         phdr = ofd[0].header
         outdata = ofd[1].data
         nrows = outdata.shape[0]
-        wavelength = outdata.field ("WAVELENGTH")
-        dq_wgt = outdata.field ("DQ_WGT")
+        wavelength = outdata.field("WAVELENGTH")
+        dq_wgt = outdata.field("DQ_WGT")
 
-        if nrows <= 0 or len (wavelength[0]) < 1:
+        if nrows <= 0 or len(wavelength[0]) < 1:
             return
 
-        nelem = len (wavelength[0])
+        nelem = len(wavelength[0])
         # This initial value assumes wavelengths increase with pixel number.
         minwave = wavelength[0][nelem-1]
         maxwave = wavelength[0][0]
-        for row in range (nrows):
-            if dq_wgt[row].sum (dtype=np.float64) <= 0:
+        for row in range(nrows):
+            if dq_wgt[row].sum(dtype=np.float64) <= 0:
                 good_wl = wavelength[row]
             else:
                 good_wl = wavelength[row][dq_wgt[row] > 0.]
             minwave_row = good_wl.min()
-            minwave = min (minwave, minwave_row)
+            minwave = min(minwave, minwave_row)
             maxwave_row = good_wl.max()
-            maxwave = max (maxwave, maxwave_row)
+            maxwave = max(maxwave, maxwave_row)
 
-        phdr.update ("MINWAVE", minwave)
-        phdr.update ("MAXWAVE", maxwave)
-        phdr.update ("BANDWID", maxwave - minwave)
-        phdr.update ("CENTRWV", (maxwave + minwave) / 2.)
+        phdr.update("MINWAVE", minwave)
+        phdr.update("MAXWAVE", maxwave)
+        phdr.update("BANDWID", maxwave - minwave)
+        phdr.update("CENTRWV", (maxwave + minwave) / 2.)
 
-class Spectrum (object):
+class Spectrum(object):
     """One row of an input spectrum.
 
     Parameters
@@ -656,24 +693,24 @@ class Spectrum (object):
     fpoffset
     """
 
-    def __init__ (self, ifd, row=0, fpoffset=0):
+    def __init__(self, ifd, row=0, fpoffset=0):
         """Constructor."""
 
-        self.segment = ifd[1].data.field ("segment")[row]
-        self.exptime = ifd[1].data.field ("exptime")[row]
-        self.nelem = ifd[1].data.field ("nelem")[row]
-        self.wavelength = ifd[1].data.field ("wavelength")[row]
-        self.flux = ifd[1].data.field ("flux")[row]
-        self.error = ifd[1].data.field ("error")[row]
-        self.gross = ifd[1].data.field ("gross")[row]
-        self.gcounts = ifd[1].data.field ("gcounts")[row]
-        self.net = ifd[1].data.field ("net")[row]
-        self.background = ifd[1].data.field ("background")[row]
-        self.dq = ifd[1].data.field ("dq")[row]
-        self.dq_wgt = ifd[1].data.field ("dq_wgt")[row]
+        self.segment = ifd[1].data.field("segment")[row]
+        self.exptime = ifd[1].data.field("exptime")[row]
+        self.nelem = ifd[1].data.field("nelem")[row]
+        self.wavelength = ifd[1].data.field("wavelength")[row]
+        self.flux = ifd[1].data.field("flux")[row]
+        self.error = ifd[1].data.field("error")[row]
+        self.gross = ifd[1].data.field("gross")[row]
+        self.gcounts = ifd[1].data.field("gcounts")[row]
+        self.net = ifd[1].data.field("net")[row]
+        self.background = ifd[1].data.field("background")[row]
+        self.dq = ifd[1].data.field("dq")[row]
+        self.dq_wgt = ifd[1].data.field("dq_wgt")[row]
         self.fpoffset = fpoffset
 
-class OutputSpectrum (object):
+class OutputSpectrum(object):
     """An output spectrum.
 
     The interpolation and averaging for one row are done by invoking this.
@@ -710,7 +747,7 @@ class OutputSpectrum (object):
     output_dispersion
     """
 
-    def __init__ (self, ofd, inspec, keywords, segment,
+    def __init__(self, ofd, inspec, keywords, segment,
                   output_wl_range, output_dispersion):
         """Constructor."""
 
@@ -722,28 +759,28 @@ class OutputSpectrum (object):
         data = self.ofd[1].data
 
         foundit = False
-        for row in range (len (data)):
-            if data.field ("segment")[row] == self.segment:
+        for row in range(len(data)):
+            if data.field("segment")[row] == self.segment:
                 foundit = True
                 break
         assert foundit == True
 
-        nelem = data.field ("nelem")[row]
+        nelem = data.field("nelem")[row]
 
         # Allocate space for the sum of weights.
-        sumweight = np.zeros (nelem, dtype=np.float64)
+        sumweight = np.zeros(nelem, dtype=np.float64)
 
         # Assign wavelengths for the current row.
-        data.field ("wavelength")[row,:] = output_wl_range[0] + \
-                output_dispersion * np.arange (nelem, dtype=np.float64)
+        data.field("wavelength")[row,:] = output_wl_range[0] + \
+                output_dispersion * np.arange(nelem, dtype=np.float64)
 
         for sp in self.inspec:
             if self.segment == sp.segment:
-                self.accumulateSums (sp, data[row], sumweight)
+                self.accumulateSums(sp, data[row], sumweight)
 
-        self.normalizeSums (data[row], sumweight)
+        self.normalizeSums(data[row], sumweight)
 
-    def normalizeSums (self, data, sumweight):
+    def normalizeSums(self, data, sumweight):
         """Divide the sums by the sum of the weights.
 
         Parameters
@@ -755,18 +792,18 @@ class OutputSpectrum (object):
             Sum of weights
         """
 
-        sumweight = np.where (sumweight == 0., 1., sumweight)
+        sumweight = np.where(sumweight == 0., 1., sumweight)
 
-        nelem = len (sumweight)
+        nelem = len(sumweight)
 
-        data.field ("flux")[:] /= sumweight
-        data.field ("gross")[:] /= sumweight
-        data.field ("net")[:] /= sumweight
-        data.field ("background")[:] /= sumweight
-        data.field ("error")[:] = \
-                        np.sqrt (data.field ("error")) / sumweight
+        data.field("flux")[:] /= sumweight
+        data.field("gross")[:] /= sumweight
+        data.field("net")[:] /= sumweight
+        data.field("background")[:] /= sumweight
+        data.field("error")[:] = \
+                        np.sqrt(data.field("error")) / sumweight
 
-    def accumulateSums (self, sp, data, sumweight):
+    def accumulateSums(self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.
 
         The values in data and sumweight will be modified in-place.
@@ -786,7 +823,7 @@ class OutputSpectrum (object):
 
         input_nelem = sp.nelem
         input_wavelength = sp.wavelength
-        output_wavelength = data.field ("wavelength")
+        output_wavelength = data.field("wavelength")
 
         # Find the pixel numbers (floating point) in the input array
         # corresponding to the pixels in the output array, matching by
@@ -796,39 +833,39 @@ class OutputSpectrum (object):
         # rather than just indexing, since ipixel[k] will not in general
         # be an integer.
 
-        ipixel = pixelsFromWl (input_wavelength, output_wavelength)
+        ipixel = pixelsFromWl(input_wavelength, output_wavelength)
 
         # The output array will typically be longer than any of the input
         # arrays, so we must find the minimum and maximum indices in the
         # output array that map (via wavelength) to points within the current
         # input array.
-        flag = np.where (np.logical_and (ipixel >= 0.,
-                                         ipixel <= input_nelem-1.))
+        flag = np.where(np.logical_and (ipixel >= 0.,
+                                        ipixel <= input_nelem-1.))
         min_k = flag[0][0]
         max_k = flag[0][-1]
 
         # ix is the array of pixel numbers (integer values but floating point
         # data type) in the input array that are actually within the input
         # array.  p and q are weight arrays for linear interpolation.
-        ix = np.floor (ipixel[min_k:max_k])
+        ix = np.floor(ipixel[min_k:max_k])
         q = ipixel[min_k:max_k] - ix
         p = 1. - q
-        i = ix.astype (np.int32)
+        i = ix.astype(np.int32)
 
-        flux = data.field ("flux")
-        error = data.field ("error")
-        gross = data.field ("gross")
-        gcounts = data.field ("gcounts")
-        net = data.field ("net")
-        background = data.field ("background")
-        dq = data.field ("dq")
-        dq_wgt = data.field ("dq_wgt")
-        first = (data.field ("exptime") == 0.)          # used for DQ
+        flux = data.field("flux")
+        error = data.field("error")
+        gross = data.field("gross")
+        gcounts = data.field("gcounts")
+        net = data.field("net")
+        background = data.field("background")
+        dq = data.field("dq")
+        dq_wgt = data.field("dq_wgt")
+        first = (data.field("exptime") == 0.)           # used for DQ
 
         weight1 = sp.dq_wgt[i] * sp.exptime
         weight2 = sp.dq_wgt[i+1] * sp.exptime
 
-        data.setfield ("exptime", data.field ("exptime") + sp.exptime)
+        data.setfield("exptime", data.field("exptime") + sp.exptime)
 
         sumweight[min_k:max_k] += (p * weight1 + q * weight2)
 

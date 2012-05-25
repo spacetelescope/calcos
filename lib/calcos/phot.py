@@ -1,6 +1,8 @@
 from __future__ import division         # confidence high
 
-def doPhot (imphttab, obsmode, hdr):
+import cosutil
+
+def doPhot(imphttab, obsmode, hdr):
     """Update photometry parameter keywords for imaging data.
 
     PHOTFLAM, inverse sensitivity, ergs/s/cm2/Ang per count/s
@@ -22,15 +24,15 @@ def doPhot (imphttab, obsmode, hdr):
     """
 
     (photflam, photfnu, photbw, photplam, photzpt) = \
-                readImPhtTab (imphttab, obsmode)
+                readImPhtTab(imphttab, obsmode)
 
-    hdr.update ("photflam", photflam)
-    hdr.update ("photfnu", photfnu)
-    hdr.update ("photbw", photbw)
-    hdr.update ("photplam", photplam)
-    hdr.update ("photzpt", photzpt)
+    hdr.update("photflam", photflam)
+    hdr.update("photfnu", photfnu)
+    hdr.update("photbw", photbw)
+    hdr.update("photplam", photplam)
+    hdr.update("photzpt", photzpt)
 
-def readImPhtTab (imphttab, obsmode):
+def readImPhtTab(imphttab, obsmode):
     """Read the photometry parameters for imaging data from the imphttab.
 
     This version has hardcoded values, since the imphttab hasn't been
@@ -116,17 +118,18 @@ def readImPhtTab (imphttab, obsmode):
                         -21.1]
         }
 
-    if obsmode.find (",") >= 0:
-        words = obsmode.split (",")
+    if obsmode.find(",") >= 0:
+        words = obsmode.split(",")
     else:
         words = obsmode.split()
     w = []
     for word in words:
-        w.append (word.strip().lower())
+        w.append(word.strip())
     words = w
 
     keylist = ["dummy", "dummy"]
-    for word in words:
+    for word_orig in words:
+        word = word_orig.lower()
         if word == "cos":
             continue
         elif word == "nuv":
@@ -135,13 +138,22 @@ def readImPhtTab (imphttab, obsmode):
             keylist[0] = word
         elif word == "psa" or word == "boa":
             keylist[1] = word
+        else:
+            cosutil.printWarning("Don't recognize obsmode component %s" %
+                                 word_orig)
+
+    if keylist[1] == "dummy":
+        cosutil.printWarning("No valid aperture found in obsmode %s;"
+                             % obsmode)
+        cosutil.printContinuation("assuming PSA instead.")
+        keylist[1] = "psa"
 
     key = keylist[0] + "," + keylist[1]
 
-    if photdict.has_key (key):
+    if key in photdict:
         param = photdict[key]
     else:
-        raise RuntimeError ("obsmode '%s' not recognized, expected "
-                            "'mirrora' or 'mirrorb', 'psa' or 'boa'" % obsmode)
+        raise RuntimeError("obsmode '%s' not recognized, expected "
+                           "'mirrora' or 'mirrorb', 'psa' or 'boa'" % obsmode)
 
     return param

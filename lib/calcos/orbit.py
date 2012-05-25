@@ -6,7 +6,7 @@ import pyfits
 TWOPI       = 2. * math.pi
 SEC_PER_DAY = 86400.0
 
-class HSTOrbit (object):
+class HSTOrbit(object):
     """Orbital parameters.
 
     The public methods are getOrbitper and getPos.
@@ -19,7 +19,7 @@ class HSTOrbit (object):
         The name of the support file (rootname_spt.fits).
     """
 
-    def __init__ (self, sptfile):
+    def __init__(self, sptfile):
         """Constructor."""
 
         # attributes
@@ -42,9 +42,9 @@ class HSTOrbit (object):
         self.semilrec = 0.  # semi-latus rectum (meters)
         self.sineincl = 0.  # sine of inclination
 
-        self._readOrbitalParameters (sptfile)
+        self._readOrbitalParameters(sptfile)
 
-    def _readOrbitalParameters (self, sptfile):
+    def _readOrbitalParameters(self, sptfile):
         """Get the orbital parameters from the spt primary header.
 
         Parameters
@@ -53,7 +53,7 @@ class HSTOrbit (object):
             The name of the support file.
         """
 
-        fd = pyfits.open (sptfile, mode="readonly")
+        fd = pyfits.open(sptfile, mode="readonly")
         phdr = fd[0].header
 
         # Orbital elements for HST.
@@ -78,7 +78,7 @@ class HSTOrbit (object):
 
         fd.close()
 
-    def getOrbitper (self):
+    def getOrbitper(self):
         """Return the orbital period.
 
         Returns
@@ -89,7 +89,7 @@ class HSTOrbit (object):
 
         return 2. * self.hsthorb
 
-    def getPos (self, mjd):
+    def getPos(self, mjd):
         """Get position and velocity at a given time.
 
         # S. Hulbert, Oct 91    Original
@@ -108,8 +108,8 @@ class HSTOrbit (object):
         """
 
         # These will be returned, after assigning the actual values.
-        x_hst = np.zeros (3, dtype=np.float64)
-        v_hst = np.zeros (3, dtype=np.float64)
+        x_hst = np.zeros(3, dtype=np.float64)
+        v_hst = np.zeros(3, dtype=np.float64)
 
         argperig = self.argperig
         cirveloc = self.cirveloc
@@ -141,14 +141,14 @@ class HSTOrbit (object):
         temp3 = 0.5 * sdmeanan * deltim*deltim
         m = meananom + TWOPI * (temp2 + temp3)
 
-        sin_m = math.sin (m)
-        cos_m = math.cos (m)
+        sin_m = math.sin(m)
+        cos_m = math.cos(m)
 
         # true anomaly (equation of the center)
         v = m + sin_m * (eccentx2 + ecbdx3 * cos_m * cos_m -
                 ecbdx4d3 * sin_m * sin_m + esqdx5d2 * cos_m)
-        sin_v = math.sin (v)
-        cos_v = math.cos (v)
+        sin_v = math.sin(v)
+        cos_v = math.cos(v)
 
         # distance
         r = semilrec / (1.0 + eccentry * cos_v)
@@ -158,15 +158,15 @@ class HSTOrbit (object):
 
         # longitude of the ascending node
         wbig = TWOPI * (rascascn + rcascnrv * deltim)
-        sin_wbig = math.sin (wbig)
-        cos_wbig = math.cos (wbig)
+        sin_wbig = math.sin(wbig)
+        cos_wbig = math.cos(wbig)
 
         # calculate the rectangular coordinates
         #  (see Smart, Spherical Astronomy, section 75, page 122-124)
 
         f = wsmall + v
-        sin_f = math.sin (f)
-        cos_f = math.cos (f)
+        sin_f = math.sin(f)
+        cos_f = math.cos(f)
 
         x_hst[0] = r * (cos_wbig * cos_f - cosincli * sin_wbig * sin_f)
         x_hst[1] = r * (sin_wbig * cos_f + cosincli * cos_wbig * sin_f)

@@ -2,15 +2,15 @@ from __future__ import division         # confidence high
 import numpy as np
 import cosutil
 
-class Dispersion (object):
+class Dispersion(object):
     """Dispersion relation.
 
     The public methods are:
         flag = disprel.isValid()
         nrows = disprel.getNRows()
-        wavelength = disprel.evalDisp (x)
-        dwavelength / dx = disprel.evalDerivDisp (x)
-        x = disprel.evalInvDisp (wavelength, tiny=1.e-8)
+        wavelength = disprel.evalDisp(x)
+        dwavelength / dx = disprel.evalDerivDisp(x)
+        x = disprel.evalInvDisp(wavelength, tiny=1.e-8)
         disprel.info()
         disprel.close()
 
@@ -27,7 +27,7 @@ class Dispersion (object):
         if False, exclude it from the filter
     """
 
-    def __init__ (self, disptab, filter, use_fpoffset=True):
+    def __init__(self, disptab, filter, use_fpoffset=True):
 
         # This will be a local copy of filter, possibly excluding "fpoffset".
         self.filter = {}
@@ -48,59 +48,59 @@ class Dispersion (object):
         if use_fpoffset:
             self.filter["fpoffset"] = self.fpoffset
 
-        if not cosutil.findColumn (disptab, "fpoffset"):
+        if not cosutil.findColumn(disptab, "fpoffset"):
             if "fpoffset" in self.filter:
-                del (self.filter["fpoffset"])
+                del(self.filter["fpoffset"])
 
-        disp_info = cosutil.getTable (disptab, self.filter)
+        disp_info = cosutil.getTable(disptab, self.filter)
         if disp_info is None:
             self._valid = False
             del disp_info
             return
         else:
-            self._nrows = len (disp_info)
+            self._nrows = len(disp_info)
 
-        self.ncoeff = disp_info.field ("nelem")[0]
+        self.ncoeff = disp_info.field("nelem")[0]
         if self.ncoeff < 2:
-            raise ValueError ("Dispersion relation has too few coefficients")
-        self.coeff = disp_info.field ("coeff")[0][0:self.ncoeff]
-        if cosutil.findColumn (disp_info, "delta"):
-            self.delta = disp_info.field ("delta")[0]
+            raise ValueError("Dispersion relation has too few coefficients")
+        self.coeff = disp_info.field("coeff")[0][0:self.ncoeff]
+        if cosutil.findColumn(disp_info, "delta"):
+            self.delta = disp_info.field("delta")[0]
         else:
-            if cosutil.findColumn (disp_info, "d_tv03"):
-                d_tv03 = disp_info.field ("d_tv03")[0]
+            if cosutil.findColumn(disp_info, "d_tv03"):
+                d_tv03 = disp_info.field("d_tv03")[0]
             else:
                 d_tv03 = 0.
-            if cosutil.findColumn (disp_info, "d"):
-                d = disp_info.field ("d")[0]
+            if cosutil.findColumn(disp_info, "d"):
+                d = disp_info.field("d")[0]
             else:
                 d = 0.
             self.delta = d_tv03 - d
 
         del disp_info
 
-    def info (self):
+    def info(self):
 
-        cosutil.printMsg ("filter = %s" % str (self.filter))
-        cosutil.printMsg ("use_fpoffset = %s" % str (self.use_fpoffset))
-        cosutil.printMsg ("fpoffset = %d" % self.fpoffset)
-        cosutil.printMsg ("number of coefficients = %d" % self.ncoeff)
-        cosutil.printMsg ("coeff = %s" % str (self.coeff))
-        cosutil.printMsg ("delta = %.6g" % self.delta)
-        cosutil.printMsg ("number of matching rows = %d" % self._nrows)
-        cosutil.printMsg ("valid = %s" % str (self._valid))
+        cosutil.printMsg("filter = %s" % str(self.filter))
+        cosutil.printMsg("use_fpoffset = %s" % str(self.use_fpoffset))
+        cosutil.printMsg("fpoffset = %d" % self.fpoffset)
+        cosutil.printMsg("number of coefficients = %d" % self.ncoeff)
+        cosutil.printMsg("coeff = %s" % str(self.coeff))
+        cosutil.printMsg("delta = %.6g" % self.delta)
+        cosutil.printMsg("number of matching rows = %d" % self._nrows)
+        cosutil.printMsg("valid = %s" % str(self._valid))
 
-    def isValid (self):
+    def isValid(self):
         """Return True if a matching row was found in disptab."""
 
         return self._valid
 
-    def getNRows (self):
+    def getNRows(self):
         """Return the number of rows in disptab that match the filter."""
 
         return self._nrows
 
-    def close (self):
+    def close(self):
         """Delete coefficients and reset attributes."""
 
         del self.coeff
@@ -111,7 +111,7 @@ class Dispersion (object):
         self._nrows = 0
         self._valid = False
 
-    def evalDisp (self, x):
+    def evalDisp(self, x):
         """Evaluate the dispersion relation at x.
 
         The function value will be the wavelength (or array of wavelengths)
@@ -131,12 +131,12 @@ class Dispersion (object):
         x_prime = x + self.delta
 
         sum = self.coeff[self.ncoeff-1]
-        for i in range (self.ncoeff-2, -1, -1):
+        for i in range(self.ncoeff-2, -1, -1):
             sum = sum * x_prime + self.coeff[i]
 
         return sum
 
-    def evalDerivDisp (self, x):
+    def evalDerivDisp(self, x):
         """Evaluate the derivative of the dispersion relation at x.
 
         The function value will be the slope (or array of slopes) at x,
@@ -156,12 +156,12 @@ class Dispersion (object):
         x_prime = x + self.delta
 
         sum = (self.ncoeff - 1.) * self.coeff[self.ncoeff-1]
-        for n in range (self.ncoeff-2, 0, -1):
+        for n in range(self.ncoeff-2, 0, -1):
             sum = sum * x_prime + n * self.coeff[n]
 
         return sum
 
-    def evalInvDisp (self, wavelength, tiny=1.e-8):
+    def evalInvDisp(self, wavelength, tiny=1.e-8):
         """Evaluate the inverse of the dispersion relation at wavelength.
 
         The function value will be the pixel number (or array of pixel numbers)
@@ -185,12 +185,12 @@ class Dispersion (object):
             Pixel number (or array of pixel numbers) at wavelength
         """
 
-        tiny = abs (tiny)
+        tiny = abs(tiny)
 
         # initial value
         try:
-            nelem = len (wavelength)
-            x = np.arange (nelem, dtype=np.float64)
+            nelem = len(wavelength)
+            x = np.arange(nelem, dtype=np.float64)
         except TypeError:
             nelem = 0
             x = 0.
@@ -204,11 +204,11 @@ class Dispersion (object):
                 x_prev = x.copy()
             else:
                 x_prev = x
-            wl = self.evalDisp (x)
-            slope = self.evalDerivDisp (x)
+            wl = self.evalDisp(x)
+            slope = self.evalDerivDisp(x)
             wl_diff = wavelength - wl
             x += wl_diff / slope
-            diff = np.abs (x - x_prev)
+            diff = np.abs(x - x_prev)
             if diff.max() < tiny:
                 done = True
 
