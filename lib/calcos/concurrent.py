@@ -905,16 +905,15 @@ class ConcurrentWavecal(object):
                   "cenwave": self.info["cenwave"],
                   "aperture": "WCA"}
 
+        # src_low to src_high is a range for getting the source count rates,
+        # which is done by ccos.getbkgcounts.
         if detector == "FUV":
-            wcp_info = cosutil.getTable(self.reffiles["wcptab"],
-                        filter={"opt_elem": self.info["opt_elem"]},
-                        exactly_one=True)
-            xd_range = wcp_info.field("xd_range")
             filter["segment"] = self.info["segment"]
             xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
             b_spec = xtract_info.field("b_spec")[0] + life_adj_offset
-            src_low  = int(b_spec - xd_range)
-            src_high = int(b_spec + xd_range)
+            height = xtract_info.field("height")[0]
+            src_low  = int(b_spec - height)
+            src_high = int(b_spec + height)
             eta = self.events.field("ycorr")
         elif self.info["obstype"] == "IMAGING":
             b_spec = Y0 + life_adj_offset
@@ -925,14 +924,11 @@ class ConcurrentWavecal(object):
         else:
             # For NUV use only the data for stripe A.
             filter["segment"] = "NUVA"
-            wcp_info = cosutil.getTable(self.reffiles["wcptab"],
-                        filter={"opt_elem": self.info["opt_elem"]},
-                        exactly_one=True)
-            xd_range = wcp_info.field("xd_range")
             xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
             b_spec = xtract_info.field("b_spec")[0] + life_adj_offset
-            src_low = int(b_spec - xd_range)
-            src_high = int(b_spec + xd_range)
+            height = xtract_info.field("height")[0]
+            src_low = int(b_spec - height)
+            # Include source counts for wavecal stripes NUVB and NUVC as well.
             src_high = NUV_Y - 1
             eta = self.events.field("rawy")
 
