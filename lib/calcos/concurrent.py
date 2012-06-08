@@ -912,13 +912,13 @@ class ConcurrentWavecal(object):
             xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
             b_spec = xtract_info.field("b_spec")[0] + life_adj_offset
             height = xtract_info.field("height")[0]
-            src_low  = int(b_spec - height)
-            src_high = int(b_spec + height)
+            src_low = int(round(b_spec - height))
+            src_high = int(round(b_spec + height))
             eta = self.events.field("ycorr")
         elif self.info["obstype"] == "IMAGING":
             b_spec = Y0 + life_adj_offset
             height = 2 * DY
-            src_low = int(b_spec - height)
+            src_low = int(round(b_spec - height))
             src_high = NUV_Y - 1
             eta = self.events.field("rawy")
         else:
@@ -927,7 +927,7 @@ class ConcurrentWavecal(object):
             xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
             b_spec = xtract_info.field("b_spec")[0] + life_adj_offset
             height = xtract_info.field("height")[0]
-            src_low = int(b_spec - height)
+            src_low = int(round(b_spec - height))
             # Include source counts for wavecal stripes NUVB and NUVC as well.
             src_high = NUV_Y - 1
             eta = self.events.field("rawy")
@@ -1007,7 +1007,7 @@ class ConcurrentWavecal(object):
             i = int(src / step)
             if i < nbins:               # ignore max value
                 hist[i] += 1
-        cosutil.printMsg("tagflash histogram = %s" % repr (hist),
+        cosutil.printMsg("tagflash histogram = %s" % repr(hist),
                          VERY_VERBOSE)
         cosutil.printMsg("step size for histogram = %g" % step, VERY_VERBOSE)
 
@@ -1107,8 +1107,8 @@ class ConcurrentWavecal(object):
                     break
 
         if len(lamp_on) != len(lamp_off):
-            raise RuntimeError("Internal error:  len (lamp_on) = %d, "
-                               "len (lamp_off) = %d" % \
+            raise RuntimeError("Internal error:  len(lamp_on) = %d, "
+                               "len(lamp_off) = %d" % \
                                (len(lamp_on), len(lamp_off)))
 
         self.numflash = len(lamp_on)            # the actual number of flashes
@@ -1312,8 +1312,8 @@ class ConcurrentWavecal(object):
             elif region[1] is None:
                 shift_flags |= np.where(self.eta >= region[0], True, False)
             else:
-                shift_flags |= np.logical_and (self.eta >= region[0],
-                                               self.eta < region[1])
+                shift_flags |= np.logical_and(self.eta >= region[0],
+                                              self.eta < region[1])
             xi = self.xi_corr[shift_flags]      # copy out the relevant subset
             if len(xi) > 0:
                 xi_diff = xi - np.around(xi)
@@ -1670,8 +1670,8 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         # limits of the region (the active area) are not adjusted by shift2.
         shift_flags = np.zeros(i1 - i0, dtype=np.bool8)
         region = self.regions[self.segment_list[0]][0]
-        shift_flags |= np.logical_and (self.eta[i0:i1] >= region[0],
-                                       self.eta[i0:i1] <= region[1])
+        shift_flags |= np.logical_and(self.eta[i0:i1] >= region[0],
+                                      self.eta[i0:i1] <= region[1])
 
         shift2_zero = self.shift2[n]
         if extrapolate:

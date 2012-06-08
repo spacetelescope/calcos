@@ -1183,7 +1183,7 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
 
         # Get data quality flags within extraction region.
         dq_ij = np.zeros((extr_height, axis_length), dtype=np.int16)
-        ccos.extractband (dq_array, axis, slope, b_spec, x_offset, dq_ij)
+        ccos.extractband(dq_array, axis, slope, b_spec, x_offset, dq_ij)
         # For each i, DQ_i[i] will be the bitwise OR of dq_ij[:,i].
         ccos.dq_or(dq_ij, DQ_i)
 
@@ -1723,7 +1723,7 @@ def updateArchiveSearch(ofd):
             platesc = cdelt2
         phdr.update("platesc", platesc)
         specres = wcs_info.field("specres")
-        phdr.update ("specres", specres[0])
+        phdr.update("specres", specres[0])
 
     if nrows <= 0 or len(wavelength[0]) < 1:
         return
@@ -1830,7 +1830,7 @@ def concatenateFUVSegments(infiles, output):
     for key in segment_specific_keywords:
         keyword = key.replace("X", "b")
         if keyword in seg_b[1].header:
-            hdu.header.update(keyword, seg_b[1].header.get (keyword, -1.0))
+            hdu.header.update(keyword, seg_b[1].header.get(keyword, -1.0))
 
     exptimea = seg_a[1].header.get("exptimea",
                                    default=seg_a[1].header["exptime"])

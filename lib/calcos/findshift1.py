@@ -559,8 +559,8 @@ class Shift1(object):
         # Find all the local minima in the array of RMS values.
         n = lenxc
         # indices of local minima in rms
-        local_minima = np.where(np.logical_and (rms[1:n-1] <= rms[0:n-2],
-                                                rms[1:n-1] <= rms[2:n]))
+        local_minima = np.where(np.logical_and(rms[1:n-1] <= rms[0:n-2],
+                                               rms[1:n-1] <= rms[2:n]))
         if len(good_values[0]) <= 0 or len(local_minima[0]) <= 0:
             return (0., 0., 0., False)
         # Extract the array of indices, and add one to get indices in rms

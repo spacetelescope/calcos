@@ -163,7 +163,7 @@ def extractBand(data, dq_data, wavelength, axis, slope, y_nominal,
     e_j = e_ij.sum(axis=1)
 
     # Y pixel number in data corresponding to e_j[0]
-    zero_point = int(round (y_nominal - slope * float(x_offset))) - \
+    zero_point = int(round(y_nominal - slope * float(x_offset))) - \
                  SEARCH_Y // 2
 
     return (e_j, zero_point)

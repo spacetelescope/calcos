@@ -46,9 +46,9 @@ def readImPhtTab(imphttab, obsmode):
     >>>             "cos,nuv,mirrora,boa",
     >>>             "cos,nuv,mirrorb,psa",
     >>>             "cos,nuv,mirrorb,boa"]:
-    >>>     sp = S.FlatSpectrum (1., fluxunits="flam")
-    >>>     bp = S.ObsBandpass (obsmode)
-    >>>     obs = S.Observation (sp, bp)
+    >>>     sp = S.FlatSpectrum(1., fluxunits="flam")
+    >>>     bp = S.ObsBandpass(obsmode)
+    >>>     obs = S.Observation(sp, bp)
     >>>     print "#", fluxunits, obsmode
     >>>     print 1. / obs.countrate()          # photflam
     >>>     print obs.pivot()                   # photplam
@@ -62,21 +62,21 @@ def readImPhtTab(imphttab, obsmode):
 
     The values of photfnu were gotten from photflam as follows:
 
-    bp = S.ObsBandpass ("cos,nuv,mirrora,psa")
-    sp = S.FlatSpectrum (4.816554456084e-18, fluxunits="flam")
-    print obs.effstim ("fnu")
+    bp = S.ObsBandpass("cos,nuv,mirrora,psa")
+    sp = S.FlatSpectrum(4.816554456084e-18, fluxunits="flam")
+    print obs.effstim("fnu")
     photfnu = 8.64540709538e-30
 
-    bp = S.ObsBandpass ("cos,nuv,mirrora,boa")
-    sp = S.FlatSpectrum (1.107251346369e-15, fluxunits="flam")
+    bp = S.ObsBandpass("cos,nuv,mirrora,boa")
+    sp = S.FlatSpectrum(1.107251346369e-15, fluxunits="flam")
     photfnu = 1.90968620531e-27
 
-    bp = S.ObsBandpass ("cos,nuv,mirrorb,psa")
-    sp = S.FlatSpectrum (9.720215320058e-17, fluxunits="flam")
+    bp = S.ObsBandpass("cos,nuv,mirrorb,psa")
+    sp = S.FlatSpectrum(9.720215320058e-17, fluxunits="flam")
     photfnu = 1.48789056193e-28
 
-    bp = S.ObsBandpass ("cos,nuv,mirrorb,boa")
-    sp = S.FlatSpectrum (1.866877735677e-14, fluxunits="flam")
+    bp = S.ObsBandpass("cos,nuv,mirrorb,boa")
+    sp = S.FlatSpectrum(1.866877735677e-14, fluxunits="flam")
     photfnu = 2.68068135014e-26
 
     Parameters

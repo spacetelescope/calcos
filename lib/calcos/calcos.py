@@ -2631,7 +2631,7 @@ class Calibration(object):
                     self.corrtagWavelengths(obs.filenames["corrtag"],
                                             obs.info, obs.reffiles)
 
-            cosutil.printMsg("wavecal_info = " + repr (self.wavecal_info),
+            cosutil.printMsg("wavecal_info = " + repr(self.wavecal_info),
                              VERY_VERBOSE)
 
             # Update the wavelength column in the x1d table to take account of

@@ -143,9 +143,9 @@ def accumBasicCalibration(input, inpha, outtag,
         outdata.field("XDOPP")[:] = x
         outdata.field("XFULL")[:] = x
         outdata.field("YFULL")[:] = y
-        outdata.field("WAVELENGTH")[:] = np.zeros (nrows, dtype=np.float32)
-        outdata.field ("EPSILON")[:] = np.ones (nrows, dtype=np.float32)
-        outdata.field("DQ")[:] = np.zeros (nrows, dtype=np.int16)
+        outdata.field("WAVELENGTH")[:] = np.zeros(nrows, dtype=np.float32)
+        outdata.field ("EPSILON")[:] = np.ones(nrows, dtype=np.float32)
+        outdata.field("DQ")[:] = np.zeros(nrows, dtype=np.int16)
         outdata.field("PHA")[:] = 0
 
     primary_hdu = pyfits.PrimaryHDU(header=phdr)

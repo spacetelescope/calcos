@@ -1192,7 +1192,7 @@ def checkPulseHeight(inpha, phatab, info, hdr):
 
     npts = len(pha_data)
 
-    sum = np.sum(np.arange (npts, dtype=np.float32) *
+    sum = np.sum(np.arange(npts, dtype=np.float32) *
                  pha_data.astype(np.float32))
     sumwgt = np.sum(pha_data.astype(np.float32))
     pha_index = np.argsort(pha_data)

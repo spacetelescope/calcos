@@ -21,10 +21,10 @@ class ShiftFile(object):
     given as "ANY", which is interpreted as a wildcard, i.e. it matches any
     rootname, fpoffset, etc.
 
-    user_shifts = shiftfile.ShiftFile (shift_file, rootname, fpoffset)
+    user_shifts = shiftfile.ShiftFile(shift_file, rootname, fpoffset)
 
     getShifts is a public method:
-        ((shift1, shift2), nfound) = user_shifts.getShifts (key)
+        ((shift1, shift2), nfound) = user_shifts.getShifts(key)
     key is a tuple of flash number (or "any") and segment/stripe name.
 
     Parameters

@@ -968,7 +968,7 @@ def getInputDQ(input, imset=1):
         if fd[("DQ",imset)].data.shape[1] == npix[1]:
             dq_array = fd[("DQ",imset)].data
             # undo the flagging of regions outside subarrays
-            dq_array = np.bitwise_and (dq_array, 16383-(64+128))
+            dq_array = np.bitwise_and(dq_array, 16383-(64+128))
         else:
             dq_array = np.zeros(npix, dtype=np.int16)
             dq_array[:,x_offset:len_raw+x_offset] = fd[("DQ",imset)].data
@@ -2196,8 +2196,8 @@ def doImageStat(input):
                     ccos.extractband(dq, axis, slope, b_spec, x_offset,
                                      dq_band)
 
-                stat_info.append(computeStat (sci_band,
-                                 err_band, dq_band, sdqflags))
+                stat_info.append(computeStat(sci_band, err_band, dq_band,
+                                             sdqflags))
 
             else:
                 # This is presumably a target-acquisition image.  Compute info

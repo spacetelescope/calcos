@@ -15,12 +15,12 @@ class SpWCS(object):
 
     import spwcs
 
-    wcs = spwcs.SpWcsCorrtag (corrtag_filename, info, helcorr,
-                              spwcstab, xtractab)
+    wcs = spwcs.SpWcsCorrtag(corrtag_filename, info, helcorr,
+                             spwcstab, xtractab)
     flag = wcs.writeWCSKeywords()
 
-    wcs = spwcs.SpWcsImage (image_filename, info, helcorr,
-                            spwcstab, xtractab)
+    wcs = spwcs.SpWcsImage(image_filename, info, helcorr,
+                           spwcstab, xtractab)
     flag = wcs.writeWCSKeywords()
 
     Parameters
