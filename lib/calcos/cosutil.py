@@ -3072,7 +3072,9 @@ def computeLifeAdjOffset(info):
         aperture, as determined from aperture and aperypos.
     """
 
-    if info["life_adj"] > 0 or info["aperypos"] == NOT_APPLICABLE:
+    if info["life_adj"] > 0 or \
+       info["aperypos"] == NOT_APPLICABLE or \
+       info["opt_elem"] == NOT_APPLICABLE:
         info["life_adj_offset"] = 0.
         return
 
