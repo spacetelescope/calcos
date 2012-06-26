@@ -2,7 +2,7 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.18.3"
+CALCOS_VERSION_NUMBER = "2.18.4"
 CALCOS_VERSION_DATE = "2012-06-26"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
@@ -83,7 +83,9 @@ XD_PLATE_SCALE = {
     "G185M": 41.85,
     "G225M": 41.89,
     "G285M": 41.80,
-    "G230L": 42.27}
+    "G230L": 42.27,
+    "MIRRORA": 42.5,    # COS ISR 2010-10
+    "MIRRORB": 42.5}
 
 # arcseconds per step of the aperture block in the cross-dispersion direction
 ARCSEC_PER_XD_APER_STEP = -0.0476
