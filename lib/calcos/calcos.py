@@ -1400,8 +1400,6 @@ class Association(object):
                                 missing, wrong_filetype, bad_version)
             cosutil.findRefFile(ref["disptab"],
                                 missing, wrong_filetype, bad_version)
-            # xxx there's another test on N/A for spwcstab in allScience.
-            # Remove both of these tests after this table is delivered.
             if ref["spwcstab"]["filename"] != NOT_APPLICABLE:
                 cosutil.findRefFile(ref["spwcstab"],
                                     missing, wrong_filetype, bad_version)
@@ -2663,6 +2661,7 @@ class Calibration(object):
         any_x1dcorr = "omit"
         any_wavecorr = "omit"
         any_spectroscopic = "omit"
+        spwcstab = NOT_APPLICABLE
         for obs in self.assoc.obs:
             if obs.exp_type == EXP_SCIENCE or \
                obs.exp_type == EXP_CALIBRATION or \
@@ -2684,6 +2683,9 @@ class Calibration(object):
                 elif obs.info["obstype"] == "SPECTROSCOPIC":
                     cosutil.printSwitch("X1DCORR", obs.switches)
                     any_spectroscopic = "PERFORM"
+                if obs.info["obstype"] == "SPECTROSCOPIC" and \
+                   obs.reffiles["spwcstab"] != NOT_APPLICABLE:
+                    spwcstab = obs.reffiles["spwcstab_hdr"]
                 if obs.info["tagflash"] and \
                    obs.switches["wavecorr"] == "PERFORM":
                     any_wavecorr = "PERFORM"
@@ -2696,12 +2698,7 @@ class Calibration(object):
             self.concatenateSpectra("tagflash")
 
         if any_spectroscopic == "PERFORM":
-            # xxx there's another test on N/A for spwcstab in missingRefFiles.
-            # Remove both of these tests after this table is delivered.
-            if obs.reffiles["spwcstab"] == NOT_APPLICABLE:
-                cosutil.printWarning("SPWCSTAB = %s, so WCS keywords will"
-                        " not be updated" % obs.reffiles["spwcstab"])
-            else:
+            if spwcstab != NOT_APPLICABLE:
                 updated = False
                 for obs in self.assoc.obs:
                     if obs.info["obstype"] == "SPECTROSCOPIC":
@@ -2709,7 +2706,10 @@ class Calibration(object):
                                              obs.switches, obs.reffiles)
                         updated = flag or updated
                 if updated:
-                    cosutil.printRef("spwcstab", obs.reffiles)
+                    cosutil.printRef("spwcstab", {"spwcstab_hdr": spwcstab})
+            else:
+                cosutil.printWarning("SPWCSTAB = %s, so WCS keywords will"
+                        " not be updated" % spwcstab)
 
         return status
 
