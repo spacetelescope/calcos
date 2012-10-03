@@ -103,16 +103,16 @@ def processConcurrentWavecal(events, outflash, shift_file,
             (avg_dx, avg_dy) = cw.avgShift()
             cw.setShiftKeywords(avg_dx, avg_dy)
             (tl_time, shift1_vs_time) = cw.shift1VsTime()
-            phdr["wavecorr"] = "COMPLETE"
             cw.closeOutFlash()
         else:
-            phdr["wavecorr"] = "SKIPPED"        # reset if user-specified
-            cw.setSegBtoZero()          # set shifts to zero
+            cw.setSegBtoZero()          # set shifts to fp_pixel_shift
             cw.setUpOutFlash()
             (avg_dx, avg_dy) = cw.miscSegB()
+            cw.applyCorrections()
             cw.setShiftKeywords(avg_dx, avg_dy)
             (tl_time, shift1_vs_time) = cw.shift1VsTime()
             cw.writeOutFlash()
+        phdr["wavecorr"] = cw.wavecorr
         return (tl_time, shift1_vs_time)
 
     cw.getStartStopTimes()
@@ -121,7 +121,9 @@ def processConcurrentWavecal(events, outflash, shift_file,
     if cw.numflash < 1:
         # write an empty lampflash table
         cosutil.printWarning("No lamp flash was found.")
+        cw.wavecorr = "SKIPPED"
         cw.setUpOutFlash()
+        phdr["wavecorr"] = cw.wavecorr
         phdr["lampused"] = "NONE"
         cw.ofd[0].header["lampused"] = "NONE"
         cw.writeOutFlash()
@@ -140,7 +142,7 @@ def processConcurrentWavecal(events, outflash, shift_file,
 
     if switches["statflag"] == "PERFORM":
         cw.doStat()
-    phdr["wavecorr"] = "COMPLETE"
+    phdr["wavecorr"] = cw.wavecorr
 
     cw.writeOutFlash()
 
@@ -237,8 +239,8 @@ class ConcurrentWavecal(object):
         self.reffiles = reffiles
         self.phdr = phdr
         self.hdr = hdr
+        self.wavecorr = "COMPLETE"      # possibly reset later
         self.user_shifts = None
-        # these two are relevant for G140L only
         self.override_segment_B = False
         self.segment_A_present = True
 
@@ -295,7 +297,7 @@ class ConcurrentWavecal(object):
         self.wcp_info = None            # matching row (just one) from wcp table
 
         # times of photon events, in seconds since EXPSTART
-        self.time = events.field("TIME")
+        self.time = events.field("TIME").astype(np.float64)
 
         # These five columns are assigned by a subclass, depending on
         # the detector.  xi is in the dispersion direction, and eta is
@@ -368,7 +370,7 @@ class ConcurrentWavecal(object):
         cosutil.updateFilename(self.ofd[0].header, self.outflash)
         nextend = len(self.ofd) - 1
         self.ofd[0].header.update("nextend", nextend)
-        self.ofd[0].header["wavecorr"] = "COMPLETE"
+        self.ofd[0].header["wavecorr"] = self.wavecorr
 
         # We know this value, so assign it now.
         self.ofd[1].data.field("nelem")[:] = len(self.spectrum)
@@ -584,10 +586,8 @@ class ConcurrentWavecal(object):
                 spec_found[segment] = False     # initial value
                 filter_1dx["segment"] = segment
                 filter_lamp["segment"] = segment
-                xtract_info = cosutil.getTable(xtractab, filter_1dx)
-                if xtract_info is None:
-                    lamp_found[segment] = False
-                    continue
+                xtract_info = cosutil.getTable(xtractab, filter_1dx,
+                                               at_least_one=True)
                 snr_ff = 0.             # ignore error array
                 axis = 1                # dispersion is along X axis
                 dummy_exptime = 1.
@@ -603,10 +603,8 @@ class ConcurrentWavecal(object):
                 save_net[segment] = N_i         # net counts
                 save_bkg[segment] = BK_i        # background counts
                 lamp_found[segment] = True      # default
-                lamp_info = cosutil.getTable(lamptab, filter_lamp)
-                if lamp_info is None:           # no row matched the filter
-                    lamp_found[segment] = False
-                    continue
+                lamp_info = cosutil.getTable(lamptab, filter_lamp,
+                                             at_least_one=True)
                 raw_template = lamp_info.field("intensity")[0]
                 save_templates[segment] = cosutil.getTemplate(raw_template,
                                           x_offset, len(self.spectrum))
@@ -939,7 +937,8 @@ class ConcurrentWavecal(object):
         bkg2_high = -20
         bkgsf = 0.
 
-        time = self.time
+        # Get time as a single precision array, for ccos.getstartstop.
+        time = cosutil.getColCopy(data=self.events, column="time")
         dq = np.zeros(len(time), dtype=np.int16)
         nbins = int(math.ceil((time[-1] - time[0]) / self.delta_t))
         istart = np.zeros(nbins, dtype=np.int32)
@@ -1427,26 +1426,32 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         self.eta_corr = events.field("YFULL")
         self.spectrum = np.zeros(FUV_EXTENDED_X, dtype=np.float64)
         self.segment_list = [info["segment"]]
-        if info["opt_elem"] == "G140L" and info["segment"] == "FUVB":
-            self.override_segment_B = True
+        self.override_segment_B = cosutil.checkForNoWavecalData(
+                        info["opt_elem"], info["cenwave"], info["segment"],
+                        reffiles["lamptab"])
+        if self.override_segment_B:
             if outflash.endswith("_b.fits"):
                 index = outflash.rfind("b.fits")
                 self.lampflash_a = outflash[0:index] + "a.fits"
                 if os.access(self.lampflash_a, os.R_OK):
-                    cosutil.printMsg("Info:  FUVB, G140L, so info will be " \
-                                     "copied from segment A.")
+                    cosutil.printMsg("Info:  No wavecal signal for FUVB, "
+                                     " so info will be copied from FUVA.")
                     self.segment_A_present = True
                 else:
-                    cosutil.printWarning("FUVB, G140L, but the file %s" \
-                                         % self.lampflash_a)
+                    cosutil.printMsg("Info:  No wavecal signal for FUVB,"
+                                     " but the file")
                     cosutil.printContinuation(
-                            "for segment A does not exist, " \
-                            "so wavecal shifts will be set to 0.")
+                        "%s for segment A does not exist,"
+                        % self.lampflash_a)
+                    cosutil.printContinuation(
+                        "so wavecal shifts will be set to the default.")
                     self.segment_A_present = False
             else:
-                cosutil.printWarning("FUVB, G140L, but don't understand " \
-                                     "the name outflash = %s," % outflash)
-                cosutil.printContinuation("so shifts will be set to 0.")
+                cosutil.printWarning("No wavecal signal, "
+                                     "but don't understand the name")
+                cosutil.printContinuation("outflash = %s," % outflash)
+                cosutil.printContinuation(
+                        "so wavecal shifts will be set to the default.")
                 self.segment_A_present = False
 
         # Copy xi and eta to the columns for corrected values.
@@ -1460,8 +1465,8 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
     def copySegAtoSegB(self):
         """Copy lampflash_a.fits to lampflash_b.fits.
 
-        This method is called for the case of G140L, segment-B data,
-        when there is also a file for segment A.  The lampflash file
+        This method is called for the case of FUVB where there is no
+        wavecal data but there is data for segment A.  The lampflash file
         for segment A will be copied to <rootname>_lampflash_b.fits.
         The latter file will be opened (with pyfits), and the "FUVA" in
         the SEGMENT column will be changed to "FUVB"; the file should
@@ -1473,9 +1478,10 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
 
         self.ofd = pyfits.open(self.outflash, mode="update")
         self.ofd[0].header["segment"] = self.segment_list[0]
-        if self.ofd[1].data is None:
+        if self.ofd[1].data is None or len(self.ofd[1].data) == 0:
             self.numflash = 0
             cosutil.printWarning("No data in lampflash table.")
+            self.phdr["wavecorr"] = "SKIPPED"
             return
 
         # A_shift1 is the shift1 value for FUVA, and A_spec_found is used
@@ -1547,6 +1553,8 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
                 cosutil.printMsg(message, VERBOSE)
                 row += 1
 
+        self.phdr["wavecorr"] = "COMPLETE"
+
     def setSegBtoZero(self):
         """Set the shifts to zero (no segment A data to copy)."""
 
@@ -1587,8 +1595,8 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         self.shift1 = [{segment: fp_pixel_shift}]
 
         if self.user_shifts is not None:
-            # check for a user-supplied value for shift1
-            # note that flash number is one indexed
+            # Check for a user-supplied value for shift1.
+            # Note that flash number is one indexed.
             ((user_shift1, user_shift2), nfound) = \
                 self.user_shifts.getShifts((n+1, segment))
             if user_shift1 is None:
@@ -1596,20 +1604,21 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
             else:
                 user_specified = True
                 self.shift1 = [{segment: user_shift1}]
-                # not skipped because the user specified the shift
-                self.phdr["wavecorr"] = "COMPLETE"
         message = \
 "%2d %4s %9.1f (-9999) %9.1f 0.00 [  0.0] %6.1f     0.0 (0)" \
                     % (n+1, segment, self.shift2[n],
                        self.shift1[n][segment], fp_pixel_shift)
         if user_specified:
             message = message + "  # user-specified"
+            # Not skipped because the user specified the shift.
+            self.wavecorr = "COMPLETE"
         else:
             message = message + "  # set to 0"
+            self.wavecorr = "SKIPPED"
         cosutil.printMsg(message, VERBOSE)
 
     def miscSegB(self):
-        """Miscellaneous stuff for G140L, FUVB, with no segment A data."""
+        """Miscellaneous stuff for FUVB, with no segment A data."""
 
         segment = self.segment_list[0]
 
@@ -1617,6 +1626,7 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         disptab = self.reffiles["disptab"]
         filter_disp = {"opt_elem": self.info["opt_elem"],
                        "cenwave": self.info["cenwave"],
+                       "fpoffset": self.info["fpoffset"],
                        "segment": segment,
                        "aperture": "WCA"}
         pixel = np.arange(len(self.spectrum), dtype=np.float64)
@@ -1740,9 +1750,8 @@ class NUVConcurrentWavecal(ConcurrentWavecal):
             filter["segment"] = segment
 
             filter["aperture"] = "WCA"
-            xtract_info = cosutil.getTable(self.reffiles["xtractab"], filter)
-            if xtract_info is None:
-                continue
+            xtract_info = cosutil.getTable(self.reffiles["xtractab"], filter,
+                                           at_least_one=True)
             # Note that this does not include life_adj_offset; see the comment
             # in the doc string about shift2.
             b_spec = xtract_info.field("b_spec")[0] + \
@@ -1750,9 +1759,8 @@ class NUVConcurrentWavecal(ConcurrentWavecal):
             locations.append((segment, b_spec))
 
             filter["aperture"] = "PSA"
-            xtract_info = cosutil.getTable(self.reffiles["xtractab"], filter)
-            if xtract_info is None:
-                continue
+            xtract_info = cosutil.getTable(self.reffiles["xtractab"], filter,
+                                           at_least_one=True)
             b_spec = xtract_info.field("b_spec")[0] + \
                      xtract_info.field("slope")[0] * middle
             locations.append((segment, b_spec))

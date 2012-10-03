@@ -182,7 +182,7 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doGeocorr(events, info, switches, reffiles, phdr)
 
-    # Set this array of flags again, after geometric correction.
+    # Set this array of flags again, now that geometric correction is done.
     setActiveArea(events, info, reffiles["brftab"])
 
     doWalkCorr(events, info, switches, reffiles, phdr)
@@ -269,7 +269,7 @@ def timetagBasicCalibration(input, inpha, outtag,
     # Create or update a TIMELINE extension.
     timeline.createTimeline(input, ofd, info, reffiles,
                             tl_time, shift1_vs_time,
-                            cosutil.getColCopy(data=events, column="time"),
+                            events.field("TIME").astype(np.float64),
                             events.field(xfull), events.field(yfull))
 
     ofd.close()
@@ -1314,7 +1314,7 @@ def initTempcorr(events, input, info, switches, reffiles, hdr, stimfile):
     if info["detector"] == "FUV" and \
        (switches["tempcorr"] == "PERFORM" or switches["deadcorr"] == "PERFORM"):
         # Compute the parameters (to be used later).
-        time = cosutil.getColCopy(data=events, column="time")
+        time = events.field("TIME").astype(np.float64)
         (stim_param, avg_s1, avg_s2, rms_s1, rms_s2, s1_ref, s2_ref,
          stim_countrate, stim_livetime) = \
          computeThermalParam(time,
@@ -2176,6 +2176,8 @@ def doDqicorr(events, input, info, switches, reffiles,
             bpixtab = reffiles["bpixtab"]
             ref_pharange = cosutil.tempPulseHeightRange(bpixtab)
             cosutil.comparePulseHeightRanges(pharange, ref_pharange, bpixtab)
+            # The location of the flags is based on xcorr & ycorr, because
+            # the bad regions depend on the detector, not the science data.
             ccos.applydq(lx, ly, dx, dy, dq,
                          events.field(xcorr), events.field(ycorr),
                          events.field("dq"))
@@ -2254,6 +2256,7 @@ def dopplerParam(info, disptab, doppcorr):
         # Doppler magnitude from km/s to pixels.
         filter = {"opt_elem": info["opt_elem"],
                   "cenwave": info["cenwave"],
+                  "fpoffset": info["fpoffset"],
                   "aperture": info["aperture"]}
         if info["detector"] == "FUV":
             filter["segment"] = info["segment"]
@@ -2261,7 +2264,7 @@ def dopplerParam(info, disptab, doppcorr):
         else:
             filter["segment"] = "NUVB"
             middle = float(NUV_X) / 2.
-        disp_rel = dispersion.Dispersion(disptab, filter, False)
+        disp_rel = dispersion.Dispersion(disptab, filter)
         if not disp_rel.isValid():
             raise RuntimeError("missing row in disptab")
         # get the dispersion (disp) at the middle of the detector
@@ -2326,8 +2329,6 @@ def doDoppcorr(events, info, switches, reffiles, phdr):
             cosutil.printRef("BRFTAB", reffiles)
 
         xtractab = reffiles["xtractab"]
-        disptab = reffiles["disptab"]
-        wcptab = reffiles["wcptab"]
         if info["detector"] == "FUV":
             # This array of flags indicates which events should be corrected.
             region_flags = fuvDopplerRegions(eta, info, xtractab)
@@ -2971,7 +2972,7 @@ def deadtimeCorrection(events, deadtab, info,
     segment = info["segment"]
     dec_countrate = info["countrate"]
 
-    time = cosutil.getColCopy(data=events, column="time")
+    time = events.field("TIME").astype(np.float64)
     epsilon = events.field("epsilon")
     nevents = len(time)
 
@@ -3416,44 +3417,40 @@ def writeImages(x, y, epsilon, dq,
 
     # notation:
     # t = exposure time (exptime)
-    # C = sum of counts
-    # C_rate = C / t
-    # E = C / flat_field, i.e. "effective" counts
-    # E_rate = E / t
+    # C_counts = sum of counts
+    # E_counts = "effective" counts, sum of EPSILON column
+    # C_rate = C_counts / t
+    # E_rate = E_counts / t
+    # reciprocal_flat_field = E_counts / C_counts
     # the corresponding error arrays are:
-    # errC = sqrt (C)
-    # errC_rate = sqrt (C) / t
-    # errE = sqrt (C) / flat_field = sqrt (C) * (E / C) = E / sqrt (C)
-    # errE_rate = errE / t = (E / sqrt (C)) / t
-    #           = (E / t) / (sqrt (C) / t) / t
-    #           =  E_rate / errC_rate / t
+    # errC_rate = errGehrels(C_counts) / t
+    # errE_rate = errC_rate * reciprocal_flat_field
 
     if outcounts is not None:
         cosutil.printMsg("writing file %s ..." % outcounts, VERY_VERBOSE)
 
     # First make an image array in which each input event counts as one,
     # i.e. ignoring flat field and deadtime corrections.
-    C_rate = np.zeros(npix, dtype=np.float32)
+    C_counts = np.zeros(npix, dtype=np.float32)
 
     if exptime <= 0:
         cosutil.printWarning(
                 "Exposure time is zero, so output files are dummy.")
-        E_rate = C_rate.copy()
-        errE_rate = C_rate.copy()
         if outcounts is not None:
-            makeImage(outcounts, phdr, headers, E_rate, errE_rate, dq_array)
+            makeImage(outcounts, phdr, headers, C_counts, C_counts, dq_array)
         if output is not None:
-            makeImage(output, phdr, headers, E_rate, errE_rate, dq_array)
+            makeImage(output, phdr, headers, C_counts, C_counts, dq_array)
         return
 
-    ccos.binevents(x, y, C_rate, x_offset, dq, SERIOUS_DQ_FLAGS)
+    ccos.binevents(x, y, C_counts, x_offset, dq, SERIOUS_DQ_FLAGS)
 
-    errC_rate = np.sqrt(C_rate) / exptime
+    # Use the Gehrels variance function.
+    errC_rate = cosutil.errGehrels(C_counts) / exptime
 
     if outcounts is not None:
-        C_rate /= exptime
+        C_rate = C_counts / exptime
         makeImage(outcounts, phdr, headers, C_rate, errC_rate, dq_array)
-    del C_rate                          # but we still need errC_rate
+    del C_rate
 
     if output is None:
         return                          # nothing further to do
@@ -3461,17 +3458,16 @@ def writeImages(x, y, epsilon, dq,
     cosutil.printMsg("writing file %s ..." % output, VERY_VERBOSE)
 
     # Make an image array where event number i has weight epsilon[i].
-    E_rate = np.zeros(npix, dtype=np.float32)
-    ccos.binevents(x, y, E_rate, x_offset, dq, SERIOUS_DQ_FLAGS, epsilon)
+    E_counts = np.zeros(npix, dtype=np.float32)
+    ccos.binevents(x, y, E_counts, x_offset, dq, SERIOUS_DQ_FLAGS, epsilon)
 
-    # errC_rate will likely have a number of zero values, so we
-    # have to set those to one before dividing.
-    errC_rate = np.where(errC_rate == 0., 1., errC_rate)
+    E_rate = E_counts / exptime
 
-    # convert from counts to count rate
-    E_rate /= exptime
-    errE_rate = E_rate / errC_rate / exptime
-    del errC_rate
+    reciprocal_flat = np.where(E_counts == 0., 1., E_counts) / \
+                      np.where(C_counts == 0., 1., C_counts)
+    del E_counts, C_counts
+    errE_rate = errC_rate * reciprocal_flat
+    del reciprocal_flat, errC_rate
 
     makeImage(output, phdr, headers, E_rate, errE_rate, dq_array)
 
@@ -3611,7 +3607,7 @@ def writeCsum(outcsum, events,
     fd[0].header.update("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename(fd[0].header, outcsum)
 
-    if events is None:
+    if events is None or len(events) == 0:
         xcoord = None
         ycoord = None
         epsilon = None
@@ -4001,7 +3997,7 @@ def computeWavelengths(events, info, reffiles, helcorr="OMIT", hdr=None):
         coordinates; this is needed for a wavecal exposure.
     """
 
-    if events is None:
+    if events is None or len(events) == 0:
         return
 
     # If the current exposure is a wavecal, we need to apply the shift keyword
@@ -4037,7 +4033,8 @@ def computeWavelengths(events, info, reffiles, helcorr="OMIT", hdr=None):
 
     # aperture and segment will be added to the filter within the loop.
     filter = {"opt_elem": opt_elem,
-              "cenwave": cenwave}
+              "cenwave": cenwave,
+              "fpoffset": info["fpoffset"]}
 
     wavelength = events.field("WAVELENGTH")
 
@@ -4424,6 +4421,9 @@ def getWavecalOffsets(events, info, wavecorr, xtractab):
 
     minmax_shift_dict = {}
 
+    # wavecorr can be set to SKIPPED for FUVB data if there is no wavecal
+    # data and no corresponding segment A data (see concurrent.py).  In
+    # this case, the shifts will be non-zero if fpoffset is not zero.
     if info["obstype"] == "IMAGING" or wavecorr == "OMIT":
         if info["detector"] == "NUV":
             minmax_shift_dict[(0, NUV_Y)] = [0., 0., 0., 0.]

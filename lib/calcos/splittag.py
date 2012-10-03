@@ -2,7 +2,7 @@ from __future__ import division         # confidence high
 import glob
 import math
 import os
-import numpy
+import numpy as np
 import pyfits
 import cosutil
 import ccos
@@ -96,7 +96,7 @@ def splitOneTag(input, outroot, starttime=None, increment=None, endtime=None,
         ifd.close()
         raise RuntimeError, "%s is not a corrtag file" % input
     data = ifd[("events")].data
-    time_col = cosutil.getColCopy(filename="", column="time", data=data)
+    time_col = data.field("TIME").astype(np.float64)
 
     info = getInfo(input, phdr, hdr)
     if info["wavecorr"] != "COMPLETE":
@@ -278,7 +278,7 @@ def convertToSlices(time_col, starttime, increment, endtime, time_list):
             # just return it.
             is_a_list_of_tuples = True          # default
             for value in time_list:
-                if not isinstance(value, (list, tuple, numpy.ndarray)):
+                if not isinstance(value, (list, tuple, np.ndarray)):
                     is_a_list_of_tuples = False
                     break
                 if len(value) != 2:
@@ -544,16 +544,23 @@ def createNewGTI(gti_hdu, t0, t1):
         A GTI table to append to the output file
     """
 
-    cd = gti_hdu.columns
-
-    if gti_hdu is None or gti_hdu.data is None:
+    if gti_hdu is None or gti_hdu.data is None or len(gti_hdu.data) == 0:
         # No GTI table means the entire exposure is good.
-        out_gti_hdu = pyfits.new_table(cd, header=gti_hdu.header, nrows=0)
+        if gti_hdu is None or gti_hdu.data is None:
+            col = []
+            col.append(pyfits.Column(name="START", format="1D", unit="s"))
+            col.append(pyfits.Column(name="STOP", format="1D", unit="s"))
+            cd = pyfits.ColDefs(col)
+        else:
+            cd = gti_hdu.columns
+        out_gti_hdu = pyfits.new_table(cd, header=gti_hdu.header, nrows=1)
         out_start_col = out_gti_hdu.data.field("start")
         out_stop_col = out_gti_hdu.data.field("stop")
         out_start_col[0] = t0
         out_stop_col[0] = t1
         return out_gti_hdu
+
+    cd = gti_hdu.columns
 
     data = gti_hdu.data
     in_nrows = len(data)
@@ -614,6 +621,8 @@ def getTimeline(ifd):
         timeline_hdu = None
     else:
         timeline_hdu = ifd[hdunum]
+        # Note that this allows timeline_hdu.data to have zero length,
+        # which will be checked for elsewhere and is OK.
         if timeline_hdu.data is None:
             timeline_hdu = None
 
@@ -650,23 +659,30 @@ def createNewTimeline(timeline_hdu, t0, t1):
     cd = timeline_hdu.columns
 
     in_data = timeline_hdu.data
-    in_nrows = len(in_data)
+    if in_data is None:
+        in_nrows = 0
+    else:
+        in_nrows = len(in_data)
 
-    time_col = in_data.field("time")
-
-    # The "ceil(t1) + 0.1" here is to ensure that the time range (specifically
-    # i_end) actually includes all the relevant rows of the input TIMELINE
-    # table.  This implicitly assumes that the time increment is one second.
-    (i_start, i_end)= ccos.range(time_col, t0, math.ceil(t1) + 0.1)
-    out_nrows = i_end - i_start
+    if in_nrows > 0:
+        time_col = in_data.field("time").astype(np.float64)
+        # "ceil(t1) + 0.1" here is to ensure that the time range
+        # (specifically i_end) actually includes all the relevant rows
+        # of the input TIMELINE table.
+        # This implicitly assumes that the time increment is one second.
+        (i_start, i_end)= ccos.range(time_col, t0, math.ceil(t1) + 0.1)
+        out_nrows = i_end - i_start
+    else:
+        out_nrows = 0
 
     out_timeline_hdu = pyfits.new_table(cd, header=timeline_hdu.header,
                                         nrows=out_nrows)
-    out_data = out_timeline_hdu.data
-    i = i_start
-    for j in range(out_nrows):
-        out_data[j] = in_data[i]
-        i += 1
+    if in_nrows > 0:
+        out_data = out_timeline_hdu.data
+        i = i_start
+        for j in range(out_nrows):
+            out_data[j] = in_data[i]
+            i += 1
 
     return out_timeline_hdu
 

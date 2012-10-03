@@ -513,7 +513,7 @@ def findPixelRegion(info, disptab, xtractab, median_shift1, wl_airglow):
 
     x_width = float(AIRGLOW_WIDTH // 2)
     y_width = float(AIRGLOW_HEIGHT // 2)
-    # The same filter is used for both disptab and xtractab.
+    # fpoffset will be added to filter for the disptab.
     filter = {"opt_elem": info["opt_elem"],
               "cenwave": info["cenwave"],
               "segment": segment,
@@ -546,7 +546,8 @@ def findPixelRegion(info, disptab, xtractab, median_shift1, wl_airglow):
         y1.sort()
     else:
         # Region for an airglow line.
-        disp_rel = dispersion.Dispersion(disptab, filter, False)
+        filter["fpoffset"] = info["fpoffset"]
+        disp_rel = dispersion.Dispersion(disptab, filter)
         min_wl = min(wl_airglow)
         max_wl = max(wl_airglow)
         # First check whether the airglow line is off the detector.

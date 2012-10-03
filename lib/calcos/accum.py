@@ -249,7 +249,7 @@ def updateGlobrate(hdr, data, exptime):
         Exposure time in seconds.
     """
 
-    if data is None or exptime <= 0.:
+    if data is None or len(data) == 0 or exptime <= 0.:
         globrate = 0.
     else:
         globrate = data.sum(dtype=np.float64) / exptime

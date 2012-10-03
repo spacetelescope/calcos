@@ -8,6 +8,7 @@ class Dispersion(object):
     The public methods are:
         flag = disprel.isValid()
         nrows = disprel.getNRows()
+        filter = disprel.getFilter()
         wavelength = disprel.evalDisp(x)
         dwavelength / dx = disprel.evalDerivDisp(x)
         x = disprel.evalInvDisp(wavelength, tiny=1.e-8)
@@ -99,6 +100,11 @@ class Dispersion(object):
         """Return the number of rows in disptab that match the filter."""
 
         return self._nrows
+
+    def getFilter(self):
+        """Return the filter dictionary."""
+
+        return self.filter
 
     def close(self):
         """Delete coefficients and reset attributes."""

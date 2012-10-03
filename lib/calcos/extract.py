@@ -428,11 +428,15 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                   "cenwave": info["cenwave"],
                   "aperture": info["aperture"]}
         xtract_info = cosutil.getTable(reffiles["xtractab"], filter)
+        if xtract_info is None:
+            raise RuntimeError("Missing row in XTRACTAB; filter = %s" %
+                               str(filter))
         # Include fpoffset in the filter for disptab.
         filter["fpoffset"] = info["fpoffset"]
         disp_rel = dispersion.Dispersion(reffiles["disptab"], filter, True)
-        if xtract_info is None or not disp_rel.isValid():
-            continue
+        if not disp_rel.isValid():
+            raise RuntimeError("Missing row in DISPTAB; filter = %s" %
+                               str(disp_rel.getFilter()))
         slope = xtract_info.field("slope")[0]
 
         if is_wavecal:
@@ -510,15 +514,15 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
 
         outdata.field("SEGMENT")[row] = segment
         outdata.field("EXPTIME")[row] = exptime
-        outdata.field("WAVELENGTH")[row][:] = wavelength
+        outdata.field("WAVELENGTH")[row][:] = wavelength.copy()
         outdata.field("FLUX")[row][:] = 0.
-        outdata.field("ERROR")[row][:] = ERR_i
-        outdata.field("GROSS")[row][:] = GC_i
-        outdata.field("GCOUNTS")[row][:] = GCOUNTS_i
-        outdata.field("NET")[row][:] = N_i
-        outdata.field("BACKGROUND")[row][:] = BK_i
-        outdata.field("DQ")[row][:] = DQ_i
-        outdata.field("DQ_WGT")[row][:] = DQ_WGT_i
+        outdata.field("ERROR")[row][:] = ERR_i.copy()
+        outdata.field("GROSS")[row][:] = GC_i.copy()
+        outdata.field("GCOUNTS")[row][:] = GCOUNTS_i.copy()
+        outdata.field("NET")[row][:] = N_i.copy()
+        outdata.field("BACKGROUND")[row][:] = BK_i.copy()
+        outdata.field("DQ")[row][:] = DQ_i.copy()
+        outdata.field("DQ_WGT")[row][:] = DQ_WGT_i.copy()
 
         row += 1
 
@@ -823,9 +827,10 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
             msg2 = "%.2f" % fwhm
         cosutil.printContinuation(msg1 + msg2)
 
-    # b_spec is where the spectrum crosses the left edge of the array.
-    # xd_locn will be set to either the user-specified value (if it was
-    # specified) or the location based on the wavecal.  In either case,
+    # b_spec and xd_locn are either the user-specified value (if it was
+    # specified), or the location where the spectrum was found, or the
+    # nominal location based on the xtractab and the wavecal.
+    # b_spec is where the spectrum crosses the left edge of the array, and
     # xd_locn is where the spectrum crosses the middle of the array.
     if user_xdisp_locn is None:
         use_found_location = local_find_targ["flag"]
@@ -962,7 +967,8 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
     term2_i = eps_i**2 * exptime * \
                 (GC_i + BK_i * (bkg_norm / float(bkg_smooth)))
     if exptime > 0.:
-        ERR_i = np.sqrt(term1_i + term2_i) / exptime
+        # Use the Gehrels variance function.
+        ERR_i = cosutil.errGehrels(term1_i + term2_i) / exptime
     else:
         ERR_i = N_i * 0.
 
@@ -1289,7 +1295,8 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
     if exptime > 0.:
         sum_terms = term1_i + term2_i
         sum_terms = np.where(sum_terms > 0, sum_terms, 0.)
-        ERR_i = np.sqrt(sum_terms) / exptime
+        # Use the Gehrels variance function.
+        ERR_i = cosutil.errGehrels(sum_terms) / exptime
     else:
         ERR_i = N_i * 0.
     if ofd_header is not None:
@@ -1391,7 +1398,7 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
                 cosutil.printWarning("Current row in TDSTAB %s is dummy" % \
                                      tdstab, level=VERBOSE)
                 cosutil.printContinuation("for filter = %s," % \
-                                          filter, level=VERBOSE)
+                                          str(filter), level=VERBOSE)
                 cosutil.printContinuation("so TDSTAB will not be done.", \
                                           level=VERBOSE)
                 break
@@ -1402,10 +1409,7 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
             for row in range(nrows):
                 filter["segment"] = segment[row]
                 # Get an array of factors vs. wavelength at the time of the obs.
-                try:
-                    tds_results = getTdsFactors(tdstab, filter, t_obs)
-                except RuntimeError:    # no matching row in table
-                    continue
+                tds_results = getTdsFactors(tdstab, filter, t_obs)
                 (wl_tds, factor_tds, extrapolate) = tds_results
                 factor = np.zeros(len(flux[row]), dtype=np.float32)
                 # Interpolate factor_tds at each wavelength.
@@ -1999,7 +2003,8 @@ def recomputeWavelengths(input):
                   "fpoffset": info["fpoffset"]}
         disp_rel = dispersion.Dispersion(disptab, filter)
         if not disp_rel.isValid():
-            continue
+            raise RuntimeError("Missing row in DISPTAB; filter = %s" %
+                               str(disp_rel.getFilter()))
         key = "shift1" + segment[-1]
         shift1 = hdr.get(key, 0.)
 

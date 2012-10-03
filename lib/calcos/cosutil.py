@@ -21,6 +21,10 @@ fd_trl = None
 # if this is False, writing to trailer files will be disabled
 write_to_trailer = True
 
+# Used as a default value in updateDQArray.  The actual value should be
+# gotten via keyword WIDEN in the BPIXTAB table header.
+PIXEL_FRACTION = 0.25
+
 def writeOutputEvents(infile, outfile):
     """
     This function creates a recarray object with the column definitions
@@ -48,7 +52,7 @@ def writeOutputEvents(infile, outfile):
     if indata is None:
         nrows = 0
     else:
-        nrows = indata.shape[0]
+        nrows = len(indata)
 
     # If the input is already a corrtag file, just copy it.
     if isCorrtag(infile):
@@ -148,8 +152,8 @@ def isCorrtag(filename):
     hdr = fd[hdunum].header
     data = fd[hdunum].data
     got_xfull = False                   # initial value
-    if data is None:
-        # check each of the TTYPEi keywords
+    if data is None or len(data) == 0:
+        # Check each of the TTYPEi keywords, looking for column XFULL.
         ncols = hdr.get("tfields", 0)
         for i in range(1, ncols+1):
             key = "ttype%d" % i
@@ -321,6 +325,12 @@ def returnGTI(infile):
     ----------
     infile: str
         Name of the input FITS file containing a GTI table.
+
+    Returns
+    -------
+    list of two-element tuples
+        Each tuple gives the start and stop times (seconds since the
+        start of the exposure).
     """
 
     fd = pyfits.open(infile, mode="copyonwrite")
@@ -341,7 +351,7 @@ def returnGTI(infile):
         gti = []
     else:
         indata = fd[hdunum].data
-        if indata is None:
+        if indata is None or len(indata) == 0:
             gti = []
         else:
             nrows = indata.shape[0]
@@ -433,12 +443,17 @@ def getTable(table, filter, extension=1,
 
     Returns
     -------
-    array_like
-        Pyfits table data object containing the selected row(s).
+    array_like or None
+        Pyfits table data object containing the selected row(s).  If the
+        input table is empty, or if no rows match the selection criteria,
+        None will be returned.
     """
 
     fd = pyfits.open(table, mode="copyonwrite")
     data = fd[extension].data
+    if data is None or len(data) < 1:
+        fd.close()
+        return None
 
     # There will be one element of select_arrays for each non-trivial
     # selection criterion.  Each element of select_arrays is an array
@@ -565,6 +580,53 @@ def getTemplate(raw_template, x_offset, nelem):
     template[x_offset:len_raw+x_offset] = raw_template
 
     return template
+
+def checkForNoWavecalData(opt_elem, cenwave, segment, lamptab):
+    """Read the HAS_LINES column to see whether to override wavecal info.
+
+    For certain FUV modes, there is no detectable wavecal signal on
+    segment B.  This is the case for G140L, but also for some blue central
+    wavelengths for G130M.  The presence or absence of wavecal signal for
+    segment B can be flagged in a HAS_LINES column in the LAMPTAB.  If this
+    column is present, its value is taken to indicate whether the wavecal
+    shift should be copied from the wavecal shifts for segment A.  If the
+    column is not found, the test is based on the grating name;
+    specifically, copy segment A wavecal shifts to segment B for G140L
+    data.
+
+    Parameters
+    ----------
+    opt_elem: str
+        Grating name.
+
+    cenwave: str
+        Central wavelength, for spectroscopic data.
+
+    segment: str
+        Segment name.
+
+    lamptab: str
+        Wavecal lamp template reference table.
+
+    Returns
+    -------
+    boolean
+        True if there is no wavecal signal for this mode.
+    """
+
+    if findColumn(lamptab, "has_lines"):
+        filter = {"opt_elem": opt_elem,
+                  "cenwave": cenwave,
+                  "segment": segment}
+        lamp_info = cosutil.getTable(lamptab, filter, at_least_one=True)
+        # True if there are no wavecal lines for this mode.
+        override_segment_B = not lamp_info.field("has_lines")[0]
+    elif opt_elem == "G140L" and segment == "FUVB":
+        override_segment_B = True
+    else:
+        override_segment_B = False
+
+    return override_segment_B
 
 def determineLivetime(countrate, obs_rate, live_factor):
     """Compute livetime factor from observed count rate.
@@ -1009,8 +1071,8 @@ def minmaxDoppler(info, doppcorr, doppmag, doppzero, orbitper):
     -------
     tuple of two floats
         Minimum and maximum Doppler shifts (will be 0 if doppcorr is omit).
-        The sign is such that the Doppler shift should be added to XCORR
-        to get XDOPP (the Doppler corrected X pixel coordinate).
+        The sign is such that the Doppler shift should be subtracted from
+        XCORR to get XDOPP (the Doppler corrected X pixel coordinate).
     """
 
     if doppcorr == "PERFORM" or doppcorr == "COMPLETE":
@@ -1024,7 +1086,7 @@ def minmaxDoppler(info, doppcorr, doppmag, doppzero, orbitper):
                          (expstart - doppzero) * SEC_PER_DAY
 
         # shift is in pixels (wavelengths increase toward larger pixel number).
-        shift = -doppmag * np.sin(2. * np.pi * time / orbitper)
+        shift = doppmag * np.sin(2. * np.pi * time / orbitper)
         mindopp = shift.min()
         maxdopp = shift.max()
     else:
@@ -1094,12 +1156,17 @@ def updateDQArray(info, reffiles, dq_array,
                        (doppler_boundary, upper_y): value}
     else:
         minmax_dict = minmax_shift_dict
+    fd = pyfits.open(reffiles["bpixtab"])
+    widen = fd[1].header.get("widen", default=PIXEL_FRACTION)
+    fd.close()
 
     # Update the 2-D data quality extension array from the DQI table info
     # for each slice in the minmax_shift_dict.
     # The flagged region (each row in the DQI table) will be expanded:
     #   the maximum shift will be subtracted from the lower limit, and
-    #   the minimum shift will be subtracted from the upper limit.
+    #   the minimum shift will be subtracted from the upper limit;
+    #   `widen` will be subtracted from the lower limit and added to
+    #   the upper limit.
     # It is explicitly assumed here that the slice is only in the cross-
     # dispersion direction.
     keys = sorted(minmax_dict)
@@ -1110,17 +1177,17 @@ def updateDQArray(info, reffiles, dq_array,
 
         if doppler_boundary > 0. and \
            ((lower_y + upper_y) // 2 < doppler_boundary):
-            lx_s = lx - int(round(max_shift1 - mindopp))
-            ux_s = ux - int(round(min_shift1 - maxdopp))
+            lx_s = lx - (max_shift1 + maxdopp) - widen
+            ux_s = ux - (min_shift1 + mindopp) + widen
         else:
-            lx_s = lx - int(round(max_shift1))
-            ux_s = ux - int(round(min_shift1))
-        lx_s = lx_s.astype(np.int32)
-        ux_s = ux_s.astype(np.int32)
+            lx_s = lx - max_shift1 - widen
+            ux_s = ux - min_shift1 + widen
+        lx_s = lx_s.round().astype(np.int32)
+        ux_s = ux_s.round().astype(np.int32)
 
         # Correct the Y limits of the regions for the wavecal shift.
-        ly_s = (ly.astype(np.float64) - max_shift2).round()
-        uy_s = (uy.astype(np.float64) - min_shift2).round()
+        ly_s = (ly.astype(np.float64) - max_shift2 - widen).round()
+        uy_s = (uy.astype(np.float64) - min_shift2 + widen).round()
 
         # These are the limits of a slice, corrected for the wavecal shift.
         lower_y_s = int(round(lower_y - max_shift2))
@@ -1403,7 +1470,7 @@ def fuvFlagOutOfBounds(hdr, dq_array, info, switches,
     (mindopp, maxdopp) = minmax_doppler
     dx = min_shift1
     dy = min_shift2
-    dx -= maxdopp
+    dx += mindopp
     dx = int(round(dx))
     dy = int(round(dy))
     xwidth = int(round(max_shift1 - min_shift1 + maxdopp - mindopp))
@@ -1687,8 +1754,8 @@ def nuvFlagOutOfBounds(hdr, dq_array, info, switches,
             if y0 >= y1:
                 continue
             if (lower_y + upper_y) // 2 < doppler_boundary:
-                x0 -= int(round(min_shift1 - maxdopp))
-                x1 -= int(round(max_shift1 - mindopp))
+                x0 -= int(round(min_shift1 + mindopp))
+                x1 -= int(round(max_shift1 + maxdopp))
             else:
                 x0 -= int(round(min_shift1))
                 x1 -= int(round(max_shift1))
@@ -1706,8 +1773,8 @@ def nuvFlagOutOfBounds(hdr, dq_array, info, switches,
             x0 = 0
             x1 = x0 + NUV_X
             if (lower_y + upper_y) // 2 < doppler_boundary:
-                x0 -= int(round(min_shift1 - maxdopp))
-                x1 -= int(round(max_shift1 - mindopp))
+                x0 -= int(round(min_shift1 + mindopp))
+                x1 -= int(round(max_shift1 + maxdopp))
             else:
                 x0 -= int(round(min_shift1))
                 x1 -= int(round(max_shift1))
@@ -1776,8 +1843,8 @@ def flagOutsideActiveArea(dq_array, segment, brftab, x_offset,
     b_low -= int(round(min_shift2))
     b_high -= int(round(max_shift2))
 
-    b_left += int(round(maxdopp))
-    b_right += int(round(mindopp))
+    b_left -= int(round(mindopp))
+    b_right -= int(round(maxdopp))
 
     b_left += x_offset
     b_right += x_offset
@@ -1795,8 +1862,6 @@ def flagOutsideActiveArea(dq_array, segment, brftab, x_offset,
 
 def getGeoData(geofile, segment):
     """Open and read the geofile.
-
-    This is no longer used, and it can be deleted.
 
     Parameters
     ----------
@@ -2238,7 +2303,7 @@ def doSpecStat(input):
         fd.close()
         return
 
-    if sci_extn.data is None:
+    if sci_extn.data is None or len(sci_extn.data) == 0:
         fd.close()
         return
     sdqflags = sci_extn.header["sdqflags"]
@@ -2283,7 +2348,7 @@ def doTagFlashStat(fd):
     """
 
     sci_extn = fd["LAMPFLASH"]
-    if sci_extn.data is None:
+    if sci_extn.data is None or len(sci_extn.data) == 0:
         return
 
     outdata = sci_extn.data
@@ -3490,6 +3555,25 @@ def centerOfQuartic(x, coeff):
                 x_min = xminmax[i][1]
 
     return x_min
+
+def errGehrels(a):
+    """Compute error estimate.
+
+    The error estimate is computed using the Gehrels approximation for the
+    upper confidence limit.
+
+    Parameters
+    ----------
+    a: array_like or float
+        Number of counts (not necessarily integer values).
+
+    Returns
+    -------
+    array_like or float
+        The error estimate for a counts.
+    """
+
+    return (1. + np.sqrt(a + 0.75))
 
 def precess(t, target):
     """Precess `target` to the time of observation.

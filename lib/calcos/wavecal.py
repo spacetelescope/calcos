@@ -40,17 +40,23 @@ def findWavecalShift(input, shift_file, info, wcp_info):
 
     Returns
     -------
-    shift_dict: dictionary or None
-        Keys are header keywords (but lower case) for wavecal information,
-        values are the values for the header; None will be returned if
-        there is no data in the first extension of input.
+    (shift_dict, fp_dict)
+        shift_dict is a dictionary or None.  Keys are header keywords (but
+        lower case) for wavecal shift information, values are the values
+        for updating the header.  shift_dict will be None if there is no
+        data in the first extension of input.
+        fp_dict is a dictionary.  Keys are tuples of segment or stripe
+        name (upper case) and fpoffset.  Values are fp_pixel_shift.  This
+        is only needed for the case that there is a science exposure with
+        no wavecal taken at the same fpoffset, but there is a wavecal for
+        at least one fpoffset.
     """
 
     # Note that we open the x1d table read-write, so we can update keywords.
     fd = pyfits.open(input, mode="update")
     phdr = fd[0].header
     sci_extn = fd["SCI"]
-    if sci_extn.data is None:
+    if sci_extn.data is None or len(sci_extn.data) == 0:
         fd.close()
         return None
 
@@ -72,24 +78,19 @@ def findWavecalShift(input, shift_file, info, wcp_info):
     stepsize = wcp_info.field("stepsize")
 
     # Replace shift values in segment B with values from segment A?
-    override_segment_B = (info["opt_elem"] == "G140L" and "FUVB" in segment)
+    if "FUVB" in segment:
+        override_segment_B = cosutil.checkForNoWavecalData(
+                info["opt_elem"], info["cenwave"], "FUVB", lamptab)
+    else:
+        override_segment_B = False
     segment_A_present = ("FUVA" in segment)
 
     # segment will be added to the filter in the loop below.
+    # Note:  early lamp tables did not have fpoffset or fp_pixel_shift
+    # columns, and these early tables are no longer be supported.
     filter = {"opt_elem": info["opt_elem"],
-              "cenwave": info["cenwave"]}
-    # If the FPOFFSET column is present in the lamptab, include fpoffset
-    # in the filter.  If not, use an offset when doing the cross correlation.
-    if cosutil.findColumn(lamptab, "fpoffset"):
-        filter["fpoffset"] = info["fpoffset"]
-    # fp is for an initial offset when matching the spectrum to the
-    # template.  If we've got fpoffset and fp_pixel_shift columns,
-    # the initial offset should be zero.
-    got_pixel_shift = cosutil.findColumn(lamptab, "fp_pixel_shift")
-    if got_pixel_shift:
-        initial_offset = 0
-    else:
-        initial_offset = info["fpoffset"] * stepsize
+              "cenwave": info["cenwave"],
+              "fpoffset": info["fpoffset"]}
 
     shift_dict = {}
 
@@ -97,26 +98,26 @@ def findWavecalShift(input, shift_file, info, wcp_info):
     save_spectra = {}
     save_templates = {}
     fp_pixel_shift = {}
+    fp_dict = {}
 
     for row in index:
         filter["segment"] = segment[row]
         lamp_info = cosutil.getTable(lamptab, filter)
         if lamp_info is None:
-            continue
+            raise RuntimeError("Missing row in LAMPTAB; filter = %s" %
+                               str(filter))
         # Save gross, but convert from count rate back to counts.
         save_spectra[segment[row]] = gross[row] * exptime[row]
         raw_template = lamp_info.field("intensity")[0]
         save_templates[segment[row]] = \
                 cosutil.getTemplate(raw_template, x_offset, nelem)
-        if got_pixel_shift:
-            fp_pixel_shift[segment[row]] = \
-                    lamp_info.field("fp_pixel_shift")[0]
-        else:
-            fp_pixel_shift[segment[row]] = 0.
+        fp_pixel_shift[segment[row]] = lamp_info.field("fp_pixel_shift")[0]
+        # Add elements to fp_dict, one for each fpoffset.
+        readFpPixelShift(info, lamptab, segment[row], fp_dict)
 
     # find offset in dispersion direction
     fs1 = findshift1.Shift1(save_spectra, save_templates, info, reffiles,
-                            xc_range, fp_pixel_shift, initial_offset)
+                            xc_range, fp_pixel_shift)
     fs1.findShifts()
 
     if override_segment_B:
@@ -187,7 +188,7 @@ def findWavecalShift(input, shift_file, info, wcp_info):
             if segment_A_present:
                 message = message + "  # based on FUVA value"
             else:
-                message = message + "  # set to 0 (no FUVA)"
+                message = message + "  # set to default (no FUVA)"
         elif not fs1.getSpecFound(segment[row]):
             message = message + "  # not found"
         cosutil.printMsg(message, VERBOSE)
@@ -203,22 +204,61 @@ def findWavecalShift(input, shift_file, info, wcp_info):
 
     fd.close()
 
-    return shift_dict
+    return (shift_dict, fp_dict)
 
-def storeWavecalInfo(wavecal_info, time, cenwave, fpoffset, shift_dict,
+def readFpPixelShift(info, lamptab, segment, fp_dict):
+    """Read all four fp_pixel_shift values from the lamptab.
+
+    Parameters
+    ----------
+    info: dictionary
+        Keywords and values from the headers of the input file.
+
+    lamptab: str
+        Name of the template lamp table.
+
+    segment: str
+        Current segment or stripe name.
+
+    fp_dict: dictionary
+        Updated in-place.  The keys are tuples of (segment, fpoffset),
+        the segment or stripe name (upper case) and the integer offset
+        (-2, -1, 0, 1) of the OSM.  Entries for the current segment and
+        all fpoffset in the lamptab will be added to fp_dict.
+    """
+
+    # We expect to get four rows matching this filter, one row for each
+    # fpoffset.
+    filter = {"opt_elem": info["opt_elem"],
+              "cenwave": info["cenwave"],
+              "segment": segment}
+    lamp_info = cosutil.getTable(lamptab, filter)
+    if lamp_info is None:
+        raise RuntimeError("Missing row in LAMPTAB; filter = %s" % str(filter))
+    fpoffset = lamp_info.field("fpoffset")
+    fp_pixel_shift = lamp_info.field("fp_pixel_shift")
+    for i in range(len(fpoffset)):
+        fp_dict[(segment, fpoffset[i])] = fp_pixel_shift[i]
+
+def storeWavecalInfo(wavecal_info, time, cenwave, fpoffset,
+                     shift_dict, fp_dict,
                      rootname, filename):
     """Append the current info to the wavecal_info list.
 
-    `shift_dict` can have any of the following keys (and others):
-    "shift1a" for FUV segment A or NUV stripe A,
-    "shift1b" for FUV segment B or NUV stripe B,
-    "shift1c" for NUV stripe C
-    "shift2a" for FUV segment A or NUV stripe A,
-    "shift2b" for FUV segment B or NUV stripe B,
-    "shift2c" for NUV stripe C
-    For each key, the value is the shift that was measured for that segment
-    or stripe in the dispersion direction (shift1[abc]) or in the cross
-    dispersion direction (shift2[abc]).
+    `shift_dict` can have any of the following keys:
+        "shift1a" for FUV segment A or NUV stripe A,
+        "shift1b" for FUV segment B or NUV stripe B,
+        "shift1c" for NUV stripe C,
+        "shift2a", "shift2b", "shift2c",
+        "dpixel1a", "dpixel1b", "dpixel1c",
+        "chi_sq_a", "chi_sq_b", "chi_sq_c",
+        "ndf_a", "ndf_b", "ndf_c".
+    shift1[abc] is the measured shift in the dispersion direction, and
+    shift2[abc] is the measured shift in the cross-dispersion direction.
+
+    `fp_dict` has (segment, fpoffset) as key.  segment is either a segment
+    or stripe name (upper case), and fpoffset is an int, -2, -1, 0 or 1.
+    The values are fp_pixel_shift (from that column in the lamptab).
 
     The input information will be combined into a dictionary, which will
     then be appended to `wavecal_info`.  `wavecal_info` will be sorted in
@@ -246,12 +286,15 @@ def storeWavecalInfo(wavecal_info, time, cenwave, fpoffset, shift_dict,
     shift_dict: dictionary
         A dictionary of keyword names and shifts
 
+    fp_dict: dictionary
+        Dictionary of fp_pixel_shift for each key (segment, fpoffset).
+
     rootname: str
         The rootname (typically lower case) of the observation
 
     filename: str
-        The name of the raw file (this will typically be the _a.fits name
-        for FUV)
+        The name of the raw file, including directory; for FUV this will
+        typically be the _a.fits name
     """
 
     wc_dict = {}
@@ -259,6 +302,7 @@ def storeWavecalInfo(wavecal_info, time, cenwave, fpoffset, shift_dict,
     wc_dict["cenwave"]    = cenwave
     wc_dict["fpoffset"]   = fpoffset
     wc_dict["shift_dict"] = shift_dict
+    wc_dict["fp_dict"]    = fp_dict
     wc_dict["rootname"]   = rootname
     wc_dict["filename"]   = os.path.basename(filename)
 
@@ -294,26 +338,28 @@ def returnWavecalShift(wavecal_info, wcp_info, cenwave, fpoffset, time):
     fpoffset, we'll find the entry that is closest in time to the time of
     the observation.  If the difference in time for that entry is not too
     large (based on info from the wavecal parameters table), we'll use that
-    entry and correct for the difference in OSM position.
+    entry and correct the shift in the dispersion direction by adding the
+    difference in FP_PIXEL_SHIFT values (from the lamptab).
 
     None will be returned if wavecal_info is empty.
 
     Parameters
     ----------
     wavecal_info: list of dictionaries
-        List of wavecal information dictionaries
+        List of wavecal information dictionaries.
 
     wcp_info: pyfits record object
-        Data (one row) from the wavecal parameters table
+        Data (one row) from the wavecal parameters table.
 
     cenwave: int
-        Central wavelength, used to select entries from `wavecal_info`
+        Central wavelength, used to select entries from `wavecal_info`.
 
     fpoffset: int
-        OSM position, used to select entries from `wavecal_info`
+        OSM position for the current science exposure, used to select
+        entries from `wavecal_info`.
 
     time: float
-        Time of observation, MJD at middle of exposure
+        Time of observation, MJD at middle of exposure.
 
     Returns
     -------
@@ -343,21 +389,40 @@ def returnWavecalShift(wavecal_info, wcp_info, cenwave, fpoffset, time):
         interpolateWavecal(subset_wavecal_info, time)
     else:
         # No matching row; find nearest in time.
-        wc_dict = minTimeWavecalInfo(wavecal_info, time,
+        wc_dict = minTimeWavecalInfo(wavecal_info, time, cenwave,
                                      wcp_info.field("max_time_diff"))
         if wc_dict is None or cenwave != wc_dict["cenwave"]:
             cosutil.printWarning(
                     "No matching wavecal info; zero shift assumed.")
             shift_dict = None
         else:
-            # Apply a correction to the current fpoffset.
-            correction = \
-                (fpoffset - wc_dict["fpoffset"]) * wcp_info.field("stepsize")
-            shift_dict = wc_dict["shift_dict"].copy()
-            for key in shift_dict.keys():
-                if key.startswith("shift1"):
-                    shift_dict[key] += correction
+            # No matching element in wavecal_info, but wc_dict should
+            # match everything except fpoffset.  Apply a correction from
+            # the wavecal fpoffset to the science exposure fpoffset.
+            # fpoffset is for the current science exposure.
+            # wc_dict["fpoffset"] is for the closest wavecal exposure.
             filename = wc_dict["filename"]
+            shift_dict = wc_dict["shift_dict"].copy()
+            fp_dict = wc_dict["fp_dict"]
+            # Get any segment in fp_dict, use to construct segment in loop.
+            fp_dict_keys = fp_dict.keys()
+            (segment, fpoff) = fp_dict_keys.pop()       # ignore fpoff
+            # Apply correction to all shift1[abc] values.
+            for shift_dict_key in shift_dict:
+                if not shift_dict_key.startswith("shift1"):
+                    continue
+                letter = shift_dict_key[-1].upper()
+                key1 = (segment[:-1] + letter, fpoffset)
+                key2 = (segment[:-1] + letter, wc_dict["fpoffset"])
+                if key1 not in fp_dict or key2 not in fp_dict:
+                    raise RuntimeError("fpoffset = %d or %d not found"
+                                       " in the lamptab." %
+                                       (fpoffset, wc_dict["fpoffset"]))
+                # This is a difference in fp_pixel_shift values.
+                correction = fp_dict[key1] - fp_dict[key2]
+                shift_dict[shift_dict_key] += correction
+                cosutil.printMsg("Info:  Keyword %s adjusted by adding %.6g" %
+                                 (shift_dict_key, correction), VERBOSE)
 
     if shift_dict is None:
         return None
@@ -431,13 +496,19 @@ def selectWavecalInfo(wavecal_info, cenwave, fpoffset):
 
     return subset_wavecal_info
 
-def minTimeWavecalInfo(wavecal_info, time, max_time_diff):
+def minTimeWavecalInfo(wavecal_info, time, cenwave, max_time_diff):
     """Return the element of wavecal_info that is closest to time.
 
     The element of wavecal_info that is closest in time to the specified
     time will be selected.  If the difference between the time for that
     element and the specified time is less than max_time_diff, that element
-    of `wavecal_info` will be returned; otherwise, None will be returned.
+    of wavecal_info will be returned; otherwise, None will be returned.
+
+    Associations can include exposures with different values of central
+    wavelength, but it would not make sense to use a wavecal taken with
+    one value of cenwave for a science exposure taken with a different
+    value of cenwave, so elements of wavecal_info that do not match
+    cenwave are ignored.
 
     Parameters
     ----------
@@ -446,6 +517,10 @@ def minTimeWavecalInfo(wavecal_info, time, max_time_diff):
 
     time: float
         Time of a science observation (MJD at middle of exposure)
+
+    cenwave: int
+        Central wavelength of the current science exposure, used to reject
+        non-matching entries from `wavecal_info`
 
     max_time_diff: float
         Cutoff for time difference between `time` and a wavecal observation
@@ -460,6 +535,8 @@ def minTimeWavecalInfo(wavecal_info, time, max_time_diff):
     index = -1
     for i in range(len(wavecal_info)):
         wc_dict = wavecal_info[i]
+        if wc_dict["cenwave"] != cenwave:
+            continue
         delta_t = abs(time - wc_dict["time"])
         if index < 0 or delta_t < min_time:
             index = i
@@ -580,9 +657,10 @@ def findWavecalSpectrum(corrtag, info, reffiles):
     fd = pyfits.open(corrtag, mode="copyonwrite")
     phdr = fd[0].header
     sci_extn = fd["EVENTS"]
-    if sci_extn.data is None:
+    if sci_extn.data is None or len(sci_extn.data) == 0:
         fd.close()
         return (0., {}, {}, False)
+
     xtractab = reffiles["xtractab"]
 
     wcp_info = cosutil.getTable(reffiles["wcptab"],
@@ -710,7 +788,7 @@ def ttFindFUV(xi, eta, dq, life_adj_offset, xd_range, box, filter, xtractab):
     shift2 = None
     xd_shifts = {}
     xd_locns = {}
-    xtract_info = cosutil.getTable(xtractab, filter)
+    xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
     if xtract_info is not None:
         slope = xtract_info.field("slope")[0]
         # Collapse the data along the dispersion direction, putting the
@@ -754,7 +832,7 @@ def ttFindNUV(xi, eta, dq, life_adj_offset, xd_range, box, filter, xtractab):
     got_shift = False
 
     filter["segment"] = "NUVA"
-    xtract_info = cosutil.getTable(xtractab, filter)
+    xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
     if xtract_info is not None:
         slope = xtract_info.field("slope")[0]
         outlier_limit = xtract_info.field("height")[0] / 4.
@@ -768,7 +846,7 @@ def ttFindNUV(xi, eta, dq, life_adj_offset, xd_range, box, filter, xtractab):
             got_shift = True
 
     filter["segment"] = "NUVB"
-    xtract_info = cosutil.getTable(xtractab, filter)
+    xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
     if xtract_info is not None:
         slope = xtract_info.field("slope")[0]
         outlier_limit = xtract_info.field("height")[0] / 4.
@@ -781,7 +859,7 @@ def ttFindNUV(xi, eta, dq, life_adj_offset, xd_range, box, filter, xtractab):
             got_shift = True
 
     filter["segment"] = "NUVC"
-    xtract_info = cosutil.getTable(xtractab, filter)
+    xtract_info = cosutil.getTable(xtractab, filter, exactly_one=True)
     if xtract_info is not None:
         slope = xtract_info.field("slope")[0]
         outlier_limit = xtract_info.field("height")[0] / 4.

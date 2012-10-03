@@ -191,12 +191,6 @@ def main(args):
             raw_csum_coords = False
         else:
             raw_csum_coords = True
-    if outdir:
-        outdir = os.path.expandvars(outdir)
-        if not os.path.isdir(outdir):
-            cosutil.printError(
-                "The specified output directory doesn't exist:  %s" % outdir)
-            sys.exit()
 
     infiles = uniqueInput(pargs)        # remove duplicate names from list
 
@@ -396,6 +390,10 @@ def calcos(asntable, outdir=None, verbosity=None,
     """
 
     t0 = time.time()
+
+    # Create the output directory if it was specified and doesn't exist.
+    createOutputDirectory(outdir)
+
     # If asntable is a raw file, open a trailer for it.
     openTrailerForRawInput(asntable, outdir)
 
@@ -452,6 +450,27 @@ def calcos(asntable, outdir=None, verbosity=None,
     closeTrailerForRawInput()
 
     return 0
+
+def createOutputDirectory(outdir):
+    """Check whether `outdir` exists, and create it if necessary.
+
+    If `outdir` was specified but doesn't exist, create it.
+
+    Parameters
+    ----------
+    outdir: str or None
+        Name of output directory.
+    """
+
+    if outdir:
+        full_outdir = expandDirectory(outdir)
+        if os.path.lexists(full_outdir):
+            if not os.path.isdir(full_outdir):
+                raise RuntimeError("'%s' is a file; should be a directory." %
+                                   outdir)
+        else:
+            cosutil.printWarning("Creating output directory '%s'." % outdir)
+            os.mkdir(full_outdir)
 
 def openTrailerForRawInput(input, outdir):
     """Open the trailer file for this file."""
@@ -1202,6 +1221,9 @@ class Association(object):
                 compare = reffiles[key].strip()
                 a_file = obs.reffiles[key].strip()
                 if a_file != compare:
+                    # Ignore spwcstab between science and wavecal.
+                    if key == "spwcstab" and obs.info["exptype"] == "WAVECAL":
+                        continue
                     compare_hdr = reffiles[key+"_hdr"]
                     a_file_hdr = obs.reffiles[key+"_hdr"]
                     if not message_printed:
@@ -2501,14 +2523,18 @@ class Calibration(object):
         wavecal_info       list of dictionaries, each of which contains the
                              following:
                                time (MJD of middle of exposure)
-                               fpoffset (header keyword fpoffset)
-                               shift dictionary:  keys are shift1a, shift1b,
+                               cenwave (from the header keyword)
+                               fpoffset (from the header keyword)
+                               rootname
+                               filename
+                               shift_dict:  Keys are shift1a, shift1b,
                                  and (if NUV) shift1c; value is the shift
                                  that was determined, in pixels; positive
                                  shift means that features in the spectrum
                                  were found at larger pixel number than the
-                                 nominal location
-                               rootname
+                                 nominal location.  Other keys as well.
+                               fp_dict:  Keys are (segment, fpoffset),
+                                 value is fp_pixel_shift
         wcp_info           matching row (just one) from the wavecal
                              parameters table
 
@@ -2814,17 +2840,18 @@ class Calibration(object):
                     wavecal.printWavecalRef(obs.reffiles)
                     first = False
                 cosutil.printFilenames([("Input", x1d_file)])
-                shift_dict = wavecal.findWavecalShift(x1d_file,
+                wavecal_stuff = wavecal.findWavecalShift(x1d_file,
                                 self.assoc.cl_args["shift_file"], obs.info,
                                 self.wcp_info)
 
-                if shift_dict is not None:
+                if wavecal_stuff is not None:
+                    (shift_dict, fp_dict) = wavecal_stuff
                     # time is the MJD at the midpoint of the exposure.
                     time = cosutil.timeAtMidpoint(obs.info)
                     wavecal.storeWavecalInfo(self.wavecal_info,
                             time, obs.info["cenwave"], obs.info["fpoffset"],
-                            shift_dict, obs.filenames["root"],
-                            obs.filenames["raw"])
+                            shift_dict, fp_dict,
+                            obs.filenames["root"], obs.filenames["raw"])
                 obs.closeTrailer()
 
     def updateShift(self, filenames, wavecorr, info):
@@ -3171,8 +3198,8 @@ class Calibration(object):
 
         Parameters
         ----------
-        input: str
-            Name of input file.
+        input: list of str
+            List of names of input files.
 
         fppos: int {1, 2, 3, 4}
             Value of header keyword FPPOS.

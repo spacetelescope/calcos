@@ -6,6 +6,9 @@ import pyfits
 import cosutil
 from calcosparam import *       # parameter definitions
 
+# Extract a slice of this height from the flat field in Spectrum.
+XD_WIDTH = 15
+
 def fpAvgSpec(input, output):
     """Average 1-D extracted FP-POS spectra.
 
@@ -35,7 +38,7 @@ def fpAvgSpec(input, output):
 
     Parameters
     ----------
-    input: str
+    input: list of str
         Name(s) of the input x1d files.
 
     output: str
@@ -69,7 +72,7 @@ def oneInputFile(input, output):
 
     fd = pyfits.open(input, mode="copyonwrite")
     data = fd[1].data
-    if data is None:
+    if data is None or len(data) == 0:
         fd.close()
         cosutil.copyFile(input, output)
         return
@@ -710,6 +713,268 @@ class Spectrum(object):
         self.dq_wgt = ifd[1].data.field("dq_wgt")[row]
         self.fpoffset = fpoffset
 
+        # These are used for weighting by the flat field.
+        self.origin_ff = np.zeros(2, dtype=np.int32)
+        self.data_ff = None
+        self.state_ff = "empty"
+
+        # Read the flat field.
+        phdr = ifd[0].header
+        obsmode = phdr.get("obsmode", default="missing")
+        doppcorr = phdr.get("doppcorr", default="omit")
+        hdr = ifd[1].header
+        seg = self.segment[-1].lower()
+        if phdr.get("exptype", default="missing").startswith("EXTERNAL"):
+            shift1 = hdr.get("shift1" + seg, default=0.)
+            shift2 = hdr.get("shift2" + seg, default=0.)
+        else:
+            shift1 = 0.
+            shift2 = 0.
+        sp_loc = hdr.get("sp_loc_" + seg, default="missing")
+        x_offset = hdr.get("x_offset", default=0)
+        expstart = hdr.get("expstart", default="missing")
+        expend = hdr.get("expend", default="missing")
+
+        self.getFlatField(ifd)
+        if self.data_ff is not None:
+            self.collapseFlatField(sp_loc, shift2, width=XD_WIDTH)
+            (doppmag, doppzero, orbitper) = \
+                        self.getDopplerParam(doppcorr, obsmode, hdr)
+            self.shiftFlatField(shift1, x_offset,
+                                doppcorr, doppmag, doppzero, orbitper,
+                                expstart, expend)
+
+    def getFlatField(self, ifd):
+        """Read the flat field data.
+
+        Values will be assigned to self.origin_ff, self.data_ff, and
+        self.state_ff.
+
+        Parameters
+        ----------
+        ifd: pyfits HDUList object
+            The list of header/data objects for the current input file
+        """
+
+        phdr = ifd[0].header
+        flatcorr = phdr.get("flatcorr", default="omit")
+        if flatcorr != "COMPLETE" and flatcorr != "PERFORM":
+            return
+        flatfile = phdr.get("flatfile", default=NOT_APPLICABLE)
+        if flatfile == NOT_APPLICABLE:
+            return
+        detector = phdr.get("detector", default="missing")
+        segment = self.segment
+        reffiles = {}
+        reffiles["flatfile"] = cosutil.expandFileName(flatfile)
+        fd = pyfits.open(reffiles["flatfile"])
+        if detector == "FUV":
+            self.data_ff = fd[(segment,1)].data.copy()
+            hdr_ff = fd[(segment,1)].header
+        else:
+            self.data_ff = fd[1].data.copy()
+            hdr_ff = fd[1].header
+        self.origin_ff[0] = hdr_ff.get("origin_y", default=0)
+        self.origin_ff[1] = hdr_ff.get("origin_x", default=0)
+        fd.close()
+        self.state_ff = "2-D, as read from reference file"
+
+    def collapseFlatField(self, sp_loc, shift2, width):
+        """Average a slice of self.data_ff, replacing full array.
+
+        Parameters
+        ----------
+        sp_loc: float
+            The value of keyword SP_LOC_[ABC], the Y location where the
+            spectrum was extracted (where it crossed the middle of the
+            detector).
+
+        shift2: float
+            The wavecal offset in Y.
+
+        width: float
+            The width in Y (i.e. the height) of the slice of the flat
+            field to be extracted.
+        """
+
+        if self.data_ff is None:
+            return
+        height_ff = self.data_ff.shape[0]
+        if height_ff < 1:
+            return
+
+        lowlim = sp_loc - width // 2 + shift2 - self.origin_ff[0]
+        lowlim = int(round(lowlim))
+        highlim = lowlim + width        # upper limit of a slice
+        if highlim < 0 or lowlim >= height_ff:
+            cosutil.printWarning("Target is outside range of flat field")
+            self.data_ff = self.data_ff.mean(axis=0, dtype=np.float64)
+        else:
+            lowlim = max(lowlim, 0)
+            highlim = min(highlim, height_ff)
+            height = highlim - lowlim           # height of slice
+            if height > 0:
+                self.data_ff = \
+                self.data_ff[lowlim:highlim,:].mean(axis=0,
+                                                  dtype=np.float64)
+            else:
+                cosutil.printError("Height of flat field slice is %d" % height)
+                self.data_ff = self.data_ff.mean(axis=0, dtype=np.float64)
+        self.state_ff = "slice taken, averaged to 1-D"
+
+    def getDopplerParam(self, doppcorr, obsmode, hdr):
+        """Read Doppler parameters from the header.
+
+        Parameters
+        ----------
+        doppcorr: str
+
+        obsmode: str
+
+        hdr: pyfits Header object
+            The header of the first extension.
+
+        Returns
+        -------
+        (doppmag, doppzero, orbitper): tuple of three floats
+        """
+
+        if doppcorr == "OMIT" or doppcorr == "SKIPPED":
+            doppmag  = 0.
+            doppzero = 0.
+            orbitper = 5760.
+        elif obsmode == "TIME-TAG":
+            # Get wavelength and dispersion from spectrum near middle.
+            nelem = len(self.wavelength)
+            if hdr.get("detector", default="missing") == "FUV":
+                middle = nelem // 2
+            else:
+                middle = hdr.get("x_offset", default=0) + NUV_X // 2
+            wavelength = self.wavelength[middle]
+            low = middle - 50
+            high = middle + 50
+            if low > 0 and high < nelem:
+                disp = (self.wavelength[high] - self.wavelength[low]) / 100.
+            else:
+                raise RuntimeError("wavelength array is too short, %d" % nelem)
+            doppmag = (hdr.get("doppmagv") / SPEED_OF_LIGHT) * \
+                      (wavelength / disp)
+            doppzero = hdr.get("doppzero", default="missing")
+            orbitper = hdr.get("orbitper", default="missing")
+
+        else:               # ACCUM
+            doppmag  = hdr.get("dopmagt", default="missing")
+            doppzero = hdr.get("dopzerot", default="missing")
+            orbitper = hdr.get("orbtpert", default="missing")
+        if doppmag == "missing" or doppzero == "missing" or \
+           orbitper == "missing":
+            cosutil.printWarning("Missing Doppler shift keyword(s).")
+            doppmag  = 0.
+            doppzero = 0.
+            orbitper = 5760.
+
+        return (doppmag, doppzero, orbitper)
+
+    def shiftFlatField(self, shift1, x_offset,
+                       doppcorr, doppmag, doppzero, orbitper,
+                       expstart, expend):
+        """
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        """
+
+        if self.data_ff is None:
+            return
+        nelem = len(self.wavelength)
+        if nelem < 1:
+            return
+        if len(self.data_ff) > nelem:
+            cosutil.printWarning("Flat field is wider than data array,"
+                                 " %d vs %d;" % (len(self.data_ff), nelem))
+            cosutil.printContinuation("flat will not be included in weight.")
+            self.data_ff = None
+            return
+
+        flat = np.ones(nelem, dtype=np.float64)
+
+        # dispersion direction
+        shift1 = round(shift1)
+        offset1 = self.origin_ff[1] - shift1 + x_offset
+        offset1 = int(round(offset1))
+        len_ff = len(self.data_ff)
+        # Check for extending off either end of flat.
+        if offset1 < 0 or offset1 + len_ff > nelem:
+            cosutil.printWarning("Flat field extends beyond the data array;"
+                                 " the flat will be truncated.")
+            if offset1 < 0:
+                trim = -offset1
+                flat[:offset1+len_ff] = self.data_ff[trim:]
+            elif offset1 + len_ff > nelem:
+                trim = (offset1 + len_ff) - nelem
+                flat[offset1:offset1+len_ff-trim] = self.data_ff[:len_ff-trim]
+            else:
+                flat[offset1:offset1+len_ff] = self.data_ff
+        self.data_ff = self.convolveFlat(flat, doppmag, doppzero, orbitper,
+                                         expstart, expend)
+
+        self.state_ff = "1-D, matching data"
+
+    def convolveFlat(self, flat, doppmag, doppzero, orbitper,
+                     expstart, expend):
+        """Convolve the flat with the Doppler smoothing function.
+
+        Based on timetag.convolveFlat.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        """
+
+        if doppmag <= 0.:
+            return flat
+
+        # Round doppmag up to the next integer; mag is a zero-point offset.
+        mag = int(math.ceil(doppmag + 1.))
+        lendopp = 2 * mag + 1
+
+        # dopp will be the normalized Doppler smoothing function.
+        dopp = np.zeros(lendopp, dtype=np.float64)
+
+        # This spans the exposure, may be greater than actual exposure time.
+        exptime = (expend - expstart) * SEC_PER_DAY
+        # t is the time in seconds since doppzero, in one-second increments.
+        t = np.arange(int(round(exptime)), dtype=np.float64) + \
+                   (expstart - doppzero) * SEC_PER_DAY
+
+        # shift is in pixels (wavelengths increase toward larger pixel number).
+        shift = -doppmag * np.sin(2. * np.pi * t / orbitper)
+
+        # Construct the Doppler smoothing function.
+        npts = round(exptime)
+        increment = 1. / npts
+        npts = int(npts)
+        for i in range(npts):                       # one-second increments
+            ishift = int(round(shift[i])) + mag
+            dopp[ishift] += increment
+
+        # Do the convolution (in-place).
+        nelem = len(flat)
+        conv_flat = np.zeros(nelem, dtype=np.float64)
+        conv_flat[0:mag] = 1.
+        conv_flat[nelem-mag:] = 1.
+        for k in range(lendopp):
+            low = k
+            high = k + nelem - 2 * mag
+            conv_flat[mag:nelem-mag] += (dopp[lendopp-1-k] * flat[low:high])
+
+        return conv_flat
+
 class OutputSpectrum(object):
     """An output spectrum.
 
@@ -800,8 +1065,7 @@ class OutputSpectrum(object):
         data.field("gross")[:] /= sumweight
         data.field("net")[:] /= sumweight
         data.field("background")[:] /= sumweight
-        data.field("error")[:] = \
-                        np.sqrt(data.field("error")) / sumweight
+        data.field("error")[:] = np.sqrt(data.field("error")) / sumweight
 
     def accumulateSums(self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.
@@ -864,6 +1128,10 @@ class OutputSpectrum(object):
 
         weight1 = sp.dq_wgt[i] * sp.exptime
         weight2 = sp.dq_wgt[i+1] * sp.exptime
+        # Also weight by the flat field.
+        if sp.data_ff is not None:
+            weight1 *= sp.data_ff[i]
+            weight2 *= sp.data_ff[i+1]
 
         data.setfield("exptime", data.field("exptime") + sp.exptime)
 
