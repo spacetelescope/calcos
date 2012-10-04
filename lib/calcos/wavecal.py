@@ -86,11 +86,20 @@ def findWavecalShift(input, shift_file, info, wcp_info):
     segment_A_present = ("FUVA" in segment)
 
     # segment will be added to the filter in the loop below.
-    # Note:  early lamp tables did not have fpoffset or fp_pixel_shift
-    # columns, and these early tables are no longer be supported.
     filter = {"opt_elem": info["opt_elem"],
-              "cenwave": info["cenwave"],
-              "fpoffset": info["fpoffset"]}
+              "cenwave": info["cenwave"]}
+    # If the FPOFFSET column is present in the lamptab, include fpoffset
+    # in the filter.  If not, use an offset when doing the cross correlation.
+    if cosutil.findColumn(lamptab, "fpoffset"):
+        filter["fpoffset"] = info["fpoffset"]
+    # fp is for an initial offset when matching the spectrum to the
+    # template.  If we've got fpoffset and fp_pixel_shift columns,
+    # the initial offset should be zero.
+    got_pixel_shift = cosutil.findColumn(lamptab, "fp_pixel_shift")
+    if got_pixel_shift:
+        initial_offset = 0
+    else:
+        initial_offset = info["fpoffset"] * stepsize
 
     shift_dict = {}
 
@@ -111,13 +120,17 @@ def findWavecalShift(input, shift_file, info, wcp_info):
         raw_template = lamp_info.field("intensity")[0]
         save_templates[segment[row]] = \
                 cosutil.getTemplate(raw_template, x_offset, nelem)
-        fp_pixel_shift[segment[row]] = lamp_info.field("fp_pixel_shift")[0]
+        if got_pixel_shift:
+            fp_pixel_shift[segment[row]] = \
+                    lamp_info.field("fp_pixel_shift")[0]
+        else:
+            fp_pixel_shift[segment[row]] = 0.
         # Add elements to fp_dict, one for each fpoffset.
-        readFpPixelShift(info, lamptab, segment[row], fp_dict)
+        readFpPixelShift(info, lamptab, segment[row], stepsize, fp_dict)
 
     # find offset in dispersion direction
     fs1 = findshift1.Shift1(save_spectra, save_templates, info, reffiles,
-                            xc_range, fp_pixel_shift)
+                            xc_range, fp_pixel_shift, initial_offset)
     fs1.findShifts()
 
     if override_segment_B:
@@ -206,7 +219,7 @@ def findWavecalShift(input, shift_file, info, wcp_info):
 
     return (shift_dict, fp_dict)
 
-def readFpPixelShift(info, lamptab, segment, fp_dict):
+def readFpPixelShift(info, lamptab, segment, stepsize, fp_dict):
     """Read all four fp_pixel_shift values from the lamptab.
 
     Parameters
@@ -219,6 +232,11 @@ def readFpPixelShift(info, lamptab, segment, fp_dict):
 
     segment: str
         Current segment or stripe name.
+
+    stepsize: int
+        Offset in pixels corresponding to one step of the OSM.  This is
+        only used if the lamptab does not have FPOFFSET and FP_PIXEL_SHIFT
+        columns.
 
     fp_dict: dictionary
         Updated in-place.  The keys are tuples of (segment, fpoffset),
@@ -235,10 +253,18 @@ def readFpPixelShift(info, lamptab, segment, fp_dict):
     lamp_info = cosutil.getTable(lamptab, filter)
     if lamp_info is None:
         raise RuntimeError("Missing row in LAMPTAB; filter = %s" % str(filter))
-    fpoffset = lamp_info.field("fpoffset")
-    fp_pixel_shift = lamp_info.field("fp_pixel_shift")
-    for i in range(len(fpoffset)):
-        fp_dict[(segment, fpoffset[i])] = fp_pixel_shift[i]
+
+    names = []
+    for name in lamp_info.names:
+        names.append(name.lower())
+    if "fpoffset" in names and "fp_pixel_shift" in names:
+        fpoffset = lamp_info.field("fpoffset")
+        fp_pixel_shift = lamp_info.field("fp_pixel_shift")
+        for i in range(len(fpoffset)):
+            fp_dict[(segment, fpoffset[i])] = fp_pixel_shift[i]
+    else:
+        for i in [-2, -1, 0, 1]:
+            fp_dict[(segment, i)] = float(i * stepsize)
 
 def storeWavecalInfo(wavecal_info, time, cenwave, fpoffset,
                      shift_dict, fp_dict,
