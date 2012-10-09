@@ -392,6 +392,7 @@ def calcos(asntable, outdir=None, verbosity=None,
     t0 = time.time()
 
     # Create the output directory if it was specified and doesn't exist.
+    outdir = os.path.expandvars(outdir)
     createOutputDirectory(outdir)
 
     # If asntable is a raw file, open a trailer for it.
@@ -655,6 +656,8 @@ class Association(object):
         """Constructor."""
 
         self.asntable = None
+        self.asntable_copy = None   # name of association file in output dir
+        self.copy_asn = False       # set to True if need to copy asn file
         self.cl_args = None
         self.indir = ""
         self.outdir = ""
@@ -692,6 +695,8 @@ class Association(object):
             # asntable is a raw file name; construct a one-row asn_info.
             self.asntable = None
             self.dummyAsnTable(asntable)
+
+        self.checkNeedToCopyAsn()
 
         memname = self.asn_info["memname"]
         memtype = self.asn_info["memtype"]
@@ -873,6 +878,35 @@ class Association(object):
 
         # Disable writing to the trailer file.
         # cosutil.setWriteToTrailer(False)
+
+    def checkNeedToCopyAsn(self):
+        """Check whether the association file should be copied to outdir.
+
+        If there is an association table (rather than a raw file) that
+        specifies a "product," and if the input and output directories
+        are not the same, this function sets attribute copy_asn to True
+        to indicate that calcos should copy the association table to the
+        output directory, and that copy is the one that will be modified
+        to indicate that the product has been written.
+        """
+
+        if self.product is None:
+            self.copy_asn = False
+        else:
+            if self.outdir:
+                output_directory = expandDirectory(self.outdir)
+            else:
+                output_directory = os.path.realpath(os.curdir)
+            if self.indir == output_directory:
+                self.copy_asn = False
+            else:
+                self.copy_asn = True
+
+        if self.copy_asn:
+            self.asntable_copy = os.path.join(output_directory,
+                                              os.path.basename(self.asntable))
+        else:
+            self.asntable_copy = self.asntable          # just copy the name
 
     def initialInfo(self, memname):
         """Get preliminary information from an input file.
@@ -1671,8 +1705,13 @@ class Association(object):
             return
         cosutil.printMsg("updateMempresent", VERY_VERBOSE)
 
+        if self.copy_asn:
+            fd = pyfits.open(self.asntable)
+            fd.writeto(self.asntable_copy)
+            fd.close()
+
         # Modify the association table in-place.
-        fd = pyfits.open(self.asntable, mode="update")
+        fd = pyfits.open(self.asntable_copy, mode="update")
 
         # Set ASN_PROD to true to indicate that a product has been created.
         fd[0].header.update("asn_prod", True)

@@ -163,6 +163,8 @@ def extract1D(input, incounts=None, output=None,
                unit="count"))
     col.append(pyfits.Column(name="NET", format=rpt+"E",
                unit="count /s"))
+    # col.append(pyfits.Column(name="NET_ERROR", format=rpt+"E",        xxx
+    #            unit="count /s"))                                      xxx
     col.append(pyfits.Column(name="BACKGROUND", format=rpt+"E",
                unit="count /s"))
     col.append(pyfits.Column(name="DQ", format=rpt+"I"))
@@ -520,6 +522,7 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         outdata.field("GROSS")[row][:] = GC_i.copy()
         outdata.field("GCOUNTS")[row][:] = GCOUNTS_i.copy()
         outdata.field("NET")[row][:] = N_i.copy()
+        # outdata.field("NET_ERROR")[row][:] = ERR_i.copy()     xxx
         outdata.field("BACKGROUND")[row][:] = BK_i.copy()
         outdata.field("DQ")[row][:] = DQ_i.copy()
         outdata.field("DQ_WGT")[row][:] = DQ_WGT_i.copy()
@@ -830,8 +833,9 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
     # b_spec and xd_locn are either the user-specified value (if it was
     # specified), or the location where the spectrum was found, or the
     # nominal location based on the xtractab and the wavecal.
-    # b_spec is where the spectrum crosses the left edge of the array, and
-    # xd_locn is where the spectrum crosses the middle of the array.
+    # b_spec is where the spectrum crosses the left edge of the detector
+    # (X = x_offset),
+    # and xd_locn is where the spectrum crosses the middle of the array.
     if user_xdisp_locn is None:
         use_found_location = local_find_targ["flag"]
         if local_find_targ["cutoff"] is not None and \
@@ -1523,11 +1527,11 @@ def updateExtractionKeywords(hdr, segment, slope, height,
 
     xd_nominal: float
         Expected location of the spectrum in the cross-dispersion
-        direction, where it crosses the middle of the detector.
+        direction, where it crosses the middle of the image.
 
     xd_locn: float
         Location of the spectrum in the cross-dispersion direction, where
-        it crosses the middle of the detector.
+        it crosses the middle of the image.
 
     found_locn_sigma: float
         Error estimate for `xd_locn`, pixels.
