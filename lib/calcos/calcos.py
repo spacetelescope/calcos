@@ -3,7 +3,6 @@
 from __future__ import division         # confidence high
 import sys
 import os
-import shutil
 import time
 import getopt
 import glob
@@ -1766,7 +1765,9 @@ class Association(object):
                           VERY_VERBOSE)
 
         # Copy the spt file to the "product spt" file.
-        shutil.copy(sptfile, product_spt_file)
+        fd = pyfits.open(sptfile)
+        fd.writeto(product_spt_file)
+        fd.close()
 
         # Update keywords in the "product spt" file.
         fd = pyfits.open(product_spt_file, mode="update")
