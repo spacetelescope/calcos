@@ -391,7 +391,8 @@ def calcos(asntable, outdir=None, verbosity=None,
     t0 = time.time()
 
     # Create the output directory if it was specified and doesn't exist.
-    outdir = os.path.expandvars(outdir)
+    if outdir:
+        outdir = os.path.expandvars(outdir)
     createOutputDirectory(outdir)
 
     # If asntable is a raw file, open a trailer for it.
@@ -892,11 +893,15 @@ class Association(object):
         if self.product is None:
             self.copy_asn = False
         else:
+            if self.indir:
+                input_directory = self.indir
+            else:
+                input_directory = os.curdir
             if self.outdir:
                 output_directory = expandDirectory(self.outdir)
             else:
-                output_directory = os.path.realpath(os.curdir)
-            if self.indir == output_directory:
+                output_directory = os.curdir
+            if os.path.samefile(input_directory, output_directory):
                 self.copy_asn = False
             else:
                 self.copy_asn = True
