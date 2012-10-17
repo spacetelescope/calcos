@@ -618,7 +618,7 @@ def checkForNoWavecalData(opt_elem, cenwave, segment, lamptab):
         filter = {"opt_elem": opt_elem,
                   "cenwave": cenwave,
                   "segment": segment}
-        lamp_info = cosutil.getTable(lamptab, filter, at_least_one=True)
+        lamp_info = getTable(lamptab, filter, at_least_one=True)
         # True if there are no wavecal lines for this mode.
         override_segment_B = not lamp_info.field("has_lines")[0]
     elif opt_elem == "G140L" and segment == "FUVB":
