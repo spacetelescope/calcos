@@ -12,6 +12,7 @@ import ccos
 import concurrent
 import dispersion
 import phot
+import shiftfile
 import timeline
 import wavecal
 from calcosparam import *       # parameter definitions
@@ -237,8 +238,18 @@ def timetagBasicCalibration(input, inpha, outtag,
                 filename = filename + " " + cl_args["shift_file"]
             phdr.update("wavecals", filename)
         else:
+            # Value to assign to keyword in phdr (updateFromWavecal does
+            # this), but this value can be overridden by noWavecal.
+            wavecorr = "COMPLETE"
+            if not wavecal_info:
+                # The exposure is not tagflash and there's no auto/GO
+                # wavecal, so create wavecal info with a default shift1,
+                # or possibly with a value specified by the user.
+                (wavecal_info, wavecorr) = noWavecal(input,
+                                cl_args["shift_file"],
+                                info, switches, reffiles)
             (tl_time, shift1_vs_time) = \
-            updateFromWavecal(events, wavecal_info,
+            updateFromWavecal(events, wavecal_info, wavecorr,
                               cl_args["shift_file"],
                               info, switches, reffiles, phdr, headers[1])
         # Compute wavelengths for the wavelength column (except for wavecals).
@@ -3797,7 +3808,97 @@ def flag_gti(time, dq, gti):
         (i0, i1) = ccos.range(time, t_start, t_stop+SMALL_INCR)
         dq[i0:i1] &= ~DQ_BAD_TIME
 
-def updateFromWavecal(events, wavecal_info,
+def noWavecal(input, shift_file, info, switches, reffiles):
+    """Assign a default value for the wavecal shift, from fp_pixel_shift.
+
+    Parameters
+    ----------
+    input: str
+        Name of the input file.
+
+    shift_file: str
+        Optional, user-specified values of shift1.
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    Returns
+    -------
+    (wavecal_info, wavecorr)
+    `wavecal_info` is a list of dictionaries.
+    `wavecorr` is the value to assign to keyword WAVECORR.
+    """
+
+    # For the present purposes, we don't need the other key values for
+    # shift_dict.  Some of these shift1 values may be assigned below.
+    shift_dict = {"shift1a": 0., "shift1b": 0., "shift1c": 0.,
+                  "shift2a": 0., "shift2b": 0., "shift2c": 0.}
+
+    if info["detector"] == "FUV":
+        segment_list = [info["segment"]]
+    else:
+        segment_list = ["NUVA", "NUVB", "NUVC"]
+
+    user_specified = False              # initial value
+    if shift_file is not None:
+        user_shifts = shiftfile.ShiftFile(shift_file,
+                                          info["root"], info["fpoffset"])
+    else:
+        user_shifts = None
+    fp_dict = {}                        # this is mostly a dummy dictionary
+    lamptab = reffiles["lamptab"]
+    got_pixel_shift = cosutil.findColumn(lamptab, "fp_pixel_shift")
+    for segment in segment_list:
+        # get fp_pixel_shift for shift1
+        filter_lamp = {"opt_elem": info["opt_elem"],
+                       "cenwave": info["cenwave"],
+                       "segment": segment}
+        if got_pixel_shift:
+            filter_lamp["fpoffset"] = info["fpoffset"]
+        lamp_info = cosutil.getTable(lamptab, filter_lamp)
+        if lamp_info is not None and got_pixel_shift:
+            fp_pixel_shift = lamp_info.field("fp_pixel_shift")[0]
+        else:
+            fp_pixel_shift = 0.
+        # This may be replaced below, if the user specified the value.
+        shift1 = fp_pixel_shift
+
+        if user_shifts is not None:
+            # Check for a user-supplied value for shift1, assuming the
+            # user specified the "flash" as the first one (n = 1).
+            ((user_shift1, user_shift2), nfound) = \
+                user_shifts.getShifts((1, segment))     # 1 --> first flash
+            if user_shift1 is not None:
+                user_specified = True
+                shift1 = user_shift1
+        key = "shift1" + segment[-1].lower()
+        shift_dict[key] = shift1
+        fp_key = (segment, info["fpoffset"])
+        fp_dict[fp_key] = fp_pixel_shift
+
+    wavecal_info = []               # updated by storeWavecalInfo
+    wavecal.storeWavecalInfo(wavecal_info,
+                             (info["expstart"] + info["expend"]) / 2.,
+                             info["cenwave"], info["fpoffset"],
+                             shift_dict, fp_dict,
+                             info["rootname"], input)
+
+    # True if the user specified the shift for any segment/stripe.
+    if user_specified:
+        # Not skipped because the user specified the shift.
+        wavecorr = "COMPLETE"
+    else:
+        wavecorr = "SKIPPED"
+
+    return (wavecal_info, wavecorr)
+
+def updateFromWavecal(events, wavecal_info, wavecorr,
                       shift_file,
                       info, switches, reffiles, phdr, hdr):
     """Update XFULL and YFULL based on auto or GO wavecal info.
@@ -3810,6 +3911,9 @@ def updateFromWavecal(events, wavecal_info,
     wavecal_info: dictionary
         When wavecal exposures were processed, the results
         were stored in this dictionary.
+
+    wavecorr: str
+        Value to assign to WAVECORR keyword in `phdr`.
 
     shift_file: str
         If not None, this text file may have been used to override shift1;
@@ -3963,7 +4067,7 @@ def updateFromWavecal(events, wavecal_info,
         key = "DPIXEL1" + segment[-1]
         hdr.update(key, round(dpixel1, 4))
 
-    phdr["wavecorr"] = "COMPLETE"
+    phdr["wavecorr"] = wavecorr
     filename = cosutil.changeSegment(filename, info["detector"],
                                      info["segment"])
     if shift_file is not None:
