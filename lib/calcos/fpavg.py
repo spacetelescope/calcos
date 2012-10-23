@@ -913,11 +913,11 @@ class Spectrum(object):
             if offset1 < 0:
                 trim = -offset1
                 flat[:offset1+len_ff] = self.data_ff[trim:]
-            elif offset1 + len_ff > nelem:
+            else:               # offset1 + len_ff > nelem
                 trim = (offset1 + len_ff) - nelem
                 flat[offset1:offset1+len_ff-trim] = self.data_ff[:len_ff-trim]
-            else:
-                flat[offset1:offset1+len_ff] = self.data_ff
+        else:
+            flat[offset1:offset1+len_ff] = self.data_ff
         self.data_ff = self.convolveFlat(flat, doppmag, doppzero, orbitper,
                                          expstart, expend)
 
