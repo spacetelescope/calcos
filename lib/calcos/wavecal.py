@@ -15,7 +15,7 @@ import shiftfile
 
 # Each element of wavecal_info is a dictionary with the keys:
 # "time", "cenwave", "fpoffset", "shift_dict", "rootname", "filename".
-# The variable name `wc_dict` is used for one element of `wavecal_info`.
+# The variable name wc_dict is used for one element of wavecal_info.
 
 def findWavecalShift(input, shift_file, info, wcp_info):
     """Find the shift from a wavecal image.
@@ -271,7 +271,7 @@ def storeWavecalInfo(wavecal_info, time, cenwave, fpoffset,
                      rootname, filename):
     """Append the current info to the wavecal_info list.
 
-    `shift_dict` can have any of the following keys:
+    shift_dict can have any of the following keys:
         "shift1a" for FUV segment A or NUV stripe A,
         "shift1b" for FUV segment B or NUV stripe B,
         "shift1c" for NUV stripe C,
@@ -282,32 +282,32 @@ def storeWavecalInfo(wavecal_info, time, cenwave, fpoffset,
     shift1[abc] is the measured shift in the dispersion direction, and
     shift2[abc] is the measured shift in the cross-dispersion direction.
 
-    `fp_dict` has (segment, fpoffset) as key.  segment is either a segment
+    fp_dict has (segment, fpoffset) as key.  segment is either a segment
     or stripe name (upper case), and fpoffset is an int, -2, -1, 0 or 1.
     The values are fp_pixel_shift (from that column in the lamptab).
 
     The input information will be combined into a dictionary, which will
-    then be appended to `wavecal_info`.  `wavecal_info` will be sorted in
+    then be appended to wavecal_info.  wavecal_info will be sorted in
     increasing order of time.
 
     Parameters
     ----------
     wavecal_info: list of wavecal information dictionaries
         The other arguments will be used to create a wavecal information
-        dictionary, and that will be appended to `wavecal_info`.
+        dictionary, and that will be appended to wavecal_info.
         A wavecal information dictionary has keys "time", "fpoffset",
         "shift_dict", "rootname", and "filename".  The values are the
-        arguments with those names, except that if `filename` includes a
+        arguments with those names, except that if filename includes a
         directory, that will be removed before saving in the dictionary.
 
     time: float
         Time of observation, MJD at middle of exposure
 
     cenwave: int
-        Central wavelength, used to select entries from `wavecal_info`
+        Central wavelength, used to select entries from wavecal_info
 
     fpoffset: int
-        OSM position, used to select entries from `wavecal_info`
+        OSM position, used to select entries from wavecal_info
 
     shift_dict: dictionary
         A dictionary of keyword names and shifts
@@ -347,7 +347,7 @@ def keyTime(wc_dict):
     Returns
     -------
     float
-        The element of `wc_dict` with key "time"
+        The element of wc_dict with key "time"
     """
 
     return wc_dict["time"]
@@ -378,11 +378,11 @@ def returnWavecalShift(wavecal_info, wcp_info, cenwave, fpoffset, time):
         Data (one row) from the wavecal parameters table.
 
     cenwave: int
-        Central wavelength, used to select entries from `wavecal_info`.
+        Central wavelength, used to select entries from wavecal_info.
 
     fpoffset: int
         OSM position for the current science exposure, used to select
-        entries from `wavecal_info`.
+        entries from wavecal_info.
 
     time: float
         Time of observation, MJD at middle of exposure.
@@ -475,7 +475,7 @@ def returnExactMatch(wavecal_info, rootname):
         List of wavecal information dictionaries
 
     rootname: str
-        Used to find the appropriate element of `wavecal_info`
+        Used to find the appropriate element of wavecal_info
 
     Returns
     -------
@@ -502,16 +502,16 @@ def selectWavecalInfo(wavecal_info, cenwave, fpoffset):
         List of wavecal information dictionaries
 
     cenwave: int
-        Central wavelength, used to select entries from `wavecal_info`
+        Central wavelength, used to select entries from wavecal_info
 
     fpoffset: int
-        Used to find one or more elements of `wavecal_info`
+        Used to find one or more elements of wavecal_info
 
     Returns
     -------
     list
-        List of dictionaries in `wavecal_info` that match `cenwave` and
-        `fpoffset`
+        List of dictionaries in wavecal_info that match cenwave and
+        fpoffset
     """
 
     subset_wavecal_info = []
@@ -546,16 +546,16 @@ def minTimeWavecalInfo(wavecal_info, time, cenwave, max_time_diff):
 
     cenwave: int
         Central wavelength of the current science exposure, used to reject
-        non-matching entries from `wavecal_info`
+        non-matching entries from wavecal_info
 
     max_time_diff: float
-        Cutoff for time difference between `time` and a wavecal observation
+        Cutoff for time difference between time and a wavecal observation
 
     Returns
     -------
     dictionary
-        The shift dictionary closest in time to `time`, or None if there
-        is none that is within `max_time_diff`
+        The shift dictionary closest in time to time, or None if there
+        is none that is within max_time_diff
     """
 
     index = -1
@@ -580,15 +580,15 @@ def minTimeWavecalInfo(wavecal_info, time, cenwave, max_time_diff):
 def interpolateWavecal(wavecal_info, time):
     """Interpolate to get a shift dictionary at the specified time.
 
-    `wavecal_info` is assumed to be sorted in increasing order of time.
+    wavecal_info is assumed to be sorted in increasing order of time.
     If the time of observation is earlier than the first entry or later
-    than the last entry in `wavecal_info`, then the shift dictionary for the
-    first or last element respectively of `wavecal_info` will be returned.
+    than the last entry in wavecal_info, then the shift dictionary for the
+    first or last element respectively of wavecal_info will be returned.
     Otherwise, the pair of entries that bracket the time of observation
     will be selected, and the shifts in the shift dictionaries will be
     linearly interpolated at the time of observation.
 
-    None will be returned if `wavecal_info` is empty.
+    None will be returned if wavecal_info is empty.
 
     Parameters
     ----------
@@ -670,13 +670,13 @@ def findWavecalSpectrum(corrtag, info, reffiles):
     -------
     (shift2, xd_shifts, xd_locns, lamp_is_on): tuple of a float, two
     dictionaries, and a boolean flag
-        `shift2` is the offset (average of those found, if NUV) from
+        shift2 is the offset (average of those found, if NUV) from
         nominal in the cross-dispersion direction, in pixels; this value
         will be zero if the offset could not be determined.  Dictionaries
-        `xd_shifts` and `xd_locns` use the segment or stripe name as the
-        key; the value for `xd_shifts` is the shift from nominal, and the
-        value for `xd_locns` is the location where the spectrum was found
-        (projected onto the left edge).  `lamp_is_on` is a flag that
+        xd_shifts and xd_locns use the segment or stripe name as the
+        key; the value for xd_shifts is the shift from nominal, and the
+        value for xd_locns is the location where the spectrum was found
+        (projected onto the left edge).  lamp_is_on is a flag that
         indicates whether the lamp was actually on.
     """
 
@@ -742,7 +742,7 @@ def ttFindWavecalSpectrum(xi, eta, dq, info, xd_range, box, xtractab):
         Header keywords and values.
 
     xd_range: int
-        Search within + or - `xd_range` from the nominal location for the
+        Search within + or - xd_range from the nominal location for the
         peak in the cross-dispersion direction.
 
     box: int
@@ -756,13 +756,13 @@ def ttFindWavecalSpectrum(xi, eta, dq, info, xd_range, box, xtractab):
     -------
     (shift2, xd_shifts, xd_locns, lamp_is_on):  tuple of a float, two
     dictionaries, and a boolean flag
-        `shift2` is the offset (average of those found, if NUV) from
+        shift2 is the offset (average of those found, if NUV) from
         nominal in the cross-dispersion direction, in pixels; this value
         will be zero if the offset could not be determined.  Dictionaries
-        `xd_shifts` and `xd_locns` use the segment or stripe name as the
-        key; the value for `xd_shifts` is the shift from nominal, and the
-        value for `xd_locns` is the location where the spectrum was found
-        (projected onto the left edge).  `lamp_is_on` is a flag that
+        xd_shifts and xd_locns use the segment or stripe name as the
+        key; the value for xd_shifts is the shift from nominal, and the
+        value for xd_locns is the location where the spectrum was found
+        (projected onto the left edge).  lamp_is_on is a flag that
         indicates whether the lamp was actually on.
     """
 
@@ -934,25 +934,25 @@ def ttFindSpec(xdisp, xtract_info, life_adj_offset, xd_range, box):
     life_adj_offset: float
         Normally this will be 0.  If the LIFE_ADJ keyword is -1, however,
         indicating that the aperture block is not at one of the recognized
-        "lifetime positions," `life_adj_offset` will be the expected offset
+        "lifetime positions," life_adj_offset will be the expected offset
         (in pixels) of the wavecal spectrum from lifetime position 1.
 
     xd_range: int
-        Search within + or - `xd_range` from the nominal location for the
+        Search within + or - xd_range from the nominal location for the
         peak in xdisp.
 
     box: int
-        Smooth `xdisp` with a box of this width before looking for the
+        Smooth xdisp with a box of this width before looking for the
         maximum.
 
     Returns
     -------
     (shift2, y): tuple of two floats
-        `shift2` is the shift from nominal in the cross-dispersion
-        direction (or None), and `y` is the location of the spectrum.
+        shift2 is the shift from nominal in the cross-dispersion
+        direction (or None), and y is the location of the spectrum.
         The location is based on fitting a quadratic to points near the
         maximum.  Note that the data were collapsed to the left edge to
-        get `xdisp`, so the location is the intercept on the edge, rather
+        get xdisp, so the location is the intercept on the edge, rather
         than where the spectrum crosses the middle of the detector.
     """
 

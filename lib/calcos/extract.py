@@ -20,11 +20,11 @@ def extract1D(input, incounts=None, output=None,
     ----------
     input: str
         Name of either the flat-fielded count-rate image (in which
-        case `incounts` must also be specified) or the corrtag table.
+        case incounts must also be specified) or the corrtag table.
 
     incounts: str or None
         Name of the file containing the count-rate image, or None if
-        `input` is a corrtag table.
+        input is a corrtag table.
 
     output: str
         Name of the output file for 1-D extracted spectra.
@@ -38,8 +38,8 @@ def extract1D(input, incounts=None, output=None,
         in the cross-dispersion direction, in pixels; this is where the
         spectrum crosses the middle of the detector (index 8192 for FUV,
         512 for NUV).  None means the user did not specify the location.
-        If `location` was specified, that value will be used, regardless
-        of the switch in `find_target`.
+        If location was specified, that value will be used, regardless
+        of the switch in find_target.
 
     extrsize: int, or list of int, or None
         The height of the extraction box (or list of three heights for NUV)
@@ -53,7 +53,7 @@ def extract1D(input, incounts=None, output=None,
         less than or equal to cutoff (if cutoff is positive).  flag = False
         means we should use the location determined from the wavecal or as
         specified by the user.  find_target["flag"] will locally be set to
-        False if `location` is not None, or if the input is a wavecal.
+        False if location is not None, or if the input is a wavecal.
     """
 
     cosutil.printIntro("Spectral Extraction")
@@ -246,7 +246,7 @@ def checkLocation(info, location, extrsize, local_find_targ):
 
     local_find_targ: dictionary
         The "flag" value in this dictionary may be modified in-place.  If
-        `location` is None, the flag will not be modified.  If `location`
+        location is None, the flag will not be modified.  If location
         was specified, however, the flag will be set to False.  That is,
         if the user specified both a location for the spectrum and that we
         should search for the location, the location takes precedence.
@@ -1534,7 +1534,7 @@ def updateExtractionKeywords(hdr, segment, slope, height,
         it crosses the middle of the image.
 
     found_locn_sigma: float
-        Error estimate for `xd_locn`, pixels.
+        Error estimate for xd_locn, pixels.
         xxx currently ignored xxx
 
     xd_offset: float

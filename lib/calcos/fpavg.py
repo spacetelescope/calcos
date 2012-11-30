@@ -140,7 +140,7 @@ def makeStringList(inlist):
     Returns
     -------
     outstr: str
-        The elements of `inlist` as a string, with a comma and blank
+        The elements of inlist as a string, with a comma and blank
         between each element.
     """
 

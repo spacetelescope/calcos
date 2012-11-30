@@ -48,8 +48,8 @@ def processConcurrentWavecal(events, outflash, shift_file,
         Name of output file for extracted wavecal spectra.
 
     shift_file: str or None
-        If not None, this text file contains values of `shift1` (and
-        possibly `shift2`) to override the values found via wavecal
+        If not None, this text file contains values of shift1 (and
+        possibly shift2) to override the values found via wavecal
         processing.
 
     info: dictionary
@@ -70,8 +70,8 @@ def processConcurrentWavecal(events, outflash, shift_file,
     Returns
     -------
     (tl_time, shift1_vs_time): tuple of two array like
-        `tl_time` is the array of times at one-second intervals, for the
-        timeline table.  `shift1_vs_time` is the array of corresponding
+        tl_time is the array of times at one-second intervals, for the
+        timeline table.  shift1_vs_time is the array of corresponding
         values of shift1a or shift1b, or None if there were no flashes or
         if the exposure time is zero.
     """
@@ -805,10 +805,10 @@ class ConcurrentWavecal(object):
         Returns
         -------
         (i0, i1, extrapolate): tuple of int, int, boolean
-            `i0` and `i1` are the indices in the time array (Python slice
-            indices) over which to apply the shift based on flashes `n` and
-            `n`+1 (unless `n` is the last), and `extrapolate` is True if
-            `n` is the last flash.
+            i0 and i1 are the indices in the time array (Python slice
+            indices) over which to apply the shift based on flashes n and
+            n+1 (unless n is the last), and extrapolate is True if
+            n is the last flash.
         """
 
         if n == 0:
@@ -835,13 +835,13 @@ class ConcurrentWavecal(object):
         Parameters
         ----------
         n: int
-            Apply `shift1` for the `n`th time interval between wavecals.
+            Apply shift1 for the nth time interval between wavecals.
 
         i0, i1: int
             [i0:i1] is the slice of event numbers to be corrected.
 
         extrapolate: boolean
-            True if `n` is the last flash.
+            True if n is the last flash.
         """
 
         for segment in self.segment_list:
@@ -1025,8 +1025,8 @@ class ConcurrentWavecal(object):
         Parameters
         ----------
         hist: array_like
-            Histogram of count rates `src_counts`.  hist[i] is the
-            number of elements of `src_counts` with count rates between
+            Histogram of count rates src_counts.  hist[i] is the
+            number of elements of src_counts with count rates between
             i*step and (i+1)*step.
 
         step: float
@@ -1067,7 +1067,7 @@ class ConcurrentWavecal(object):
         Parameters
         ----------
         cutoff: float
-            A count rate (in `src_counts` array) greater than this
+            A count rate (in src_counts array) greater than this
             indicates that the wavecal lamp was on.
 
         t0: float
@@ -1132,21 +1132,21 @@ class ConcurrentWavecal(object):
         Parameters
         ----------
         nbins: int
-            Number of elements in `src_counts` array.
+            Number of elements in src_counts array.
 
         t0: float
             Time of first photon event.
 
         lamp_on_i: float
-            One element of `lamp_on` array (minus `buffer_on`).
+            One element of lamp_on array (minus buffer_on).
 
         lamp_off_i: float
-            One element of `lamp_off` array (plus `buffer_off`).
+            One element of lamp_off array (plus buffer_off).
 
         Returns
         -------
         tuple of two ints
-            The indices corresponding to `lamp_on_i` and `lamp_off_i`;
+            The indices corresponding to lamp_on_i and lamp_off_i;
             both values will be None if these times are outside the
             interval (t0, t0+delta_t).
         """
@@ -1357,8 +1357,8 @@ class ConcurrentWavecal(object):
         Returns
         -------
         (tl_time, shift1_vs_time): tuple of two array like
-            `tl_time` is the array of times at one-second intervals, for
-            the timeline table.  `shift1_vs_time` is the array of
+            tl_time is the array of times at one-second intervals, for
+            the timeline table.  shift1_vs_time is the array of
             corresponding values of shift1a or shift1b, or None if there
             were no flashes or if the exposure time is zero.
         """
@@ -1664,7 +1664,7 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         Parameters
         ----------
         n: int
-            Apply `shift2` for the `n`th time interval between wavecals.
+            Apply shift2 for the nth time interval between wavecals.
 
         i0: int
             [i0:i1] is the slice of event numbers to be corrected.
@@ -1673,7 +1673,7 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
             [i0:i1] is the slice of event numbers to be corrected.
 
         extrapolate: boolean
-            True if `n` is the last flash.
+            True if n is the last flash.
         """
 
         # Restrict the correction to the applicable region.  Note that the
@@ -1804,7 +1804,7 @@ class NUVConcurrentWavecal(ConcurrentWavecal):
         Parameters
         ----------
         n: int
-            Apply `shift2` for the `n`th time interval between wavecals.
+            Apply shift2 for the nth time interval between wavecals.
 
         i0: int
             [i0:i1] is the slice of event numbers to be corrected.
@@ -1813,7 +1813,7 @@ class NUVConcurrentWavecal(ConcurrentWavecal):
             [i0:i1] is the slice of event numbers to be corrected.
 
         extrapolate: boolean
-            True if `n` is the last flash.
+            True if n is the last flash.
         """
 
         shift2_zero = self.shift2[n]
@@ -1874,7 +1874,7 @@ class NUVImagingWavecal(ConcurrentWavecal):
         """Correct the pixel coordinates in the cross-dispersion direction.
 
         n: int
-            Apply `shift2` for the `n`th time interval between wavecals.
+            Apply shift2 for the nth time interval between wavecals.
 
         i0: int
             [i0:i1] is the slice of event numbers to be corrected.
@@ -1883,7 +1883,7 @@ class NUVImagingWavecal(ConcurrentWavecal):
             [i0:i1] is the slice of event numbers to be corrected.
 
         extrapolate: boolean
-            True if `n` is the last flash.
+            True if n is the last flash.
         """
 
         shift2_zero = self.shift2[n]

@@ -370,12 +370,12 @@ def findColumn(table, colname):
         Name of table or data block for a FITS table.
 
     colname: str
-        Name of column to test for existence in `table`.
+        Name of column to test for existence in table.
 
     Returns
     -------
     boolean
-        True if `colname` is in the table (without regard to case).
+        True if colname is in the table (without regard to case).
     """
 
     if isinstance(table, str):
@@ -415,7 +415,7 @@ def getTable(table, filter, extension=1,
         Name of the reference table.
 
     filter: dictionary
-        Each key/value pair in `filter` is used to select rows in the
+        Each key/value pair in filter is used to select rows in the
         table.  The key is a column name, and if the filter value for that
         key matches the value in the column for one or more rows, those
         rows will be included in the array of rows that is returned.
@@ -510,8 +510,8 @@ def getTable(table, filter, extension=1,
 def getColCopy(filename="", column=None, extension=1, data=None):
     """Return the specified column in native format.
 
-    Specify either the data block (`data`) or the name of a file
-    (`filename`), but not both.
+    Specify either the data block (data) or the name of a file
+    (filename), but not both.
 
     Parameters
     ----------
@@ -567,7 +567,7 @@ def getTemplate(raw_template, x_offset, nelem):
     Returns
     -------
     array_like
-        A copy of `raw_template`, possibly padded with zeros on the left
+        A copy of raw_template, possibly padded with zeros on the left
         and right.
     """
 
@@ -1165,7 +1165,7 @@ def updateDQArray(info, reffiles, dq_array,
     # The flagged region (each row in the DQI table) will be expanded:
     #   the maximum shift will be subtracted from the lower limit, and
     #   the minimum shift will be subtracted from the upper limit;
-    #   `widen` will be subtracted from the lower limit and added to
+    #   widen will be subtracted from the lower limit and added to
     #   the upper limit.
     # It is explicitly assumed here that the slice is only in the cross-
     # dispersion direction.
@@ -1325,9 +1325,9 @@ def findGSagExtn(gsagtab, hvlevel, segment):
             than the current high voltage will be selected.  If no such
             extension was found (e.g. no extension for the current segment,
             or voltages in all extensions were lower than the current high
-            voltage), then `extn` will be set to -1.
+            voltage), then extn will be set to -1.
         message is a string, either empty or giving a warning message
-            regarding `hvlevel` compared with the nominal value in the
+            regarding hvlevel compared with the nominal value in the
             matching extension.
 
     """
@@ -2487,10 +2487,10 @@ def overrideKeywords(phdr, hdr, info, switches, reffiles):
     """Override the calibration switch and reference file keywords.
 
     The calibration switch and reference file keywords will be overridden
-    with values from `switches` and `reffiles` respectively.  Keywords
+    with values from switches and reffiles respectively.  Keywords
     cal_ver, opt_elem, cenwave, fpoffset, obstype, exptype and aperture
     in the primary header, as well as keywords dispaxis and x_offset in
-    the extension header, will be overridden from `info`.
+    the extension header, will be overridden from info.
 
     Parameters
     ----------
@@ -2672,7 +2672,7 @@ def getSwitch(phdr, keyword):
     Returns
     -------
     str
-        Value of the keyword `keyword`, converted to upper case; for
+        Value of the keyword keyword, converted to upper case; for
         keyword STATFLAG, the value will be "PERFORM" or "OMIT" if
         statflag is T or F respectively.
     """
@@ -2696,7 +2696,7 @@ def setVerbosity(verbosity_level):
     Parameters
     ----------
     verbosity_level: int
-        The value to assign to the variable `verbosity` (global to this
+        The value to assign to the variable verbosity (global to this
         file); possible values (QUIET, VERBOSE, VERY_VERBOSE) are defined
         in calcosparam.py
     """
@@ -2710,7 +2710,7 @@ def checkVerbosity(level):
     Returns
     -------
     boolean
-        True if a message with verbosity equal to `level` would be printed
+        True if a message with verbosity equal to level would be printed
 
     Examples
     --------
@@ -2729,7 +2729,7 @@ def setWriteToTrailer(flag=False):
     """Set the flag to indicate whether we should write to trailer files.
 
     flag: boolean
-        Value to assign to the variable `write_to_trailer` (global to this
+        Value to assign to the variable write_to_trailer (global to this
         file); if True, the printMsg function will write to the trailer
         file, in addition to the standard output
     """
@@ -2739,7 +2739,7 @@ def setWriteToTrailer(flag=False):
     write_to_trailer = flag
 
 def openTrailer(filename):
-    """Open the trailer file for `filename` in append mode.
+    """Open the trailer file for filename in append mode.
 
     Parameters
     ----------
@@ -2816,9 +2816,9 @@ def printFilenames(names, shift_file=None, stimfile=None, livetimefile=None):
     Parameters
     ----------
     names: list of tuples
-        Each tuple is (label, filename), where `label` is a short string
+        Each tuple is (label, filename), where label is a short string
         (preferably 10 characters or less) that describes the file, and
-        `filename` is the name of the file; the file may be an existing
+        filename is the name of the file; the file may be an existing
         input file or an output file that hasn't been created yet
 
     shift_file: str or None
@@ -3244,7 +3244,7 @@ def changeSegment(filename, detector, segment):
     Returns
     -------
     str
-        A copy of the input `filename`, but with '_a' replaced with '_b'
+        A copy of the input filename, but with '_a' replaced with '_b'
         or vice versa, or no change if the input name does not end in
         '_a.fits' or '_b.fits'
     """
@@ -3576,7 +3576,7 @@ def errGehrels(a):
     return (1. + np.sqrt(a + 0.75))
 
 def precess(t, target):
-    """Precess `target` to the time of observation.
+    """Precess target to the time of observation.
 
     This function is currently not used.
     It could be called by timetag.heliocentricVelocity.

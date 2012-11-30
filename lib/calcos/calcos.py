@@ -373,7 +373,7 @@ def calcos(asntable, outdir=None, verbosity=None,
     save_temp_files: boolean, optional
         By default, the _x1d_a.fits and _x1d_b.fits files (if FUV) will
         be deleted after concatenating to the _x1d.fits file.  Specify
-        `save_temp_files`=True to keep these files.
+        save_temp_files=True to keep these files.
 
     stimfile: str, optional
         If specified, the stim positions will be written to (or
@@ -453,9 +453,9 @@ def calcos(asntable, outdir=None, verbosity=None,
     return 0
 
 def createOutputDirectory(outdir):
-    """Check whether `outdir` exists, and create it if necessary.
+    """Check whether outdir exists, and create it if necessary.
 
-    If `outdir` was specified but doesn't exist, create it.
+    If outdir was specified but doesn't exist, create it.
 
     Parameters
     ----------
@@ -551,12 +551,12 @@ def replaceSuffix(rawname, suffix, new_suffix):
         the raw file name.
 
     new_suffix: str
-        String to replace `suffix` to create an output file name.
+        String to replace suffix to create an output file name.
 
     Returns
     -------
     newname: str
-        `rawname` with `suffix` replaced by `new_suffix`.
+        rawname with suffix replaced by new_suffix.
 
     Examples
     --------
@@ -581,9 +581,9 @@ def replaceSuffix(rawname, suffix, new_suffix):
 def getRootname(input, suffix):
     """Return the root of a file name.
 
-    If `suffix` is found in `input`, return the portion of input
-    that precedes `suffix`.  Otherwise, if `input` ends in ".fits",
-    return everything from `input` that precedes ".fits".
+    If suffix is found in input, return the portion of input
+    that precedes suffix.  Otherwise, if input ends in ".fits",
+    return everything from input that precedes ".fits".
 
     Parameters
     ----------
@@ -591,13 +591,13 @@ def getRootname(input, suffix):
         Name of a raw input file.
 
     suffix: str
-        Suffix that might be found in `input`.
+        Suffix that might be found in input.
 
     Returns
     -------
     root: str
-        `input` truncated before `suffix`, or truncated before ".fits"
-        if `suffix` is not found.
+        input truncated before suffix, or truncated before ".fits"
+        if suffix is not found.
 
     Examples
     --------
@@ -844,7 +844,7 @@ class Association(object):
 
         This function will be called for the case that the user specified
         the name of a raw (or corrtag) file instead of an association table.
-        The `asntable` argument is the name as given by the user; we will
+        The asntable argument is the name as given by the user; we will
         assign that full name (not just the rootname) to asn_info["memname"].
         There will only be this one row; product will be set to None.  The
         memtype will be set to "none", even though it might actually be a
@@ -1002,7 +1002,7 @@ class Association(object):
         exptype = initial_basic_info["exptype"]
         if exptype[0:3] == "ACQ" and exptype != "ACQ/IMAGE":
             cosutil.printWarning(
-                "Rootname `%s' is an %s, which cannot be processed." %
+                "Rootname '%s' is an %s, which cannot be processed." %
                     (memname, exptype))
             return None
 
@@ -1020,7 +1020,7 @@ class Association(object):
                 # rawaccum not found, so look for rawimage
                 rawfiles = glob.glob(memname + "_rawimage" + tail)
         else:
-            raise RuntimeError("unexpected OBSMODE `%s' in `%s'"
+            raise RuntimeError("unexpected OBSMODE '%s' in '%s'"
                                % (obsmode, all_rawfiles[0]))
         if len(rawfiles) > 0:
             rawfiles.sort()
@@ -1029,7 +1029,7 @@ class Association(object):
         nfiles = len(rawfiles)
         if nfiles == 0:
             raise RuntimeError("Keywords and filenames are inconsistent "
-                               "for rootname `%s'" % memname)
+                               "for rootname '%s'" % memname)
 
         # Read the first raw file with the specified rootname.
         basic_info = getinfo.initialInfo(rawfiles[0])
@@ -1681,7 +1681,7 @@ class Association(object):
 
         already_exists: list of strings
             A list of names of files that currently exist; may be modified
-            in-place by appending `fname`.
+            in-place by appending fname.
         """
 
         if os.access(fname, os.R_OK):
@@ -1954,12 +1954,12 @@ class Observation(object):
         elif self.info["exptype"] == "ENG DIAG" or \
              self.info["exptype"] == "MEMORY DUMP" or \
              self.info["exptype"] == "PHA":
-            cosutil.printWarning("EXPTYPE = `%s' in %s;" \
+            cosutil.printWarning("EXPTYPE = '%s' in %s;" \
                                  % (self.info["exptype"], input))
             cosutil.printContinuation("can't calibrate this exposure type.")
             self.exp_type = EXP_ENGINEERING
         else:
-            cosutil.printWarning("EXPTYPE = `%s' in %s;" \
+            cosutil.printWarning("EXPTYPE = '%s' in %s;" \
                                  % (self.info["exptype"], input))
             cosutil.printContinuation("don't recognize this exposure type.")
             self.exp_type = EXP_UNKNOWN
@@ -2117,7 +2117,7 @@ class Observation(object):
         if info["detector"] == "FUV" and \
                 (info["segment"] != "FUVA" and info["segment"] != "FUVB"):
             bad = 1
-            cosutil.printError("SEGMENT = `%s' is invalid" % info["segment"])
+            cosutil.printError("SEGMENT = '%s' is invalid" % info["segment"])
 
         # check EXPTIME, EXPSTART, EXPEND
         if info["exptime"] < 0.:
@@ -2157,13 +2157,13 @@ class Observation(object):
         else:
             bad = 1
             cosutil.printError(
-            "OBSTYPE = `%s'; should be IMAGING or SPECTROSCOPIC" \
+            "OBSTYPE = '%s'; should be IMAGING or SPECTROSCOPIC" \
                          % info["obstype"])
 
         # check OBSMODE
         if info["obsmode"] != "TIME-TAG" and info["obsmode"] != "ACCUM":
             bad = 1
-            cosutil.printError("OBSMODE = `%s'; should be TIME-TAG or ACCUM" \
+            cosutil.printError("OBSMODE = '%s'; should be TIME-TAG or ACCUM" \
                                % info["obsmode"])
 
         if warn or bad:
@@ -2454,7 +2454,7 @@ class Observation(object):
 
         reset_to: str
             Value to assign to keyword (e.g. "OMIT" or "SKIPPED") in the
-            `switches` attribute.
+            switches attribute.
         """
 
         key_lower = keyword.lower()

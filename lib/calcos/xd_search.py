@@ -56,7 +56,7 @@ def xdSearch(data, dq_data, wavelength, axis, slope, y_nominal,
 
     y_nominal: float
         Location of spectrum at left edge of detector, i.e. at
-        X = `x_offset`.
+        X = x_offset.
 
     x_offset: int
         Offset of the detector in the data array.
@@ -67,11 +67,11 @@ def xdSearch(data, dq_data, wavelength, axis, slope, y_nominal,
     Returns
     -------
     (offset2, y_locn, y_locn_sigma, fwhm): tuple of four values
-        `offset2` is the offset of the spectrum from `y_nominal` (positive
-        if the spectrum was found at a larger Y pixel number).  `y_locn`
+        offset2 is the offset of the spectrum from y_nominal (positive
+        if the spectrum was found at a larger Y pixel number).  y_locn
         is the Y pixel number at which the spectrum was found (at pixel
-        `x_offset` from the left edge of `data`).  `y_locn_sigma` is the
-        error estimate for `y_locn`.  `fwhm` is the full-width at half
+        x_offset from the left edge of data).  y_locn_sigma is the
+        error estimate for y_locn.  fwhm is the full-width at half
         maximum of the peak in the cross-dispersion profile; this can be
         either a float or an int.
     """
@@ -129,9 +129,9 @@ def extractBand(data, dq_data, wavelength, axis, slope, y_nominal,
     -------
     tuple
         (e_j, zero_point), where e_j is a 1-D array containing a section of
-        `data` collapsed along the dispersion direction and `zero_point` is
-        the Y pixel number at the left edge of `data` corresponding to
-        pixel 0 of `e_j`
+        data collapsed along the dispersion direction and zero_point is
+        the Y pixel number at the left edge of data corresponding to
+        pixel 0 of e_j
     """
 
     extr_height = SEARCH_Y
@@ -182,7 +182,7 @@ def findPixelNumber(wl, wavelength):
     Returns
     -------
     int
-        Pixel number closest to `wavelength` in the array `wl`
+        Pixel number closest to wavelength in the array wl
     """
 
     nelem = len(wl)
@@ -223,11 +223,11 @@ def findPixelNumber(wl, wavelength):
 def findPeak(e_j, box):
     """Find the location of the maximum within the subset.
 
-    Note that the data were collapsed to the left edge to get `e_j`, so
+    Note that the data were collapsed to the left edge to get e_j, so
     the location is the intercept on the edge, rather than where the
     spectrum crosses the middle of the detector or where it crosses
     X = x_offset.
-    Also, `e_j` is not the full height of the detector, just a subset
+    Also, e_j is not the full height of the detector, just a subset
     centered on the nominal Y location of the spectrum.
 
     Parameters
@@ -237,14 +237,14 @@ def findPeak(e_j, box):
         account the tilt of the spectrum
 
     box: int
-        Smooth `e_j` with a box of this width before looking for the
+        Smooth e_j with a box of this width before looking for the
         maximum
 
     Returns
     -------
     tuple
         The location (float) in the cross-dispersion direction relative
-        to the first pixel in `e_j`, an estimate of the uncertainty in
+        to the first pixel in e_j, an estimate of the uncertainty in
         that location, and the FWHM of the peak in the cross-dispersion
         profile
     """
@@ -310,12 +310,12 @@ def findFwhm(e_j, y_locn):
 
     y_locn: float
         The location in the cross-dispersion direction, relative to the
-        first pixel in `e_j`.
+        first pixel in e_j.
 
     Returns
     -------
     float or int
-        The full width half maximum of the peak in `e_j`.
+        The full width half maximum of the peak in e_j.
     """
 
     nelem = len(e_j)

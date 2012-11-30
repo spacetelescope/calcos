@@ -199,7 +199,6 @@ def timetagBasicCalibration(input, inpha, outtag,
     if not info["corrtag_input"]:
         copyColumns(events)
 
-    doDoppcorr(events, info, switches, reffiles, phdr)
     initHelcorr(events, info, headers[1])
 
     doDeadcorr(events, input, info, switches, reffiles, phdr, headers[1],
@@ -214,6 +213,8 @@ def timetagBasicCalibration(input, inpha, outtag,
                   cl_args["binx"], cl_args["biny"],
                   cl_args["compress_csum"],
                   cl_args["compression_parameters"])
+
+    doDoppcorr(events, info, switches, reffiles, phdr)
 
     if info["aperture"] not in APERTURE_NAMES:
         ofd.close()
@@ -310,7 +311,7 @@ def setCorrColNames(detector):
 def setActiveArea(events, info, brftab):
     """Assign a value to active_area.
 
-    This function updates the global variable `active_area`, which is a
+    This function updates the global variable active_area, which is a
     Boolean array with the same number of elements as there are rows in
     the events table.  An element will be True if the corresponding
     event (row in the table) is within the FUV active area.  For NUV
@@ -349,7 +350,7 @@ def setActiveArea(events, info, brftab):
 def mkHeaders(phdr, events_header, extver=1):
     """Create a list of four headers for creating the flt and counts files.
 
-    The following keywords will be assigned or copied from `events_header`
+    The following keywords will be assigned or copied from events_header
     to the ERR extension header:
         EXTNAME
         EXTVER
@@ -362,7 +363,7 @@ def mkHeaders(phdr, events_header, extver=1):
         NGOODPIX
         GOODMEAN
         GOODMAX
-    The following keywords will be assigned or copied from `events_header`
+    The following keywords will be assigned or copied from events_header
     to the DQ extension header:
         EXTNAME
         EXTVER
@@ -811,9 +812,9 @@ def recomputeExptime(input, bursts, badt, events, hdr, info):
     Returns
     -------
     tuple containing a flag and a list of two-element lists
-        `modified` is a flag indicating whether there was actually any
+        modified is a flag indicating whether there was actually any
         change to the list of [start, stop] intervals.
-        `gti` is an updated list of [start, stop] good time intervals
+        gti is an updated list of [start, stop] good time intervals
         (seconds since expstart), updated from the GTI table in the raw
         file by excluding bursts and intervals flagged as bad by the
         badttab.
@@ -868,9 +869,9 @@ def recomputeGTI(gti, badt):
     Returns
     -------
     tuple containing a flag and a list of two-element lists
-        `modified` is a flag indicating whether there was actually any
+        modified is a flag indicating whether there was actually any
         change to the list of [start, stop] intervals.
-        `gti` is an updated list of [start, stop] good time intervals
+        gti is an updated list of [start, stop] good time intervals
         (seconds since expstart), updated from the GTI table in the raw
         file by excluding bursts and intervals flagged as bad by the
         badttab.
@@ -1316,9 +1317,9 @@ def initTempcorr(events, input, info, switches, reffiles, hdr, stimfile):
     Returns
     -------
     tuple, (stim_param, stim_countrate, stim_livetime)
-        `stim_param` is a dictionary of lists, with keys
+        stim_param is a dictionary of lists, with keys
         i0, i1, x0, xslope, y0, yslope;
-        `stim_countrate` and `stim_livetime` are the count rate of the
+        stim_countrate and stim_livetime are the count rate of the
         stims and the livetime factor based on that count rate
     """
 
@@ -1622,9 +1623,9 @@ def findStim(x, y, stim_ref, xwidth, ywidth):
         (sy, sx) is the stim location (if found, else None),
         (sumysq, sumxsq) is the sum of squared deviations from the mean
         location,
-        `n` is the number of events for this stim within the current time
+        n is the number of events for this stim within the current time
         interval,
-        `found_stim` will be True if there is at least one count within
+        found_stim will be True if there is at least one count within
         the search region.
     """
 
@@ -1710,8 +1711,8 @@ def updateStimSum(sumstim, nevents1, s1, sumsq1, found_s1,
     tuple
         An updated sumstim tuple.
 
-    `nevents1` and `nevents2` are used as weights when incrementing the
-    sums.  `n1` and `n2` are the total number of events for the first and
+    nevents1 and nevents2 are used as weights when incrementing the
+    sums.  n1 and n2 are the total number of events for the first and
     second stims respectively.
     """
 
@@ -2022,25 +2023,25 @@ def xyWalk(xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float32):
         Array of pulse height amplitudes of events.
 
     x0: float
-        Zero point to be subtracted from `xi` before evaluating polynomial
+        Zero point to be subtracted from xi before evaluating polynomial
         expressions.
 
     y0: float
-        Zero point to be subtracted from `eta` before evaluating polynomial
+        Zero point to be subtracted from eta before evaluating polynomial
         expressions.
 
     xcoeff: array_like
         Array of coefficients for a polynomial expression for the change
-        in `xi` as a function of `pha`.
+        in xi as a function of pha.
 
     ycoeff: array_like
         Array of coefficients for a polynomial expression for the change
-        in `eta` as a function of `pha`.
+        in eta as a function of pha.
 
     datatype: numpy dtype
         This is the data type used for local arrays.  The default is single
         precision.  If it is anticipated that the polynomial coefficients
-        `xcoeff` and `ycoeff` may include terms of high order, `datatype`
+        xcoeff and ycoeff may include terms of high order, datatype
         should be set to double precision.
     """
 
@@ -3831,8 +3832,8 @@ def noWavecal(input, shift_file, info, switches, reffiles):
     Returns
     -------
     (wavecal_info, wavecorr)
-    `wavecal_info` is a list of dictionaries.
-    `wavecorr` is the value to assign to keyword WAVECORR.
+    wavecal_info is a list of dictionaries.
+    wavecorr is the value to assign to keyword WAVECORR.
     """
 
     # For the present purposes, we don't need the other key values for
@@ -3913,7 +3914,7 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         were stored in this dictionary.
 
     wavecorr: str
-        Value to assign to WAVECORR keyword in `phdr`.
+        Value to assign to WAVECORR keyword in phdr.
 
     shift_file: str
         If not None, this text file may have been used to override shift1;
@@ -3938,8 +3939,8 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
     Returns
     -------
     (tl_time, shift1_vs_time): tuple of two array like
-        `tl_time` is the array of times at one-second intervals, for the
-        timeline table.  `shift1_vs_time` is the array of corresponding
+        tl_time is the array of times at one-second intervals, for the
+        timeline table.  shift1_vs_time is the array of corresponding
         values of shift1a or shift1b, or None if the current observation
         is a wavecal or if wavecal processing was not done.
     """
@@ -4513,11 +4514,11 @@ def getWavecalOffsets(events, info, wavecorr, xtractab):
         Each key is a two-element tuple, the lower and upper limits in Y;
         the value is a list:
         [min_shift1, max_shift1, min_shift2, max_shift2], where
-        `min_shift1` and `max_shift1` are the minimum and maximum values
+        min_shift1 and max_shift1 are the minimum and maximum values
         of the wavecal shift in the dispersion direction for events with
         lower <= Y < upper (positive means a feature was detected at larger
-        pixel coordinate than in the template), and `min_shift2` and
-        `max_shift2` are the corresponding values in the cross-dispersion
+        pixel coordinate than in the template), and min_shift2 and
+        max_shift2 are the corresponding values in the cross-dispersion
         direction.
     """
 

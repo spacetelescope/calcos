@@ -119,8 +119,8 @@ def extractSpec(inlist=[], outdir=None, update_input=False,
     The suffixes _corrtag, _flt and _counts are assumed by the code,
     so the files on disk must have these suffixes.
 
-    If `location` or `extrsize` is specified and there is more than one
-    name in `inlist`, note that the same location or extraction size will
+    If location or extrsize is specified and there is more than one
+    name in inlist, note that the same location or extraction size will
     be used for every input file.  For FUV data, only one location or
     extraction size is specified; for NUV data, from one to three values
     may be specified, but these are for the three spectral stripes, not
@@ -143,8 +143,8 @@ def extractSpec(inlist=[], outdir=None, update_input=False,
         in the cross-dispersion direction, in pixels; this is where the
         spectrum crosses the middle of the detector (index 8192 for FUV,
         512 for NUV).  None means the user did not specify the location.
-        If `location` was specified, that value will be used, regardless
-        of the flag in `find_target`.
+        If location was specified, that value will be used, regardless
+        of the flag in find_target.
 
     extrsize: int, or list of int, or None
         The height of the extraction box (or list of three heights for NUV)
@@ -158,7 +158,7 @@ def extractSpec(inlist=[], outdir=None, update_input=False,
         no larger than cutoff (if cutoff is positive).  flag = False means
         we should use the location determined from the wavecal or as
         specified by the user.  find_target["flag"] will be turned off if
-        `location` is not None.
+        location is not None.
 
     verbosity: int {0, 1, 2} or None
         If not None, set verbosity to this level.
@@ -271,7 +271,7 @@ def checkExists(filenames):
         counts_list = filenames[x1d]["counts"]
         x1d_ab_list = filenames[x1d]["x1d_ab"]
         # Separate loops are used here to control the order of names
-        # in `already_exists`.
+        # in already_exists.
         for i in range(len(flt_list)):
             if os.access(flt_list[i], os.R_OK):
                 already_exists.append(flt_list[i])
@@ -320,13 +320,13 @@ def printFilenames(corrtag, flt, counts, x1d_ab):
 def makeFileNames(inlist, outdir=""):
     """Replace suffixes to make the names of all files that we will need.
 
-    The output is the dictionary `filenames`:
+    The output is the dictionary filenames:
         key is the rootname_x1d.fits file name
         value is a dictionary:
             key is "corrtag", "flt", "counts", or "x1d_ab"
             value is a list of one (NUV) or two (FUV) file names
     For FUV the names in x1d_ab will have suffix "_x1d_a" or "_x1d_b", while
-    for NUV the name in x1d_ab will be the same as the key in `filenames`.
+    for NUV the name in x1d_ab will be the same as the key in filenames.
 
     The flt, counts, x1d_ab, and x1d file names all include the output
     directory name (if any).
@@ -457,12 +457,12 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
 def concatenateSegments(x1d_ab_list, x1d):
     """Concatenate the 1-D spectra for the two FUV segments into one file.
 
-    If the input list `x1d_ab_list` contains a file name that is the same
-    as `x1d` (should be only one name in the list in this case, i.e. NUV
+    If the input list x1d_ab_list contains a file name that is the same
+    as x1d (should be only one name in the list in this case, i.e. NUV
     data), this function will return without doing anything.
 
     If the list contains just one file name, the file will be renamed;
-    otherwise, the files will be concatenated into one file, given by `x1d`.
+    otherwise, the files will be concatenated into one file, given by x1d.
 
     Parameters
     ----------
@@ -582,15 +582,15 @@ def replaceSuffix(rawname, suffix, new_suffix):
         A file name
 
     suffix: str
-        Suffix part of `rootname` to be replaced
+        Suffix part of rootname to be replaced
 
     new_suffix: str
-        The string to replace `suffix` in `rawname`
+        The string to replace suffix in rawname
 
     Returns
     -------
     string
-        `rawname` with `suffix` replaced by `new_suffix`
+        rawname with suffix replaced by new_suffix
     """
 
     lenraw = len(rawname)

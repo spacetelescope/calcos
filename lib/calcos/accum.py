@@ -378,10 +378,10 @@ def deadtimeCorrection(flt_sci, exptime, deadtab, info,
     Returns
     -------
     (dead_rate, dead_method, livetime): tuple of float, str, float
-        `dead_rate` is the count rate used for determining the livetime
-        factor.  `dead_method` is a string that indicates which method was
-        used for determining the livetime factor; `dead_method` will be
-        "SKIPPED" if the exposure time is zero.  `livetime` is the livetime
+        dead_rate is the count rate used for determining the livetime
+        factor.  dead_method is a string that indicates which method was
+        used for determining the livetime factor; dead_method will be
+        "SKIPPED" if the exposure time is zero.  livetime is the livetime
         factor that was used.
     """
 
@@ -551,9 +551,9 @@ def makeImages(counts_sci, flt_sci, exptime):
     Returns
     -------
     (C_rate, errC_rate, E_rate, errE_rate): tuple of floats
-        `C_rate` is the count rate array; `errC_rate` is the error estimate
-        for the count rate array; `E_rate` is the flat-fielded count rate
-        array; `errE_rate` is the error estimate for the flat fielded
+        C_rate is the count rate array; errC_rate is the error estimate
+        for the count rate array; E_rate is the flat-fielded count rate
+        array; errE_rate is the error estimate for the flat fielded
         count-rate array.
     """
 
@@ -617,9 +617,9 @@ def writeCsum(outcsum, phdr, hdr_list, csum_array,
         Compress the csum image?
 
     compression_parameters: str
-        `compressionType` and `quantizeLevel` (separated by a comma) for
-        the call to pyfits.CompImageHDU; `compressionType` can be "rice",
-        "gzip", or "hcompress", and `quantizeLevel` can be e.g. -0.1,
+        compressionType and quantizeLevel (separated by a comma) for
+        the call to pyfits.CompImageHDU; compressionType can be "rice",
+        "gzip", or "hcompress", and quantizeLevel can be e.g. -0.1,
         which means the floating point values will be scaled to integers
         with spacing that corresponds to 0.1 dn (see the doc string for
         pyfits.CompImageHDU for more details).

@@ -45,7 +45,7 @@ def createTimeline(input, fd, info, reffiles,
         Reference file keywords and names.
 
     tl_time: array_like
-        The array of times corresponding to `shift1_vs_time`.
+        The array of times corresponding to shift1_vs_time.
 
     shift1_vs_time: array_like
         The shifts in the dispersion direction at one-second intervals.
@@ -383,7 +383,7 @@ def computeAlt(rect, rect_hst, parallax=False):
     rect: array like
         Rectangular, geocentric coordinates of an object.  If parallax due
         to the orbit of HST is significant, this vector should be in km
-        (see `parallax`); otherwise, this may be a unit vector pointing
+        (see parallax); otherwise, this may be a unit vector pointing
         toward the object.
 
     rect_hst: array like
@@ -392,7 +392,7 @@ def computeAlt(rect, rect_hst, parallax=False):
     parallax: boolean
         True if the object is close enough that we should correct for
         the parallax due to HST's offset from the center of the Earth.
-        If True, `rect` should be in km; otherwise, `rect` may be a
+        If True, rect should be in km; otherwise, rect may be a
         unit vector.
 
     Returns
@@ -451,7 +451,7 @@ def computeZD(rect_sun, rect_hst):
     rhst = math.sqrt(dotProduct(rect_hst, rect_hst))
     uhst = rect_hst / rhst
 
-    # `zenith_dist` is not quite the zenith distance, because parallax
+    # zenith_dist is not quite the zenith distance, because parallax
     # is not accounted for.
     cz = dotProduct(uhst, usun)
     zenith_dist = math.acos(cz)
@@ -473,7 +473,7 @@ def findPixelRegion(info, disptab, xtractab, median_shift1, wl_airglow):
         Name of extraction parameters reference table.
 
     median_shift1: float
-        Median value in `shift1_vs_time` (in createTimeline()).  This is
+        Median value in shift1_vs_time (in createTimeline()).  This is
         used when testing whether an airglow line is on the detector, and
         for shifting the region for the dark count rate.
 
@@ -613,7 +613,7 @@ def eclSun(mjd):
     -------
     eclcoord: array_like
         Three-element vector containing the ecliptic rectangular
-        coordinates of the Sun at `mjd`, in astronomical units.
+        coordinates of the Sun at mjd, in astronomical units.
     """
 
     eclcoord = np.zeros(3, dtype=np.float64)
@@ -666,7 +666,7 @@ def eclToEq(eclcoord, mjd):
     -------
     eqcoord: array_like
         Three-element vector containing the equatorial rectangular
-        coordinates corresponding to `eclcoord` at `mjd`.
+        coordinates corresponding to eclcoord at mjd.
     """
 
     eqcoord = np.zeros(3, dtype=np.float64)
@@ -697,7 +697,7 @@ def lsun(mjd):
     Returns
     -------
     float
-        The mean longitude of the Sun at `mjd`, in radians.
+        The mean longitude of the Sun at mjd, in radians.
     """
 
     return TWOPI * (0.779072 + 0.00273790931 * (mjd - MREF))
@@ -713,7 +713,7 @@ def gsun(mjd):
     Returns
     -------
     float
-        The mean anomaly of the Sun at `mjd`, in radians.
+        The mean anomaly of the Sun at mjd, in radians.
     """
 
     return TWOPI * (0.993126 + 0.00273777850 * (mjd - MREF))
@@ -729,7 +729,7 @@ def lmoon(mjd):
     Returns
     -------
     float
-        The mean longitude of the Moon at `mjd`, in radians.
+        The mean longitude of the Moon at mjd, in radians.
     """
 
     return TWOPI * (0.606434 + 0.03660110129 * (mjd - MREF))
@@ -748,7 +748,7 @@ def momega(mjd):
     Returns
     -------
     float
-        L_moon - F_moon at `mjd`, in radians.
+        L_moon - F_moon at mjd, in radians.
     """
 
     return TWOPI * (0.347343 - 0.00014709391 * (mjd - MREF))
@@ -764,7 +764,7 @@ def gvenus(mjd):
     Returns
     -------
     float
-        The mean anomaly for Venus at `mjd`, in radians.
+        The mean anomaly for Venus at mjd, in radians.
     """
 
     return TWOPI * (0.140023 + 0.00445036173 * (mjd - MREF))
@@ -780,7 +780,7 @@ def gmars(mjd):
     Returns
     -------
     float
-        The mean anomaly for Mars at `mjd`, in radians.
+        The mean anomaly for Mars at mjd, in radians.
     """
 
     return TWOPI * (0.053856 + 0.00145561327 * (mjd - MREF))
@@ -796,7 +796,7 @@ def gjupiter(mjd):
     Returns
     -------
     float
-        The mean anomaly for Jupiter at `mjd`, in radians.
+        The mean anomaly for Jupiter at mjd, in radians.
     """
 
     return TWOPI * (0.056531 + 0.00023080893 * (mjd - MREF))

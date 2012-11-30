@@ -53,7 +53,7 @@ class Shift1(object):
         stripe name.
 
     templates: dictionary of array_like
-        Template spectra (same keys as for `spectra`) from the lamptab.
+        Template spectra (same keys as for spectra) from the lamptab.
         Key is segment or stripe name.
 
     info: dictionary
@@ -68,13 +68,13 @@ class Shift1(object):
 
     fp_pixel_shift: dictionary
         From the FP_PIXEL_SHIFT column of the lamptab, with an entry (same
-        keys as for `spectra`) for each segment or stripe; if that column
+        keys as for spectra) for each segment or stripe; if that column
         is not present in the lamptab, the values should be 0.
 
     initial_offset: int
         0 if the lamptab contains both the FPOFFSET and FP_PIXEL_SHIFT
         columns (this is the normal case, no initial offset should be
-        applied); if those columns are not in the lamptab, `initial_offset`
+        applied); if those columns are not in the lamptab, initial_offset
         is the nominal offset (FPOFFSET * STEPSIZE) between the wavecal
         spectrum and the template spectrum from the lamptab.
 
