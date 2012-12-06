@@ -113,8 +113,8 @@ def findWavecalShift(input, shift_file, info, wcp_info):
         filter["segment"] = segment[row]
         lamp_info = cosutil.getTable(lamptab, filter)
         if lamp_info is None:
-            raise RuntimeError("Missing row in LAMPTAB; filter = %s" %
-                               str(filter))
+            raise MissingRowError("Missing row in LAMPTAB; filter = %s" %
+                                  str(filter))
         # Save gross, but convert from count rate back to counts.
         save_spectra[segment[row]] = gross[row] * exptime[row]
         raw_template = lamp_info.field("intensity")[0]
@@ -252,7 +252,8 @@ def readFpPixelShift(info, lamptab, segment, stepsize, fp_dict):
               "segment": segment}
     lamp_info = cosutil.getTable(lamptab, filter)
     if lamp_info is None:
-        raise RuntimeError("Missing row in LAMPTAB; filter = %s" % str(filter))
+        raise MissingRowError("Missing row in LAMPTAB; filter = %s" %
+                              str(filter))
 
     names = []
     for name in lamp_info.names:

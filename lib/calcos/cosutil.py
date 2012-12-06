@@ -497,7 +497,7 @@ def getTable(table, filter, extension=1,
         message = "Table has no matching row;\n" + \
                   "table name is " + table + "\n" + \
                   "row selection is " + repr(filter)
-        raise RuntimeError(message)
+        raise MissingRowError(message)
 
     if exactly_one and nselect > 1:
         printWarning("Table has more than one matching row;")

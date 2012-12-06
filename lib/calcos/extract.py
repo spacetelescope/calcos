@@ -431,14 +431,14 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                   "aperture": info["aperture"]}
         xtract_info = cosutil.getTable(reffiles["xtractab"], filter)
         if xtract_info is None:
-            raise RuntimeError("Missing row in XTRACTAB; filter = %s" %
-                               str(filter))
+            raise MissingRowError("Missing row in XTRACTAB; filter = %s" %
+                                  str(filter))
         # Include fpoffset in the filter for disptab.
         filter["fpoffset"] = info["fpoffset"]
         disp_rel = dispersion.Dispersion(reffiles["disptab"], filter, True)
         if not disp_rel.isValid():
-            raise RuntimeError("Missing row in DISPTAB; filter = %s" %
-                               str(disp_rel.getFilter()))
+            raise MissingRowError("Missing row in DISPTAB; filter = %s" %
+                                  str(disp_rel.getFilter()))
         slope = xtract_info.field("slope")[0]
 
         if is_wavecal:
@@ -2007,8 +2007,8 @@ def recomputeWavelengths(input):
                   "fpoffset": info["fpoffset"]}
         disp_rel = dispersion.Dispersion(disptab, filter)
         if not disp_rel.isValid():
-            raise RuntimeError("Missing row in DISPTAB; filter = %s" %
-                               str(disp_rel.getFilter()))
+            raise MissingRowError("Missing row in DISPTAB; filter = %s" %
+                                  str(disp_rel.getFilter()))
         key = "shift1" + segment[-1]
         shift1 = hdr.get(key, 0.)
 

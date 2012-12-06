@@ -2,8 +2,8 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.19.5"
-CALCOS_VERSION_DATE = "2012-11-30"
+CALCOS_VERSION_NUMBER = "2.19.6"
+CALCOS_VERSION_DATE = "2012-12-06"
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
@@ -151,6 +151,13 @@ SERIOUS_DQ_FLAGS = (DQ_BURST | DQ_BAD_TIME | DQ_PHA_OUT_OF_BOUNDS)
 
 # Define an exception for the case that the APERTURE keyword is not recognized.
 class BadApertureError(Exception):
+    def __init__(self, message=None):
+        self.message = message
+    def __str__(self):
+        return self.message
+
+# Define an exception for a missing row in a reference file.
+class MissingRowError(Exception):
     def __init__(self, message=None):
         self.message = message
     def __str__(self):

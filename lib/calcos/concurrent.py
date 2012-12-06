@@ -1223,8 +1223,12 @@ class ConcurrentWavecal(object):
                 avg_dy[segment] = 0.
             return (avg_dx, avg_dy)
 
-        exptime = self.info["exptime"]
         time = self.time
+        # Note that this is the entire time interval, i.e. including any
+        # bad time intervals.
+        time_range = time[-1] - time[0]
+        if time_range <= 0.:
+            time_range = 1.
 
         for segment in self.segment_list:
             t_prev = time[0]
@@ -1246,8 +1250,8 @@ class ConcurrentWavecal(object):
             if time[-1] > t:
                 sum_shift1 += (time[-1] - t) * shift1
                 sum_shift2 += (time[-1] - t) * shift2
-            avg_dx[segment] = sum_shift1/exptime
-            avg_dy[segment] = sum_shift2/exptime
+            avg_dx[segment] = sum_shift1 / time_range
+            avg_dy[segment] = sum_shift2 / time_range
 
         return (avg_dx, avg_dy)
 

@@ -35,9 +35,9 @@ EXP_ENGINEERING = 6
 # not acq/image).
 NO_DATA_TO_CALIBRATE = 5
 
-# calcos will return this value if the APERTURE keyword is not valid.
-# This is a single bit and doesn't overlap NO_DATA_TO_CALIBRATE.
-BAD_APERTURE_NAME = 8
+# calcos can return this value if the APERTURE keyword is not valid or
+# if a required row is missing from a reference table.
+BAD_APER_MISSING_ROW_EXCEPTION = 16
 
 # If the input is a raw file rather than an association file, this flag
 # will be set to True.
@@ -209,8 +209,6 @@ def main(args):
                       burstfile=burstfile)
         status |= stat
     if status != 0:
-        if status & BAD_APERTURE_NAME:
-            raise BadApertureError("APERTURE keyword is not valid")
         sys.exit(status)
 
 def prtOptions():
@@ -688,13 +686,16 @@ class Association(object):
         if asntable.endswith("_asn"):
             self.asntable = asntable + ".fits"
             self.readAsnTable()
+            self.asn_info["exists"] = True
         elif asntable.endswith("_asn.fits"):
             self.asntable = asntable
             self.readAsnTable()
+            self.asn_info["exists"] = True
         else:
             # asntable is a raw file name; construct a one-row asn_info.
             self.asntable = None
             self.dummyAsnTable(asntable)
+            self.asn_info["exists"] = False
 
         self.checkNeedToCopyAsn()
 
@@ -1183,7 +1184,7 @@ class Association(object):
         """Compare detector and opt_elem.
 
         All the files in an association must have been taken with the same
-        detector and grating (or mirror).
+        detector, grating (or mirror), and cenwave.
         """
 
         if len(self.obs) < 2:
@@ -1194,13 +1195,18 @@ class Association(object):
         refinfo = self.obs[0].info
         detector = refinfo["detector"]
         opt_elem = refinfo["opt_elem"]
+        cenwave = refinfo["cenwave"]            # 0 for imaging type
 
         for obs in self.obs:
             if obs.info["detector"] != detector or \
-               obs.info["opt_elem"] != opt_elem:
+               obs.info["opt_elem"] != opt_elem or \
+               obs.info["cenwave"] != cenwave:
                 cosutil.printError(obs.filenames["raw"])
-                errmess = "All files must be for the same detector" \
-                          " and opt_elem."
+                errmess = "All files must be for the same detector"
+                if obs.info["obstype"] == "SPECTROSCOPIC":
+                    errmess += ", opt_elem and cenwave."
+                else:
+                    errmess += " and opt_elem."
                 raise RuntimeError(errmess)
 
     def resetSwitches(self):
@@ -2665,9 +2671,9 @@ class Calibration(object):
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
-                except BadApertureError as e:
+                except (BadApertureError, MissingRowError) as e:
                     cosutil.printError("%s" % e)
-                    status = BAD_APERTURE_NAME
+                    status = BAD_APER_MISSING_ROW_EXCEPTION
                     continue
                 if obs.switches["x1dcorr"] == "PERFORM":
                     any_x1dcorr = "PERFORM"
@@ -2717,6 +2723,15 @@ class Calibration(object):
                     extract.recomputeWavelengths(x1d_file)
                     obs.closeTrailer()
 
+        else:
+            if self.assoc.asn_info["exists"]:
+                cosutil.printWarning("No further auto/GO wavecal processing"
+                                     " for this association (status = %d)."
+                                     % status)
+            else:
+                cosutil.printWarning("No further processing of this wavecal"
+                                     " will be done (status = %d)." % status)
+
         return status
 
     def allScience(self):
@@ -2741,9 +2756,9 @@ class Calibration(object):
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
-                except BadApertureError as e:
+                except (BadApertureError, MissingRowError) as e:
                     cosutil.printError("%s" % e)
-                    status = BAD_APERTURE_NAME
+                    status = BAD_APER_MISSING_ROW_EXCEPTION
                     continue
                 self.updateShift(obs.filenames, obs.switches["wavecorr"],
                                  obs.info)
@@ -2761,6 +2776,15 @@ class Calibration(object):
                    obs.switches["wavecorr"] == "PERFORM":
                     any_wavecorr = "PERFORM"
                 obs.closeTrailer()
+
+        if any_x1dcorr == "omit" and any_wavecorr == "omit" and \
+           any_spectroscopic == "omit":
+            if self.assoc.asn_info["exists"]:
+                cosutil.printWarning("No further processing for this"
+                                     " association (status = %d)." % status)
+            else:
+                cosutil.printWarning("No further processing for this dataset"
+                                     " (status = %d)." % status)
 
         if any_x1dcorr == "PERFORM":
             self.concatenateSpectra("science")

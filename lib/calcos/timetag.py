@@ -119,6 +119,13 @@ def timetagBasicCalibration(input, inpha, outtag,
     # while events (assigned below) is just the data, a recarray object.
     events_hdu = ofd["EVENTS"]
 
+    if nrows > 0 and info["obsmode"] == "TIME-TAG":
+        # Change orig_exptime to be the range of times in the TIME column.
+        time64 = events_hdu.data.field("TIME").astype(np.float64)
+        if time64[-1] > time64[0]:
+            info["orig_exptime"] = time64[-1] - time64[0]
+        del time64
+
     # Get a copy of the primary header.  This copy will be modified and
     # written to the output image files.
     phdr = ofd[0].header
@@ -158,20 +165,7 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doPhotcorr(info, switches, reffiles["imphttab"], phdr, headers[1])
 
-    bursts = doBurstcorr(events, info, switches, reffiles, phdr,
-                         cl_args["burstfile"])
-
     badt = doBadtcorr(events, info, switches, reffiles, phdr)
-
-    if info["obsmode"] == "TIME-TAG":
-        (modified, gti) = recomputeExptime(input, bursts, badt, events,
-                                           headers[1], info)
-        if modified:
-            saveNewGTI(ofd, gti)
-
-    if info["detector"] == "FUV":       # update keyword EXPTIMEA or EXPTIMEB
-        key = cosutil.segmentSpecificKeyword("exptime", info["segment"])
-        headers[1].update(key, info["exptime"])
 
     doRandcorr(events, info, switches, reffiles, phdr)
 
@@ -188,12 +182,7 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doWalkCorr(events, info, switches, reffiles, phdr)
 
-    doPhacorr(inpha, events, info, switches, reffiles, phdr, headers[1])
-
     updateGlobrate(info, headers[1])
-
-    if info["obsmode"] == "TIME-TAG":
-        countBadEvents(events, bursts, badt, info, headers[1])
 
     # Copy columns to xdopp, xfull, yfull so we'll have default values.
     if not info["corrtag_input"]:
@@ -213,6 +202,8 @@ def timetagBasicCalibration(input, inpha, outtag,
                   cl_args["binx"], cl_args["biny"],
                   cl_args["compress_csum"],
                   cl_args["compression_parameters"])
+
+    doPhacorr(inpha, events, info, switches, reffiles, phdr, headers[1])
 
     doDoppcorr(events, info, switches, reffiles, phdr)
 
@@ -263,6 +254,19 @@ def timetagBasicCalibration(input, inpha, outtag,
         tl_time = cosutil.timelineTimes(time[0], time[-1], dt=1.)
         shift1_vs_time = None
         del time
+
+    if info["obsmode"] == "TIME-TAG":
+        bursts = doBurstcorr(events, info, switches, reffiles, phdr,
+                             cl_args["burstfile"])
+        (modified, gti) = recomputeExptime(input, bursts, badt, events,
+                                           headers[1], info)
+        if modified:
+            saveNewGTI(ofd, gti)
+        countBadEvents(events, bursts, badt, info, headers[1])
+
+    if info["detector"] == "FUV":       # update keyword EXPTIMEA or EXPTIMEB
+        key = cosutil.segmentSpecificKeyword("exptime", info["segment"])
+        headers[1].update(key, info["exptime"])
 
     minmax_shift_dict = getWavecalOffsets(events, info, switches["wavecorr"],
                                           reffiles["xtractab"])
@@ -600,7 +604,7 @@ def doBurstcorr(events, info, switches, reffiles, phdr, burstfile):
             cosutil.printRef("brsttab", reffiles)
             cosutil.printRef("xtractab", reffiles)
             bursts = burst.burstFilter(events.field("time"),
-                                       events.field(ycorr), events.field("dq"),
+                                       events.field(yfull), events.field("dq"),
                                        reffiles, info, burstfile)
             phdr.update("brstcorr", "COMPLETE")
 
@@ -716,7 +720,7 @@ def countBadEvents(events, bursts, badt, info, hdr):
         (converted to seconds since expstart).
 
     info: dictionary
-        Keywords and values (exptime can be updated).
+        Keywords and values
 
     hdr: pyfits Header object
         The events extension header (keywords will be updated).
@@ -821,9 +825,6 @@ def recomputeExptime(input, bursts, badt, events, hdr, info):
     """
 
     time = events.field("time")
-
-    # Change orig_exptime to be the range of times in the TIME column.
-    info["orig_exptime"] = time[-1] - time[0]
 
     modified_0 = False
     gti = cosutil.returnGTI(input)
@@ -2278,7 +2279,7 @@ def dopplerParam(info, disptab, doppcorr):
             middle = float(NUV_X) / 2.
         disp_rel = dispersion.Dispersion(disptab, filter)
         if not disp_rel.isValid():
-            raise RuntimeError("missing row in disptab")
+            raise MissingRowError("missing row in disptab")
         # get the dispersion (disp) at the middle of the detector
         disp = disp_rel.evalDerivDisp(middle)
         disp_rel.close()
@@ -2501,7 +2502,7 @@ def dopplerCorrection(time, xi, info, reffiles, stripe=None):
     disp_rel = dispersion.Dispersion(disptab, filter, use_fpoffset=True)
     if not disp_rel.isValid():
         disp_rel.close()
-        raise RuntimeError("missing row in disptab")
+        raise MissingRowError("missing row in disptab")
 
     xi = xi.astype(np.float64)
     fpoffset_present = cosutil.findColumn(disptab, "fpoffset")
@@ -2812,16 +2813,17 @@ def convolveFlat(flat, dispaxis,
     dopp = np.zeros(2*mag+1, dtype=np.float32)
 
     # t is the time in seconds since dopzerot, in one second increments.
-    t = np.arange(int(round(exptime)), dtype=np.float32) + \
-               (expstart - dopzerot) * SEC_PER_DAY
+    xpts = round(exptime)
+    xpts = max(xpts, 1.)
+    npts = int(xpts)
+    t = np.arange(npts, dtype=np.float32) + \
+                (expstart - dopzerot) * SEC_PER_DAY
 
     # shift is in pixels (wavelengths increase toward larger pixel number).
     shift = -dopmagt * np.sin(2. * np.pi * t / orbtpert)
 
     # Construct the Doppler smoothing function.
-    npts = round(exptime)
-    increment = 1. / npts
-    npts = int(npts)
+    increment = 1. / xpts
     for i in range(npts):                       # one-second increments
         ishift = int(round(shift[i])) + mag
         assert ishift >= 0 and ishift <= 2*mag
@@ -3200,7 +3202,7 @@ def deadtimeCorrectionAccum(events, deadtab, info,
     if info["orig_exptime"] <= 0.:
         cosutil.printWarning("Can't do deadcorr, exptime = %.6g." %
                              info["orig_exptime"])
-        return (0., "SKIPPED")
+        return (0., "SKIPPED", 1.)
     actual_countrate = float(ncounts) / info["orig_exptime"]
     actual_rate_livetime = cosutil.determineLivetime(actual_countrate,
                                                      obs_rate, live_factor)
