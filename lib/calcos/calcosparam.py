@@ -2,8 +2,19 @@ from __future__ import division         # confidence high
 
 # This file defines parameters used by calcos.
 
-CALCOS_VERSION_NUMBER = "2.19.6"
-CALCOS_VERSION_DATE = "2012-12-06"
+
+# Version numbers used to be defined here.  The d2to1 based install
+# keeps the version numbers in setup.cfg, where the get copied to
+# version.py at install time.  In principle, everybody who needs
+# version numbers could get them from version.py, but notice that
+# CALCOS_VERSION does not correspond to anything that is there.
+# Rather than having some versions in one file and some versions
+# in another, it seems conceptually cleaner to continue making
+# all the version information available here in calcosparam.
+from .version import *
+
+CALCOS_VERSION_NUMBER = __version__
+CALCOS_VERSION_DATE = __vdate__
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
