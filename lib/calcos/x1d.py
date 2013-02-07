@@ -17,8 +17,7 @@ import timetag
 
 first_message = True                    # initial values
 
-__version__ = calcosparam.CALCOS_VERSION_NUMBER
-__vdate__   = calcosparam.CALCOS_VERSION_DATE
+from .version import *
 
 def main(args):
     """This is a driver to perform 1-D extraction for one file.
