@@ -4,7 +4,7 @@ import os
 import time
 import numpy as np
 from numpy import random
-import pyfits
+import astropy.io.fits as fits
 
 import cosutil
 import burst
@@ -109,7 +109,7 @@ def timetagBasicCalibration(input, inpha, outtag,
     # file read/write.
     if info["obsmode"] == "TIME-TAG":
         nrows = cosutil.writeOutputEvents(input, outtag)
-    ofd = pyfits.open(outtag, mode="update")
+    ofd = fits.open(outtag, mode="update")
     if ofd["EVENTS"].data is None:
         nrows = 0
     else:
@@ -394,8 +394,8 @@ def mkHeaders(phdr, events_header, extver=1):
     # flt and counts headers will contain the updated values.
     headers.append(events_header)
 
-    err_hdr = pyfits.Header()
-    dq_hdr = pyfits.Header()
+    err_hdr = fits.Header()
+    dq_hdr = fits.Header()
     err_hdr.update("extname", "ERR", comment="extension name")
     dq_hdr.update("extname", "DQ", comment="extension name")
     err_hdr.update("extver", extver, comment="extension version number")
@@ -463,7 +463,7 @@ def updateHVKeywords(hdr, info, reffiles):
 
     segment_list = ["FUVA", "FUVB"]     # update keywords for both segments
 
-    fd = pyfits.open(hvtab, mode="readonly")
+    fd = fits.open(hvtab, mode="readonly")
 
     kwd_root = "hvlevel"        # high voltage (commanded, raw)
     expstart = info["expstart"]
@@ -912,10 +912,10 @@ def saveNewGTI(ofd, gti):
 
     len_gti = len(gti)
     col = []
-    col.append(pyfits.Column(name="START", format="1D", unit="s"))
-    col.append(pyfits.Column(name="STOP", format="1D", unit="s"))
-    cd = pyfits.ColDefs(col)
-    hdu = pyfits.new_table(cd, nrows=len_gti)
+    col.append(fits.Column(name="START", format="1D", unit="s"))
+    col.append(fits.Column(name="STOP", format="1D", unit="s"))
+    cd = fits.ColDefs(col)
+    hdu = fits.new_table(cd, nrows=len_gti)
     hdu.header.update("extname", "GTI")
     outdata = hdu.data
     startcol = outdata.field("START")
@@ -1031,7 +1031,7 @@ def filterPHA(xcorr, ycorr, pha, dq, phafile, info, hdr):
     segment = info["segment"]
 
     # get im_low, im_high from phafile
-    fd = pyfits.open(phafile, mode="copyonwrite")
+    fd = fits.open(phafile, mode="copyonwrite")
     hdu_low = fd[(segment,1)]           # hdu with data for lower limits
     hdu_high = fd[(segment,2)]          # hdu with data for upper limits
     im_low = hdu_low.data
@@ -1200,7 +1200,7 @@ def checkPulseHeight(inpha, phatab, info, hdr):
     max_peak = pha_info.field("max_peak")[0]
 
     # Read the pulse-height histogram.
-    fd = pyfits.open(inpha, mode="readonly", memmap=False)
+    fd = fits.open(inpha, mode="readonly", memmap=False)
     pha_data = fd[1].data
 
     npts = len(pha_data)
@@ -1443,7 +1443,7 @@ def computeThermalParam(time, x, y, dq,
 
     # Find stims and compute parameters every dt_thermal seconds.
     if obsmode == "TIME-TAG":
-        fd_brf = pyfits.open(brftab, mode="readonly", memmap=False)
+        fd_brf = fits.open(brftab, mode="readonly", memmap=False)
         dt_thermal = fd_brf[1].header["timestep"]
         fd_brf.close()
         cosutil.printMsg(
@@ -2743,7 +2743,7 @@ def doFlatcorr(events, info, switches, reffiles, phdr, hdr):
 
         cosutil.printRef("FLATFILE", reffiles)
 
-        fd = pyfits.open(reffiles["flatfile"], mode="copyonwrite")
+        fd = fits.open(reffiles["flatfile"], mode="copyonwrite")
 
         if info["detector"] == "NUV":
             hdu = fd[1]
@@ -3050,7 +3050,7 @@ def deadtimeCorrection(events, deadtab, info,
             fd.write("# t0 t1 countrate livetime\n")
 
         # Use counts over dt_deadtime seconds to compute livetime.
-        fd_dead = pyfits.open(deadtab, mode="readonly", memmap=False)
+        fd_dead = fits.open(deadtab, mode="readonly", memmap=False)
         dt_deadtime = fd_dead[1].header["timestep"]
         fd_dead.close()
         cosutil.printMsg("Compute livetime factor; timestep is %.6g s:" \
@@ -3509,8 +3509,8 @@ def makeImage(outimage, phdr, headers, sci_array, err_array, dq_array):
         The data quality array (may be None).
     """
 
-    primary_hdu = pyfits.PrimaryHDU(header=phdr)
-    fd = pyfits.HDUList(primary_hdu)
+    primary_hdu = fits.PrimaryHDU(header=phdr)
+    fd = fits.HDUList(primary_hdu)
     fd[0].header["nextend"] = 3
     cosutil.updateFilename(fd[0].header, outimage)
 
@@ -3553,7 +3553,7 @@ def makeImageHDU(fd, table_hdr, data_array, name="SCI"):
         if "pixvalue" in imhdr:
             del(imhdr["pixvalue"])
 
-    hdu = pyfits.ImageHDU(data=data_array, header=imhdr, name=name)
+    hdu = fits.ImageHDU(data=data_array, header=imhdr, name=name)
     fd.append(hdu)
 
 def writeCsum(outcsum, events,
@@ -3602,10 +3602,10 @@ def writeCsum(outcsum, events,
 
     compression_parameters: str
         compressionType and quantizeLevel (separated by a comma) for the
-        call to pyfits.CompImageHDU; compressionType can be "rice", "gzip",
+        call to fits.CompImageHDU; compressionType can be "rice", "gzip",
         or "hcompress", and quantizeLevel can be e.g. -0.1, which means the
         floating point values will be scaled to integers with spacing that
-        corresponds to 0.1 dn (see the doc string for pyfits.CompImageHDU
+        corresponds to 0.1 dn (see the doc string for fits.CompImageHDU
         for more details).
     """
 
@@ -3615,8 +3615,8 @@ def writeCsum(outcsum, events,
 
     cosutil.printMsg("writing file %s ..." % outcsum, VERY_VERBOSE)
 
-    primary_hdu = pyfits.PrimaryHDU(header=phdr)
-    fd = pyfits.HDUList(primary_hdu)
+    primary_hdu = fits.PrimaryHDU(header=phdr)
+    fd = fits.HDUList(primary_hdu)
     fd[0].header.update("nextend", 1)
     fd[0].header.update("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename(fd[0].header, outcsum)
@@ -3679,7 +3679,7 @@ def writeCsum(outcsum, events,
             data = np.zeros((ny, nx), dtype=np.float32)
             if xcoord is not None:
                 ccos.csum_2d(data, xcoord, ycoord, epsilon, binx, biny)
-        fd.append(pyfits.CompImageHDU(data, header=hdr, name="SCI",
+        fd.append(fits.CompImageHDU(data, header=hdr, name="SCI",
                                       compressionType=compType,
                                       quantizeLevel=quantLevel))
         fd[1].header.update("counts", data.sum(dtype=np.float64))
@@ -3695,21 +3695,21 @@ def writeCsum(outcsum, events,
     else:
         if detector == "FUV":
             if obsmode == "ACCUM":
-                fd.append(pyfits.ImageHDU(data=np.zeros((ny, nx),
+                fd.append(fits.ImageHDU(data=np.zeros((ny, nx),
                                                         dtype=np.float32),
                                           header=hdr, name="SCI"))
                 if xcoord is not None:
                     ccos.csum_2d(fd[1].data, xcoord, ycoord, epsilon,
                                  binx, biny)
             else:
-                fd.append(pyfits.ImageHDU(data=np.zeros((PHA_RANGE, ny, nx),
+                fd.append(fits.ImageHDU(data=np.zeros((PHA_RANGE, ny, nx),
                                                         dtype=np.float32),
                                           header=hdr, name="SCI"))
                 if xcoord is not None:
                     ccos.csum_3d(fd[1].data, xcoord, ycoord, epsilon,
                                  pha.astype(np.int16), binx, biny)
         else:
-            fd.append(pyfits.ImageHDU(data=np.zeros((ny, nx),
+            fd.append(fits.ImageHDU(data=np.zeros((ny, nx),
                                                     dtype=np.float32),
                                       header=hdr, name="SCI"))
             if xcoord is not None:

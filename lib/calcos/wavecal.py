@@ -2,11 +2,8 @@ from __future__ import division         # confidence high
 import math
 import os
 import numpy as np
-try:
-    from stsci.convolve import boxcar
-except ImportError:
-    from convolve import boxcar
-import pyfits
+from stsci.convolve import boxcar
+import astropy.io.fits as fits
 from calcosparam import *
 import ccos
 import cosutil
@@ -53,7 +50,7 @@ def findWavecalShift(input, shift_file, info, wcp_info):
     """
 
     # Note that we open the x1d table read-write, so we can update keywords.
-    fd = pyfits.open(input, mode="update")
+    fd = fits.open(input, mode="update")
     phdr = fd[0].header
     sci_extn = fd["SCI"]
     if sci_extn.data is None or len(sci_extn.data) == 0:
@@ -681,7 +678,7 @@ def findWavecalSpectrum(corrtag, info, reffiles):
         indicates whether the lamp was actually on.
     """
 
-    fd = pyfits.open(corrtag, mode="copyonwrite")
+    fd = fits.open(corrtag, mode="copyonwrite")
     phdr = fd[0].header
     sci_extn = fd["EVENTS"]
     if sci_extn.data is None or len(sci_extn.data) == 0:

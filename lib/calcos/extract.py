@@ -2,7 +2,7 @@ from __future__ import division         # confidence high
 import copy
 import os
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 import cosutil
 import ccos
 import dispersion
@@ -62,11 +62,11 @@ def extract1D(input, incounts=None, output=None,
     cosutil.printMsg("", VERBOSE)
 
     # Open the input files.
-    ifd_e = pyfits.open(input, mode="copyonwrite")
+    ifd_e = fits.open(input, mode="copyonwrite")
     if incounts is None:
         ifd_c = None
     else:
-        ifd_c = pyfits.open(incounts, mode="copyonwrite")
+        ifd_c = fits.open(incounts, mode="copyonwrite")
 
     phdr = ifd_e[0].header
     hdr = ifd_e[1].header
@@ -123,7 +123,7 @@ def extract1D(input, incounts=None, output=None,
             cosutil.printRef("tdstab", reffiles)
 
     # Create the output FITS header/data unit object.
-    ofd = pyfits.HDUList(ifd_e[0])
+    ofd = fits.HDUList(ifd_e[0])
 
     # Set the default length of the dispersion axis.
     if info["detector"] == "FUV":
@@ -147,31 +147,31 @@ def extract1D(input, incounts=None, output=None,
 
     # Define output columns.
     col = []
-    col.append(pyfits.Column(name="SEGMENT", format="4A"))
-    col.append(pyfits.Column(name="EXPTIME", format="1D",
+    col.append(fits.Column(name="SEGMENT", format="4A"))
+    col.append(fits.Column(name="EXPTIME", format="1D",
                disp="F8.3", unit="s"))
-    col.append(pyfits.Column(name="NELEM", format="1J", disp="I6"))
-    col.append(pyfits.Column(name="WAVELENGTH", format=rpt+"D",
+    col.append(fits.Column(name="NELEM", format="1J", disp="I6"))
+    col.append(fits.Column(name="WAVELENGTH", format=rpt+"D",
                unit="angstrom"))
-    col.append(pyfits.Column(name="FLUX", format=rpt+"E",
+    col.append(fits.Column(name="FLUX", format=rpt+"E",
                unit="erg /s /cm**2 /angstrom"))
-    col.append(pyfits.Column(name="ERROR", format=rpt+"E",
+    col.append(fits.Column(name="ERROR", format=rpt+"E",
                unit="erg /s /cm**2 /angstrom"))
-    col.append(pyfits.Column(name="GROSS", format=rpt+"E",
+    col.append(fits.Column(name="GROSS", format=rpt+"E",
                unit="count /s"))
-    col.append(pyfits.Column(name="GCOUNTS", format=rpt+"E",
+    col.append(fits.Column(name="GCOUNTS", format=rpt+"E",
                unit="count"))
-    col.append(pyfits.Column(name="NET", format=rpt+"E",
+    col.append(fits.Column(name="NET", format=rpt+"E",
                unit="count /s"))
-    # col.append(pyfits.Column(name="NET_ERROR", format=rpt+"E",        xxx
+    # col.append(fits.Column(name="NET_ERROR", format=rpt+"E",        xxx
     #            unit="count /s"))                                      xxx
-    col.append(pyfits.Column(name="BACKGROUND", format=rpt+"E",
+    col.append(fits.Column(name="BACKGROUND", format=rpt+"E",
                unit="count /s"))
-    col.append(pyfits.Column(name="DQ", format=rpt+"I"))
-    col.append(pyfits.Column(name="DQ_WGT", format=rpt+"E"))
-    cd = pyfits.ColDefs(col)
+    col.append(fits.Column(name="DQ", format=rpt+"I"))
+    col.append(fits.Column(name="DQ_WGT", format=rpt+"E"))
+    cd = fits.ColDefs(col)
 
-    hdu = pyfits.new_table(cd, header=hdr, nrows=nrows)
+    hdu = fits.new_table(cd, header=hdr, nrows=nrows)
     hdu.name = "SCI"
     ofd.append(hdu)
 
@@ -651,7 +651,7 @@ def getSnrFf(switches, reffiles, segment):
     """
 
     if switches["flatcorr"] == "COMPLETE":
-        fd_flat = pyfits.open(reffiles["flatfile"], mode="readonly")
+        fd_flat = fits.open(reffiles["flatfile"], mode="readonly")
         if segment in ["FUVA", "FUVB"]:
             flat_hdr = fd_flat[segment].header
         else:
@@ -1461,7 +1461,7 @@ def getTdsFactors(tdstab, filter, t_obs):
 
     tds_info = cosutil.getTable(tdstab, filter, exactly_one=True)
 
-    fd = pyfits.open(tdstab, mode="readonly")
+    fd = fits.open(tdstab, mode="readonly")
     ref_time = fd[1].header.get("ref_time", 0.)         # MJD
     fd.close()
 
@@ -1605,10 +1605,10 @@ def copyKeywordsToInput(output, input, incounts):
         is the corrtag table
     """
 
-    ofd = pyfits.open(output, mode="readonly")
-    ifd_e = pyfits.open(input, mode="update")
+    ofd = fits.open(output, mode="readonly")
+    ifd_e = fits.open(input, mode="update")
     if incounts is not None:
-        ifd_c = pyfits.open(incounts, mode="update")
+        ifd_c = fits.open(incounts, mode="update")
 
     if ofd[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
@@ -1654,8 +1654,8 @@ def updateCorrtagKeywords(flt, corrtag):
         Name of a corrtag file, to be modified in-place
     """
 
-    ifd = pyfits.open(flt, mode="readonly")
-    ofd = pyfits.open(corrtag, mode="update")
+    ifd = fits.open(flt, mode="readonly")
+    ofd = fits.open(corrtag, mode="update")
 
     iphdr = ifd[0].header
     detector = iphdr.get("detector", "missing")
@@ -1792,8 +1792,8 @@ def concatenateFUVSegments(infiles, output):
         cosutil.renameFile(rename_file, output)
         return
 
-    ifd_0 = pyfits.open(infiles[0], mode="copyonwrite")
-    ifd_1 = pyfits.open(infiles[1], mode="copyonwrite")
+    ifd_0 = fits.open(infiles[0], mode="copyonwrite")
+    ifd_1 = fits.open(infiles[1], mode="copyonwrite")
 
     # Make sure we know which files are for segments A and B respectively,
     # and then use seg_a and seg_b instead of ifd_0 and ifd_1.
@@ -1825,8 +1825,8 @@ def concatenateFUVSegments(infiles, output):
         nrows_b = seg_b[1].data.shape[0]
 
     # Take output column definitions from input for segment A.
-    cd = pyfits.ColDefs(seg_a[1])
-    hdu = pyfits.new_table(cd, seg_a[1].header, nrows=nrows_a+nrows_b)
+    cd = fits.ColDefs(seg_a[1])
+    hdu = fits.new_table(cd, seg_a[1].header, nrows=nrows_a+nrows_b)
 
     # Copy data from input to output.
     copySegments(seg_a[1].data, nrows_a, seg_b[1].data, nrows_b, hdu.data)
@@ -1859,7 +1859,7 @@ def concatenateFUVSegments(infiles, output):
         phdu = seg_a[0]
     else:
         phdu = seg_b[0]
-    ofd = pyfits.HDUList(phdu)
+    ofd = fits.HDUList(phdu)
     cosutil.updateFilename(ofd[0].header, output)
     updateGsagComment(seg_a[0].header, seg_b[0].header, [ofd[0].header])
     if a_exists and b_exists and nrows_a > 0 and nrows_b > 0:
@@ -1977,7 +1977,7 @@ def recomputeWavelengths(input):
         Name of an x1d file for a wavecal
     """
 
-    fd = pyfits.open(input, mode="update")
+    fd = fits.open(input, mode="update")
     phdr = fd[0].header
     hdr = fd[1].header
     if hdr["naxis2"] == 0:

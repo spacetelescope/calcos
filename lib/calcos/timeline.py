@@ -2,7 +2,7 @@ from __future__ import division         # confidence unknown
 import math
 import os
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 import cosutil
 import dispersion
 import orbit
@@ -340,33 +340,33 @@ def timelineHDU(nrows_timeline, hdr):
     """
 
     col = []
-    col.append(pyfits.Column(name="TIME", format="1E",
+    col.append(fits.Column(name="TIME", format="1E",
                               unit="s", disp="F8.3"))
-    col.append(pyfits.Column(name="LONGITUDE", format="1E",
+    col.append(fits.Column(name="LONGITUDE", format="1E",
                              unit="degree", disp="F10.6"))
-    col.append(pyfits.Column(name="LATITUDE", format="1E",
+    col.append(fits.Column(name="LATITUDE", format="1E",
                              unit="degree", disp="F10.6"))
-    col.append(pyfits.Column(name="SUN_ALT", format="1E",
+    col.append(fits.Column(name="SUN_ALT", format="1E",
                              unit="degree", disp="F6.2"))
-    col.append(pyfits.Column(name="SUN_ZD", format="1E",
+    col.append(fits.Column(name="SUN_ZD", format="1E",
                              unit="degree", disp="F6.2"))
-    col.append(pyfits.Column(name="TARGET_ALT", format="1E",
+    col.append(fits.Column(name="TARGET_ALT", format="1E",
                              unit="degree", disp="F6.2"))
-    col.append(pyfits.Column(name="RADIAL_VEL", format="1E",
+    col.append(fits.Column(name="RADIAL_VEL", format="1E",
                              unit="km /s", disp="F7.5"))
-    col.append(pyfits.Column(name="SHIFT1", format="1E",
+    col.append(fits.Column(name="SHIFT1", format="1E",
                              unit="pixel", disp="F7.3"))
-    col.append(pyfits.Column(name="LY_ALPHA", format="1E",
+    col.append(fits.Column(name="LY_ALPHA", format="1E",
                              unit="count /s", disp="G15.6"))
-    col.append(pyfits.Column(name="OI_1304", format="1E",
+    col.append(fits.Column(name="OI_1304", format="1E",
                              unit="count /s", disp="G15.6"))
-    col.append(pyfits.Column(name="OI_1356", format="1E",
+    col.append(fits.Column(name="OI_1356", format="1E",
                              unit="count /s", disp="G15.6"))
-    col.append(pyfits.Column(name="DARKRATE", format="1E",
+    col.append(fits.Column(name="DARKRATE", format="1E",
                              unit="count /s /pixel", disp="G15.6"))
-    cd = pyfits.ColDefs(col)
+    cd = fits.ColDefs(col)
 
-    hdu = pyfits.new_table(cd, header=hdr, nrows=nrows_timeline)
+    hdu = fits.new_table(cd, header=hdr, nrows=nrows_timeline)
 
     hdu.header.update("extname", "TIMELINE", after="TFIELDS")
     hdu.header.update("extver", 1, after="EXTNAME")

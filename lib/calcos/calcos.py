@@ -9,7 +9,8 @@ import glob
 import copy
 
 import numpy
-import pyfits
+import astropy
+import astropy.io.fits as fits
 import accum
 import average
 import cosutil
@@ -398,7 +399,7 @@ def calcos(asntable, outdir=None, verbosity=None,
 
     cosutil.printMsg("CALCOS version " + CALCOS_VERSION)
     cosutil.printMsg("numpy version " + numpy.__version__)
-    cosutil.printMsg("pyfits version " + pyfits.__version__)
+    cosutil.printMsg("astropy version " + astropy.__version__)
     cosutil.printMsg("Begin " + cosutil.returnTime(), VERBOSE)
 
     if verbosity is not None:
@@ -798,7 +799,7 @@ class Association(object):
 
         cosutil.printMsg("Association file = " + self.asntable, VERBOSE)
 
-        fd = pyfits.open(self.asntable, mode="copyonwrite", memmap=False)
+        fd = fits.open(self.asntable, mode="copyonwrite", memmap=False)
         asn_data = fd[1].data
         nrows = asn_data.shape[0]
         if nrows <= 0:
@@ -1058,7 +1059,7 @@ class Association(object):
             True if exptype for rawacq is "ACQ/IMAGE", False otherwise
         """
 
-        fd = pyfits.open(rawacq, mode="readonly")
+        fd = fits.open(rawacq, mode="readonly")
         exptype = fd[0].header.get("exptype", "not found")
         fd.close()
 
@@ -1716,12 +1717,12 @@ class Association(object):
         cosutil.printMsg("updateMempresent", VERY_VERBOSE)
 
         if self.copy_asn:
-            fd = pyfits.open(self.asntable)
+            fd = fits.open(self.asntable)
             fd.writeto(self.asntable_copy)
             fd.close()
 
         # Modify the association table in-place.
-        fd = pyfits.open(self.asntable_copy, mode="update")
+        fd = fits.open(self.asntable_copy, mode="update")
 
         # Set ASN_PROD to true to indicate that a product has been created.
         fd[0].header.update("asn_prod", True)
@@ -1776,12 +1777,12 @@ class Association(object):
                           VERY_VERBOSE)
 
         # Copy the spt file to the "product spt" file.
-        fd = pyfits.open(sptfile)
+        fd = fits.open(sptfile)
         fd.writeto(product_spt_file)
         fd.close()
 
         # Update keywords in the "product spt" file.
-        fd = pyfits.open(product_spt_file, mode="update")
+        fd = fits.open(product_spt_file, mode="update")
 
         phdr = fd[0].header
         product = os.path.basename(self.product)
@@ -2071,7 +2072,7 @@ class Observation(object):
         info dictionary.
         """
 
-        fd = pyfits.open(self.input, mode="copyonwrite")
+        fd = fits.open(self.input, mode="copyonwrite")
         phdr = fd[0].header
         try:
             hdr = fd["EVENTS"].header
@@ -2208,7 +2209,7 @@ class Observation(object):
         import osmstep
 
         try:
-            fd = pyfits.open(sptfile, mode="readonly")
+            fd = fits.open(sptfile, mode="readonly")
             rootname = fd[0].header.get("rootname", default=NOT_APPLICABLE)
             lom1stp = int(fd[2].header.get("lom1stp", -1))
             lom2stp = int(fd[2].header.get("lom2stp", -1))
@@ -2980,7 +2981,7 @@ class Calibration(object):
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
             if os.access(fname, os.R_OK):
-                fd = pyfits.open(fname, mode="update")
+                fd = fits.open(fname, mode="update")
                 phdr = fd[0].header
                 try:
                     hdr = fd["EVENTS"].header
@@ -3042,7 +3043,7 @@ class Calibration(object):
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
             if os.access(fname, os.R_OK):
-                fd = pyfits.open(fname, mode="update")
+                fd = fits.open(fname, mode="update")
                 phdr = fd[0].header
                 try:
                     hdr = fd["EVENTS"].header
@@ -3100,7 +3101,7 @@ class Calibration(object):
         for fname in [filenames["corrtag"], \
                       filenames["flt"], filenames["counts"]]:
             if os.access(fname, os.R_OK):
-                fd = pyfits.open(fname, mode="update")
+                fd = fits.open(fname, mode="update")
                 phdr = fd[0].header
                 try:
                     hdr = fd["EVENTS"].header
@@ -3125,7 +3126,7 @@ class Calibration(object):
         """
 
         if os.access(corrtag, os.R_OK):
-            fd = pyfits.open(corrtag, mode="update")
+            fd = fits.open(corrtag, mode="update")
             events = fd["EVENTS"].data
             hdr = fd["EVENTS"].header
             timetag.computeWavelengths(events, info, reffiles,
@@ -3156,8 +3157,8 @@ class Calibration(object):
                not os.access(files[1], os.R_OK):
                 return
             files.sort()
-            fd_a = pyfits.open(files[0], mode="update")
-            fd_b = pyfits.open(files[1], mode="update")
+            fd_a = fits.open(files[0], mode="update")
+            fd_b = fits.open(files[1], mode="update")
             hdr_a = fd_a[1].header
             hdr_b = fd_b[1].header
             for i in range(len(a_kwds)):

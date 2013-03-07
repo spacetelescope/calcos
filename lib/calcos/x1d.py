@@ -7,7 +7,7 @@ import string
 import getopt
 
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 
 import calcosparam                      # parameter definitions
 import cosutil
@@ -15,9 +15,9 @@ import getinfo
 import extract
 import timetag
 
-first_message = True                    # initial values
-
 from .version import *
+
+first_message = True                    # initial values
 
 def main(args):
     """This is a driver to perform 1-D extraction for one file.
@@ -410,7 +410,7 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
         True if the current exposure is a wavecal, based on EXPTYPE
     """
 
-    fd = pyfits.open(corrtag, mode="copyonwrite")
+    fd = fits.open(corrtag, mode="copyonwrite")
     phdr = fd[0].header
     phdr.update("cal_ver", cal_ver)
 
@@ -522,7 +522,7 @@ def copyKeywords(x1d, file_list):
         keywords should be updated
     """
 
-    fd1 = pyfits.open(x1d, mode="readonly", memmap=False)
+    fd1 = fits.open(x1d, mode="readonly", memmap=False)
 
     if fd1[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
@@ -548,7 +548,7 @@ def copyKeywords(x1d, file_list):
     for filename in file_list:
         # check that the file still exists (might have been renamed)
         if os.access(filename, os.R_OK):
-            fd2 = pyfits.open(filename, mode="update")
+            fd2 = fits.open(filename, mode="update")
             for key in keywords:
                 value = fd1[1].header.get(key, -999.)
                 fd2[1].header.update(key, value)

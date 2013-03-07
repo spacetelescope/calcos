@@ -2,7 +2,7 @@ from __future__ import division         # confidence high
 import copy
 import math
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 import cosutil
 from calcosparam import *       # parameter definitions
 
@@ -70,7 +70,7 @@ def oneInputFile(input, output):
         Name of a file for the modified copy of input
     """
 
-    fd = pyfits.open(input, mode="copyonwrite")
+    fd = fits.open(input, mode="copyonwrite")
     data = fd[1].data
     if data is None or len(data) == 0:
         fd.close()
@@ -327,7 +327,7 @@ class OutputX1D(object):
 
         first = True            # true for first input file
         for input in self.input:
-            ifd = pyfits.open(input, mode="readonly")
+            ifd = fits.open(input, mode="readonly")
             phdr = ifd[0].header
             hdr = ifd[1].header
             # Get keyword values.
@@ -492,11 +492,11 @@ class OutputX1D(object):
         """Create pyfits object for output file."""
 
         # Get header info from the input.
-        ifd = pyfits.open(self.input[self.index_max_nelem],
+        ifd = fits.open(self.input[self.index_max_nelem],
                           mode="copyonwrite")
         detector = ifd[0].header["detector"]
 
-        primary_hdu = pyfits.PrimaryHDU(header=ifd[0].header)
+        primary_hdu = fits.PrimaryHDU(header=ifd[0].header)
         cosutil.updateFilename(primary_hdu.header, self.output)
         # Add new keywords with comma-separated values.
         list_keywords = [("MFPPOS", "fppos", self.keywords["fppos"]),
@@ -511,7 +511,7 @@ class OutputX1D(object):
                 del(primary_hdu.header[keyword])
         if len(self.keywords["cenwave"]) > 1:
             del(primary_hdu.header["cenwave"])
-        ofd = pyfits.HDUList(primary_hdu)
+        ofd = fits.HDUList(primary_hdu)
 
         rpt = str(self.output_nelem)    # used for defining columns
 
@@ -519,27 +519,27 @@ class OutputX1D(object):
         # as a template and then modifying the lengths of arrays (see below),
         # because the modified columns kept reverting to the original length.
         col = []
-        col.append(pyfits.Column(name="SEGMENT", format="4A"))
-        col.append(pyfits.Column(name="EXPTIME", format="1D",
+        col.append(fits.Column(name="SEGMENT", format="4A"))
+        col.append(fits.Column(name="EXPTIME", format="1D",
                    disp="F8.3", unit="s"))
-        col.append(pyfits.Column(name="NELEM", format="1J", disp="I6"))
-        col.append(pyfits.Column(name="WAVELENGTH", format=rpt+"D",
+        col.append(fits.Column(name="NELEM", format="1J", disp="I6"))
+        col.append(fits.Column(name="WAVELENGTH", format=rpt+"D",
                    unit="angstrom"))
-        col.append(pyfits.Column(name="FLUX", format=rpt+"E",
+        col.append(fits.Column(name="FLUX", format=rpt+"E",
                    unit="erg /s /cm**2 /angstrom"))
-        col.append(pyfits.Column(name="ERROR", format=rpt+"E",
+        col.append(fits.Column(name="ERROR", format=rpt+"E",
                    unit="erg /s /cm**2 /angstrom"))
-        col.append(pyfits.Column(name="GROSS", format=rpt+"E",
+        col.append(fits.Column(name="GROSS", format=rpt+"E",
                    unit="count /s"))
-        col.append(pyfits.Column(name="GCOUNTS", format=rpt+"E",
+        col.append(fits.Column(name="GCOUNTS", format=rpt+"E",
                    unit="count"))
-        col.append(pyfits.Column(name="NET", format=rpt+"E",
+        col.append(fits.Column(name="NET", format=rpt+"E",
                    unit="count /s"))
-        col.append(pyfits.Column(name="BACKGROUND", format=rpt+"E",
+        col.append(fits.Column(name="BACKGROUND", format=rpt+"E",
                    unit="count /s"))
-        col.append(pyfits.Column(name="DQ", format=rpt+"I"))
-        col.append(pyfits.Column(name="DQ_WGT", format=rpt+"E"))
-        cd = pyfits.ColDefs(col)
+        col.append(fits.Column(name="DQ", format=rpt+"I"))
+        col.append(fits.Column(name="DQ_WGT", format=rpt+"E"))
+        cd = fits.ColDefs(col)
 
         # Modify some of the output columns.
         #cd = ifd[1].columns             # this is a ColDefs object
@@ -555,7 +555,7 @@ class OutputX1D(object):
         #        cd.change_attrib(col_names[i], "format", newfmt)
 
         # Create output HDU for the table.
-        hdu = pyfits.new_table(cd, header=ifd[1].header, nrows=self.nrows)
+        hdu = fits.new_table(cd, header=ifd[1].header, nrows=self.nrows)
 
         hdu.header.update("exptime", self.keywords["exptime"])
         if detector == "FUV":
@@ -767,7 +767,7 @@ class Spectrum(object):
         segment = self.segment
         reffiles = {}
         reffiles["flatfile"] = cosutil.expandFileName(flatfile)
-        fd = pyfits.open(reffiles["flatfile"])
+        fd = fits.open(reffiles["flatfile"])
         if detector == "FUV":
             self.data_ff = fd[(segment,1)].data.copy()
             hdr_ff = fd[(segment,1)].header

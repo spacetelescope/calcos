@@ -3,7 +3,7 @@ import glob
 import math
 import os
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 import cosutil
 import ccos
 
@@ -88,7 +88,7 @@ def splitOneTag(input, outroot, starttime=None, increment=None, endtime=None,
 
     (inroot, suffix) = splitName(input)
 
-    ifd = pyfits.open(input, mode="copyonwrite")
+    ifd = fits.open(input, mode="copyonwrite")
     phdr = ifd[0].header
     try:
         hdr = ifd[("events")].header
@@ -121,8 +121,8 @@ def splitOneTag(input, outroot, starttime=None, increment=None, endtime=None,
             continue
 
         filename = constructOutputName(outroot, file_index, suffix)
-        ofd = pyfits.HDUList(pyfits.PrimaryHDU(header=phdr))
-        hdu = pyfits.new_table(cd, header=hdr, nrows=nrows)
+        ofd = fits.HDUList(fits.PrimaryHDU(header=phdr))
+        hdu = fits.new_table(cd, header=hdr, nrows=nrows)
         ofd.append(hdu)
 
         copyRows(data, ofd, i, j)
@@ -548,12 +548,12 @@ def createNewGTI(gti_hdu, t0, t1):
         # No GTI table means the entire exposure is good.
         if gti_hdu is None or gti_hdu.data is None:
             col = []
-            col.append(pyfits.Column(name="START", format="1D", unit="s"))
-            col.append(pyfits.Column(name="STOP", format="1D", unit="s"))
-            cd = pyfits.ColDefs(col)
+            col.append(fits.Column(name="START", format="1D", unit="s"))
+            col.append(fits.Column(name="STOP", format="1D", unit="s"))
+            cd = fits.ColDefs(col)
         else:
             cd = gti_hdu.columns
-        out_gti_hdu = pyfits.new_table(cd, header=gti_hdu.header, nrows=1)
+        out_gti_hdu = fits.new_table(cd, header=gti_hdu.header, nrows=1)
         out_start_col = out_gti_hdu.data.field("start")
         out_stop_col = out_gti_hdu.data.field("stop")
         out_start_col[0] = t0
@@ -585,7 +585,7 @@ def createNewGTI(gti_hdu, t0, t1):
         gti.append((0., 0.))
     out_nrows = len(gti)
 
-    out_gti_hdu = pyfits.new_table(cd, header=gti_hdu.header, nrows=out_nrows)
+    out_gti_hdu = fits.new_table(cd, header=gti_hdu.header, nrows=out_nrows)
     out_start_col = out_gti_hdu.data.field("start")
     out_stop_col = out_gti_hdu.data.field("stop")
     for i in range(out_nrows):
@@ -675,7 +675,7 @@ def createNewTimeline(timeline_hdu, t0, t1):
     else:
         out_nrows = 0
 
-    out_timeline_hdu = pyfits.new_table(cd, header=timeline_hdu.header,
+    out_timeline_hdu = fits.new_table(cd, header=timeline_hdu.header,
                                         nrows=out_nrows)
     if in_nrows > 0:
         out_data = out_timeline_hdu.data

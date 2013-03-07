@@ -9,7 +9,7 @@ import time
 import types
 import numpy as np
 import numpy.linalg as LA
-import pyfits
+import astropy.io.fits as fits
 import ccos
 from calcosparam import *       # parameter definitions
 
@@ -46,7 +46,7 @@ def writeOutputEvents(infile, outfile):
         Name of file for output EVENTS table (and GTI table).
     """
 
-    ifd = pyfits.open(infile, mode="copyonwrite")
+    ifd = fits.open(infile, mode="copyonwrite")
     events_extn = ifd["EVENTS"]
     indata = events_extn.data
     if indata is None:
@@ -67,8 +67,8 @@ def writeOutputEvents(infile, outfile):
     hdu = createCorrtagHDU(nrows, detector, events_extn.header)
 
     if nrows == 0:
-        primary_hdu = pyfits.PrimaryHDU(header=ifd[0].header)
-        ofd = pyfits.HDUList(primary_hdu)
+        primary_hdu = fits.PrimaryHDU(header=ifd[0].header)
+        ofd = fits.HDUList(primary_hdu)
         updateFilename(ofd[0].header, outfile)
         ofd.append(hdu)
         if len(ifd) == 3:
@@ -100,8 +100,8 @@ def writeOutputEvents(infile, outfile):
     else:
         outdata.field("PHA")[:] = 0
 
-    primary_hdu = pyfits.PrimaryHDU(header=ifd[0].header)
-    ofd = pyfits.HDUList(primary_hdu)
+    primary_hdu = fits.PrimaryHDU(header=ifd[0].header)
+    ofd = fits.HDUList(primary_hdu)
     updateFilename(ofd[0].header, outfile)
     ofd.append(hdu)
 
@@ -131,7 +131,7 @@ def isCorrtag(filename):
         True if the first extension of 'filename' is a corrtag table.
     """
 
-    fd = pyfits.open(filename, mode="readonly")
+    fd = fits.open(filename, mode="readonly")
     if len(fd) < 2:                     # no extensions?
         fd.close()
         return False
@@ -188,25 +188,25 @@ def createCorrtagHDU(nrows, detector, header):
     """
 
     col = []
-    col.append(pyfits.Column(name="TIME", format="1E", unit="s"))
-    col.append(pyfits.Column(name="RAWX", format="1I", unit="pixel"))
-    col.append(pyfits.Column(name="RAWY", format="1I", unit="pixel"))
-    col.append(pyfits.Column(name="XCORR", format="1E", unit="pixel"))
-    col.append(pyfits.Column(name="YCORR", format="1E", unit="pixel"))
-    col.append(pyfits.Column(name="XDOPP", format="1E", unit="pixel"))
-    col.append(pyfits.Column(name="XFULL", format="1E", unit="pixel"))
-    col.append(pyfits.Column(name="YFULL", format="1E", unit="pixel"))
-    col.append(pyfits.Column(name="WAVELENGTH", format="1E",
+    col.append(fits.Column(name="TIME", format="1E", unit="s"))
+    col.append(fits.Column(name="RAWX", format="1I", unit="pixel"))
+    col.append(fits.Column(name="RAWY", format="1I", unit="pixel"))
+    col.append(fits.Column(name="XCORR", format="1E", unit="pixel"))
+    col.append(fits.Column(name="YCORR", format="1E", unit="pixel"))
+    col.append(fits.Column(name="XDOPP", format="1E", unit="pixel"))
+    col.append(fits.Column(name="XFULL", format="1E", unit="pixel"))
+    col.append(fits.Column(name="YFULL", format="1E", unit="pixel"))
+    col.append(fits.Column(name="WAVELENGTH", format="1E",
                                unit="angstrom", disp="F9.4"))
-    col.append(pyfits.Column(name="EPSILON", format="1E"))
-    col.append(pyfits.Column(name="DQ", format="1I"))
-    col.append(pyfits.Column(name="PHA", format="1B"))
-    cd = pyfits.ColDefs(col)
+    col.append(fits.Column(name="EPSILON", format="1E"))
+    col.append(fits.Column(name="DQ", format="1I"))
+    col.append(fits.Column(name="PHA", format="1B"))
+    cd = fits.ColDefs(col)
 
     # Rename or delete some image-specific keywords.
     header = imageHeaderToCorrtag(header)
 
-    hdu = pyfits.new_table(cd, header=header, nrows=nrows)
+    hdu = fits.new_table(cd, header=header, nrows=nrows)
 
     return hdu
 
@@ -307,10 +307,10 @@ def dummyGTI(exptime):
     """
 
     col = []
-    col.append(pyfits.Column(name="START", format="1D", unit="s"))
-    col.append(pyfits.Column(name="STOP", format="1D", unit="s"))
-    cd = pyfits.ColDefs(col)
-    hdu = pyfits.new_table(cd, nrows=1)
+    col.append(fits.Column(name="START", format="1D", unit="s"))
+    col.append(fits.Column(name="STOP", format="1D", unit="s"))
+    cd = fits.ColDefs(col)
+    hdu = fits.new_table(cd, nrows=1)
     hdu.header.update("extname", "GTI")
     outdata = hdu.data
     outdata.field("START")[:] = 0.
@@ -333,7 +333,7 @@ def returnGTI(infile):
         start of the exposure).
     """
 
-    fd = pyfits.open(infile, mode="copyonwrite")
+    fd = fits.open(infile, mode="copyonwrite")
 
     # Find the GTI table with the largest value of EXTVER.
     last_extver = 0                     # initial value
@@ -379,7 +379,7 @@ def findColumn(table, colname):
     """
 
     if isinstance(table, str):
-        fd = pyfits.open(table, mode="copyonwrite")
+        fd = fits.open(table, mode="copyonwrite")
         fits_rec = fd[1].data
         fd.close()
     else:
@@ -449,7 +449,7 @@ def getTable(table, filter, extension=1,
         None will be returned.
     """
 
-    fd = pyfits.open(table, mode="copyonwrite")
+    fd = fits.open(table, mode="copyonwrite")
     data = fd[extension].data
     if data is None or len(data) < 1:
         fd.close()
@@ -537,7 +537,7 @@ def getColCopy(filename="", column=None, extension=1, data=None):
         raise RuntimeError("Specify either filename or data, but not both.")
 
     if filename:
-        fd = pyfits.open(filename, mode="copyonwrite")
+        fd = fits.open(filename, mode="copyonwrite")
         temp = fd[extension].data.field(column)
         fd.close()
     elif data is not None:
@@ -851,7 +851,7 @@ def getHeaders(input):
         A list of all the headers in the input FITS file.
     """
 
-    fd = pyfits.open(input, mode="copyonwrite")
+    fd = fits.open(input, mode="copyonwrite")
 
     headers = [hdu.header.copy() for hdu in fd]
 
@@ -927,7 +927,7 @@ def geometricDistortion(x, y, geofile, segment, igeocorr):
         "PERFORM" if interpolation should be used within the geofile.
     """
 
-    fd = pyfits.open(geofile, mode="copyonwrite")
+    fd = fits.open(geofile, mode="copyonwrite")
     x_hdu = fd[(segment,1)]
     y_hdu = fd[(segment,2)]
 
@@ -1005,7 +1005,7 @@ def getInputDQ(input, imset=1):
         Data quality array read from input file, or array of zeros.
     """
 
-    fd = pyfits.open(input, mode="copyonwrite")
+    fd = fits.open(input, mode="copyonwrite")
 
     hdr = fd[("DQ",imset)].header
     detector = fd[0].header["detector"]
@@ -1156,7 +1156,7 @@ def updateDQArray(info, reffiles, dq_array,
                        (doppler_boundary, upper_y): value}
     else:
         minmax_dict = minmax_shift_dict
-    fd = pyfits.open(reffiles["bpixtab"])
+    fd = fits.open(reffiles["bpixtab"])
     widen = fd[1].header.get("widen", default=PIXEL_FRACTION)
     fd.close()
 
@@ -1335,7 +1335,7 @@ def findGSagExtn(gsagtab, hvlevel, segment):
     kwd_root = "hvlevel"        # high voltage (commanded, raw)
     keyword = segmentSpecificKeyword(kwd_root, segment)
 
-    fd = pyfits.open(gsagtab)
+    fd = fits.open(gsagtab)
     extn = -1           # default indicates that no extension matched the HV
     message = ""
     extn_hv_min = None
@@ -1883,7 +1883,7 @@ def getGeoData(geofile, segment):
         ybin:  binning (int) in the Y direction
     """
 
-    fd = pyfits.open(geofile, mode="copyonwrite")
+    fd = fits.open(geofile, mode="copyonwrite")
     x_hdu = fd[(segment,1)]
     y_hdu = fd[(segment,2)]
 
@@ -2083,7 +2083,7 @@ def renameFile(infile, outfile):
 
     os.rename(infile, outfile)
 
-    fd = pyfits.open(outfile, mode="update")
+    fd = fits.open(outfile, mode="update")
 
     # If the output file name is a product name (ends with '0' before
     # the suffix), change the value of the extension keyword ASN_MTYP.
@@ -2112,7 +2112,7 @@ def copyFile(infile, outfile):
 
     shutil.copy(infile, outfile)
 
-    fd = pyfits.open(outfile, mode="update")
+    fd = fits.open(outfile, mode="update")
 
     # If the output file name is a product name (ends with '0' before
     # the suffix), change the value of the extension keyword ASN_MTYP.
@@ -2177,7 +2177,7 @@ def doImageStat(input):
         Name of FITS file; keywords in the file will be modified in-place.
     """
 
-    fd = pyfits.open(input, mode="update")
+    fd = fits.open(input, mode="update")
 
     if fd[1].data is None:
         fd.close()
@@ -2295,7 +2295,7 @@ def doSpecStat(input):
         Name of FITS file; keywords in the file will be modified in-place.
     """
 
-    fd = pyfits.open(input, mode="update")
+    fd = fits.open(input, mode="update")
     try:
         sci_extn = fd["SCI"]
     except KeyError:
@@ -2611,7 +2611,7 @@ def tempPulseHeightRange(ref):
         Value of keyword PHARANGE, or None if the keyword is missing
     """
 
-    fd = pyfits.open(ref, "readonly")
+    fd = fits.open(ref, "readonly")
     ref_pharange = fd[0].header.get("pharange", None)
     fd.close()
 
@@ -3019,7 +3019,7 @@ def getPedigree(switch, refkey, filename, level=VERBOSE):
     if filename == "N/A":
         return "OK"
 
-    fd = pyfits.open(filename, mode="readonly")
+    fd = fits.open(filename, mode="readonly")
     pedigree = fd[0].header.get("pedigree", "OK")
     fd.close()
     if pedigree == "DUMMY":
@@ -3317,7 +3317,7 @@ def findRefFile(ref, missing, wrong_filetype, bad_version):
 
     if os.access(filename, os.R_OK):
 
-        fd = pyfits.open(filename, mode="readonly")
+        fd = fits.open(filename, mode="readonly")
         phdr = fd[0].header
 
         phdr_filetype = phdr.get("FILETYPE", "ANY")
