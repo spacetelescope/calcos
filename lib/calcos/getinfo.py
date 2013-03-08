@@ -1,7 +1,7 @@
 from __future__ import division         # confidence high
 import os
 import string
-import pyfits
+import astropy.io.fits as fits
 import cosutil
 from calcosparam import *
 
@@ -20,7 +20,7 @@ def initialInfo(filename):
         file.
     """
 
-    fd = pyfits.open(filename, mode="readonly")
+    fd = fits.open(filename, mode="readonly")
     phdr = fd[0].header
 
     info = {}

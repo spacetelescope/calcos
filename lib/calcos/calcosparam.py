@@ -4,7 +4,7 @@ from __future__ import division         # confidence high
 
 
 # Version numbers used to be defined here.  The d2to1 based install
-# keeps the version numbers in setup.cfg, where the get copied to
+# keeps the version numbers in setup.cfg, where they get copied to
 # version.py at install time.  In principle, everybody who needs
 # version numbers could get them from version.py, but notice that
 # CALCOS_VERSION does not correspond to anything that is there.

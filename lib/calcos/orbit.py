@@ -1,7 +1,7 @@
 from __future__ import division         # confidence unknown
 import math
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 
 TWOPI       = 2. * math.pi
 SEC_PER_DAY = 86400.0
@@ -53,7 +53,7 @@ class HSTOrbit(object):
             The name of the support file.
         """
 
-        fd = pyfits.open(sptfile, mode="readonly")
+        fd = fits.open(sptfile, mode="readonly")
         phdr = fd[0].header
 
         # Orbital elements for HST.

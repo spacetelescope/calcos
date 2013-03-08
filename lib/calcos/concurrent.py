@@ -3,7 +3,7 @@ import copy
 import math
 import os
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 import cosutil
 import dispersion
 import extract
@@ -329,40 +329,40 @@ class ConcurrentWavecal(object):
         rpt = str(len(self.spectrum))
 
         col = []
-        col.append(pyfits.Column(name="SEGMENT", format="4A"))
-        col.append(pyfits.Column(name="TIME", format="1D",
+        col.append(fits.Column(name="SEGMENT", format="4A"))
+        col.append(fits.Column(name="TIME", format="1D",
                                  disp="F8.3", unit="s"))
-        col.append(pyfits.Column(name="EXPTIME", format="1D",
+        col.append(fits.Column(name="EXPTIME", format="1D",
                                  disp="F8.3", unit="s"))
-        col.append(pyfits.Column(name="LAMP_ON", format="1D",
+        col.append(fits.Column(name="LAMP_ON", format="1D",
                                  disp="F8.3", unit="s"))
-        col.append(pyfits.Column(name="LAMP_OFF", format="1D",
+        col.append(fits.Column(name="LAMP_OFF", format="1D",
                                  disp="F8.3", unit="s"))
-        col.append(pyfits.Column(name="NELEM", format="1J",
+        col.append(fits.Column(name="NELEM", format="1J",
                                  disp="I6"))
-        col.append(pyfits.Column(name="WAVELENGTH", format=rpt+"D",
+        col.append(fits.Column(name="WAVELENGTH", format=rpt+"D",
                                  unit="angstrom"))
-        col.append(pyfits.Column(name="NET", format=rpt+"E",
+        col.append(fits.Column(name="NET", format=rpt+"E",
                                  unit="count /s"))
-        col.append(pyfits.Column(name="GROSS", format=rpt+"E",
+        col.append(fits.Column(name="GROSS", format=rpt+"E",
                                  unit="count /s"))
-        col.append(pyfits.Column(name="BACKGROUND", format=rpt+"E",
+        col.append(fits.Column(name="BACKGROUND", format=rpt+"E",
                                  unit="count /s"))
-        col.append(pyfits.Column(name="SHIFT_DISP", format="1E",
+        col.append(fits.Column(name="SHIFT_DISP", format="1E",
                                  unit="pixel"))
-        col.append(pyfits.Column(name="SHIFT_XDISP", format="1E",
+        col.append(fits.Column(name="SHIFT_XDISP", format="1E",
                                  unit="pixel"))
-        col.append(pyfits.Column(name="SPEC_FOUND", format="1L"))
-        col.append(pyfits.Column(name="CHI_SQUARE", format="1E"))
-        col.append(pyfits.Column(name="N_DEG_FREEDOM", format="1J",
+        col.append(fits.Column(name="SPEC_FOUND", format="1L"))
+        col.append(fits.Column(name="CHI_SQUARE", format="1E"))
+        col.append(fits.Column(name="N_DEG_FREEDOM", format="1J",
                                  disp="I5"))
-        cd = pyfits.ColDefs(col)
+        cd = fits.ColDefs(col)
 
         nrows = self.numflash * len(self.segment_list)
 
-        primary_hdu = pyfits.PrimaryHDU(header=self.phdr)
-        self.ofd = pyfits.HDUList(primary_hdu)
-        hdu = pyfits.new_table(cd, header=self.hdr, nrows=nrows)
+        primary_hdu = fits.PrimaryHDU(header=self.phdr)
+        self.ofd = fits.HDUList(primary_hdu)
+        hdu = fits.new_table(cd, header=self.hdr, nrows=nrows)
         hdu.name = "LAMPFLASH"
         self.deleteCoordinateKeywords(hdu)
         self.ofd.append(hdu)
@@ -1480,7 +1480,7 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         # copy rootname_lampflash_a.fits to rootname_lampflash_b.fits
         cosutil.copyFile(self.lampflash_a, self.outflash)
 
-        self.ofd = pyfits.open(self.outflash, mode="update")
+        self.ofd = fits.open(self.outflash, mode="update")
         self.ofd[0].header["segment"] = self.segment_list[0]
         if self.ofd[1].data is None or len(self.ofd[1].data) == 0:
             self.numflash = 0

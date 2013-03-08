@@ -6,7 +6,7 @@ import time
 import types
 import numpy as np
 from numpy import random
-import pyfits
+import astropy.io.fits as fits
 
 import cosutil
 import ccos
@@ -117,7 +117,7 @@ def accumBasicCalibration(input, inpha, outtag,
         # Open the accum image.
         # The number of rows in the pseudo time-tag table will be equal to
         # the total number of counts in the input image.
-        fd = pyfits.open(input, mode="copyonwrite")
+        fd = fits.open(input, mode="copyonwrite")
         sci = fd[("SCI",1)].data
         fd.close()
         nrows = getNcounts(sci)
@@ -148,8 +148,8 @@ def accumBasicCalibration(input, inpha, outtag,
         outdata.field("DQ")[:] = np.zeros(nrows, dtype=np.int16)
         outdata.field("PHA")[:] = 0
 
-    primary_hdu = pyfits.PrimaryHDU(header=phdr)
-    ofd = pyfits.HDUList(primary_hdu)
+    primary_hdu = fits.PrimaryHDU(header=phdr)
+    ofd = fits.HDUList(primary_hdu)
     cosutil.updateFilename(ofd[0].header, outtag)
     ofd.append(hdu)
     ofd.append(cosutil.dummyGTI(info["exptime"]))
@@ -170,7 +170,7 @@ def acqImage(input, outflt, outcounts, outcsum, cl_args,
 
     livetimefile = cl_args["livetimefile"]
 
-    fd = pyfits.open(input, mode="copyonwrite")
+    fd = fits.open(input, mode="copyonwrite")
     nextend = len(fd) - 1
     nimsets = len(fd) // 3
     phdr = fd[0].header
@@ -480,7 +480,7 @@ def doFlatcorr(flt_sci, switches, reffiles, phdr):
 
         cosutil.printRef("FLATFILE", reffiles)
 
-        fd = pyfits.open(reffiles["flatfile"], mode="copyonwrite")
+        fd = fits.open(reffiles["flatfile"], mode="copyonwrite")
         hdu = fd[1]
         flat = hdu.data
         fd.close()
@@ -529,7 +529,7 @@ def updateSwitches(phdr, outflt, outcounts):
     """
 
     for filename in [outflt, outcounts]:
-        fd = pyfits.open(filename, mode="update")
+        fd = fits.open(filename, mode="update")
         for keyword in ["photcorr", "dqicorr", "deadcorr", "flatcorr"]:
             fd[0].header.update(keyword, phdr[keyword])
         fd.close()
@@ -618,17 +618,17 @@ def writeCsum(outcsum, phdr, hdr_list, csum_array,
 
     compression_parameters: str
         compressionType and quantizeLevel (separated by a comma) for
-        the call to pyfits.CompImageHDU; compressionType can be "rice",
+        the call to fits.CompImageHDU; compressionType can be "rice",
         "gzip", or "hcompress", and quantizeLevel can be e.g. -0.1,
         which means the floating point values will be scaled to integers
         with spacing that corresponds to 0.1 dn (see the doc string for
-        pyfits.CompImageHDU for more details).
+        fits.CompImageHDU for more details).
     """
 
     cosutil.printMsg("writing file %s ..." % outcsum, VERY_VERBOSE)
 
-    primary_hdu = pyfits.PrimaryHDU(header=phdr)
-    fd = pyfits.HDUList(primary_hdu)
+    primary_hdu = fits.PrimaryHDU(header=phdr)
+    fd = fits.HDUList(primary_hdu)
     fd[0].header.update("nextend", 1)
     fd[0].header.update("filetype", "CALCOS SUM FILE")
     cosutil.updateFilename(fd[0].header, outcsum)
@@ -664,11 +664,11 @@ def writeCsum(outcsum, phdr, hdr_list, csum_array,
         (compType, quantLevel) = compression_parameters.split(",")
         compType = compType.upper() + "_1"
         quantLevel = float(quantLevel)
-        fd.append(pyfits.CompImageHDU(binned_array, header=hdr, name="SCI",
+        fd.append(fits.CompImageHDU(binned_array, header=hdr, name="SCI",
                                        compressionType=compType,
                                        quantizeLevel=quantLevel))
     else:
-        fd.append(pyfits.ImageHDU(data=binned_array, header=hdr, name="SCI"))
+        fd.append(fits.ImageHDU(data=binned_array, header=hdr, name="SCI"))
     fd[1].header.update("BUNIT", "count")
     fd[1].header.update("counts", counts)
     fd[1].header.update("nuvbinx", binx)
@@ -746,8 +746,8 @@ def writePrimaryHDU(output, phdr, nextend):
 
     cosutil.printMsg("writing file %s ..." % output, VERY_VERBOSE)
 
-    primary_hdu = pyfits.PrimaryHDU(header=phdr)
-    fd = pyfits.HDUList(primary_hdu)
+    primary_hdu = fits.PrimaryHDU(header=phdr)
+    fd = fits.HDUList(primary_hdu)
     fd[0].header["nextend"] = nextend
     cosutil.updateFilename(fd[0].header, output)
 
@@ -786,19 +786,19 @@ def appendImset(output, imset, sci_array, err_array, dq_array,
         Header for DQ extension.
     """
 
-    fd = pyfits.open(output, mode="append")
+    fd = fits.open(output, mode="append")
 
-    hdu = pyfits.ImageHDU(data=sci_array, header=sci_hdr, name="SCI")
+    hdu = fits.ImageHDU(data=sci_array, header=sci_hdr, name="SCI")
     hdu.header.update("EXTVER", imset)
     hdu.header.update("BUNIT", "count /s")
     fd.append(hdu)
 
-    hdu = pyfits.ImageHDU(data=err_array, header=err_hdr, name="ERR")
+    hdu = fits.ImageHDU(data=err_array, header=err_hdr, name="ERR")
     hdu.header.update("EXTVER", imset)
     hdu.header.update("BUNIT", "count /s")
     fd.append(hdu)
 
-    hdu = pyfits.ImageHDU(data=dq_array, header=dq_hdr, name="DQ")
+    hdu = fits.ImageHDU(data=dq_array, header=dq_hdr, name="DQ")
     hdu.header.update("EXTVER", imset)
     hdu.header.update("BUNIT", "UNITLESS")
     fd.append(hdu)

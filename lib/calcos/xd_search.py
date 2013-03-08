@@ -1,9 +1,6 @@
 from __future__ import division         # confidence unknown
 import numpy as np
-try:
-    from stsci.convolve import boxcar
-except ImportError:
-    from convolve import boxcar
+from stsci.convolve import boxcar
 import cosutil
 from calcosparam import *       # parameter definitions
 import ccos

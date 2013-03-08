@@ -1,5 +1,5 @@
 import math
-import pyfits
+import astropy.io.fits as fits
 from calcosparam import *
 import cosutil
 
@@ -90,7 +90,7 @@ class SpWCS(object):
         if aperture not in ["PSA", "BOA"]:
             return False
 
-        fd = pyfits.open(self.filename, mode="update")
+        fd = fits.open(self.filename, mode="update")
         hdr = fd[self.extension].header
         self.v_helio = hdr.get("v_helio", 0.)
 

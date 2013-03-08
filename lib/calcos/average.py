@@ -1,6 +1,6 @@
 from __future__ import division         # confidence high
 import numpy as np
-import pyfits
+import astropy.io.fits as fits
 import cosutil
 from calcosparam import *       # parameter definitions
 
@@ -27,7 +27,7 @@ def avgImage(input, output):
     if nimages == 1:
         cosutil.copyFile(input[0], output)
         if cosutil.isProduct(output):
-            fd = pyfits.open(output, mode="update")
+            fd = fits.open(output, mode="update")
             asn_mtyp = fd[1].header.get("asn_mtyp", "missing")
             asn_mtyp = cosutil.modifyAsnMtyp(asn_mtyp)
             if asn_mtyp != "missing":
@@ -43,7 +43,7 @@ def avgImage(input, output):
     sum_globrate = 0.
 
     # Open the first file just to get some header keywords.
-    ifd = pyfits.open(input[0], mode="copyonwrite")
+    ifd = fits.open(input[0], mode="copyonwrite")
     phdr = ifd[0].header
     sci_extn = ifd["SCI"]
     statflag = phdr.get("statflag", False)
@@ -57,7 +57,7 @@ def avgImage(input, output):
     ifd.close()
 
     for i in range(nimages):
-        ifd = pyfits.open(input[i], mode="copyonwrite")
+        ifd = fits.open(input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
         exptime = sci_extn.header["exptime"]
         sum_plantime += sci_extn.header.get("plantime", exptime)
@@ -85,10 +85,10 @@ def avgImage(input, output):
         globrate = 0.
 
     # Create the output file, and write the averaged SCI extension.
-    primary_hdu = pyfits.PrimaryHDU(header=phdr)
+    primary_hdu = fits.PrimaryHDU(header=phdr)
     cosutil.updateFilename(primary_hdu.header, output)
-    ofd = pyfits.HDUList(primary_hdu)
-    scihdu = pyfits.ImageHDU(data=sci_data, header=hdr, name="SCI")
+    ofd = fits.HDUList(primary_hdu)
+    scihdu = fits.ImageHDU(data=sci_data, header=hdr, name="SCI")
     if cosutil.isProduct(output):
         asn_mtyp = scihdu.header.get("asn_mtyp", "missing")
         asn_mtyp = cosutil.modifyAsnMtyp(asn_mtyp)
@@ -109,7 +109,7 @@ def avgImage(input, output):
 
     got_data = 0
     for i in range(nimages):
-        ifd = pyfits.open(input[i], mode="copyonwrite")
+        ifd = fits.open(input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
         err_extn = ifd["ERR"]
         exptime = sci_extn.header["exptime"]    # exptime is in SCI extension
@@ -131,8 +131,8 @@ def avgImage(input, output):
     else:
         err_data = None
 
-    ofd = pyfits.open(output, mode="append")
-    errhdu = pyfits.ImageHDU(data=err_data, header=hdr, name="ERR")
+    ofd = fits.open(output, mode="append")
+    errhdu = fits.ImageHDU(data=err_data, header=hdr, name="ERR")
     ofd.append(errhdu)
     ofd.close()
     del ofd, hdr, err_data, errhdu
@@ -141,7 +141,7 @@ def avgImage(input, output):
 
     got_data = 0
     for i in range(nimages):
-        ifd = pyfits.open(input[i], mode="copyonwrite")
+        ifd = fits.open(input[i], mode="copyonwrite")
         dq_extn = ifd["DQ"]
         if dq_extn.data is not None:
             if got_data:
@@ -155,8 +155,8 @@ def avgImage(input, output):
         ifd.close()
     del ifd
 
-    ofd = pyfits.open(output, mode="append")
-    dqhdu = pyfits.ImageHDU(data=dq_data, header=hdr, name="DQ")
+    ofd = fits.open(output, mode="append")
+    dqhdu = fits.ImageHDU(data=dq_data, header=hdr, name="DQ")
     ofd.append(dqhdu)
     ofd.close()
     del ofd, hdr, dq_data, dqhdu
