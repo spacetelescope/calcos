@@ -69,17 +69,19 @@ def processConcurrentWavecal(events, outflash, shift_file,
 
     Returns
     -------
-    (tl_time, shift1_vs_time): tuple of two array like
+    (tl_time, shift1_vs_time, wavecorr): tuple of three items
         tl_time is the array of times at one-second intervals, for the
         timeline table.  shift1_vs_time is the array of corresponding
         values of shift1a or shift1b, or None if there were no flashes or
-        if the exposure time is zero.
+        if the exposure time is zero.  wavecorr will normally be "COMPLETE"
+        but may be some other value, e.g. "SKIPPED", if wavecal processing
+        was not actually done.
     """
 
     tl_time = np.zeros(1, dtype=np.float32)     # replaced later
 
     if not info["tagflash"]:
-        return (tl_time, None)
+        return (tl_time, None, switches["wavecorr"])
 
     # This test allows processing to continue if wavecorr is either
     # PERFORM or COMPLETE.
@@ -87,7 +89,7 @@ def processConcurrentWavecal(events, outflash, shift_file,
         cw = initWavecal(events, outflash, shift_file,
                          info, switches, reffiles, phdr, hdr)
         tl_time = cosutil.timelineTimes(self.time[0], self.time[-1], dt=1.)
-        return (tl_time, None)
+        return (tl_time, None, switches["wavecorr"])
 
     cosutil.printMsg("Process tagflash wavecal")
     wavecal.printWavecalRef(reffiles)
@@ -113,7 +115,7 @@ def processConcurrentWavecal(events, outflash, shift_file,
             (tl_time, shift1_vs_time) = cw.shift1VsTime()
             cw.writeOutFlash()
         phdr["wavecorr"] = cw.wavecorr
-        return (tl_time, shift1_vs_time)
+        return (tl_time, shift1_vs_time, cw.wavecorr)
 
     cw.getStartStopTimes()
     if cw.numflash < 1 and cw.shift_file is not None:
@@ -127,7 +129,7 @@ def processConcurrentWavecal(events, outflash, shift_file,
         phdr["lampused"] = "NONE"
         cw.ofd[0].header["lampused"] = "NONE"
         cw.writeOutFlash()
-        return (tl_time, None)
+        return (tl_time, None, cw.wavecorr)
 
     cw.setUpOutFlash()          # create an HDU list for the outflash file
 
@@ -146,7 +148,7 @@ def processConcurrentWavecal(events, outflash, shift_file,
 
     cw.writeOutFlash()
 
-    return (tl_time, shift1_vs_time)
+    return (tl_time, shift1_vs_time, cw.wavecorr)
 
 def r_key(x):
     """Comparison key for sorting locations in setRegions().
@@ -331,31 +333,31 @@ class ConcurrentWavecal(object):
         col = []
         col.append(fits.Column(name="SEGMENT", format="4A"))
         col.append(fits.Column(name="TIME", format="1D",
-                                 disp="F8.3", unit="s"))
+                               disp="F8.3", unit="s"))
         col.append(fits.Column(name="EXPTIME", format="1D",
-                                 disp="F8.3", unit="s"))
+                               disp="F8.3", unit="s"))
         col.append(fits.Column(name="LAMP_ON", format="1D",
-                                 disp="F8.3", unit="s"))
+                               disp="F8.3", unit="s"))
         col.append(fits.Column(name="LAMP_OFF", format="1D",
-                                 disp="F8.3", unit="s"))
+                               disp="F8.3", unit="s"))
         col.append(fits.Column(name="NELEM", format="1J",
-                                 disp="I6"))
+                               disp="I6"))
         col.append(fits.Column(name="WAVELENGTH", format=rpt+"D",
-                                 unit="angstrom"))
+                               unit="angstrom"))
         col.append(fits.Column(name="NET", format=rpt+"E",
-                                 unit="count /s"))
+                               unit="count /s"))
         col.append(fits.Column(name="GROSS", format=rpt+"E",
-                                 unit="count /s"))
+                               unit="count /s"))
         col.append(fits.Column(name="BACKGROUND", format=rpt+"E",
-                                 unit="count /s"))
+                               unit="count /s"))
         col.append(fits.Column(name="SHIFT_DISP", format="1E",
-                                 unit="pixel"))
+                               unit="pixel"))
         col.append(fits.Column(name="SHIFT_XDISP", format="1E",
-                                 unit="pixel"))
+                               unit="pixel"))
         col.append(fits.Column(name="SPEC_FOUND", format="1L"))
         col.append(fits.Column(name="CHI_SQUARE", format="1E"))
         col.append(fits.Column(name="N_DEG_FREEDOM", format="1J",
-                                 disp="I5"))
+                               disp="I5"))
         cd = fits.ColDefs(col)
 
         nrows = self.numflash * len(self.segment_list)
@@ -369,7 +371,7 @@ class ConcurrentWavecal(object):
 
         cosutil.updateFilename(self.ofd[0].header, self.outflash)
         nextend = len(self.ofd) - 1
-        self.ofd[0].header.update("nextend", nextend)
+        self.ofd[0].header["nextend"] = nextend
         self.ofd[0].header["wavecorr"] = self.wavecorr
 
         # We know this value, so assign it now.
@@ -514,13 +516,16 @@ class ConcurrentWavecal(object):
         stepsize = self.wcp_info.field("stepsize")
         xd_range = self.wcp_info.field("xd_range")
         box = self.wcp_info.field("box")
-        # fp is for an initial offset when matching the spectrum to the
-        # template.  If we've got fpoffset and fp_pixel_shift columns,
-        # the initial offset should be zero.
+        try:
+            search_offset = self.wcp_info.field("search_offset")
+        except KeyError:
+            search_offset = 0.
+        # initial_offset is used as the center of the search range, when
+        # matching the spectrum to the template.
         if got_pixel_shift:
-            initial_offset = 0
+            initial_offset = search_offset
         else:
-            initial_offset = self.info["fpoffset"] * stepsize
+            initial_offset = self.info["fpoffset"] * stepsize + search_offset
 
         # Create a data quality array, and assign values from the bpixtab.
         if self.info["detector"] == "FUV":
@@ -1190,19 +1195,19 @@ class ConcurrentWavecal(object):
         table does contain these values for every flash.
         """
 
-        self.hdr.update("NUMFLASH", self.numflash)
+        self.hdr["NUMFLASH"] = self.numflash
 
         for i in range(self.numflash):
             keyword = "LMP_ON%d" % (i+1)
             if keyword not in self.hdr:
                 break
-            self.hdr.update(keyword, self.lamp_on[i])
+            self.hdr[keyword] = self.lamp_on[i]
             keyword = "LMPOFF%d" % (i+1)
-            self.hdr.update(keyword, self.lamp_off[i])
+            self.hdr[keyword] = self.lamp_off[i]
             keyword = "LMPDUR%d" % (i+1)
-            self.hdr.update(keyword, self.lamp_off[i] - self.lamp_on[i])
+            self.hdr[keyword] = self.lamp_off[i] - self.lamp_on[i]
             keyword = "LMPMED%d" % (i+1)
-            self.hdr.update(keyword, self.lamp_median[i])
+            self.hdr[keyword] = self.lamp_median[i]
 
     def avgShift(self):
         """Compute the shift1 and shift2 offsets averaged over time.
@@ -1284,12 +1289,12 @@ class ConcurrentWavecal(object):
         for segment in self.segment_list:
             key = "SHIFT1" + segment[-1]
             value = round(avg_dx[segment], 4)
-            self.hdr.update(key, value)                         # corrtag
-            self.ofd[1].header.update(key, value)               # lampflash
+            self.hdr[key] = value                               # corrtag
+            self.ofd[1].header[key] = value                     # lampflash
             key = "SHIFT2" + segment[-1]
             value = round(avg_dy[segment], 4)
-            self.hdr.update(key, value)
-            self.ofd[1].header.update(key, value)
+            self.hdr[key] = value
+            self.ofd[1].header[key] = value
             sum_chisq = 0.
             sum_ndf = 0
             for n in range(self.numflash):
@@ -1299,11 +1304,11 @@ class ConcurrentWavecal(object):
             if self.override_segment_B:
                 sum_ndf = 0
             key = "chi_sq_" + segment[-1]
-            self.hdr.update(key, round(sum_chisq, 1))
-            self.ofd[1].header.update(key, round(sum_chisq, 1))
+            self.hdr[key] = round(sum_chisq, 1)
+            self.ofd[1].header[key] = round(sum_chisq, 1)
             key = "ndf_" + segment[-1]
-            self.hdr.update(key, sum_ndf)
-            self.ofd[1].header.update(key, sum_ndf)
+            self.hdr[key] = sum_ndf
+            self.ofd[1].header[key] = sum_ndf
 
             # use self.regions for dpixel1[abc]
             shift_flags = np.zeros(len(self.eta), dtype=np.bool8)
@@ -1325,8 +1330,8 @@ class ConcurrentWavecal(object):
             else:
                 value = 0.
             key = "DPIXEL1" + segment[-1]
-            self.hdr.update(key, value)
-            self.ofd[1].header.update(key, value)
+            self.hdr[key] = value
+            self.ofd[1].header[key] = value
 
         if self.override_segment_B:
             lampused = self.ofd[0].header.get("lampused", "missing")
@@ -1345,7 +1350,7 @@ class ConcurrentWavecal(object):
                                      "the value will be reset to %s." % \
                                      (lampused, lampplan), level=VERBOSE)
                     self.phdr["lampused"] = lampplan
-                    self.ofd[0].header.update("lampused", lampplan)
+                    self.ofd[0].header["lampused"] = lampplan
             if not self.lamp_is_on:
                 cosutil.printWarning("The wavecal lamp was not on " \
                                      "for tagflash data.", level=VERBOSE)
@@ -1353,7 +1358,7 @@ class ConcurrentWavecal(object):
                     cosutil.printMsg("LAMPUSED = %s, and it will be reset " \
                                      "to NONE." % lampused, level=VERBOSE)
                     self.phdr["lampused"] = "NONE"
-                    self.ofd[0].header.update("lampused", "NONE")
+                    self.ofd[0].header["lampused"] = "NONE"
 
     def shift1VsTime(self):
         """Interpolate shift1 at one-second intervals.

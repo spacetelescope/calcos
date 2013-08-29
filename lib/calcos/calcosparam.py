@@ -79,6 +79,8 @@ TAGFLASH_TYPE_UNIFORMLY_SPACED = 2
 
 # These are the names of the apertures.
 APERTURE_NAMES = ["PSA", "WCA", "BOA", "FCA"]
+# The aperture keyword for a dark exposure may have this value instead.
+OTHER_APERTURE_NAMES = ["N/A"]
 
 # Nominal values of aperypos for life_adj = 1.
 APERTURE_POSN1 = {"PSA": 126.,

@@ -341,35 +341,37 @@ def timelineHDU(nrows_timeline, hdr):
 
     col = []
     col.append(fits.Column(name="TIME", format="1E",
-                              unit="s", disp="F8.3"))
+                           unit="s", disp="F8.3"))
     col.append(fits.Column(name="LONGITUDE", format="1E",
-                             unit="degree", disp="F10.6"))
+                           unit="degree", disp="F10.6"))
     col.append(fits.Column(name="LATITUDE", format="1E",
-                             unit="degree", disp="F10.6"))
+                           unit="degree", disp="F10.6"))
     col.append(fits.Column(name="SUN_ALT", format="1E",
-                             unit="degree", disp="F6.2"))
+                           unit="degree", disp="F6.2"))
     col.append(fits.Column(name="SUN_ZD", format="1E",
-                             unit="degree", disp="F6.2"))
+                           unit="degree", disp="F6.2"))
     col.append(fits.Column(name="TARGET_ALT", format="1E",
-                             unit="degree", disp="F6.2"))
+                           unit="degree", disp="F6.2"))
     col.append(fits.Column(name="RADIAL_VEL", format="1E",
-                             unit="km /s", disp="F7.5"))
+                           unit="km /s", disp="F7.5"))
     col.append(fits.Column(name="SHIFT1", format="1E",
-                             unit="pixel", disp="F7.3"))
+                           unit="pixel", disp="F7.3"))
     col.append(fits.Column(name="LY_ALPHA", format="1E",
-                             unit="count /s", disp="G15.6"))
+                           unit="count /s", disp="G15.6"))
     col.append(fits.Column(name="OI_1304", format="1E",
-                             unit="count /s", disp="G15.6"))
+                           unit="count /s", disp="G15.6"))
     col.append(fits.Column(name="OI_1356", format="1E",
-                             unit="count /s", disp="G15.6"))
+                           unit="count /s", disp="G15.6"))
     col.append(fits.Column(name="DARKRATE", format="1E",
-                             unit="count /s /pixel", disp="G15.6"))
+                           unit="count /s /pixel", disp="G15.6"))
     cd = fits.ColDefs(col)
 
     hdu = fits.new_table(cd, header=hdr, nrows=nrows_timeline)
 
-    hdu.header.update("extname", "TIMELINE", after="TFIELDS")
-    hdu.header.update("extver", 1, after="EXTNAME")
+    hdu.header.set("extname", "TIMELINE", after="TFIELDS")      # xxx temp
+    hdu.header.set("extver", 1, after="EXTNAME")        # xxx temporary
+    # xxx hdu.header.insert("TFIELDS", ("extname", "TIMELINE"), after=True)
+    # xxx hdu.header.insert("EXTNAME", ("extver", 1), after=True)
 
     return hdu
 

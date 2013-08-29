@@ -203,7 +203,7 @@ def extract1D(input, incounts=None, output=None,
 
     # Update the output header.
     ofd[1].header["bitpix"] = 8         # temporary, xxx
-    ofd[0].header.update("nextend", 1)
+    ofd[0].header["nextend"] = 1
     cosutil.updateFilename(ofd[0].header, output)
     if ifd_c is None:                   # ifd_e is a corrtag table
         # Delete table-specific world coordinate system keywords.
@@ -1558,17 +1558,17 @@ def updateExtractionKeywords(hdr, segment, slope, height,
     """
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
-    hdr.update(key, xd_locn)
+    hdr[key] = xd_locn
     # xxx key = "SP_ERR_" + segment[-1]           # SP_ERR_A, SP_ERR_B, SP_ERR_C
     # xxx hdr.update(key, found_locn_sigma)
     key = "SP_OFF_" + segment[-1]           # SP_OFF_A, SP_OFF_B, SP_OFF_C
-    hdr.update(key, xd_offset)
+    hdr[key] = xd_offset
     key = "SP_NOM_" + segment[-1]           # SP_NOM_A, SP_NOM_B, SP_NOM_C
-    hdr.update(key, xd_nominal)
+    hdr[key] = xd_nominal
     key = "SP_SLP_" + segment[-1]           # SP_SLP_A, SP_SLP_B, SP_SLP_C
-    hdr.update(key, slope)
+    hdr[key] = slope
     key = "SP_HGT_" + segment[-1]           # SP_HGT_A, SP_HGT_B, SP_HGT_C
-    hdr.update(key, height)
+    hdr[key] = height
 
     # Adjust the values of the background locations to be where the regions
     # cross the middle of the detector.
@@ -1580,13 +1580,13 @@ def updateExtractionKeywords(hdr, segment, slope, height,
     b_bkg2 += tilt_offset
 
     key = "B_BKG1_" + segment[-1]
-    hdr.update(key, b_bkg1)
+    hdr[key] = b_bkg1
     key = "B_BKG2_" + segment[-1]
-    hdr.update(key, b_bkg2)
+    hdr[key] = b_bkg2
     key = "B_HGT1_" + segment[-1]
-    hdr.update(key, bkg_height1)
+    hdr[key] = bkg_height1
     key = "B_HGT2_" + segment[-1]
-    hdr.update(key, bkg_height2)
+    hdr[key] = bkg_height2
 
 def copyKeywordsToInput(output, input, incounts):
     """Copy extraction location keywords to the input headers.
@@ -1633,9 +1633,9 @@ def copyKeywordsToInput(output, input, incounts):
 
     for key in keywords:
         value = ofd[1].header.get(key, -999.)
-        ifd_e[1].header.update(key, value)
+        ifd_e[1].header[key] = value
         if incounts is not None:
-            ifd_c[1].header.update(key, value)
+            ifd_c[1].header[key] = value
 
     ofd.close()
     ifd_e.close()
@@ -1674,7 +1674,7 @@ def updateCorrtagKeywords(flt, corrtag):
                     "B_BKG1_", "B_BKG2_", "B_HGT1_", "B_HGT2_"]:
             keyword = key + segment[-1]
             if keyword in ihdr:
-                ohdr.update(keyword, ihdr[keyword])
+                ohdr[keyword] = ihdr[keyword]
 
     ofd.close()
     ifd.close()
@@ -1729,9 +1729,9 @@ def updateArchiveSearch(ofd):
             platesc = (cdelt2 + cdelt3) / 2.
         else:
             platesc = cdelt2
-        phdr.update("platesc", platesc)
+        phdr["platesc"] = platesc
         specres = wcs_info.field("specres")
-        phdr.update("specres", specres[0])
+        phdr["specres"] = specres[0]
 
     if nrows <= 0 or len(wavelength[0]) < 1:
         return
@@ -1753,10 +1753,10 @@ def updateArchiveSearch(ofd):
         maxwave_row = good_wl.max()
         maxwave = max(maxwave, maxwave_row)
 
-    phdr.update("MINWAVE", minwave)
-    phdr.update("MAXWAVE", maxwave)
-    phdr.update("BANDWID", maxwave - minwave)
-    phdr.update("CENTRWV", (maxwave + minwave) / 2.)
+    phdr["MINWAVE"] = minwave
+    phdr["MAXWAVE"] = maxwave
+    phdr["BANDWID"] = maxwave - minwave
+    phdr["CENTRWV"] = (maxwave + minwave) / 2.
 
 def concatenateFUVSegments(infiles, output):
     """Concatenate the 1-D spectra for the two FUV segments into one file.
@@ -1838,19 +1838,19 @@ def concatenateFUVSegments(infiles, output):
     for key in segment_specific_keywords:
         keyword = key.replace("X", "b")
         if keyword in seg_b[1].header:
-            hdu.header.update(keyword, seg_b[1].header.get(keyword, -1.0))
+            hdu.header[keyword] = seg_b[1].header.get(keyword, -1.0)
 
     exptimea = seg_a[1].header.get("exptimea",
                                    default=seg_a[1].header["exptime"])
     exptimeb = seg_b[1].header.get("exptimeb",
                                    default=seg_b[1].header["exptime"])
-    hdu.header.update("exptime", max(exptimea, exptimeb))
+    hdu.header["exptime"] = max(exptimea, exptimeb)
 
     neventsa = seg_a[1].header.get("neventsa",
                                    seg_a[1].header.get("nevents", 0))
     neventsb = seg_b[1].header.get("neventsb",
                                    seg_b[1].header.get("nevents", 0))
-    hdu.header.update("nevents", neventsa + neventsb)
+    hdu.header["nevents"] = neventsa + neventsb
 
     # If one of the segments has no data, use the other segment for the
     # primary header.  This is so the calibration switch keywords in the
@@ -1864,7 +1864,7 @@ def concatenateFUVSegments(infiles, output):
     updateGsagComment(seg_a[0].header, seg_b[0].header, [ofd[0].header])
     if a_exists and b_exists and nrows_a > 0 and nrows_b > 0:
         # we now have both segments
-        ofd[0].header.update("segment", "BOTH")
+        ofd[0].header["segment"] = "BOTH"
     ofd.append(hdu)
 
     # Update the "archive search" keywords.
@@ -1926,7 +1926,6 @@ def updateGsagComment(phdr0, phdr1, phdr_list):
         for phdr in phdr_list:
             gsagtab = phdr.get("gsagtab", NOT_APPLICABLE)
             phdr["gsagtab"] = (gsagtab, comment)
-            phdr.update("gsagtab", gsagtab, comment=comment)
 
 def copySegments(data_a, nrows_a, data_b, nrows_b, outdata):
     """Copy the two input tables to the output table.
@@ -2021,6 +2020,6 @@ def recomputeWavelengths(input):
         wl_col[row][0:nelem] = disp_rel.evalDisp(pixel)
         disp_rel.close()
 
-    phdr.update("WAVECORR", "COMPLETE")
+    phdr["WAVECORR"] = "COMPLETE"
 
     fd.close()

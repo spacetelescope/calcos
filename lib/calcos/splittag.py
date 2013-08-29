@@ -676,7 +676,7 @@ def createNewTimeline(timeline_hdu, t0, t1):
         out_nrows = 0
 
     out_timeline_hdu = fits.new_table(cd, header=timeline_hdu.header,
-                                        nrows=out_nrows)
+                                      nrows=out_nrows)
     if in_nrows > 0:
         out_data = out_timeline_hdu.data
         i = i_start
@@ -733,25 +733,25 @@ def updateKeywords(info, out_gti_hdu, t0, t1, nevents, ofd):
 
     # Modified 2011 May 13 to update exptimea or exptimeb, depending on
     # segment.  Also update nevents and either neventsa or neventsb.
-    hdr.update("exptime", exptime)
-    hdr.update("nevents", nevents)
+    hdr["exptime"] = exptime
+    hdr["nevents"] = nevents
     if info["detector"] == "FUV":
         # first assign default values, so keywords for the "other" segment
         # will have the default
-        hdr.update("exptimea", 0.)
-        hdr.update("exptimeb", 0.)
-        hdr.update("neventsa", 0)
-        hdr.update("neventsb", 0)
+        hdr["exptimea"] = 0.
+        hdr["exptimeb"] = 0.
+        hdr["neventsa"] = 0
+        hdr["neventsb"] = 0
         # "exptimea" or "exptimeb"
         exptime_key = cosutil.segmentSpecificKeyword("exptime",
                                                      info["segment"])
-        hdr.update(exptime_key, exptime)
+        hdr[exptime_key] = exptime
         nevents_key = "nevents" + info["segment"][-1].lower()
-        hdr.update(nevents_key, nevents)
+        hdr[nevents_key] = nevents
 
     expstart = info["expstart"]
     if expstart > 0.:
         expend = expstart + t1/SEC_PER_DAY
-        hdr.update("expend", expend)
+        hdr["expend"] = expend
         expend_j = expend + 2400000.5
-        hdr.update("expendj", expend_j)
+        hdr["expendj"] = expend_j

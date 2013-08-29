@@ -94,13 +94,13 @@ def avgImage(input, output):
         asn_mtyp = cosutil.modifyAsnMtyp(asn_mtyp)
         if asn_mtyp != "missing":
             scihdu.header["asn_mtyp"] = asn_mtyp
-    scihdu.header.update("exptime", sum_exptime)
-    scihdu.header.update("expstart", expstart)
-    scihdu.header.update("expend", expend)
-    scihdu.header.update("expstrtj", expstart + MJD_TO_JD)
-    scihdu.header.update("expendj", expend + MJD_TO_JD)
-    scihdu.header.update("plantime", sum_plantime)
-    scihdu.header.update(globrate_keyword, round(globrate, 4))
+    scihdu.header["exptime"] = sum_exptime
+    scihdu.header["expstart"] = expstart
+    scihdu.header["expend"] = expend
+    scihdu.header["expstrtj"] = expstart + MJD_TO_JD
+    scihdu.header["expendj"] = expend + MJD_TO_JD
+    scihdu.header["plantime"] = sum_plantime
+    scihdu.header[globrate_keyword] = round(globrate, 4)
     ofd.append(scihdu)
     ofd.writeto(output, output_verify='silentfix')
     del ofd, phdr, hdr, primary_hdu, sci_data, scihdu

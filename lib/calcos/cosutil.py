@@ -197,7 +197,7 @@ def createCorrtagHDU(nrows, detector, header):
     col.append(fits.Column(name="XFULL", format="1E", unit="pixel"))
     col.append(fits.Column(name="YFULL", format="1E", unit="pixel"))
     col.append(fits.Column(name="WAVELENGTH", format="1E",
-                               unit="angstrom", disp="F9.4"))
+                           unit="angstrom", disp="F9.4"))
     col.append(fits.Column(name="EPSILON", format="1E"))
     col.append(fits.Column(name="DQ", format="1I"))
     col.append(fits.Column(name="PHA", format="1B"))
@@ -225,11 +225,11 @@ def copyExptimeKeywords(inhdr, outhdr):
         Output header.
     """
 
-    outhdr.update("expstart", inhdr.get("expstart", -999.))
-    outhdr.update("expend", inhdr.get("expend", -999.))
+    outhdr["expstart"] = inhdr.get("expstart", -999.)
+    outhdr["expend"] = inhdr.get("expend", -999.)
     exptime = inhdr.get("exptime", -999.)
-    outhdr.update("exptime", exptime)
-    outhdr.update("rawtime", inhdr.get("rawtime", exptime))
+    outhdr["exptime"] = exptime
+    outhdr["rawtime"] = inhdr.get("rawtime", exptime)
 
 def copyVoltageKeywords(inhdr, outhdr, detector):
     """Copy keywords for high voltages from one header to another.
@@ -250,15 +250,15 @@ def copyVoltageKeywords(inhdr, outhdr, detector):
     """
 
     if detector == "FUV":
-        outhdr.update("dethvla", inhdr.get("dethvla", -999.))
-        outhdr.update("dethvlb", inhdr.get("dethvlb", -999.))
-        outhdr.update("dethvca", inhdr.get("dethvca", -999.))
-        outhdr.update("dethvcb", inhdr.get("dethvcb", -999.))
-        outhdr.update("dethvna", inhdr.get("dethvna", -999.))
-        outhdr.update("dethvnb", inhdr.get("dethvnb", -999.))
+        outhdr["dethvla"] = inhdr.get("dethvla", -999.)
+        outhdr["dethvlb"] = inhdr.get("dethvlb", -999.)
+        outhdr["dethvca"] = inhdr.get("dethvca", -999.)
+        outhdr["dethvcb"] = inhdr.get("dethvcb", -999.)
+        outhdr["dethvna"] = inhdr.get("dethvna", -999.)
+        outhdr["dethvnb"] = inhdr.get("dethvnb", -999.)
     elif detector == "NUV":
-        outhdr.update("dethvl", inhdr.get("dethvl", -999.))
-        outhdr.update("dethvc", inhdr.get("dethvc", -999.))
+        outhdr["dethvl"] = inhdr.get("dethvl", -999.)
+        outhdr["dethvc"] = inhdr.get("dethvc", -999.)
 
 def copySubKeywords(inhdr, outhdr, subarray):
     """Copy the subarray keywords from one header to another.
@@ -279,18 +279,18 @@ def copySubKeywords(inhdr, outhdr, subarray):
     """
 
     if subarray:
-        outhdr.update("nsubarry", inhdr.get("nsubarry", 0))
+        outhdr["nsubarry"] = inhdr.get("nsubarry", 0)
     else:
-        outhdr.update("nsubarry", 0)
+        outhdr["nsubarry"] = 0
     for i in range(8):
         x_corner_kwd = "corner%1dx" % i
         y_corner_kwd = "corner%1dy" % i
         x_size_kwd = "size%1dx" % i
         y_size_kwd = "size%1dy" % i
-        outhdr.update(x_corner_kwd, inhdr.get(x_corner_kwd, -1))
-        outhdr.update(y_corner_kwd, inhdr.get(y_corner_kwd, -1))
-        outhdr.update(x_size_kwd, inhdr.get(x_size_kwd, -1))
-        outhdr.update(y_size_kwd, inhdr.get(y_size_kwd, -1))
+        outhdr[x_corner_kwd] = inhdr.get(x_corner_kwd, -1)
+        outhdr[y_corner_kwd] = inhdr.get(y_corner_kwd, -1)
+        outhdr[x_size_kwd] = inhdr.get(x_size_kwd, -1)
+        outhdr[y_size_kwd] = inhdr.get(y_size_kwd, -1)
 
 def dummyGTI(exptime):
     """Return a GTI table.
@@ -311,7 +311,7 @@ def dummyGTI(exptime):
     col.append(fits.Column(name="STOP", format="1D", unit="s"))
     cd = fits.ColDefs(col)
     hdu = fits.new_table(cd, nrows=1)
-    hdu.header.update("extname", "GTI")
+    hdu.header["extname"] = "GTI"
     outdata = hdu.data
     outdata.field("START")[:] = 0.
     outdata.field("STOP")[:] = exptime
@@ -2065,7 +2065,7 @@ def updateFilename(phdr, filename):
         Name of file, possibly including directory.
     """
 
-    phdr.update("filename", os.path.basename(filename))
+    phdr["filename"] = os.path.basename(filename)
 
 def renameFile(infile, outfile):
     """Rename a FITS file, and update the FILENAME keyword.
@@ -2273,14 +2273,14 @@ def doImageStat(input):
         stat_avg = combineStat(stat_info)
 
         sci_hdr = fd[("SCI",extver)].header
-        sci_hdr.update("ngoodpix", stat_avg["ngoodpix"])
-        sci_hdr.update("goodmean", exptime * stat_avg["sci_goodmean"])
-        sci_hdr.update("goodmax", exptime * stat_avg["sci_goodmax"])
+        sci_hdr["ngoodpix"] = stat_avg["ngoodpix"]
+        sci_hdr["goodmean"] = exptime * stat_avg["sci_goodmean"]
+        sci_hdr["goodmax"] = exptime * stat_avg["sci_goodmax"]
         if err is not None:
             err_hdr = fd[("ERR",extver)].header
-            err_hdr.update("ngoodpix", stat_avg["ngoodpix"])
-            err_hdr.update("goodmean", exptime * stat_avg["err_goodmean"])
-            err_hdr.update("goodmax", exptime * stat_avg["err_goodmax"])
+            err_hdr["ngoodpix"] = stat_avg["ngoodpix"]
+            err_hdr["goodmean"] = exptime * stat_avg["err_goodmean"]
+            err_hdr["goodmax"] = exptime * stat_avg["err_goodmax"]
 
     fd.close()
 
@@ -2330,9 +2330,9 @@ def doSpecStat(input):
     # Combine the segments or stripes.
     stat_avg = combineStat(stat_info)
 
-    sci_extn.header.update("ngoodpix", stat_avg["ngoodpix"])
-    sci_extn.header.update("goodmean", exptime * stat_avg["sci_goodmean"])
-    sci_extn.header.update("goodmax", exptime * stat_avg["sci_goodmax"])
+    sci_extn.header["ngoodpix"] = stat_avg["ngoodpix"]
+    sci_extn.header["goodmean"] = exptime * stat_avg["sci_goodmean"]
+    sci_extn.header["goodmax"] = exptime * stat_avg["sci_goodmax"]
 
     fd.close()
 
@@ -2366,9 +2366,9 @@ def doTagFlashStat(fd):
         sum_gross += np.sum(gross[row])
         n += nelem[row]
 
-    sci_extn.header.update("ngoodpix", n)
-    sci_extn.header.update("goodmean", sum_gross / float(n))
-    sci_extn.header.update("goodmax", max_gross)
+    sci_extn.header["ngoodpix"] = n
+    sci_extn.header["goodmean"] = sum_gross / float(n)
+    sci_extn.header["goodmax"] = max_gross
 
 def computeStat(sci_band, err_band=None, dq_band=None, sdqflags=3832):
     """Compute statistics.
@@ -2534,7 +2534,7 @@ def overrideKeywords(phdr, hdr, info, switches, reffiles):
     if "dispaxis" in hdr:
         hdr["dispaxis"] = info["dispaxis"]
 
-    hdr.update("x_offset", info["x_offset"])
+    hdr["x_offset"] = info["x_offset"]
 
 def updatePulseHeightKeywords(hdr, segment, low, high):
     """Update the screening limit keywords for pulse height.
@@ -2557,9 +2557,9 @@ def updatePulseHeightKeywords(hdr, segment, low, high):
     """
 
     key_low  = "PHALOWR" + segment[-1]
-    hdr.update(key_low, low)
+    hdr[key_low] = low
     key_high = "PHAUPPR" + segment[-1]
-    hdr.update(key_high, high)
+    hdr[key_high] = high
 
 def getPulseHeightRange(hdr, segment):
     """Get the pulse height range that was used for PHACORR.
@@ -3137,7 +3137,7 @@ def computeLifeAdjOffset(info):
         aperture, as determined from aperture and aperypos.
     """
 
-    if info["life_adj"] > 0 or \
+    if info["life_adj"] != -1 or \
        info["aperypos"] == NOT_APPLICABLE or \
        info["opt_elem"] == NOT_APPLICABLE:
         info["life_adj_offset"] = 0.
