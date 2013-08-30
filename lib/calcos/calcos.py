@@ -55,8 +55,8 @@ def main(args):
         -v (very verbose)
         -s (save temporary files)
         -o outdir (output directory name)
-        -r print version (revision) string and exit
-        --version print the version number and exit
+        -r (print version (revision) string and exit)
+        --version (print the version number and exit)
         --find yes|no|cutoff (find Y location of spectrum)
         --csum (create csum image)
         --raw (use raw coordinates for csum image)
@@ -1411,6 +1411,7 @@ class Association(object):
         if switches["flatcorr"] == "PERFORM":
             cosutil.findRefFile(ref["flatfile"],
                                 missing, wrong_filetype, bad_version)
+
         if switches["brstcorr"] == "PERFORM":
             cosutil.findRefFile(ref["brsttab"],
                                 missing, wrong_filetype, bad_version)
@@ -1725,7 +1726,7 @@ class Association(object):
         fd = fits.open(self.asntable_copy, mode="update")
 
         # Set ASN_PROD to true to indicate that a product has been created.
-        fd[0].header.update("asn_prod", True)
+        fd[0].header["asn_prod"] = True
 
         asn = fd[1].data
         nrows = asn.shape[0]
@@ -1788,17 +1789,17 @@ class Association(object):
         product = os.path.basename(self.product)
 
         cosutil.updateFilename(phdr, product_spt_file)
-        phdr.update("rootname", product)
-        phdr.update("obset_id", product[4:6])
-        phdr.update("observtn", product[-3:].upper())
-        phdr.update("asn_mtyp", self.product_type)      # do we need this?
+        phdr["rootname"] = product
+        phdr["obset_id"] = product[4:6]
+        phdr["observtn"] = product[-3:].upper()
+        phdr["asn_mtyp"] = self.product_type            # do we need this?
         phdr.add_comment(
         "Please ignore this file, which is a copy of an input spt file.")
         phdr.add_comment(
         "This file is used by the archive to obtain certain keywords.")
 
         for i in range(1, len(fd)):
-            fd[i].header.update("rootname", product)
+            fd[i].header["rootname"] = product
 
         fd.close()
 
@@ -2826,7 +2827,8 @@ class Calibration(object):
         output = filenames["x1d_x"]
 
         find_target = self.assoc.cl_args["find_target"]
-        extract.extract1D(input, incounts, output, find_target=find_target)
+        extract.extract1D(input, incounts, output,
+                          find_target=find_target)
 
         # Copy keywords from input (the flt file) to corrtag.
         extract.updateCorrtagKeywords(input, corrtag)
@@ -2988,24 +2990,24 @@ class Calibration(object):
                 except:
                     hdr = fd[("SCI",1)].header
                 if wavecorr == "PERFORM" and len(self.wavecal_info) > 0:
-                    phdr.update("WAVECORR", "COMPLETE")
-                hdr.update("DPIXEL1A", 0.)      # dpixel1 not used for ACCUM
-                hdr.update("DPIXEL1B", 0.)
+                    phdr["WAVECORR"] = "COMPLETE"
+                hdr["DPIXEL1A"] = 0.            # dpixel1 not used for ACCUM
+                hdr["DPIXEL1B"] = 0.
                 if info["detector"] == "NUV":
-                    hdr.update("DPIXEL1C", 0.)
+                    hdr["DPIXEL1C"] = 0.
                 if shift_dict is None:
-                    hdr.update("SHIFT1A", 0.)
-                    hdr.update("SHIFT1B", 0.)
-                    hdr.update("SHIFT2A", 0.)
-                    hdr.update("SHIFT2B", 0.)
+                    hdr["SHIFT1A"] = 0.
+                    hdr["SHIFT1B"] = 0.
+                    hdr["SHIFT2A"] = 0.
+                    hdr["SHIFT2B"] = 0.
                     if info["detector"] == "NUV":
-                        hdr.update("SHIFT1C", 0.)
-                        hdr.update("SHIFT2C", 0.)
+                        hdr["SHIFT1C"] = 0.
+                        hdr["SHIFT2C"] = 0.
                 else:
                     for key in shift_dict.keys():
                         shift = shift_dict[key]
                         shift = round(shift, 4)
-                        hdr.update(key, shift)
+                        hdr[key] = shift
                 fd.close()
 
     def setSpectrumOffset(self, filenames, segment, shift2, lamp_is_on):
@@ -3050,7 +3052,7 @@ class Calibration(object):
                 except:
                     hdr = fd[("SCI",1)].header
                 for keyword in keywords:
-                    hdr.update(keyword, round(shift2, 4))
+                    hdr[keyword] = round(shift2, 4)
                 lampused = phdr.get("lampused", "missing")
                 lampplan = phdr.get("lampplan", "missing")
                 if lamp_is_on and lampused == "NONE":
@@ -3107,10 +3109,10 @@ class Calibration(object):
                     hdr = fd["EVENTS"].header
                 except:
                     hdr = fd[("SCI",1)].header
-                phdr.update("WAVECORR", "COMPLETE")
+                phdr["WAVECORR"] = "COMPLETE"
                 for keyword in shift_dict.keys():
                     shift = shift_dict[keyword]
-                    hdr.update(keyword, round(shift, 4))
+                    hdr[keyword] = round(shift, 4)
                 fd.close()
 
     def corrtagWavelengths(self, corrtag, info, reffiles):
@@ -3165,9 +3167,9 @@ class Calibration(object):
                 keyword_a = a_kwds[i]
                 keyword_b = b_kwds[i]
                 if keyword_a in hdr_a:
-                    hdr_b.update(keyword_a, hdr_a[keyword_a])
+                    hdr_b[keyword_a] = hdr_a[keyword_a]
                 if keyword_b in hdr_b:
-                    hdr_a.update(keyword_b, hdr_b[keyword_b])
+                    hdr_a[keyword_b] = hdr_b[keyword_b]
             # concatenate comments for keyword GSAGTAB
             extract.updateGsagComment(fd_a[0].header, fd_b[0].header,
                                       [fd_a[0].header, fd_b[0].header])

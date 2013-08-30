@@ -73,6 +73,10 @@ def findWavecalShift(input, shift_file, info, wcp_info):
     detector = info["detector"]
     xc_range = wcp_info.field("xc_range")
     stepsize = wcp_info.field("stepsize")
+    try:
+        search_offset = wcp_info.field("search_offset")
+    except KeyError:
+        search_offset = 0.
 
     # Replace shift values in segment B with values from segment A?
     if "FUVB" in segment:
@@ -89,14 +93,13 @@ def findWavecalShift(input, shift_file, info, wcp_info):
     # in the filter.  If not, use an offset when doing the cross correlation.
     if cosutil.findColumn(lamptab, "fpoffset"):
         filter["fpoffset"] = info["fpoffset"]
-    # fp is for an initial offset when matching the spectrum to the
-    # template.  If we've got fpoffset and fp_pixel_shift columns,
-    # the initial offset should be zero.
+    # initial_offset is used as the center of the search range, when
+    # matching the spectrum to the template.
     got_pixel_shift = cosutil.findColumn(lamptab, "fp_pixel_shift")
     if got_pixel_shift:
-        initial_offset = 0
+        initial_offset = search_offset
     else:
-        initial_offset = info["fpoffset"] * stepsize
+        initial_offset = info["fpoffset"] * stepsize + search_offset
 
     shift_dict = {}
 
@@ -166,11 +169,11 @@ def findWavecalShift(input, shift_file, info, wcp_info):
                 shift_dict[key] = 0.
         else:
             shift_dict[key] = sci_extn.header.get(key, default=0.)
-        sci_extn.header.update(key, shift_dict[key])
+        sci_extn.header[key] = shift_dict[key]
 
         # Zero for dpixel1[a-c] is appropriate for auto/GO wavecals.
         key = "dpixel1" + segment[row][-1].lower()
-        sci_extn.header.update(key, 0.)
+        sci_extn.header[key] = 0.
         shift_dict[key] = 0.
 
         key = "shift1" + segment[row][-1].lower()
@@ -185,7 +188,7 @@ def findWavecalShift(input, shift_file, info, wcp_info):
         scatter = fs1.getScatter(segment[row])
         measured_shift1 = fs1.getMeasuredShift1(segment[row])
         fp_pixel_shift_seg = fs1.getFpPixelShift(segment[row])
-        sci_extn.header.update(key, shift_segment)
+        sci_extn.header[key] = shift_segment
         shift_dict[key] = shift_segment
 
         message = " %4s    %6.1f %4.2f [%5.1f] %6.1f  %6.1f (%d)" % \
@@ -207,10 +210,10 @@ def findWavecalShift(input, shift_file, info, wcp_info):
         # shift dictionary, and update the keywords in the x1d header.
         key = "chi_sq_" + segment[row][-1].lower()
         shift_dict[key] = round(fs1.getChiSq(segment[row]), 1)
-        sci_extn.header.update(key, shift_dict[key])
+        sci_extn.header[key] = shift_dict[key]
         key = "ndf_" + segment[row][-1].lower()
         shift_dict[key] = fs1.getNdf(segment[row])
-        sci_extn.header.update(key, shift_dict[key])
+        sci_extn.header[key] = shift_dict[key]
 
     fd.close()
 

@@ -125,7 +125,7 @@ def accumBasicCalibration(input, inpha, outtag,
             info["npix"] = (0,)
 
     hdu = cosutil.createCorrtagHDU(nrows, info["detector"], headers[1])
-    hdu.header.update("extname", "EVENTS")
+    hdu.header["extname"] = "EVENTS"
 
     if nrows > 0:
         # Create pseudo-timetag arrays (x & y, no time) from the raw image.
@@ -153,7 +153,7 @@ def accumBasicCalibration(input, inpha, outtag,
     cosutil.updateFilename(ofd[0].header, outtag)
     ofd.append(hdu)
     ofd.append(cosutil.dummyGTI(info["exptime"]))
-    ofd[0].header.update("nextend", len(ofd) - 1)       # number of extensions
+    ofd[0].header["nextend"] = len(ofd) - 1     # number of extensions
 
     ofd.writeto(outtag)
     del ofd
@@ -174,7 +174,7 @@ def acqImage(input, outflt, outcounts, outcsum, cl_args,
     nextend = len(fd) - 1
     nimsets = len(fd) // 3
     phdr = fd[0].header
-    phdr.update("cal_ver", info["cal_ver"])
+    phdr["cal_ver"] = info["cal_ver"]
     hdr_list = []
 
     writePrimaryHDU(outcounts, phdr, nextend)
@@ -230,7 +230,9 @@ def acqImage(input, outflt, outcounts, outcsum, cl_args,
                   cl_args["compression_parameters"])
 
     fd.close()
-    if info["aperture"] not in APERTURE_NAMES:
+    if not (info["aperture"] in APERTURE_NAMES or
+            info["targname"] == "DARK" and
+            info["aperture"] in OTHER_APERTURE_NAMES):
         raise BadApertureError("APERTURE = %s is not a valid aperture name." %
                                info["aperture"])
 
@@ -255,7 +257,7 @@ def updateGlobrate(hdr, data, exptime):
         globrate = data.sum(dtype=np.float64) / exptime
 
     globrate = round(globrate, 4)
-    hdr.update("globrate", globrate)
+    hdr["globrate"] = globrate
 
 def doPhotcorr(info, switches, imphttab, phdr, hdr):
     """Update photometry parameter keywords for imaging data.
@@ -284,7 +286,7 @@ def doPhotcorr(info, switches, imphttab, phdr, hdr):
             # If aperture is invalid, phot.doPhot will use PSA.
             obsmode = "cos,nuv," + info["opt_elem"] + "," + info["aperture"]
             phot.doPhot(imphttab, obsmode, hdr)
-            phdr.update("photcorr", "COMPLETE")
+            phdr["photcorr"] = "COMPLETE"
 
 def doDqicorr(info, switches, reffiles, phdr, dq_array):
     """Update the DQ array using the DQI table.
@@ -335,9 +337,9 @@ def doDeadcorr(flt_sci, exptime, info, switches, reffiles,
         (dead_rate, dead_method, livetime) = \
                 deadtimeCorrection(flt_sci, exptime, reffiles["deadtab"],
                                    info, input, livetimefile)
-        hdr.update("deadrt", dead_rate)
-        hdr.update("deadmt", dead_method)
-        hdr.update("livetm", livetime)
+        hdr["deadrt"] = dead_rate
+        hdr["deadmt"] = dead_method
+        hdr["livetm"] = livetime
         if dead_method == "SKIPPED":
             # Deadcorr would already be set to COMPLETE if it was done for
             # the first imset, in which case don't change it.  So COMPLETE
@@ -531,7 +533,7 @@ def updateSwitches(phdr, outflt, outcounts):
     for filename in [outflt, outcounts]:
         fd = fits.open(filename, mode="update")
         for keyword in ["photcorr", "dqicorr", "deadcorr", "flatcorr"]:
-            fd[0].header.update(keyword, phdr[keyword])
+            fd[0].header[keyword] = phdr[keyword]
         fd.close()
 
 def makeImages(counts_sci, flt_sci, exptime):
@@ -629,13 +631,13 @@ def writeCsum(outcsum, phdr, hdr_list, csum_array,
 
     primary_hdu = fits.PrimaryHDU(header=phdr)
     fd = fits.HDUList(primary_hdu)
-    fd[0].header.update("nextend", 1)
-    fd[0].header.update("filetype", "CALCOS SUM FILE")
+    fd[0].header["nextend"] = 1
+    fd[0].header["filetype"] = "CALCOS SUM FILE"
     cosutil.updateFilename(fd[0].header, outcsum)
     if raw_csum_coords:
-        fd[0].header.update("coordfrm", "raw")
+        fd[0].header["coordfrm"] = "raw"
     else:
-        fd[0].header.update("coordfrm", "corrected")
+        fd[0].header["coordfrm"] = "corrected"
 
     # used later for updating the COUNTS keyword
     counts = csum_array.sum(dtype=np.float64)
@@ -665,14 +667,14 @@ def writeCsum(outcsum, phdr, hdr_list, csum_array,
         compType = compType.upper() + "_1"
         quantLevel = float(quantLevel)
         fd.append(fits.CompImageHDU(binned_array, header=hdr, name="SCI",
-                                       compressionType=compType,
-                                       quantizeLevel=quantLevel))
+                                    compressionType=compType,
+                                    quantizeLevel=quantLevel))
     else:
         fd.append(fits.ImageHDU(data=binned_array, header=hdr, name="SCI"))
-    fd[1].header.update("BUNIT", "count")
-    fd[1].header.update("counts", counts)
-    fd[1].header.update("nuvbinx", binx)
-    fd[1].header.update("nuvbiny", biny)
+    fd[1].header["BUNIT"] = "count"
+    fd[1].header["counts"] = counts
+    fd[1].header["nuvbinx"] = binx
+    fd[1].header["nuvbiny"] = biny
 
     fd.writeto(outcsum, output_verify="silentfix")
 
@@ -724,10 +726,10 @@ def addExptimeKeywords(hdr_list, hdr):
         exptime += exptime_i
         rawtime += hdr_i.get("rawtime", exptime_i)
 
-    hdr.update("expstart", expstart)
-    hdr.update("expend", expend)
-    hdr.update("exptime", exptime)
-    hdr.update("rawtime", rawtime)
+    hdr["expstart"] = expstart
+    hdr["expend"] = expend
+    hdr["exptime"] = exptime
+    hdr["rawtime"] = rawtime
 
 def writePrimaryHDU(output, phdr, nextend):
     """Write an output file containing just a primary header.
@@ -789,18 +791,18 @@ def appendImset(output, imset, sci_array, err_array, dq_array,
     fd = fits.open(output, mode="append")
 
     hdu = fits.ImageHDU(data=sci_array, header=sci_hdr, name="SCI")
-    hdu.header.update("EXTVER", imset)
-    hdu.header.update("BUNIT", "count /s")
+    hdu.header["EXTVER"] = imset
+    hdu.header["BUNIT"] = "count /s"
     fd.append(hdu)
 
     hdu = fits.ImageHDU(data=err_array, header=err_hdr, name="ERR")
-    hdu.header.update("EXTVER", imset)
-    hdu.header.update("BUNIT", "count /s")
+    hdu.header["EXTVER"] = imset
+    hdu.header["BUNIT"] = "count /s"
     fd.append(hdu)
 
     hdu = fits.ImageHDU(data=dq_array, header=dq_hdr, name="DQ")
-    hdu.header.update("EXTVER", imset)
-    hdu.header.update("BUNIT", "UNITLESS")
+    hdu.header["EXTVER"] = imset
+    hdu.header["BUNIT"] = "UNITLESS"
     fd.append(hdu)
 
     fd.close()

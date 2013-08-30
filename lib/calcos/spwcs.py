@@ -223,22 +223,32 @@ class SpWCS(object):
                 # It is a FITS requirement that WCSAXES precede all other
                 # WCS keywords in a header.
                 if actual_keyword in hdr:
-                    hdr.update(actual_keyword, value)
+                    hdr[actual_keyword] = value
                 else:
                     # GCOUNT is the last of the set of keywords that must be
                     # present at the beginning of an extension header.
                     if actual_keyword == "wcsaxes":
-                        hdr.update(actual_keyword, value, after="gcount")
+                        hdr.set(actual_keyword, value, after="gcount") # xxx
+                        # xxx hdr.insert("gcount", (actual_keyword, value),
+                        # xxx            after=True)
                     elif actual_keyword == "wcsaxesa":
-                        hdr.update(actual_keyword, value, after="wcsaxes")
+                        hdr.set(actual_keyword, value, after="wcsaxes") # xxx
+                        # xxx hdr.insert("wcsaxes", (actual_keyword, value),
+                        # xxx            after=True)
                     elif actual_keyword == "wcsaxesb":
-                        hdr.update(actual_keyword, value, after="wcsaxesa")
+                        hdr.set(actual_keyword, value, after="wcsaxesa") # xxx
+                        # xxx hdr.insert("wcsaxesa", (actual_keyword, value),
+                        # xxx            after=True)
                     elif actual_keyword == "wcsaxesc":
-                        hdr.update(actual_keyword, value, after="wcsaxesb")
+                        hdr.set(actual_keyword, value, after="wcsaxesb") # xxx
+                        # xxx hdr.insert("wcsaxesb", (actual_keyword, value),
+                        # xxx            after=True)
                     else:       # don't really expect anything else
-                        hdr.update(actual_keyword, value, after="gcount")
+                        hdr.set(actual_keyword, value, after="gcount") # xxx
+                        # xxx hdr.insert("gcount", (actual_keyword, value),
+                        # xxx            after=True)
             else:
-                hdr.update(actual_keyword, value)
+                hdr[actual_keyword] = value
 
 class SpWcsImage(SpWCS):
     """Spectroscopic WCS for image data.

@@ -26,11 +26,11 @@ def doPhot(imphttab, obsmode, hdr):
     (photflam, photfnu, photbw, photplam, photzpt) = \
                 readImPhtTab(imphttab, obsmode)
 
-    hdr.update("photflam", photflam)
-    hdr.update("photfnu", photfnu)
-    hdr.update("photbw", photbw)
-    hdr.update("photplam", photplam)
-    hdr.update("photzpt", photzpt)
+    hdr["photflam"] = photflam
+    hdr["photfnu"] = photfnu
+    hdr["photbw"] = photbw
+    hdr["photplam"] = photplam
+    hdr["photzpt"] = photzpt
 
 def readImPhtTab(imphttab, obsmode):
     """Read the photometry parameters for imaging data from the imphttab.

@@ -71,12 +71,16 @@ class Shift1(object):
         keys as for spectra) for each segment or stripe; if that column
         is not present in the lamptab, the values should be 0.
 
-    initial_offset: int
-        0 if the lamptab contains both the FPOFFSET and FP_PIXEL_SHIFT
-        columns (this is the normal case, no initial offset should be
-        applied); if those columns are not in the lamptab, initial_offset
-        is the nominal offset (FPOFFSET * STEPSIZE) between the wavecal
-        spectrum and the template spectrum from the lamptab.
+    initial_offset: float
+        If the lamptab contains both the FPOFFSET and FP_PIXEL_SHIFT
+        columns (this is the normal case), this argument is the value read
+        from column SEARCH_OFFSET in the WCPTAB.  If SEARCH_OFFSET is not
+        found in the WCPTAB, initial_offset should be set to 0.
+        If FPOFFSET and FP_PIXEL_SHIFT are not in the lamptab,
+        initial_offset should be SEARCH_OFFSET + (FPOFFSET * STEPSIZE),
+        i.e. the sum of SEARCH_OFFSET from WCPTAB and the nominal offset
+        between the wavecal spectrum and the template spectrum from the
+        lamptab.
 
     spec_found: dictionary of boolean flags
         True for each spectrum that was found (same keys as for spectra);
@@ -86,16 +90,8 @@ class Shift1(object):
 
     def __init__(self, spectra, templates,
                  info, reffiles,
-                 xc_range, fp_pixel_shift, initial_offset=0,
+                 xc_range, fp_pixel_shift, initial_offset=0.,
                  spec_found={}):
-
-        # sanity check
-        if initial_offset != 0:
-            keys = fp_pixel_shift.keys()
-            for key in keys:
-                if fp_pixel_shift[key] != 0.:
-                    raise RuntimeError("initial_offset and fp_pixel_shift "
-                                       "cannot both be non-zero")
 
         self.spectra = copy.deepcopy(spectra)
         self.templates = copy.deepcopy(templates)
@@ -882,7 +878,7 @@ class Shift1(object):
                   ("NUVB", "G230L"): [0.0, 0.0],
                   ("NUVC", "G230L"): [0.0, 0.0]}
         # note:
-        # 0.02307692 = 1.2 / 52, i.e. 1.5 pixels per fpoffset step of 52 pixels
+        # 0.02307692 = 1.2 / 52, i.e. 1.2 pixels per fpoffset step of 52 pixels
 
         # Compute the average shift of the stripes for which shift1 was
         # found, first applying the offset between the current stripe and
@@ -891,8 +887,6 @@ class Shift1(object):
         # shift_0 (in the loop below) is the shift of the wavecal spectrum
         # from the template at fpoffset = 0.  This is used under the assumption
         # that the relative offsets between stripes depends on this shift.
-        # Note that initial_offset and fp_pixel_shift must not both be non-
-        # zero; this is why we add them to get the offset from fpoffset = 0.
         # Currently, shift_0 is just the anticipated fpoffset shift, not
         # the total shift1[abc] value.
         # shift_to_nuvb is the relative shift from the current stripe to

@@ -108,8 +108,8 @@ def main(args):
 
 def extractSpec(inlist=[], outdir=None, update_input=False,
                 location=None, extrsize=None,
-                 find_target={"flag": False, "cutoff": None},
-                 verbosity=None):
+                find_target={"flag": False, "cutoff": None},
+                verbosity=None):
     """Extract a 1-D spectrum from each set of flt and counts images.
 
     The input is a corrtag file name (the complete name, e.g.
@@ -412,7 +412,7 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
 
     fd = fits.open(corrtag, mode="copyonwrite")
     phdr = fd[0].header
-    phdr.update("cal_ver", cal_ver)
+    phdr["cal_ver"] = cal_ver
 
     detector = phdr.get("detector")
     headers = timetag.mkHeaders(phdr, fd[1].header)
@@ -551,7 +551,7 @@ def copyKeywords(x1d, file_list):
             fd2 = fits.open(filename, mode="update")
             for key in keywords:
                 value = fd1[1].header.get(key, -999.)
-                fd2[1].header.update(key, value)
+                fd2[1].header[key] = value
             fd2.close()
 
     fd1.close()

@@ -102,7 +102,8 @@ def oneInputFile(input, output):
                      ("MCENWAVE", "cenwave", fd[0].header["cenwave"])]
     for (new_kwd, old_kwd, value) in list_keywords:
         str_value = str(value)
-        fd[0].header.update(new_kwd, str_value, after=old_kwd)
+        fd[0].header.set(new_kwd, str_value, after=old_kwd)     # xxx temp
+        # xxx fd[0].header.insert(old_kwd, (new_kwd, str_value), after=True)
     del_these = ["segment", "wavecals", "fppos", "fpoffset"]
     for keyword in del_these:
         if keyword in fd[0].header:
@@ -199,7 +200,7 @@ def pixelsFromWl(input_wavelength, output_wavelength):
     disp[0] = input_wavelength[1] - input_wavelength[0]
     disp[nelem-1] = input_wavelength[nelem-1] - input_wavelength[nelem-2]
 
-    # x0 is a rough first estimate of the pixel numbers.
+    # x0 is a first estimate of the pixel numbers.
     x0 = (output_wavelength - input_wavelength[0]) / avgdisp
     x0 = np.where(x0 < 0., 0., x0)
     ix0 = x0.astype(np.int32)
@@ -364,26 +365,26 @@ class OutputX1D(object):
                     if segment not in self.segments:
                         self.segments.append(segment)
                     self.inspec.append(sp)
-                    if detector == "NUV":
-                        sum_exptime_kwd[0] += hdr.get("exptime", default=0.)
-                        globrate = hdr.get("globrate", -1.)
-                        if globrate >= 0.:
-                            sum_globrate[0] += (globrate * sp.exptime)
-                            sum_exptime[0] += sp.exptime
-                    elif segment == "FUVA":
+                    if sp.segment == "FUVA":
                         sum_exptime_kwd[1] += hdr.get("exptimea",
                                               default=hdr.get("exptime", 0.))
                         globrate = hdr.get("globrt_a", -1.)
                         if globrate >= 0.:
                             sum_globrate[1] += (globrate * sp.exptime)
                             sum_exptime[1] += sp.exptime
-                    elif segment == "FUVB":
+                    elif sp.segment == "FUVB":
                         sum_exptime_kwd[2] += hdr.get("exptimeb",
                                               default=hdr.get("exptime", 0.))
                         globrate = hdr.get("globrt_b", -1.)
                         if globrate >= 0.:
                             sum_globrate[2] += (globrate * sp.exptime)
                             sum_exptime[2] += sp.exptime
+                    elif detector == "NUV" and row == 0:
+                        sum_exptime_kwd[0] += hdr["exptime"]
+                        globrate = hdr["globrate"]
+                        if globrate >= 0.:
+                            sum_globrate[0] += (globrate * sp.exptime)
+                            sum_exptime[0] += sp.exptime
 
             ifd.close()
 
@@ -493,7 +494,7 @@ class OutputX1D(object):
 
         # Get header info from the input.
         ifd = fits.open(self.input[self.index_max_nelem],
-                          mode="copyonwrite")
+                        mode="copyonwrite")
         detector = ifd[0].header["detector"]
 
         primary_hdu = fits.PrimaryHDU(header=ifd[0].header)
@@ -504,7 +505,9 @@ class OutputX1D(object):
                          ("MCENWAVE", "cenwave", self.keywords["cenwave"])]
         for (new_kwd, old_kwd, list_value) in list_keywords:
             str_value = makeStringList(list_value)
-            primary_hdu.header.update(new_kwd, str_value, after=old_kwd)
+            primary_hdu.header.set(new_kwd, str_value, after=old_kwd)   # xxx
+            # xxx primary_hdu.header.insert(old_kwd, (new_kwd, str_value),
+            # xxx                           after=True)
         del_these = ["segment", "wavecals", "fppos", "fpoffset"]
         for keyword in del_these:
             if keyword in primary_hdu.header:
@@ -557,22 +560,22 @@ class OutputX1D(object):
         # Create output HDU for the table.
         hdu = fits.new_table(cd, header=ifd[1].header, nrows=self.nrows)
 
-        hdu.header.update("exptime", self.keywords["exptime"])
+        hdu.header["exptime"] = self.keywords["exptime"]
         if detector == "FUV":
-            hdu.header.update("exptimea", self.keywords["exptimea"])
-            hdu.header.update("exptimeb", self.keywords["exptimeb"])
+            hdu.header["exptimea"] = self.keywords["exptimea"]
+            hdu.header["exptimeb"] = self.keywords["exptimeb"]
 
-        hdu.header.update("expstart", self.keywords["expstart"])
-        hdu.header.update("expend", self.keywords["expend"])
-        hdu.header.update("expstrtj", self.keywords["expstrtj"])
-        hdu.header.update("expendj", self.keywords["expendj"])
-        hdu.header.update("plantime", self.keywords["plantime"])
+        hdu.header["expstart"] = self.keywords["expstart"]
+        hdu.header["expend"] = self.keywords["expend"]
+        hdu.header["expstrtj"] = self.keywords["expstrtj"]
+        hdu.header["expendj"] = self.keywords["expendj"]
+        hdu.header["plantime"] = self.keywords["plantime"]
         if self.keywords["globrate"] >= 0.:
-            hdu.header.update("globrate", round(self.keywords["globrate"], 4))
+            hdu.header["globrate"] = round(self.keywords["globrate"], 4)
         if self.keywords["globrt_a"] >= 0.:
-            hdu.header.update("globrt_a", round(self.keywords["globrt_a"], 4))
+            hdu.header["globrt_a"] = round(self.keywords["globrt_a"], 4)
         if self.keywords["globrt_b"] >= 0.:
-            hdu.header.update("globrt_b", round(self.keywords["globrt_b"], 4))
+            hdu.header["globrt_b"] = round(self.keywords["globrt_b"], 4)
 
         # Delete some keywords because they are specific to one exposure.
         delSomeKeywords(hdu.header)
@@ -603,7 +606,7 @@ class OutputX1D(object):
         ofd[1].data.field("gcounts")[:] = 0.
         ofd[1].data.field("net")[:] = 0.
         ofd[1].data.field("background")[:] = 0.
-        ofd[1].data.field("dq")[:] = 0
+        ofd[1].data.field("dq")[:] = DQ_PIXEL_OUT_OF_BOUNDS
         ofd[1].data.field("dq_wgt")[:] = 0.
 
     def updateArchiveSearch(self, ofd):
@@ -636,10 +639,10 @@ class OutputX1D(object):
             maxwave_row = good_wl.max()
             maxwave = max(maxwave, maxwave_row)
 
-        phdr.update("MINWAVE", minwave)
-        phdr.update("MAXWAVE", maxwave)
-        phdr.update("BANDWID", maxwave - minwave)
-        phdr.update("CENTRWV", (maxwave + minwave) / 2.)
+        phdr["MINWAVE"] = minwave
+        phdr["MAXWAVE"] = maxwave
+        phdr["BANDWID"] = maxwave - minwave
+        phdr["CENTRWV"] = (maxwave + minwave) / 2.
 
 class Spectrum(object):
     """One row of an input spectrum.
@@ -720,26 +723,28 @@ class Spectrum(object):
 
         # Read the flat field.
         phdr = ifd[0].header
-        obsmode = phdr.get("obsmode", default="missing")
-        doppcorr = phdr.get("doppcorr", default="omit")
+        obsmode = phdr["obsmode"]
+        doppcorr = phdr["doppcorr"]
+        detector = phdr["detector"]
         hdr = ifd[1].header
         seg = self.segment[-1].lower()
         if phdr.get("exptype", default="missing").startswith("EXTERNAL"):
-            shift1 = hdr.get("shift1" + seg, default=0.)
-            shift2 = hdr.get("shift2" + seg, default=0.)
+            shift1 = hdr["shift1" + seg]
+            shift2 = hdr["shift2" + seg]
         else:
             shift1 = 0.
             shift2 = 0.
-        sp_loc = hdr.get("sp_loc_" + seg, default="missing")
+        sp_loc = hdr["sp_loc_" + seg]
         x_offset = hdr.get("x_offset", default=0)
-        expstart = hdr.get("expstart", default="missing")
-        expend = hdr.get("expend", default="missing")
+        expstart = hdr["expstart"]
+        expend = hdr["expend"]
 
         self.getFlatField(ifd)
         if self.data_ff is not None:
             self.collapseFlatField(sp_loc, shift2, width=XD_WIDTH)
             (doppmag, doppzero, orbitper) = \
-                        self.getDopplerParam(doppcorr, obsmode, hdr)
+                        self.getDopplerParam(doppcorr, obsmode,
+                                             detector, hdr)
             self.shiftFlatField(shift1, x_offset,
                                 doppcorr, doppmag, doppzero, orbitper,
                                 expstart, expend)
@@ -757,13 +762,11 @@ class Spectrum(object):
         """
 
         phdr = ifd[0].header
-        flatcorr = phdr.get("flatcorr", default="omit")
+        flatcorr = phdr["flatcorr"]
         if flatcorr != "COMPLETE" and flatcorr != "PERFORM":
             return
-        flatfile = phdr.get("flatfile", default=NOT_APPLICABLE)
-        if flatfile == NOT_APPLICABLE:
-            return
-        detector = phdr.get("detector", default="missing")
+        flatfile = phdr["flatfile"]
+        detector = phdr["detector"]
         segment = self.segment
         reffiles = {}
         reffiles["flatfile"] = cosutil.expandFileName(flatfile)
@@ -822,14 +825,19 @@ class Spectrum(object):
                 self.data_ff = self.data_ff.mean(axis=0, dtype=np.float64)
         self.state_ff = "slice taken, averaged to 1-D"
 
-    def getDopplerParam(self, doppcorr, obsmode, hdr):
+    def getDopplerParam(self, doppcorr, obsmode, detector, hdr):
         """Read Doppler parameters from the header.
 
         Parameters
         ----------
         doppcorr: str
+            PERFORM, COMPLETE, OMIT, SKIPPED.
 
         obsmode: str
+            TIME-TAG or ACCUM.
+
+        detector: str
+            FUV or NUV.
 
         hdr: pyfits Header object
             The header of the first extension.
@@ -846,7 +854,7 @@ class Spectrum(object):
         elif obsmode == "TIME-TAG":
             # Get wavelength and dispersion from spectrum near middle.
             nelem = len(self.wavelength)
-            if hdr.get("detector", default="missing") == "FUV":
+            if detector == "FUV":
                 middle = nelem // 2
             else:
                 middle = hdr.get("x_offset", default=0) + NUV_X // 2
@@ -857,21 +865,14 @@ class Spectrum(object):
                 disp = (self.wavelength[high] - self.wavelength[low]) / 100.
             else:
                 raise RuntimeError("wavelength array is too short, %d" % nelem)
-            doppmag = (hdr.get("doppmagv") / SPEED_OF_LIGHT) * \
-                      (wavelength / disp)
-            doppzero = hdr.get("doppzero", default="missing")
-            orbitper = hdr.get("orbitper", default="missing")
+            doppmag = (hdr["doppmagv"] / SPEED_OF_LIGHT) * (wavelength / disp)
+            doppzero = hdr["doppzero"]
+            orbitper = hdr["orbitper"]
 
         else:               # ACCUM
-            doppmag  = hdr.get("dopmagt", default="missing")
-            doppzero = hdr.get("dopzerot", default="missing")
-            orbitper = hdr.get("orbtpert", default="missing")
-        if doppmag == "missing" or doppzero == "missing" or \
-           orbitper == "missing":
-            cosutil.printWarning("Missing Doppler shift keyword(s).")
-            doppmag  = 0.
-            doppzero = 0.
-            orbitper = 5760.
+            doppmag  = hdr["dopmagt"]
+            doppzero = hdr["dopzerot"]
+            orbitper = hdr["orbtpert"]
 
         return (doppmag, doppzero, orbitper)
 
@@ -882,9 +883,31 @@ class Spectrum(object):
 
         Parameters
         ----------
+        shift1: float
+            OSM (wavecal) shift in dispersion direction.
 
-        Returns
-        -------
+        x_offset: int
+            Value of X_OFFSET keyword (buffer to avoid losing data due to
+            fpoffset shift).
+
+        doppcorr: str
+            PERFORM, OMIT, etc.
+
+        doppmag: float
+            Magnitude of Doppler shift in pixels.
+
+        doppzero: float
+            Time (MJD) when the orbital Doppler shift is zero and
+            increasing.
+
+        orbitper: float
+            Orbital period (seconds) of HST.
+
+        expstart: float
+            Exposure start time (MJD).
+
+        expend: float
+            Exposure end time (MJD).
         """
 
         if self.data_ff is None:
@@ -931,9 +954,31 @@ class Spectrum(object):
 
         Parameters
         ----------
+        flat: array_like
+            Flat field, collapsed to 1-D, float.
+
+        doppmag: float
+            Magnitude of Doppler shift in pixels.
+
+        doppzero: float
+            Time (MJD) when the orbital Doppler shift is zero and
+            increasing.
+
+        orbitper: float
+            Orbital period (seconds) of HST.
+
+        expstart: float
+            Exposure start time (MJD).
+
+        expend: float
+            Exposure end time (MJD).
 
         Returns
         -------
+            The flat field convolved with the Doppler shift throughout
+            the exposure (i.e. from expstart to expend).  If the magnitude
+            of the Doppler shift was zero, or expend is not later than
+            expstart, the input flat will be returned.
         """
 
         if doppmag <= 0.:
@@ -948,18 +993,22 @@ class Spectrum(object):
 
         # This spans the exposure, may be greater than actual exposure time.
         exptime = (expend - expstart) * SEC_PER_DAY
+        rnd_exptime = int(round(exptime))
+        if rnd_exptime <= 0:
+            return flat
+
         # t is the time in seconds since doppzero, in one-second increments.
-        t = np.arange(int(round(exptime)), dtype=np.float64) + \
+        t = np.arange(rnd_exptime, dtype=np.float64) + \
                    (expstart - doppzero) * SEC_PER_DAY
 
         # shift is in pixels (wavelengths increase toward larger pixel number).
         shift = -doppmag * np.sin(2. * np.pi * t / orbitper)
 
         # Construct the Doppler smoothing function.
-        npts = round(exptime)
-        increment = 1. / npts
-        npts = int(npts)
-        for i in range(npts):                       # one-second increments
+        i_npts = rnd_exptime
+        i_npts = max(i_npts, 1)
+        increment = 1. / float(i_npts)
+        for i in range(i_npts):                     # one-second increments
             ishift = int(round(shift[i])) + mag
             dopp[ishift] += increment
 
@@ -1062,10 +1111,10 @@ class OutputSpectrum(object):
         nelem = len(sumweight)
 
         data.field("flux")[:] /= sumweight
+        data.field("error")[:] = np.sqrt(data.field("error")) / sumweight
         data.field("gross")[:] /= sumweight
         data.field("net")[:] /= sumweight
         data.field("background")[:] /= sumweight
-        data.field("error")[:] = np.sqrt(data.field("error")) / sumweight
 
     def accumulateSums(self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.

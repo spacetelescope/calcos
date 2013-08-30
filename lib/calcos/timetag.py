@@ -161,6 +161,8 @@ def timetagBasicCalibration(input, inpha, outtag,
     if info["corrtag_input"] and switches["dqicorr"] == "PERFORM":
         events.field("dq")[:] = 0.
 
+    # Set active_area, but note that this is preliminary because we haven't
+    # done tempcorr or geocorr yet.
     setActiveArea(events, info, reffiles["brftab"])
 
     doPhotcorr(info, switches, reffiles["imphttab"], phdr, headers[1])
@@ -177,7 +179,7 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doGeocorr(events, info, switches, reffiles, phdr)
 
-    # Set this array of flags again, now that geometric correction is done.
+    # Set active_area based on (xcorr, ycorr) coordinates.
     setActiveArea(events, info, reffiles["brftab"])
 
     doWalkCorr(events, info, switches, reffiles, phdr)
@@ -194,6 +196,13 @@ def timetagBasicCalibration(input, inpha, outtag,
                stim_countrate, stim_livetime, cl_args["livetimefile"])
 
     # Write the calcos sum image.
+    if info["obsmode"] == "TIME-TAG":
+        bursts = None
+        (modified, gti) = recomputeExptime(input, bursts, badt, events,
+                                           headers[1], info)
+        if info["detector"] == "FUV":       # update keywords EXPTIME[AB]
+            key = cosutil.segmentSpecificKeyword("exptime", info["segment"])
+            headers[1][key] = info["exptime"]
     if outcsum is not None:
         writeCsum(outcsum, events,
                   info["detector"], info["obsmode"],
@@ -207,7 +216,9 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doDoppcorr(events, info, switches, reffiles, phdr)
 
-    if info["aperture"] not in APERTURE_NAMES:
+    if not (info["aperture"] in APERTURE_NAMES or
+            info["targname"] == "DARK" and
+            info["aperture"] in OTHER_APERTURE_NAMES):
         ofd.close()
         raise BadApertureError("APERTURE = %s is not a valid aperture name." %
                                info["aperture"])
@@ -217,18 +228,20 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doFlatcorr(events, info, switches, reffiles, phdr, headers[1])
 
+    phdr["wavecals"] = ""               # initial value
     if info["tagflash"]:
         cosutil.printSwitch("WAVECORR", switches)
     if switches["wavecorr"] == "PERFORM":
         if info["tagflash"]:
-            (tl_time, shift1_vs_time) = \
+            (tl_time, shift1_vs_time, wavecorr) = \
             concurrent.processConcurrentWavecal(events, \
                         outflash, cl_args["shift_file"],
                         info, switches, reffiles, phdr, headers[1])
-            filename = os.path.basename(input)
-            if cl_args["shift_file"] is not None:
-                filename = filename + " " + cl_args["shift_file"]
-            phdr.update("wavecals", filename)
+            if wavecorr == "COMPLETE":
+                filename = os.path.basename(input)
+                if cl_args["shift_file"] is not None:
+                    filename = filename + " " + cl_args["shift_file"]
+                phdr["wavecals"] = filename
         else:
             # Value to assign to keyword in phdr (updateFromWavecal does
             # this), but this value can be overridden by noWavecal.
@@ -266,7 +279,7 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     if info["detector"] == "FUV":       # update keyword EXPTIMEA or EXPTIMEB
         key = cosutil.segmentSpecificKeyword("exptime", info["segment"])
-        headers[1].update(key, info["exptime"])
+        headers[1][key] = info["exptime"]
 
     minmax_shift_dict = getWavecalOffsets(events, info, switches["wavecorr"],
                                           reffiles["xtractab"])
@@ -396,40 +409,36 @@ def mkHeaders(phdr, events_header, extver=1):
 
     err_hdr = fits.Header()
     dq_hdr = fits.Header()
-    err_hdr.update("extname", "ERR", comment="extension name")
-    dq_hdr.update("extname", "DQ", comment="extension name")
-    err_hdr.update("extver", extver, comment="extension version number")
-    dq_hdr.update("extver", extver, comment="extension version number")
+    err_hdr["extname"] = ("ERR", "extension name")
+    dq_hdr["extname"] = ("DQ", "extension name")
+    err_hdr["extver"] = (extver, "extension version number")
+    dq_hdr["extver"] = (extver, "extension version number")
     if "rootname" in events_header:
         rootname = events_header["rootname"]
-        err_hdr.update("rootname", rootname,
-                       comment="rootname of the observation set")
-        dq_hdr.update("rootname", rootname,
-                      comment="rootname of the observation set")
+        err_hdr["rootname"] = (rootname, "rootname of the observation set")
+        dq_hdr["rootname"] = (rootname, "rootname of the observation set")
     if "expname" in events_header:
         expname = events_header["expname"]
-        err_hdr.update("expname", expname, comment="exposure identifier")
-        dq_hdr.update("expname", expname, comment="exposure identifier")
+        err_hdr["expname"] = (expname, "exposure identifier")
+        dq_hdr["expname"] = (expname, "exposure identifier")
     if "ra_aper" in events_header:
-        err_hdr.update("ra_aper", events_header["ra_aper"],
-                       comment="RA of reference aperture center")
+        err_hdr["ra_aper"] = (events_header["ra_aper"],
+                              "RA of reference aperture center")
     if "dec_aper" in events_header:
-        err_hdr.update("dec_aper", events_header["dec_aper"],
-                       comment="Declination of reference aperture center")
+        err_hdr["dec_aper"] = (events_header["dec_aper"],
+                               "Declination of reference aperture center")
     if "pa_aper" in events_header:
-        err_hdr.update("pa_aper", events_header["pa_aper"],
-                    comment="Position Angle of reference aperture center (de")
+        err_hdr["pa_aper"] = (events_header["pa_aper"],
+                        "Position Angle of reference aperture center (de")
     if "dispaxis" in events_header:
-        err_hdr.update("dispaxis", events_header["dispaxis"],
-                       comment="dispersion axis; 1 = axis 1, 2 = axis 2, none")
+        err_hdr["dispaxis"] = (events_header["dispaxis"],
+                        "dispersion axis; 1 = axis 1, 2 = axis 2, none")
     if "ngoodpix" in events_header:
-        err_hdr.update("ngoodpix", -999, comment="number of good pixels")
+        err_hdr["ngoodpix"] = (-999, "number of good pixels")
     if "goodmean" in events_header:
-        err_hdr.update("goodmean", -999.,
-                       comment="mean value of good pixels")
+        err_hdr["goodmean"] = (-999., "mean value of good pixels")
     if "goodmax" in events_header:
-        err_hdr.update("goodmax", -999.,
-                       comment="maximum value of good pixels")
+        err_hdr["goodmax"] = (-999., "maximum value of good pixels")
 
     headers.append(err_hdr)
     headers.append(dq_hdr)
@@ -484,7 +493,7 @@ def updateHVKeywords(hdr, info, reffiles):
                 t_diff = diff
                 row_min = row
         hv_raw = raw[row_min]
-        hdr.update(keyword, hv_raw)
+        hdr[keyword] = hv_raw
         if segment == info["segment"]:
             info["hvlevel"] = hv_raw
 
@@ -516,7 +525,7 @@ def doPhotcorr(info, switches, imphttab, phdr, hdr):
         if switches["photcorr"] == "PERFORM":
             obsmode = "cos,nuv," + info["opt_elem"] + "," + info["aperture"]
             phot.doPhot(imphttab, obsmode, hdr)
-            phdr.update("photcorr", "COMPLETE")
+            phdr["photcorr"] = "COMPLETE"
 
 def updateGlobrate(info, hdr):
     """Update the GLOBRATE keyword in the extension header.
@@ -536,7 +545,7 @@ def updateGlobrate(info, hdr):
     else:
         keyword = "globrate"
     globrate = round(globrate, 4)
-    hdr.update(keyword, globrate)
+    hdr[keyword] = globrate
 
 def globrate_tt(exptime, detector):
     """Return the global count rate for time-tag data.
@@ -606,7 +615,7 @@ def doBurstcorr(events, info, switches, reffiles, phdr, burstfile):
             bursts = burst.burstFilter(events.field("time"),
                                        events.field(yfull), events.field("dq"),
                                        reffiles, info, burstfile)
-            phdr.update("brstcorr", "COMPLETE")
+            phdr["brstcorr"] = "COMPLETE"
 
     return bursts
 
@@ -745,14 +754,14 @@ def countBadEvents(events, bursts, badt, info, hdr):
                 n_burst += (r[1] - r[0])
         t_key = "tbrst_" + info["segment"][-1]
         n_key = "nbrst_" + info["segment"][-1]
-        hdr.update(t_key, t_burst)
-        hdr.update(n_key, n_burst)
+        hdr[t_key] = t_burst
+        hdr[n_key] = n_burst
 
         # The length of t is the total number of events, while the number of
         # True flags is the number of events that are within the active area.
         n_outside_active_area = len(t) - np.sum(active_area.astype(np.int32))
         n_key = "nout_" + info["segment"][-1]
-        hdr.update(n_key, n_outside_active_area)
+        hdr[n_key] = n_outside_active_area
 
     for (bad_start, bad_stop) in badt:
         if badt is not None:
@@ -773,8 +782,8 @@ def countBadEvents(events, bursts, badt, info, hdr):
     else:
         t_key = "tbadt"
         n_key = "nbadt"
-    hdr.update(t_key, t_badt)
-    hdr.update(n_key, n_badt)
+    hdr[t_key] = t_badt
+    hdr[n_key] = n_badt
 
     if info["detector"] == "FUV":
         # The keyword for the number of events flagged as bad due to pulse
@@ -786,7 +795,7 @@ def countBadEvents(events, bursts, badt, info, hdr):
         n_key = "nbadevt" + info["segment"][-1]
     else:
         n_key = "nbadevnt"
-    hdr.update(n_key, n_burst + n_badt + n_outside_active_area + n_bad_pha)
+    hdr[n_key] = n_burst + n_badt + n_outside_active_area + n_bad_pha
 
 def recomputeExptime(input, bursts, badt, events, hdr, info):
     """Recompute the exposure time and update the keyword.
@@ -843,7 +852,7 @@ def recomputeExptime(input, bursts, badt, events, hdr, info):
 
     old_exptime = hdr.get("exptime", 0.)
     if exptime != old_exptime:
-        hdr.update("exptime", exptime)
+        hdr["exptime"] = exptime
         info["exptime"] = exptime
         if abs(exptime - old_exptime) > 1.:
             cosutil.printWarning("exposure time in header was %.3f" %
@@ -916,7 +925,7 @@ def saveNewGTI(ofd, gti):
     col.append(fits.Column(name="STOP", format="1D", unit="s"))
     cd = fits.ColDefs(col)
     hdu = fits.new_table(cd, nrows=len_gti)
-    hdu.header.update("extname", "GTI")
+    hdu.header["extname"] = "GTI"
     outdata = hdu.data
     startcol = outdata.field("START")
     stopcol = outdata.field("STOP")
@@ -935,14 +944,14 @@ def saveNewGTI(ofd, gti):
         if extname == "GTI":
             extver = existing_gti.header.get("extver", 1)
             last_extver = max(last_extver, extver)
-    hdu.header.update("extver", last_extver+1)
+    hdu.header["extver"] = last_extver + 1
 
     # Now append the updated GTI table.
     ofd.append(hdu)
     # if we have pyfits 2.1.1dev462 or later, we could insert
     # ofd.insert(2, hdu)
 
-    ofd[0].header.update("nextend", len(ofd)-1)
+    ofd[0].header["nextend"] = len(ofd) - 1
 
 def doPhacorr(inpha, events, info, switches, reffiles, phdr, hdr):
     """Filter by pulse height.
@@ -1067,7 +1076,7 @@ def filterPHA(xcorr, ycorr, pha, dq, phafile, info, hdr):
         cosutil.printMsg(msg, VERY_VERBOSE)
 
     keyword = "NPHA_" + segment[-1]
-    hdr.update(keyword, nbad_low + nbad_high)
+    hdr[keyword] = nbad_low + nbad_high
 
     # xxx what should we do for keywords for lower and upper limits?
     # The screening limits are not necessarily constant, so the keywords
@@ -1150,7 +1159,7 @@ def filterByPulseHeight(pha, dq, phatab, info, hdr):
         cosutil.printMsg(msg, VERY_VERBOSE)
 
     keyword = "NPHA_" + segment[-1]
-    hdr.update(keyword, nbad)
+    hdr[keyword] = nbad
 
     # Update the values for the screening limit keywords
     # (low and high are the default values).
@@ -1774,28 +1783,28 @@ def stimKeywords(hdr, segment, avg_s1, avg_s2, rms_s1, rms_s2,
 
     seg = segment[-1]           # "A" or "B"
 
-    hdr.update("STIM"+seg+"0LX", s1_ref[1])
-    hdr.update("STIM"+seg+"0LY", s1_ref[0])
-    hdr.update("STIM"+seg+"0RX", s2_ref[1])
-    hdr.update("STIM"+seg+"0RY", s2_ref[0])
+    hdr["STIM"+seg+"0LX"] = s1_ref[1]
+    hdr["STIM"+seg+"0LY"] = s1_ref[0]
+    hdr["STIM"+seg+"0RX"] = s2_ref[1]
+    hdr["STIM"+seg+"0RY"] = s2_ref[0]
 
     if avg_s1[0] is None or avg_s1[1] is None:
-        hdr.update("STIM"+seg+"_LX", -1.)
-        hdr.update("STIM"+seg+"_LY", -1.)
+        hdr["STIM"+seg+"_LX"] = -1.
+        hdr["STIM"+seg+"_LY"] = -1.
     else:
-        hdr.update("STIM"+seg+"_LX", round(avg_s1[1], 3))
-        hdr.update("STIM"+seg+"_LY", round(avg_s1[0], 3))
-        hdr.update("STIM"+seg+"SLX", round(rms_s1[1], 3))
-        hdr.update("STIM"+seg+"SLY", round(rms_s1[0], 3))
+        hdr["STIM"+seg+"_LX"] = round(avg_s1[1], 3)
+        hdr["STIM"+seg+"_LY"] = round(avg_s1[0], 3)
+        hdr["STIM"+seg+"SLX"] = round(rms_s1[1], 3)
+        hdr["STIM"+seg+"SLY"] = round(rms_s1[0], 3)
 
     if avg_s2[0] is None or avg_s2[1] is None:
-        hdr.update("STIM"+seg+"_RX", -1.)
-        hdr.update("STIM"+seg+"_RY", -1.)
+        hdr["STIM"+seg+"_RX"] = -1.
+        hdr["STIM"+seg+"_RY"] = -1.
     else:
-        hdr.update("STIM"+seg+"_RX", round(avg_s2[1], 3))
-        hdr.update("STIM"+seg+"_RY", round(avg_s2[0], 3))
-        hdr.update("STIM"+seg+"SRX", round(rms_s2[1], 3))
-        hdr.update("STIM"+seg+"SRY", round(rms_s2[0], 3))
+        hdr["STIM"+seg+"_RX"] = round(avg_s2[1], 3)
+        hdr["STIM"+seg+"_RY"] = round(avg_s2[0], 3)
+        hdr["STIM"+seg+"SRX"] = round(rms_s2[1], 3)
+        hdr["STIM"+seg+"SRY"] = round(rms_s2[0], 3)
 
 def thermalParam(s1, s2, s1_ref, s2_ref):
     """Compute linear thermal distortion correction from stim positions.
@@ -2227,12 +2236,12 @@ def doDqicorr(events, input, info, switches, reffiles,
             if "gsagtab" in phdr:
                 # replace the comment, to give the extension number
                 segment = info["segment"]
-                gsagtab = phdr.get("gsagtab", "missing")
+                gsagtab = phdr["gsagtab"]
                 if extn > 0:
                     comment = "ext. %d for %s" % (extn, segment)
                 else:
                     comment = "no ext. for %s" % segment
-                phdr.update("gsagtab", gsagtab, comment=comment)
+                phdr["gsagtab"] = (gsagtab, comment)
 
     return dq_array
 
@@ -2602,7 +2611,7 @@ def initHelcorr(events, info, hdr):
     # is actually not used here).
     radvel = heliocentricVelocity(t_mid, info["ra_targ"], info["dec_targ"])
     helio_factor = -radvel  / SPEED_OF_LIGHT
-    hdr.update("v_helio", radvel)
+    hdr["v_helio"] = radvel
     info["v_helio"] = radvel
 
 def heliocentricVelocity(t, ra_targ, dec_targ):
@@ -2912,17 +2921,17 @@ def updateDeadtimeKeywords(hdr, segment,
     """
 
     if segment == "FUVA":
-        hdr.update("deadrt_a", dead_rate)
-        hdr.update("deadmt_a", dead_method)
-        hdr.update("livetm_a", avg_livetime)
+        hdr["deadrt_a"] = dead_rate
+        hdr["deadmt_a"] = dead_method
+        hdr["livetm_a"] = avg_livetime
     elif segment == "FUVB":
-        hdr.update("deadrt_b", dead_rate)
-        hdr.update("deadmt_b", dead_method)
-        hdr.update("livetm_b", avg_livetime)
+        hdr["deadrt_b"] = dead_rate
+        hdr["deadmt_b"] = dead_method
+        hdr["livetm_b"] = avg_livetime
     else:
-        hdr.update("deadrt", dead_rate)
-        hdr.update("deadmt", dead_method)
-        hdr.update("livetm", avg_livetime)
+        hdr["deadrt"] = dead_rate
+        hdr["deadmt"] = dead_method
+        hdr["livetm"] = avg_livetime
 
 def deadtimeCorrection(events, deadtab, info,
                        stim_countrate, stim_livetime,
@@ -3541,9 +3550,9 @@ def makeImageHDU(fd, table_hdr, data_array, name="SCI"):
     # Create an image header from the table header.
     imhdr = cosutil.tableHeaderToImage(table_hdr)
     if name == "DQ":
-        imhdr.update("BUNIT", "UNITLESS")
+        imhdr["BUNIT"] = "UNITLESS"
     else:
-        imhdr.update("BUNIT", "count /s")
+        imhdr["BUNIT"] = "count /s"
 
     if data_array is not None:
         if "npix1" in imhdr:
@@ -3617,8 +3626,8 @@ def writeCsum(outcsum, events,
 
     primary_hdu = fits.PrimaryHDU(header=phdr)
     fd = fits.HDUList(primary_hdu)
-    fd[0].header.update("nextend", 1)
-    fd[0].header.update("filetype", "CALCOS SUM FILE")
+    fd[0].header["nextend"] = 1
+    fd[0].header["filetype"] = "CALCOS SUM FILE"
     cosutil.updateFilename(fd[0].header, outcsum)
 
     if events is None or len(events) == 0:
@@ -3627,19 +3636,19 @@ def writeCsum(outcsum, events,
         epsilon = None
         pha = None
         if raw_csum_coords:
-            fd[0].header.update("coordfrm", "raw")
+            fd[0].header["coordfrm"] = "raw"
         else:
-            fd[0].header.update("coordfrm", "corrected")
+            fd[0].header["coordfrm"] = "corrected"
     else:
         if raw_csum_coords:
             xcoord = events.field("rawx")
             ycoord = events.field("rawy")
             flagOmit(fd[0].header)      # set some cal. switches to OMIT
-            fd[0].header.update("coordfrm", "raw")
+            fd[0].header["coordfrm"] = "raw"
         else:
             xcoord = events.field(xcorr)
             ycoord = events.field(ycorr)
-            fd[0].header.update("coordfrm", "corrected")
+            fd[0].header["coordfrm"] = "corrected"
         epsilon = events.field("epsilon")
         if detector == "FUV" and obsmode == "TIME-TAG":
             pha = events.field("pha")
@@ -3680,9 +3689,9 @@ def writeCsum(outcsum, events,
             if xcoord is not None:
                 ccos.csum_2d(data, xcoord, ycoord, epsilon, binx, biny)
         fd.append(fits.CompImageHDU(data, header=hdr, name="SCI",
-                                      compressionType=compType,
-                                      quantizeLevel=quantLevel))
-        fd[1].header.update("counts", data.sum(dtype=np.float64))
+                                    compressionType=compType,
+                                    quantizeLevel=quantLevel))
+        fd[1].header["counts"] = data.sum(dtype=np.float64)
         #  the arguments to CompImageHDU and their defaults are:
         # compressionType='RICE_1', 'PLIO_1', 'GZIP_1', 'HCOMPRESS_1'
         # tileSize=None,       # shape of tile, default is one row
@@ -3696,34 +3705,34 @@ def writeCsum(outcsum, events,
         if detector == "FUV":
             if obsmode == "ACCUM":
                 fd.append(fits.ImageHDU(data=np.zeros((ny, nx),
-                                                        dtype=np.float32),
-                                          header=hdr, name="SCI"))
+                                                      dtype=np.float32),
+                                        header=hdr, name="SCI"))
                 if xcoord is not None:
                     ccos.csum_2d(fd[1].data, xcoord, ycoord, epsilon,
                                  binx, biny)
             else:
                 fd.append(fits.ImageHDU(data=np.zeros((PHA_RANGE, ny, nx),
-                                                        dtype=np.float32),
-                                          header=hdr, name="SCI"))
+                                                      dtype=np.float32),
+                                        header=hdr, name="SCI"))
                 if xcoord is not None:
                     ccos.csum_3d(fd[1].data, xcoord, ycoord, epsilon,
                                  pha.astype(np.int16), binx, biny)
         else:
             fd.append(fits.ImageHDU(data=np.zeros((ny, nx),
-                                                    dtype=np.float32),
-                                      header=hdr, name="SCI"))
+                                                  dtype=np.float32),
+                                    header=hdr, name="SCI"))
             if xcoord is not None:
                 ccos.csum_2d(fd[1].data, xcoord, ycoord, epsilon, binx, biny)
-        fd[1].header.update("counts", fd[1].data.sum(dtype=np.float64))
+        fd[1].header["counts"] = fd[1].data.sum(dtype=np.float64)
 
     if detector == "FUV":
-        fd[1].header.update("fuvbinx", binx)
-        fd[1].header.update("fuvbiny", biny)
+        fd[1].header["fuvbinx"] = binx
+        fd[1].header["fuvbiny"] = biny
     else:
-        fd[1].header.update("nuvbinx", binx)
-        fd[1].header.update("nuvbiny", biny)
+        fd[1].header["nuvbinx"] = binx
+        fd[1].header["nuvbiny"] = biny
 
-    fd[1].header.update("BUNIT", "count")
+    fd[1].header["BUNIT"] = "count"
 
     fd.writeto(outcsum, output_verify="silentfix")
     fd.close()
@@ -4021,7 +4030,7 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
                            xi_full)
         avg_shift1 = shift1_slope * t_mid + shift1_zero
         key = "SHIFT1" + segment[-1]
-        hdr.update(key, round(avg_shift1, 4))
+        hdr[key] = round(avg_shift1, 4)
 
     if info["detector"] == "FUV":
         segment = segment_list[0]
@@ -4056,7 +4065,7 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
 
     for segment in segment_list:
         key = "SHIFT2" + segment[-1]
-        hdr.update(key, round(avg_dy, 4))
+        hdr[key] = round(avg_dy, 4)
         if info["detector"] == "FUV":
             xi_active = xi_full[active_area]
             xi_diff = xi_active - np.around(xi_active)
@@ -4068,15 +4077,16 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         else:
             dpixel1 = 0.
         key = "DPIXEL1" + segment[-1]
-        hdr.update(key, round(dpixel1, 4))
+        hdr[key] = round(dpixel1, 4)
 
     phdr["wavecorr"] = wavecorr
-    filename = cosutil.changeSegment(filename, info["detector"],
-                                     info["segment"])
-    if shift_file is not None:
-        filename = filename + " " + shift_file
-    phdr.update("wavecals", filename)
-    cosutil.printMsg("Wavecal file(s) '%s'" % filename, VERBOSE)
+    if wavecorr == "COMPLETE":
+        filename = cosutil.changeSegment(filename, info["detector"],
+                                         info["segment"])
+        if shift_file is not None:
+            filename = filename + " " + shift_file
+        phdr["wavecals"] = filename
+        cosutil.printMsg("Wavecal file(s) '%s'" % filename, VERBOSE)
 
     return (tl_time, shift1_vs_time)
 
