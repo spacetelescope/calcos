@@ -1,0 +1,184 @@
+This is an interface to CalCOS.
+
+:Author: Phil Hodge, STScI, November 2013.
+
+Notes
+-----
+The parameters for the calcos function differ somewhat from the parameters
+for this TEAL interface.  The parameters for the calcos function and their
+default values are:
+
+asntable
+outdir = None
+verbosity = None
+find_target = {"flag": False, "cutoff": None}
+create_csum_image = False
+raw_csum_coords = False
+only_csum = False
+binx = None
+biny = None
+compress_csum = False
+compression_parameters = "gzip,-0.01"
+shift_file = None
+save_temp_files = False
+stimfile = None
+livetimefile = None
+burstfile = None
+
+Parameters
+----------
+input: str
+    One or more comma and/or blank separated file names.  The names may
+    be either an association file name or a raw (or corrtag) file name.
+    Environment variables and wildcards may be used.
+
+verbosity: int
+    This indicates that very few (verbosity=0), a lot (1), or even more (2)
+    messages should be printed to the standard output.  The default is 1.
+
+savetmp: bool
+    The default is False, meaning that temporary files created by calcos
+    will be deleted.  If `savetmp` is set to True, these files will not
+    be deleted.
+
+outdir: str
+    The name of an optional output directory.  If outdir is "", the output
+    files will be written to the directory that contains the input files.
+    If outdir was specified but no directory of that name exists, it will
+    be created.
+
+find: bool
+    If `find` is True, the 1-D spectrum or spectra will be extracted at
+    the Y (XD) location at which the spectra were actually found (but see
+    `cutoff` below).  If `find` is False (the default), calcos will find
+    the spectra and print the Y locations, but the spectra will be
+    extracted where they were expected, based on the wavecal (OSM) offsets
+    and the locations given in the B_SPEC column in the XTRACTAB
+    (_1dx.fits) table.
+
+cutoff: float or int or None
+    If None (the default), calcos will use or not use the found locations
+    of the spectra, depending on the value of `find`.  If `cutoff` has a
+    positive value, that value will be interpreted as an N-sigma cutoff
+    for `find`; that is, if the error estimate of the found location is
+    less than the cutoff, then calcos will extract the spectrum at the
+    found location.
+
+shift_file: str
+    If `shift_file` is not an empty string, this should be a text file
+    to allow the user to override (i.e. explicitly set) the values of
+    SHIFT1A, SHIFT1B, or SHIFT1C.  This should be a text file with five
+    columns; the columns are:
+
+        rootname  fpoffset  flash_number  segment/stripe  shift1
+
+    The first four columns are used for identifying which particular lamp
+    exposure is to be overridden; however, any or all of those columns may
+    be given as "any" (without the quotes), which matches any value.  All
+    strings are case insensitive.  Blank lines and lines beginning with
+    "#" will be ignored.  A single shift file can be used for an entire
+    association; that's why rootname is included as a selection criterion.
+    The rootname in this case is the portion of the file name that precedes
+    the suffix.  Note that this is the name of a particular exposure, not
+    an association name.  The rootname corresponds to the actual name of
+    the raw file, rather than from the ROOTNAME keyword, so that if the raw
+    file has been renamed without changing the keyword, the name in the
+    shift file will be the name that most people would expect.  It is
+    redundant to specify both rootname and fpoffset; both are included to
+    make it easier to set shift1 to the same value for all rootnames for a
+    given fpoffset.  If rootname is specified, fpoffset can be given as
+    "any".  The flash number is one indexed.  The keywords (LMP_ON1, etc.)
+    for lamp flashes are one indexed, following the FITS convention, and
+    the information about the flashes and the shifts that is written to the
+    trailer file (and standard output) also show the flash number starting
+    with one.  For those reasons it was felt that mistakes would be less
+    likely if one indexing was used for flash number.  The segment or
+    stripe name should be the complete string "FUVA", "FUVB", "NUVA",
+    "NUVB" or "NUVC", not just the single letter "A", "B" or "C".  The
+    shift itself is the pixel offset from the template lamp spectrum for
+    FPOFFSET=0 (FP-POS=3); a positive shift means the features in the
+    observed spectrum are at higher pixel number than the features in the
+    template.
+
+csum: bool
+    The default is False.  Set `csum` to True in order to create the
+    "calcos sum" file.  Note that most users would never want to use this
+     option.  The csum file will be a FITS file with suffix "_csum".
+    
+raw_csum: bool
+    This is only relevant if `csum` is True.  If `raw_csum` is True (the
+    default is False), raw pixel coordinates will be used instead of
+    thermally and geometrically corrected pixel coordinates when the csum
+    file is written.  Keyword COORDFRM is written to the primary header
+    of the csum file, and this keyword will be set to "raw" if raw pixel
+    coordinates were used (otherwise COORDFRM will be "corrected").
+
+compress: bool
+    If `csum` is True, setting 'compress' to True results in a csum FITS
+    file that contains a compressed image.  This uses the on-the-fly
+    compression in pyfits, but the algorithm and parameters are the same
+    as in CFITSIO, so reading the resulting image using CFITSIO should be
+    transparent.
+
+comp_param: str
+    If `csum` and `compress` are True, specify the compression parameters
+    in the `comp_param` string.  This consists of two parts separated by
+    a comma; the default is "gzip,-0.01".  The first part is the type of
+    compression, which may be "gzip", "rice", or "hcompress".  The second
+    part is the quantization level, which specifies how the floating-point
+    image values are to be converted to integer before compression.  If
+    the quantization level is positive, it is interpreted as a value
+    relative to the RMS noise level in the image background.  A value of
+    16, for example, means that the quantization level will be 1/16 of the
+    noise level.  If the quantization level is negative, it's the actual
+    floating-point increment that corresponds to a difference of one in
+    the scaled integer image.
+
+binx: int
+    If `csum` is True, `binx` gives the binning factor in the X axis
+    (the dispersion direction, for spectroscopic data).  The default is 1,
+    and the allowed values are 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024.
+
+biny: int
+    If `csum` is True, `biny` gives the binning factor in the Y axis.
+    The default is 1, and the allowed values are 1, 2, 4, 8, 16, 32, 64,
+    128, 256, 512.
+
+stimfile: str
+    For FUV data, stim locations will be written (appended) to this text
+    file.
+
+livetimefile: str
+    Livetime factors will be written (appended) to this text file.
+
+burstfile: str
+    For FUV data, stim locations will be written (appended) to this text
+    file.
+
+print_version: bool
+    If True, calcos will print the version number and return without
+    doing anything else.
+
+print_revision: bool
+    If True, calcos will print the full version string and return without
+    doing anything else.
+
+Examples
+--------
+From Python:
+
+>>> from stsci.tools import teal
+>>> import calcos
+>>> teal.teal("calcos")
+
+From PyRAF:
+
+--> import calcos
+--> teal calcos
+--> epar calcos
+
+--> calcos.calcos("rootname_rawtag_a.fits", "out/")
+
+From the Unix command line:
+
+% <path>calcos.py -v -o out/ rootname_rawtag_a.fits

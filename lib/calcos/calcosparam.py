@@ -143,20 +143,20 @@ INT_WILDCARD = -1
 # These are the data quality flags.
 DQ_OK = 0                       # no anomalous condition noted
 DQ_SOFTERR = 1                  # Reed-Solomon error
-DQ_DETECTOR_FLAW = 2            # detector flaw
+DQ_UNUSED_2 = 2                 # [currently unused]
 DQ_DETECTOR_SHADOW = 4          # FUV grid shadow mark or NUV vignetting
-DQ_NEAR_EDGE = 8                # spectrum near an edge of the detector
-DQ_DEAD = 16                    # dead spot
-DQ_HOT = 32                     # hot spot
+DQ_POORLY_CALIBRATED = 8        # poorly calibrated (incl. detector edge)
+DQ_VERY_LOW_RESPONSE = 16       # > 80% depression
+DQ_BACKGROUND_FEATURE = 32      # background feature
 DQ_BURST = 64                   # count rate implies a burst (FUV)
 DQ_PIXEL_OUT_OF_BOUNDS = 128    # pixel out of bounds
-DQ_DATA_FILL = 256              # data fill
+DQ_DATA_FILL = 256              # fill data
 DQ_PHA_OUT_OF_BOUNDS = 512      # pulse height is either too low or too high
-DQ_UNUSED = 1024                # [currently unused]
+DQ_LOW_RESPONSE_REGION = 1024   # > 50% depression
 DQ_BAD_TIME = 2048              # time is within a bad time interval
-DQ_BACKGROUND_FEATURE = 4096    # background feature
-DQ_LOW_GAIN = 8192              # low gain area
-DQ_UNUSED = 16384               # [currently unused]
+DQ_LOW_PHA_FEATURE = 4096       # low PHA feature
+DQ_GAIN_SAG_HOLE = 8192         # low gain area
+DQ_UNUSED_16384 = 16384         # [currently unused]
 
 # Use this when binning TIME-TAG data to images, or extracting spectra from
 # TIME-TAG data.

@@ -2673,30 +2673,34 @@ class Calibration(object):
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
+                    if obs.switches["x1dcorr"] == "PERFORM":
+                        # Find spectrum in cross-dispersion direction.
+                        # (xd_shifts and xd_locns are ignored.)
+                        (shift2, xd_shifts, xd_locns, lamp_is_on) = \
+                        wavecal.findWavecalSpectrum(obs.filenames["corrtag"],
+                                                    obs.info, obs.reffiles)
+                        # Update shift2[a-c] keywords, and possibly lampused.
+                        self.setSpectrumOffset(obs.filenames,
+                                               obs.info["segment"],
+                                               shift2, lamp_is_on)
+                        self.extractSpectrum(obs.filenames)
+                        any_x1dcorr = "PERFORM"
                 except (BadApertureError, MissingRowError) as e:
                     cosutil.printError("%s" % e)
                     status = BAD_APER_MISSING_ROW_EXCEPTION
                     continue
-                if obs.switches["x1dcorr"] == "PERFORM":
-                    any_x1dcorr = "PERFORM"
-                    # Find spectrum in cross-dispersion direction.
-                    # (xd_shifts and xd_locns are ignored.)
-                    (shift2, xd_shifts, xd_locns, lamp_is_on) = \
-                    wavecal.findWavecalSpectrum(obs.filenames["corrtag"],
-                                                obs.info, obs.reffiles)
-                    # Update shift2[a-c] keywords, and possibly lampused.
-                    self.setSpectrumOffset(obs.filenames,
-                                           obs.info["segment"],
-                                           shift2, lamp_is_on)
-                    self.extractSpectrum(obs.filenames)
-                obs.closeTrailer()
+                finally:
+                    obs.closeTrailer()
 
+        w_status = 0
         if any_x1dcorr == "PERFORM":
 
             self.concatenateSpectra("wavecal")
 
             # Now find the shift of each wavecal.
-            self.processWavecal()
+            w_status = self.processWavecal()
+            if w_status and not status:
+                status = w_status
 
             # Set the shift keywords in the corrtag, flt, and counts headers
             # (already set in x1d header) for each wavecal observation.
@@ -2725,7 +2729,7 @@ class Calibration(object):
                     extract.recomputeWavelengths(x1d_file)
                     obs.closeTrailer()
 
-        else:
+        if status == BAD_APER_MISSING_ROW_EXCEPTION:
             if self.assoc.asn_info["exists"]:
                 cosutil.printWarning("No further auto/GO wavecal processing"
                                      " for this association (status = %d)."
@@ -2758,26 +2762,27 @@ class Calibration(object):
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
+                    self.updateShift(obs.filenames, obs.switches["wavecorr"],
+                                     obs.info)
+                    if obs.switches["x1dcorr"] == "PERFORM":
+                        self.extractSpectrum(obs.filenames)
+                        any_x1dcorr = "PERFORM"
+                        any_spectroscopic = "PERFORM"
+                    elif obs.info["obstype"] == "SPECTROSCOPIC":
+                        cosutil.printSwitch("X1DCORR", obs.switches)
+                        any_spectroscopic = "PERFORM"
+                    if obs.info["obstype"] == "SPECTROSCOPIC" and \
+                       obs.reffiles["spwcstab"] != NOT_APPLICABLE:
+                        spwcstab = obs.reffiles["spwcstab_hdr"]
+                    if obs.info["tagflash"] and \
+                       obs.switches["wavecorr"] == "PERFORM":
+                        any_wavecorr = "PERFORM"
                 except (BadApertureError, MissingRowError) as e:
                     cosutil.printError("%s" % e)
                     status = BAD_APER_MISSING_ROW_EXCEPTION
                     continue
-                self.updateShift(obs.filenames, obs.switches["wavecorr"],
-                                 obs.info)
-                if obs.switches["x1dcorr"] == "PERFORM":
-                    self.extractSpectrum(obs.filenames)
-                    any_x1dcorr = "PERFORM"
-                    any_spectroscopic = "PERFORM"
-                elif obs.info["obstype"] == "SPECTROSCOPIC":
-                    cosutil.printSwitch("X1DCORR", obs.switches)
-                    any_spectroscopic = "PERFORM"
-                if obs.info["obstype"] == "SPECTROSCOPIC" and \
-                   obs.reffiles["spwcstab"] != NOT_APPLICABLE:
-                    spwcstab = obs.reffiles["spwcstab_hdr"]
-                if obs.info["tagflash"] and \
-                   obs.switches["wavecorr"] == "PERFORM":
-                    any_wavecorr = "PERFORM"
-                obs.closeTrailer()
+                finally:
+                    obs.closeTrailer()
 
         if any_x1dcorr == "omit" and any_wavecorr == "omit" and \
            any_spectroscopic == "omit":
@@ -2892,8 +2897,16 @@ class Calibration(object):
         """Determine shift from wavecal observation.
 
         The shift and related info will be appended to the wavecal_info list.
+
+        Returns
+        -------
+        status: int
+            0 if OK; BAD_APER_MISSING_ROW_EXCEPTION if the try/except block
+            catches a bad aperture or missing row.
         """
+
         cosutil.printSwitch("WAVECORR", {"wavecorr": "PERFORM"})
+        status = 0
 
         previous_x1d_file = " "
         first = True
@@ -2912,9 +2925,16 @@ class Calibration(object):
                     wavecal.printWavecalRef(obs.reffiles)
                     first = False
                 cosutil.printFilenames([("Input", x1d_file)])
-                wavecal_stuff = wavecal.findWavecalShift(x1d_file,
-                                self.assoc.cl_args["shift_file"], obs.info,
-                                self.wcp_info)
+                try:
+                    wavecal_stuff = wavecal.findWavecalShift(x1d_file,
+                                    self.assoc.cl_args["shift_file"],
+                                    obs.info, self.wcp_info)
+                except (BadApertureError, MissingRowError) as e:
+                    cosutil.printError("%s" % e)
+                    obs.closeTrailer()
+                    status = BAD_APER_MISSING_ROW_EXCEPTION
+                    obs.closeTrailer()
+                    continue
 
                 if wavecal_stuff is not None:
                     (shift_dict, fp_dict) = wavecal_stuff
@@ -2925,6 +2945,8 @@ class Calibration(object):
                             shift_dict, fp_dict,
                             obs.filenames["root"], obs.filenames["raw"])
                 obs.closeTrailer()
+
+        return status
 
     def updateShift(self, filenames, wavecorr, info):
         """Update the shift keywords in corrtag, flt, counts headers.
