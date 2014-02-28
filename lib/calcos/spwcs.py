@@ -396,6 +396,15 @@ class SpWcsImage(SpWCS):
                     keyword = key + alt
                     if keyword in hdr:
                         del hdr[keyword]
+            more_keywords = ["tcty7", "tcty8", "tcrp7", "tcrp8",
+                             "tcrv7", "tcrv8", "tcde7", "tcde8",
+                             "tcun7", "tcun8"]
+            # These keywords are only used for an alternate WCS, so drop "".
+            for alt in ["a", "b", "c"]:
+                for key in more_keywords:
+                    keyword = key + alt
+                    if keyword in hdr:
+                        del hdr[keyword]
 
 class SpWcsCorrtag(SpWCS):
     """Spectroscopic WCS for pixel list (corrtag) data.

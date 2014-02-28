@@ -2010,12 +2010,24 @@ def imageHeaderToTable(imhdr):
 
     hdr = imhdr.copy()
 
-    ikey = ["CTYPE1", "CRVAL1", "CRPIX1", "CDELT1", "CUNIT1", "CD1_1", "CD1_2",
-            "CTYPE2", "CRVAL2", "CRPIX2", "CDELT2", "CUNIT2", "CD2_1", "CD2_2",
-            "BSCALE", "BZERO", "BUNIT", "DATAMIN", "DATAMAX"]
-    for keyword in ikey:
+    for keyword in ["bscale", "bzero", "bunit", "datamin", "datamax"]:
         if keyword in hdr:
             del hdr[keyword]
+
+    keyword_list = []
+    for key in ["ctype", "crval", "crpix", "cdelt", "cunit"]:
+        for dim in range(1, 4):
+            keyword = key + str(dim)
+            keyword_list.append(keyword)
+    keyword_list.extend(["wcsaxes", "pv1_0", "pv1_1", "pv1_2", "pv1_6",
+                         "cd1_1", "cd1_2", "cd2_1", "cd2_2",
+                         "pc1_1", "pc1_2", "pc2_1", "pc2_2", "pc3_1", "pc3_2"])
+
+    for alt in ["", "a", "b", "c"]:
+        for key in keyword_list:
+            keyword = key + alt
+            if keyword in hdr:
+                del hdr[keyword]
 
     return hdr
 

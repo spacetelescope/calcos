@@ -13,6 +13,7 @@ import calcosparam                      # parameter definitions
 import cosutil
 import getinfo
 import extract
+import spwcs
 import timetag
 
 from .version import *
@@ -448,6 +449,25 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
     timetag.writeImages(x, y, epsilon, dq,
                         phdr, headers, dq_array, npix, x_offset, exptime,
                         counts, flt)
+
+    updated = False                     # initial value
+    wcs = spwcs.SpWcsImage(flt, info, switches["helcorr"],
+                           reffiles["spwcstab"], reffiles["xtractab"])
+    flag = wcs.writeWCSKeywords()
+    if flag:
+        updated = True
+        cosutil.printMsg("WCS keywords were written for %s" %
+                         flt, calcosparam.VERY_VERBOSE)
+    wcs = spwcs.SpWcsImage(counts, info, switches["helcorr"],
+                           reffiles["spwcstab"], reffiles["xtractab"])
+    flag = wcs.writeWCSKeywords()
+    if flag:
+        updated = True
+        cosutil.printMsg("WCS keywords were written for %s" %
+                         counts, calcosparam.VERY_VERBOSE)
+    if not updated:
+        cosutil.printMsg("WCS keywords were not written for the"
+                         " flt and counts files.", calcosparam.VERY_VERBOSE)
 
     fd.close()
 
