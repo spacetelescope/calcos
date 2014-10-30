@@ -596,7 +596,12 @@ class ConcurrentWavecal(object):
                 snr_ff = 0.             # ignore error array
                 axis = 1                # dispersion is along X axis
                 dummy_exptime = 1.
-                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
+                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
+            DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
+            LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
+            ENCLOSED_FRACTION_i, AV_E_BKG_i,
+            LOWER_OUTER_VALUE_i, LOWER_INNER_VALUE_i,
+            UPPER_INNER_VALUE_i, UPPER_OUTER_VALUE_i) = \
                     extract.extractCorrtag(self.xi[i0:i1], self.eta[i0:i1],
                                 self.dq[i0:i1], epsilon[i0:i1], dq_array,
                                 self.ofd[1].header, segment, axis_length,

@@ -15,6 +15,7 @@ import phot
 import shiftfile
 import timeline
 import wavecal
+import trace
 from calcosparam import *       # parameter definitions
 
 # These are column names in the corrtag table.  The default values are
@@ -283,9 +284,17 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     minmax_shift_dict = getWavecalOffsets(events, info, switches["wavecorr"],
                                           reffiles["xtractab"])
+    tracemask = createTraceMask(events, info, switches,
+                                reffiles['xtractab'], active_area)
+    trace = doTraceCorr(events, info, switches, reffiles, phdr, tracemask)
+
+    align = doProfileAlignmentCorr(events, input, info, switches, reffiles,
+                                   phdr, headers[1], minmax_shift_dict,
+                                   tracemask)
 
     dq_array = doDqicorr(events, input, info, switches, reffiles,
                          phdr, headers[1], minmax_shift_dict)
+
 
     writeImages(events.field(xfull), events.field(yfull),
                 events.field("epsilon"), events.field("dq"),
@@ -3393,6 +3402,87 @@ def writeNull(input, ofd, output, outcounts, outcsum,
                   cl_args["binx"], cl_args["biny"],
                   cl_args["compress_csum"],
                   cl_args["compression_parameters"])
+
+def createTraceMask(events, info, switches, xtractab, active_area):
+    """Create a mask for events that will be corrected.  This is events within
+    the Active Area, but not including the events in the tagflash region""" 
+    #
+    # Only create the tracemask if we are going to do either the trace
+    # correction or the profile alignment correction
+    if switches["trcecorr"] == 'PERFORM' or switches["algncorr"] == 'PERFORM':
+        filter = {"segment": info["segment"],
+                  "opt_elem": info["opt_elem"],
+                  "cenwave": info["cenwave"],
+                  "aperture": "WCA"}
+        mask = active_area.copy()
+        xtract_info = cosutil.getTable(xtractab, filter)
+        slope = xtract_info['SLOPE'][0]
+        intercept = xtract_info['B_SPEC'][0]
+        height = xtract_info['HEIGHT'][0]
+        ncols = FUV_X
+        xfull = events.field('xfull')
+        center = intercept + slope*xfull
+        rowstart = center - height/2
+        rowstop = center + height/2
+        yfull = events.field('yfull')
+        inside = (yfull - rowstart)*(yfull - rowstop)
+        inside_WSA = np.where(inside < 0.0)
+        mask[inside_WSA] = False
+    else:
+        mask = None
+    return mask
+
+def doTraceCorr(events, info, switches, reffiles, phdr, tracemask):
+    """Do the trace correction.  The trace reference file follows the
+    centroid of a point source.  Applying the correction involves subtracting
+    the profile of trace vs. xcorr from yfull"""
+    if switches["trcecorr"] != 'N/A':
+        cosutil.printSwitch("TRCECORR", switches)
+        if switches["trcecorr"] == "PERFORM":
+            cosutil.printRef("TRACETAB", reffiles)
+            tracetab = reffiles["tracetab"]
+            f1 = fits.open(tracetab)
+            ref_life_adj = f1[0].header['LIFE_ADJ']
+            if ref_life_adj != info["life_adj"]:
+                cosutil.printWarning("LIFE_ADJ values are different for data and TRACETAB")
+                cosutil.printWarning("LIFE_ADJ = %d in data" % (info["life_adj"]))
+                cosutil.printWarning("LIFE_ADJ = %d in TRACETAB" % (ref_life_adj))
+                cosutil.printWarning("If you MUST use this reference file, change one of")
+                cosutil.printWarning("the LIFE_ADJ values so they agree")
+                raise Exception("Invalid Reference file")
+            result = trace.doTrace(events, info, reffiles, tracemask)
+            phdr["TRCECORR"] = "COMPLETE"
+    return
+
+def doProfileAlignmentCorr(events, input, info, switches, reffiles, phdr, hdr,
+                           minmax_shift_dict, tracemask):
+    """Do the profile alignment correction.  This is usually combined with the
+    trace correction.  It involves calculating the flux-weighted centroid of a
+    reference profile, the flux-weighted centroid of the science data, and
+    applying the difference to the YFULL values so that the data and reference
+    profile should have the same centroid."""
+    if info["detector"] == "FUV":
+        cosutil.printSwitch("ALGNCORR", switches)
+        if switches["algncorr"] == "PERFORM":
+            cosutil.printRef("PROFTAB", reffiles)
+            #
+            # Need to compute a temporary copy of the DQ array so that the
+            # profile alignment step can use it
+            dq_array = doDqicorr(events, input, info, switches, reffiles,
+                                 phdr, hdr, minmax_shift_dict)
+
+            result = trace.doProfileAlignment(events, input, info, switches,
+                                              reffiles, phdr, hdr, dq_array,
+                                              tracemask)
+            if result == trace.CENTROID_SET_BY_USER:
+                phdr["ALGNCORR"] = "USER-SUPPLIED"
+            elif result == trace.CENTROID_OK:
+                phdr["ALGNCORR"] = "COMPLETE"
+            elif result == trace.NO_CONVERGENCE:
+                phdr["ALGNCORR"] = "SKIPPED"
+            elif result == trace.CENTROID_ERROR_TOO_LARGE:
+                phdr["ALGNCORR"] = "SKIPPED"
+        return
 
 def writeImages(x, y, epsilon, dq,
                 phdr, headers, dq_array, npix, x_offset, exptime,

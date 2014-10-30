@@ -20,6 +20,7 @@ import getinfo
 import shiftfile
 import spwcs
 import timetag
+import trace
 import wavecal
 from calcosparam import *       # parameter definitions
 
@@ -1354,6 +1355,7 @@ class Association(object):
             j = None
         switches = copy.copy(self.obs[i].switches)
         reffiles = copy.copy(self.obs[i].reffiles)
+        info = copy.copy(self.obs[i].info)
         if j is not None:
             j_switches = copy.copy(self.obs[j].switches)
             j_reffiles = copy.copy(self.obs[j].reffiles)
@@ -1391,7 +1393,10 @@ class Association(object):
             "imphttab": ["2.0", "IMAGING PHOTOMETRIC TABLE"],
             "tdstab":   ["2.0", "TIME DEPENDENT SENSITIVITY TABLE"],
             "brsttab":  ["2.0", "BURST PARAMETERS TABLE"],
-            "walktab":  ["2.0", "WALK CORRECTION TABLE"]
+            "walktab":  ["2.0", "WALK CORRECTION TABLE"],
+            "tracetab": ["2.0", "1D SPECTRAL TRACE TABLE"],
+            "proftab": ["2.0", "2D SPECTRUM PROFILE TABLE"],
+            "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"]
         }
         # The contents of these dictionaries must agree with what
         # cosutil.findRefFile expects.
@@ -1489,6 +1494,16 @@ class Association(object):
             #                     missing, wrong_filetype, bad_version)
             pass
 
+        if switches["trcecorr"] == "PERFORM":
+            cosutil.findRefFile(ref["tracetab"],
+                                missing, wrong_filetype, bad_version)
+        if switches["algncorr"] == "PERFORM":
+            cosutil.findRefFile(ref["proftab"],
+                                missing, wrong_filetype, bad_version)
+
+        if info["xtrctalg"] == "TWOZONE":
+            cosutil.findRefFile(ref["twozxtab"],
+                                missing, wrong_filetype, bad_version)
         if len(missing) > 0:
             msg = "The following reference file"
             if len(missing) > 1:
@@ -1552,7 +1567,7 @@ class Association(object):
         for key in ["badtcorr", "brstcorr", "deadcorr", "doppcorr",
                     "dqicorr",  "flatcorr", "geocorr",  "helcorr",
                     "phacorr",  "randcorr", "tempcorr", "x1dcorr",
-                    "wavecorr"]:
+                    "wavecorr", "trcecorr", "algncorr"]:
             if switches[key] == "PERFORM":
                 self.global_switches["any"] = "PERFORM"
                 break

@@ -553,7 +553,8 @@ def createNewGTI(gti_hdu, t0, t1):
             cd = fits.ColDefs(col)
         else:
             cd = gti_hdu.columns
-        out_gti_hdu = fits.new_table(cd, header=gti_hdu.header, nrows=1)
+        out_gti_hdu = fits.new_table(cd, header=gti_hdu.header,
+                                                    nrows=1)
         out_start_col = out_gti_hdu.data.field("start")
         out_stop_col = out_gti_hdu.data.field("stop")
         out_start_col[0] = t0
@@ -585,7 +586,8 @@ def createNewGTI(gti_hdu, t0, t1):
         gti.append((0., 0.))
     out_nrows = len(gti)
 
-    out_gti_hdu = fits.new_table(cd, header=gti_hdu.header, nrows=out_nrows)
+    out_gti_hdu = fits.new_table(cd, header=gti_hdu.header,
+                                                nrows=out_nrows)
     out_start_col = out_gti_hdu.data.field("start")
     out_stop_col = out_gti_hdu.data.field("stop")
     for i in range(out_nrows):
@@ -676,7 +678,7 @@ def createNewTimeline(timeline_hdu, t0, t1):
         out_nrows = 0
 
     out_timeline_hdu = fits.new_table(cd, header=timeline_hdu.header,
-                                      nrows=out_nrows)
+                                                     nrows=out_nrows)
     if in_nrows > 0:
         out_data = out_timeline_hdu.data
         i = i_start
