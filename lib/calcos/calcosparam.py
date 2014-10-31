@@ -119,7 +119,7 @@ segment_specific_keywords = \
      "exptimeX", "neventsX",
      "globrt_X",
      "deadrt_X", "deadmt_X", "livetm_X",
-     "sp_loc_X", "sp_off_X", "sp_nom_X", "sp_slp_X", "sp_hgt_X",
+     "sp_loc_X", "sp_off_X", "sp_nom_X", "sp_slp_X", "sp_hgt_X", "sp_err_X",
      "b_bkg1_X", "b_bkg2_X",
      "b_hgt1_X", "b_hgt2_X",
      "shift1X", "shift2X", "dpixel1X",
@@ -171,6 +171,13 @@ class BadApertureError(Exception):
 
 # Define an exception for a missing row in a reference file.
 class MissingRowError(Exception):
+    def __init__(self, message=None):
+        self.message = message
+    def __str__(self):
+        return self.message
+
+# Define an exception for a missing column in a reference file.
+class MissingColumnError(Exception):
     def __init__(self, message=None):
         self.message = message
     def __str__(self):

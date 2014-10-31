@@ -104,13 +104,19 @@ def extract1D(input, incounts=None, output=None,
                          " will be used.", VERBOSE)
 
     # Check data types and lengths (if not scalar), and copy values for
+
     # location and extrsize to dictionary entries.  Override value of
     # local_find_targ["flag"] (set to False) if location was specified.
     (location, extrsize) = \
         checkLocation(info, location, extrsize, local_find_targ)
 
     cosutil.printSwitch("X1DCORR", switches)
-    cosutil.printRef("XTRACTAB", reffiles)
+    cosutil.printMsg("Extraction algorithm = %s" % info["xtrctalg"])
+    if info["xtrctalg"] == "TWOZONE":
+        cosutil.printRef("TWOZXTAB", reffiles)
+        cosutil.printRef("PROFTAB", reffiles)
+    else:
+        cosutil.printRef("XTRACTAB", reffiles)
     cosutil.printRef("DISPTAB", reffiles)
     cosutil.printSwitch("HELCORR", switches)
     cosutil.printSwitch("BACKCORR", switches)
@@ -169,6 +175,19 @@ def extract1D(input, incounts=None, output=None,
                unit="count /s"))
     col.append(fits.Column(name="DQ", format=rpt+"I"))
     col.append(fits.Column(name="DQ_WGT", format=rpt+"E"))
+    col.append(fits.Column(name="DQ_OUTER", format=rpt+"I"))
+    col.append(fits.Column(name="BACKGROUND_PER_ROW", format=rpt+"E",
+                           unit="count /s /pixel"))
+    col.append(fits.Column(name="NUM_EXTRACT_ROWS", format=rpt+"I"))
+    col.append(fits.Column(name="ACTUAL_EE", format=rpt+"D"))
+    col.append(fits.Column(name="Y_LOWER_OUTER", format=rpt+"D"))
+    col.append(fits.Column(name="Y_UPPER_OUTER", format=rpt+"D"))
+    col.append(fits.Column(name="Y_LOWER_INNER", format=rpt+"D"))
+    col.append(fits.Column(name="Y_UPPER_INNER", format=rpt+"D"))
+    col.append(fits.Column(name="EE_LOWER_OUTER", format=rpt+"D"))
+    col.append(fits.Column(name="EE_UPPER_OUTER", format=rpt+"D"))
+    col.append(fits.Column(name="EE_LOWER_INNER", format=rpt+"D"))
+    col.append(fits.Column(name="EE_UPPER_INNER", format=rpt+"D"))
     cd = fits.ColDefs(col)
 
     hdu = fits.new_table(cd, header=hdr, nrows=nrows)
@@ -217,7 +236,10 @@ def extract1D(input, incounts=None, output=None,
         if switches["backcorr"] == "PERFORM":
             ofd[0].header["backcorr"] = "COMPLETE"
         # FLUXCORR and TDSCORR are updated in doFluxCorr.
-
+    #
+    # Remove unwanted columns (comment out this line to retain columns
+    # for debug purposes)
+    ofd = remove_unwanted_columns(ofd)
     ofd.writeto(output, output_verify="silentfix")
     del ofd
     ifd_e.close()
@@ -229,6 +251,25 @@ def extract1D(input, incounts=None, output=None,
 
     if switches["statflag"] == "PERFORM":
         cosutil.doSpecStat(output)
+
+def remove_unwanted_columns(ofd):
+    unwanted_columns = ['EE_LOWER_OUTER', 'EE_LOWER_INNER',
+                        'EE_UPPER_INNER', 'EE_UPPER_OUTER']
+    newcols = []
+    table = ofd[1].data
+    columns = table.columns
+    for column in columns:
+        if column.name in unwanted_columns:
+            pass
+        else:
+            newcols.append(fits.Column(name=column.name,
+                                       format=column.format,
+                                       unit=column.unit,
+                                       array=table[column.name]))
+    cd = fits.ColDefs(newcols)
+    newhdu = fits.new_table(cd, header=ofd[1].header)
+    ofd[1] = newhdu
+    return ofd
 
 def checkLocation(info, location, extrsize, local_find_targ):
     """Check that location and height were specified correctly.
@@ -429,17 +470,56 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                   "opt_elem": info["opt_elem"],
                   "cenwave": info["cenwave"],
                   "aperture": info["aperture"]}
-        xtract_info = cosutil.getTable(reffiles["xtractab"], filter)
-        if xtract_info is None:
-            raise MissingRowError("Missing row in XTRACTAB; filter = %s" %
-                                  str(filter))
+        if info["xtrctalg"] == "BOXCAR":
+            xtract_info = cosutil.getTable(reffiles["xtractab"], filter)
+            if xtract_info is None:
+                raise MissingRowError("Missing row in XTRACTAB; filter = %s" %
+                                      str(filter))
+        else:
+            xtract_info = cosutil.getTable(reffiles["twozxtab"], filter)
+            if xtract_info is None:
+                raise MissingRowError("Missing row in TWOZXTAB; filter = %s" %
+                                      str(filter))
+            #
+            # Make sure the table doesn't have a SLOPE column
+            try:
+                slope = xtract_info.field("SLOPE")[0]
+                cosutil.printWarning("TWOZXTAB file has a SLOPE column")
+            except KeyError:
+                slope = 0.0
+
+            #
+            # Check that EE boundaries increase monotonically
+            lower_outer = xtract_info.field('LOWER_OUTER')[0]
+            lower_inner = xtract_info.field('LOWER_INNER')[0]
+            upper_inner = xtract_info.field('UPPER_INNER')[0]
+            upper_outer = xtract_info.field('UPPER_OUTER')[0]
+            if 0 > lower_outer or \
+                    lower_outer > lower_inner or \
+                    lower_inner > upper_inner or \
+                    upper_inner > upper_outer or \
+                    upper_outer > 1.0:
+                cosutil.printWarning("Zone boundaries invalid:")
+                cosutil.printWarning("LOWER_OUTER = %f" % (lower_outer))
+                cosutil.printWarning("LOWER_INNER = %f" % (lower_inner))
+                cosutil.printWarning("UPPER_INNER = %f" % (upper_inner))
+                cosutil.printWarning("UPPER_OUTER = %f" % (upper_outer))
+                raise Exception("Invalid EE boundaries in TWOZXTAB reference file")
+            proftab_info = cosutil.getTable(reffiles["proftab"], filter)
+            if proftab_info is None:
+                raise MissingRowError("Missing row in PROFTAB; filter = %s" %
+                                      str(filter))
+
         # Include fpoffset in the filter for disptab.
         filter["fpoffset"] = info["fpoffset"]
         disp_rel = dispersion.Dispersion(reffiles["disptab"], filter, True)
         if not disp_rel.isValid():
             raise MissingRowError("Missing row in DISPTAB; filter = %s" %
                                   str(disp_rel.getFilter()))
-        slope = xtract_info.field("slope")[0]
+        try:
+            slope = xtract_info.field("slope")[0]
+        except KeyError:
+            slope = 0.0
 
         if is_wavecal:
             dpixel1 = 0.
@@ -495,7 +575,11 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         if is_corrtag:
             key = "shift1" + segment[-1]
             shift1 = ofd[1].header.get(key, 0.)
-            (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
+            (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
+                 LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
+                 ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
+                 EE_LOWER_INNER_i, EE_UPPER_INNER_i, EE_UPPER_OUTER_i
+             ) = \
                 extractCorrtag(xi, eta, dq, epsilon, dq_array,
                                ofd[1].header, segment, axis_length,
                                x_offset, hdr["sdqflags"], snr_ff,
@@ -504,14 +588,55 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                                user_xdisp_locn, user_xdisp_size,
                                local_find_targ)
         else:
-            (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i) = \
-             extractSegment(ifd_e["SCI"].data, ifd_c["SCI"].data,
-                            ifd_e["DQ"].data, ofd[1].header, segment,
-                            x_offset, hdr["sdqflags"], snr_ff,
-                            exptime, switches["backcorr"], axis,
-                            xtract_info, shift2,
-                            info, wavelength, is_wavecal,
-                            user_xdisp_locn, user_xdisp_size, local_find_targ)
+            if info["xtrctalg"] == 'BOXCAR':
+                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
+                 LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
+                 ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
+                 EE_LOWER_INNER_i, EE_UPPER_INNER_i, EE_UPPER_OUTER_i
+                 ) = \
+                      extractSegmentBoxcar(ifd_e["SCI"].data, ifd_c["SCI"].data,
+                                           ifd_e["DQ"].data, ofd[1].header,
+                                           segment, x_offset, hdr["sdqflags"],
+                                           snr_ff, exptime,
+                                           switches["backcorr"], axis,
+                                           xtract_info, shift2,
+                                           info, wavelength, is_wavecal,
+                                           user_xdisp_locn, user_xdisp_size,
+                                           local_find_targ)
+            elif info["xtrctalg"] == 'TWOZONE':
+                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
+                 LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
+                 ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
+                 EE_LOWER_INNER_i, EE_UPPER_INNER_i, EE_UPPER_OUTER_i
+                 ) = \
+                      extractSegmentTwozone(ifd_e["SCI"].data,
+                                            ifd_c["SCI"].data,
+                                            ifd_e["DQ"].data, ofd[1].header,
+                                            segment,
+                                            x_offset, hdr["sdqflags"], snr_ff,
+                                            exptime, switches["backcorr"], axis,
+                                            hdr,
+                                            xtract_info, shift2, proftab_info,
+                                            info, wavelength, is_wavecal,
+                                            user_xdisp_locn, user_xdisp_size,
+                                            local_find_targ)
+            else:
+                cosutil.printMsg("Unknown extraction method, defaulting to", \
+                                     " BOXCAR")
+                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
+                 LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
+                 ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
+                 EE_LOWER_INNER_i, EE_UPPER_INNER_i, EE_UPPER_OUTER_i
+                 ) = \
+                      extractSegmentBoxcar(ifd_e["SCI"].data, ifd_c["SCI"].data,
+                                           ifd_e["DQ"].data, ofd[1].header,
+                                           segment,
+                                           x_offset, hdr["sdqflags"], snr_ff,
+                                           exptime, switches["backcorr"], axis,
+                                           xtract_info, shift2,
+                                           info, wavelength, is_wavecal,
+                                           user_xdisp_locn, user_xdisp_size,
+                                           local_find_targ)
         del xtract_info
 
         outdata.field("SEGMENT")[row] = segment
@@ -526,7 +651,20 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         outdata.field("BACKGROUND")[row][:] = BK_i.copy()
         outdata.field("DQ")[row][:] = DQ_i.copy()
         outdata.field("DQ_WGT")[row][:] = DQ_WGT_i.copy()
-
+        outdata.field("DQ_OUTER")[row][:] = DQ_i.copy()
+        outdata.field("Y_LOWER_OUTER")[row][:] = LOWER_OUTER_i.copy()
+        outdata.field("Y_UPPER_OUTER")[row][:] = UPPER_OUTER_i.copy()
+        outdata.field("Y_LOWER_INNER")[row][:] = LOWER_INNER_i.copy()
+        outdata.field("Y_UPPER_INNER")[row][:] = UPPER_INNER_i.copy()
+        outdata.field("ACTUAL_EE")[row][:] = ENCLOSED_FRACTION_i.copy()
+        outdata.field("BACKGROUND_PER_ROW")[row][:] = \
+            BACKGROUND_PER_ROW_i.copy()
+        outdata.field("EE_LOWER_OUTER")[row][:] = EE_LOWER_OUTER_i.copy()
+        outdata.field("EE_LOWER_INNER")[row][:] = EE_LOWER_INNER_i.copy()
+        outdata.field("EE_UPPER_INNER")[row][:] = EE_UPPER_INNER_i.copy()
+        outdata.field("EE_UPPER_OUTER")[row][:] = EE_UPPER_OUTER_i.copy()
+        NUM_EXTRACT_ROWS = UPPER_OUTER_i - LOWER_OUTER_i
+        outdata.field("NUM_EXTRACT_ROWS")[row][:] = NUM_EXTRACT_ROWS.copy()
         row += 1
 
     # Remove unused rows, if any.
@@ -664,14 +802,13 @@ def getSnrFf(switches, reffiles, segment):
 
     return snr_ff
 
-def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
-                   x_offset, sdqflags, snr_ff,
-                   exptime, backcorr, axis,
-                   xtract_info, shift2,
-                   info, wavelength, is_wavecal,
-                   user_xdisp_locn=None, user_xdisp_size=None,
-                   find_target={"flag": False, "cutoff": None}):
-
+def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
+                         x_offset, sdqflags, snr_ff,
+                         exptime, backcorr, axis,
+                         xtract_info, shift2,
+                         info, wavelength, is_wavecal,
+                         user_xdisp_locn=None, user_xdisp_size=None,
+                         find_target={"flag": False, "cutoff": None}):
     """Extract a 1-D spectrum for one segment or stripe.
 
     This does the actual extraction, returning the results as a tuple.
@@ -773,7 +910,10 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
 
     local_find_targ = copy.deepcopy(find_target)
 
-    slope           = xtract_info.field("slope")[0]
+    try:
+        slope           = xtract_info.field("slope")[0]
+    except KeyError:
+        slope = 0.0
     b_spec          = xtract_info.field("b_spec")[0]    # may be changed below
     extr_height     = xtract_info.field("height")[0]    # see user_xdisp_size
     b_bkg1          = xtract_info.field("b_bkg1")[0]
@@ -895,8 +1035,8 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
     GC_ij = np.zeros((extr_height, axis_length), dtype=np.float32)
     ccos.extractband(c_data, axis, slope, b_spec, x_offset, GC_ij)
 
-    e_i  = e_ij.sum(axis=0)
-    GC_i = GC_ij.sum(axis=0)
+    e_i  = e_ij.sum(axis=0, dtype=np.float64)
+    GC_i = GC_ij.sum(axis=0, dtype=np.float64)
     GCOUNTS_i = GC_i * exptime          # gross counts (not count rate)
 
     eps_i = e_i / np.where(GC_i <= 0., 1., GC_i)
@@ -913,7 +1053,8 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
         # Get the background data from the counts image.
         ccos.extractband(c_data, axis, slope, b_bkg1, x_offset, BK1_ij)
         ccos.extractband(c_data, axis, slope, b_bkg2, x_offset, BK2_ij)
-        original_BK_i = BK1_ij.sum(axis=0) + BK2_ij.sum(axis=0)
+        original_BK_i = BK1_ij.sum(axis=0, dtype=np.float64) + \
+            BK2_ij.sum(axis=0, dtype=np.float64)
         # Get the data quality array from the flt file.
         ccos.extractband(e_dq_data, axis, slope, b_bkg1, x_offset, dq1_ij)
         ccos.extractband(e_dq_data, axis, slope, b_bkg2, x_offset, dq2_ij)
@@ -926,13 +1067,14 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
         # background regions.
         BK1_ij *= good1_ij
         BK2_ij *= good2_ij
-        BK_i = BK1_ij.sum(axis=0) + BK2_ij.sum(axis=0)
+        BK_i = BK1_ij.sum(axis=0, dtype=np.float64) + \
+            BK2_ij.sum(axis=0, dtype=np.float64)
 
         # The sum along axis=0 gives the number of good pixels in each column.
         # Use this sum to correct (rescale) the background to account for
         # pixels that are flagged as bad.
-        good_i = good1_ij.sum(axis=0, dtype=np.float32) + \
-                 good2_ij.sum(axis=0, dtype=np.float32)
+        good_i = good1_ij.sum(axis=0, dtype=np.float64) + \
+                 good2_ij.sum(axis=0, dtype=np.float64)
         # If good_i is zero, the background will also be zero, so it doesn't
         # matter what we set good_i to as long as it's not zero (we're going
         # to divide by it).
@@ -955,7 +1097,7 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
         else:
             (i, j) = (0, axis_length)
         (i, j) = excludeAllBad(good_i, i, j)
-        temp_bk = BK_i[i:j].copy()
+        temp_bk = BK_i[i:j].copy().astype(np.float32)
         ccos.smoothbkg(temp_bk, bkg_smooth)
         BK_i[i:j] = temp_bk.copy()
         del temp_bk
@@ -980,8 +1122,26 @@ def extractSegment(e_data, c_data, e_dq_data, ofd_header, segment,
                              slope, extr_height,
                              xd_nominal, xd_locn, found_locn_sigma, xd_offset,
                              b_bkg1, b_bkg2, bkg_height1, bkg_height2)
+    #
+    # Compute the 'extended' quantities
+    DQ_ALL_i = DQ_i
+    LOWER_OUTER_INDEX_i = N_i*0.0 + xd_nominal - extr_height//2
+    UPPER_OUTER_INDEX_i = N_i*0.0 + xd_nominal + extr_height//2
+    LOWER_INNER_INDEX_i = LOWER_OUTER_INDEX_i.copy()
+    UPPER_INNER_INDEX_i = UPPER_OUTER_INDEX_i.copy()
+    ENCLOSED_FRACTION_i = N_i*0.0 + 1.0
+    AV_E_BKG_i = BK_i / float(bkg_height1 + bkg_height2)
+    LOWER_OUTER_VALUE_i = N_i*0.0 + 0.0
+    LOWER_INNER_VALUE_i = N_i*0.0 + 0.0
+    UPPER_INNER_VALUE_i = N_i*0.0 + 1.0
+    UPPER_OUTER_VALUE_i = N_i*0.0 + 1.0
 
-    return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
+    return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
+            DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
+            LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
+            ENCLOSED_FRACTION_i, AV_E_BKG_i,
+            LOWER_OUTER_VALUE_i, LOWER_INNER_VALUE_i,
+            UPPER_INNER_VALUE_i, UPPER_OUTER_VALUE_i)
 
 def excludeAllBad(good_i, i, j):
     """Exclude endpoints of BK_i where all pixels are flagged as bad.
@@ -1038,6 +1198,530 @@ def excludeAllBad(good_i, i, j):
     jp += 1             # jp is the upper limit of a slice
 
     return (ip, jp)
+
+def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
+                          x_offset, sdqflags, snr_ff,
+                          exptime, backcorr, axis, hdr,
+                          xtract_info, shift2, proftab_info,
+                          info, wavelength, is_wavecal,
+                          user_xdisp_locn=None, user_xdisp_size=None,
+                          find_target={"flag": False, "cutoff": None}):
+    """Do the two-zone extraction
+    
+     This does the actual extraction, returning the results as a tuple.
+
+    An "_ij" suffix indicates a 2-D array; here they will all be sections
+    extracted from full images.  An "_i" suffix indicates a 1-D array
+    which is the result of summing the 2-D array with the same prefix in
+    the cross-dispersion direction.  Variables beginning with a capital
+    letter are included in the returned tuple.
+      N_i       net count rate
+      ERR_i     error estimate for net count rate
+      GC_i      gross count rate, extracted from ifd_c[1].data
+      GCOUNTS_i gross counts, extracted from ifd_c[1].data
+      SUMMED_BACKGROUND_i  total counts in the background
+      DQ_i      data quality flags, bitwise OR of input DQ array in the
+                inner zone
+      DQ_WGT_i  data quality weight array
+      DQ_ALL_i  data quality flags over the whole extraction region
+      LOWER_OUTER_INDEX_i
+      LOWER_INNER_INDEX_i
+      UPPER_INNER_INDEX_i
+      UPPER_OUTER_INDEX_i Zone boundaries in the data
+      ENCLOSED_FRACTION_i   Actual fraction of flux within outer boundaries
+      AV_E_BKG_i     Average background per pixel
+      LOWER_OUTER_VALUE_i   Fraction of flux enclosed at and above 
+                            row lower_outer_index
+      LOWER_INNER_VALUE_i   Fraction of flux enclosed at and above
+                            row lower_inner_index
+      UPPER_INNER_VALUE_i   Fraction of flux enclosed at and above
+                            row upper_inner_index
+      UPPER_OUTER_VALUE_i   Fraction of flux enclosed at and above
+                            row upper_outer_index
+    Parameters
+    ----------
+    e_data: 2-D array
+        SCI data from the flt file ('e' for effective count rate)
+
+    c_data: 2-D array
+        SCI data from the counts file (count rate)
+
+    e_dq_data: 2-D array
+        DQ data from the flt file
+
+    ofd_header: pyfits Header object
+        header of the output table (for updating keywords)
+
+    segment: str
+        FUVA or FUVB, etc. (only used for updating keywords)
+
+    x_offset: int
+        Offset of the detector in the output array
+
+    sdqflags: int
+        "Serious" data quality flags
+
+    snr_ff: float
+        The signal-to-noise ratio of the flat field reference file (from
+        the extension header of the flat field)
+
+    exptime: float
+        Exposure time (seconds), from the (corrected) header keyword
+
+    backcorr: int
+        "PERFORM" if background subtraction is to be done
+
+    axis: int
+        The dispersion axis, 0 (Y) or 1 (X)
+
+    hdr: pyfits Header object
+        Extension header of the flt file
+
+    xtract_info: pyfits record object
+        One row of the xtractab
+
+    shift2: float
+        Offset in the cross-dispersion direction.  This should be zero
+        except in two cases, a wavecal exposure or a science exposure
+        without a wavecal.  Otherwise, the offset in XD should already
+        have been taken into account when binning to the flt and counts
+        images.
+
+    proftab_info: pyfits record array
+        Required row of the PROFTAB reference file
+    info: dictionary
+        Header keywords and values
+
+    wavelength: array_like
+        Wavelength at each pixel (needed if find_target["flag"] is
+        True)
+
+    is_wavecal: boolean
+        True if the observation is a wavecal, based on exptype
+
+    user_xdisp_locn: int or float, or None if not specified
+        User-specified location in cross-dispersion direction
+
+    user_xdisp_size: int, or None if not specified
+        User-specified height of extraction box
+
+    find_target: dictionary
+        Keys are "flag" and "cutoff".  flag = True means that we should use
+        the location that we find for the target in the cross-dispersion
+        direction if the standard deviation (pixels) of the location is
+        less than or equal to cutoff (if cutoff is positive).  flag = False
+        means we should use the location determined from the wavecal or as
+        specified by the user.  find_target["flag"] will locally be set to
+        False if the cross-dispersion location was not found.
+
+    Returns
+    -------
+    tuple of eighteen 1-D arrays
+        net count rate, error estimate, gross count rate, gross counts,
+        summed background count rate, data quality array (from inner zone only),
+        data quality weight array, data quality for inner and outer zones,
+        array of indices for lower outer zone boundary,
+        array of indices for upper outer zone boundary,
+        array of indices for lower inner zone boundary,
+        array of indices for upper inner zone boundary,
+        fraction of flux enclosed by outer boundaries,
+        average background per pixel,
+        fraction of flux enclosed between lower outer zone boundary and
+        lower aperture boundary,
+        fraction of flux enclosed between lower inner zone boundary and
+        lower aperture boundary,
+        fraction of flux enclosed between upper inner zone boundary and
+        lower aperture boundary,
+        fraction of flux enclosed between upper outer zone boundary and
+        lower aperture boundary
+    """
+    cosutil.printMsg("Two-zone extraction method")
+    #
+    # Get the profile array from the PROFTAB reference file record
+    profile_ij = proftab_info["profile"][0]
+    nrows, ncols = profile_ij.shape
+    centroid = getProfileCentroid(hdr, segment)
+    if centroid < 0.0:
+        # Centroid keyword is still < 0, so ALGNCORR was probably skipped
+        cosutil.printWarning("Starting centroid from SP_LOC keyword = %f" % \
+                                 centroid)
+        cosutil.printWarning("Using b_spec from xtractab/twozxtab as centroid")
+        centroid = xtract_info.field("b_spec")[0]
+    cosutil.printMsg("Using profile centroid of %f" % (centroid))
+    row_0 = proftab_info["ROW_0"][0]
+    refcentroid = centroid - row_0
+    if backcorr == "PERFORM":
+        #
+        # Dermine background for reference profile
+        # Need a subarray of the original dq array of the same shape as the
+        # profile
+        cosutil.printMsg("Calculating background for reference profile")
+        dq_profile = e_dq_data[row_0:row_0+nrows]
+        ref_background_i, nrows = getBackground(profile_ij, dq_profile,
+                                                xtract_info,
+                                                refcentroid, sdqflags)
+        #
+        # Background subtract the profile.
+        profile_ij = profile_ij - ref_background_i
+    #
+    # Get the percentiles for the extraction zone boundaries
+    p1, p2, p3, p4 = getPercentiles(xtract_info)
+    cosutil.printMsg("Using extraction percentiles of:")
+    cosutil.printMsg("%f and %f (outer region)" % (100*p1, 100*p4))
+    cosutil.printMsg("and %f and %f (inner region)" % (100*p2, 100*p3))
+    #
+    # Normalize the profiles to 1.00 within the area defined by the xtractab
+    normalized_profile_ij = NormalizeProfile(profile_ij, xtract_info,
+                                             refcentroid)
+    height = xtract_info.field("height")[0]
+    rowstart = int(round(refcentroid)) - height // 2
+    rowstop = int(round(refcentroid)) + height // 2
+    cumulative_profile = np.cumsum(normalized_profile_ij[rowstart:rowstop+1],
+                                   axis=0, dtype=np.float64)
+    (LOWER_OUTER_INDEX_i, LOWER_INNER_INDEX_i,
+     UPPER_INNER_INDEX_i, UPPER_OUTER_INDEX_i,
+     ENCLOSED_FRACTION_i, LOWER_OUTER_VALUE_i,
+     LOWER_INNER_VALUE_i, UPPER_INNER_VALUE_i,
+     UPPER_OUTER_VALUE_i) = getPercentileVectors(cumulative_profile, p1, p2,
+                                                 p3, p4)
+    #
+    # Extend the ends so that the regions where there are no counts have the
+    # same values as the first or last good columns
+    goodcolumns = np.where(LOWER_OUTER_INDEX_i != 0)
+    firstgood = goodcolumns[0][0]
+    lastgood = goodcolumns[0][-1]
+    LOWER_OUTER_INDEX_i[:firstgood] = LOWER_OUTER_INDEX_i[firstgood]
+    LOWER_OUTER_INDEX_i[lastgood+1:] = LOWER_OUTER_INDEX_i[lastgood]
+    LOWER_INNER_INDEX_i[:firstgood] = LOWER_INNER_INDEX_i[firstgood]
+    LOWER_INNER_INDEX_i[lastgood+1:] = LOWER_INNER_INDEX_i[lastgood]
+    UPPER_INNER_INDEX_i[:firstgood] = UPPER_INNER_INDEX_i[firstgood]
+    UPPER_INNER_INDEX_i[lastgood+1:] = UPPER_INNER_INDEX_i[lastgood]
+    UPPER_OUTER_INDEX_i[:firstgood] = UPPER_OUTER_INDEX_i[firstgood]
+    UPPER_OUTER_INDEX_i[lastgood+1:] = UPPER_OUTER_INDEX_i[lastgood]
+    LOWER_OUTER_INDEX_i = LOWER_OUTER_INDEX_i + row_0 + rowstart
+    LOWER_INNER_INDEX_i = LOWER_INNER_INDEX_i + row_0 + rowstart
+    UPPER_INNER_INDEX_i = UPPER_INNER_INDEX_i + row_0 + rowstart
+    UPPER_OUTER_INDEX_i = UPPER_OUTER_INDEX_i + row_0 + rowstart
+    #
+    # Now work on the science data
+    nrows, ncols = e_data.shape
+    # First need to calculate background vector
+    bkg_smooth = xtract_info.field("bwidth")[0]
+    if backcorr == "PERFORM":
+        #
+        # Determine background regions for science data
+        #
+        AV_E_BKG_i, nrows_e_bkg_i = getBackground(e_data, e_dq_data,
+                                                  xtract_info, centroid,
+                                                  sdqflags)
+        #
+        # This for the calculation of the error
+        av_c_bkg_i, nrows_c_bkg_i = getBackground(c_data, e_dq_data,
+                                                  xtract_info, centroid,
+                                                  sdqflags)
+    else:
+        AV_E_BKG_i = np.zeros(ncols, dtype=np.float32)
+        av_c_bkg_i = np.zeros(ncols, dtype=np.float32)
+    e_data_sub = e_data - AV_E_BKG_i
+    height = xtract_info.field("height")[0]
+    rowstart = int(round(centroid)) - height // 2
+    rowstop = int(round(centroid)) + height // 2
+    #
+    # Initialize arrays
+    total_ecounts = np.zeros(ncols, dtype=np.float32)
+    total_ccounts = np.zeros(ncols, dtype=np.float32)
+    DQ_i = np.zeros(ncols, dtype=np.int16)
+    DQ_ALL_i = np.zeros(ncols, dtype=np.int16)
+    DQ_WGT_i = np.ones(ncols, dtype=np.float32)
+    extr_height_i = np.ones(ncols, dtype=np.float32)
+    bad_i = np.zeros(ncols, dtype=np.int32)
+    #
+    # Loop over columns
+    for column in range(ncols):
+        if UPPER_OUTER_INDEX_i[column] > LOWER_OUTER_INDEX_i[column]:
+            lowerstart = LOWER_OUTER_INDEX_i[column]
+            lowerstop = LOWER_INNER_INDEX_i[column]
+            lower_ecounts = e_data_sub[lowerstart:lowerstop,
+                                       column].sum(dtype=np.float64)
+            lower_ccounts = c_data[lowerstart:lowerstop,
+                                   column].sum(dtype=np.float64)
+            upperstart = UPPER_INNER_INDEX_i[column]
+            upperstop = UPPER_OUTER_INDEX_i[column]
+            upper_ecounts = e_data_sub[upperstart:upperstop,
+                                       column].sum(dtype=np.float64)
+            upper_ccounts = c_data[upperstart:upperstop,
+                                   column].sum(dtype=np.float64)
+            innerstart = lowerstop
+            innerstop = upperstart
+            inner_ecounts = e_data_sub[innerstart:innerstop,
+                                       column].sum(dtype=np.float64)
+            inner_ccounts = c_data[innerstart:innerstop,
+                                   column].sum(dtype=np.float64)
+            innerdq = e_dq_data[innerstart:innerstop, column]
+            outerstart = lowerstart
+            outerstop = upperstop
+            outerdq = e_dq_data[outerstart:outerstop, column]
+            bad_i[column] = np.where(np.bitwise_and(innerdq, sdqflags), 1,
+                                     0).sum()
+            DQ_WGT_i[column] = 1.0
+            if bad_i[column] > 0.0:
+                DQ_WGT_i[column] = 0.0
+            DQ_i[column] = bitwise_or_vector(innerdq)
+            DQ_ALL_i[column] = bitwise_or_vector(outerdq)
+            total_ecounts[column] = lower_ecounts + upper_ecounts + \
+                inner_ecounts
+            total_ccounts[column] = lower_ccounts + upper_ccounts + \
+                inner_ccounts
+            extr_height_i[column] = upperstop - lowerstart + 1
+            if ENCLOSED_FRACTION_i[column] != 0.0:
+                total_ecounts[column] = total_ecounts[column] / \
+                    ENCLOSED_FRACTION_i[column]
+            else:
+                if total_ecounts[column] != 0.0:
+                    total_ecounts[column] = 0.0
+        else:
+            DQ_i[column] = DQ_PIXEL_OUT_OF_BOUNDS
+            DQ_ALL_i[column] = DQ_PIXEL_OUT_OF_BOUNDS
+            DQ_WGT_i[column] = 0.0
+    N_i = total_ecounts
+    flat_correction = total_ecounts / np.where(total_ccounts <= 0.0, 1.0,
+                                               total_ccounts)
+    flat_correction = np.where(flat_correction == 0.0, 1.0, flat_correction)
+#
+# Now calculate the error
+    if snr_ff > 0.0:
+        term1_i = (N_i * exptime / (extr_height_i * snr_ff))**2
+    else:
+        term1_i = 0.0
+    term2_i = np.zeros(ncols, dtype=np.float32)
+    goodcolumns = np.where(nrows_c_bkg_i > 0)
+    term2_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
+        * (total_ccounts[goodcolumns] + \
+        av_c_bkg_i[goodcolumns] * (extr_height_i[goodcolumns])**2 \
+               / (nrows_c_bkg_i[goodcolumns] * bkg_smooth))
+    if exptime > 0.0:
+        # Use the Gehrels variance function
+        ERR_i = cosutil.errGehrels(term1_i + term2_i) / exptime
+    else:
+        ERR_i = N_i * 0.0
+    SUMMED_BACKGROUND_i = AV_E_BKG_i * extr_height_i
+    GC_i = total_ccounts
+    GCOUNTS_i = GC_i * exptime
+    key = "SP_ERR_" + segment[-1]
+    try:
+        cent_err = hdr[key]
+    except KeyError:
+        cosutil.printWarning("CENT_ERR keyword not found, setting to -999.0")
+        cent_err = -999.0
+        hdr[key] = cent_err
+    key = "SP_OFF_" + segment[-1]
+    offset = hdr[key]
+    try:
+        slope = xtract_info.field("slope")[0]
+    except KeyError:
+        slope = 0.0
+    b_spec = xtract_info.field("b_spec")[0]
+    offset_to_middle = slope * (ncols // 2 - x_offset)
+    # nominal location of spectrum, where it crosses the middle of the
+    # flt or counts image.  This is copied from boxcar extraction.
+    xd_nominal = b_spec + shift2 + offset_to_middle
+    b_bkg1, b_bkg2 = getBackgroundCenters(xtract_info, centroid)
+    if cosutil.findColumn(xtract_info, "b_hgt1"):
+        bkg_height1  = xtract_info.field("b_hgt1")[0]
+        bkg_height2  = xtract_info.field("b_hgt2")[0]
+    else:
+        bkg_height1  = xtract_info.field("bheight")[0]
+        bkg_height2  = bkg_height1    
+    updateExtractionKeywords(ofd_header, segment,
+                             slope, height,
+                             xd_nominal, centroid, cent_err, offset,
+                             b_bkg1, b_bkg2,
+                             bkg_height1, bkg_height2)
+    return (N_i, ERR_i, GC_i, GCOUNTS_i, SUMMED_BACKGROUND_i, DQ_i, DQ_WGT_i,
+            DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
+            LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
+            ENCLOSED_FRACTION_i, AV_E_BKG_i,
+            LOWER_OUTER_VALUE_i, LOWER_INNER_VALUE_i,
+            UPPER_INNER_VALUE_i, UPPER_OUTER_VALUE_i)
+
+def getProfileCentroid(phdr, segment):
+    key = "SP_LOC_" + segment[-1]
+    return phdr[key]
+
+def getBackgroundCenters(xtract_info, centroid):
+    #
+    # Background regions in reference profile are calculated relative to the
+    # centroid
+    b_bkg1 = xtract_info.field("b_bkg1")[0]
+    b_bkg2 = xtract_info.field("b_bkg2")[0]
+    b_spec = xtract_info.field("b_spec")[0]
+    offset = int(round(b_bkg1 - b_spec))
+    b_bkg1 = int(round(offset + centroid))
+    offset = int(round(b_bkg2 - b_spec))
+    b_bkg2 = int(round(offset + centroid))
+    return b_bkg1, b_bkg2
+
+def getBackgroundRegion(data_ij, b_bkg, bkg_height):
+    #
+    # Get the background region
+    nrows, ncols = data_ij.shape
+    #
+    # b_bkg is an integer
+    rowstart = b_bkg - bkg_height // 2
+    rowstop = b_bkg + bkg_height // 2
+    if rowstart >= nrows or rowstop < 0:
+        cosutil.printWarning("Background region outside array")
+        return None
+    elif rowstart < 0:
+        rowstart = 0
+    elif rowstop > nrows:
+        rowstop = nrows
+    return data_ij[rowstart:rowstop+1,:]
+
+def getBackground(data_ij, dq_ij, xtract_info, centroid, sdqflags):
+    nrows, ncols = data_ij.shape
+    ndqrows, ndqcols = dq_ij.shape
+    if nrows != ndqrows:
+        cosutil.printWarning("Data and dq arrays have unequal rows")
+        cosutil.printWarning("Data: %d, dq: %d" % (nrows, ndqrows))
+    if ncols != ndqcols:
+        cosutil.printWarning("Data and dq arrays have unequal columns")
+        cosutil.printWarning("Data: %d, dq: %d" % (ncols, ndqcols))
+    bkg_smooth = xtract_info.field("bwidth")[0]
+    #
+    # b_bkg1, b_bkg2 are integers
+    b_bkg1, b_bkg2 = getBackgroundCenters(xtract_info, centroid)
+    if cosutil.findColumn(xtract_info, "b_hgt1"):
+        bkg_height1  = xtract_info.field("b_hgt1")[0]
+        bkg_height2  = xtract_info.field("b_hgt2")[0]
+    else:
+        bkg_height1  = xtract_info.field("bheight")[0]
+        bkg_height2  = bkg_height1
+
+    BK1_ij = getBackgroundRegion(data_ij, b_bkg1, bkg_height1)
+    dq1_ij = getBackgroundRegion(dq_ij, b_bkg1, bkg_height1)
+    good1_ij = np.where(np.bitwise_and(dq1_ij, sdqflags), 0.0, 1.0)
+    if BK1_ij is not None:
+        n_bkg1_rows = good1_ij.sum(axis=0)
+        BK1_ij = BK1_ij * good1_ij
+        bk1_i = BK1_ij.sum(axis=0, dtype=np.float64)
+    else:
+        n_bkg1_rows = 0
+        bk1_i = 0
+        cosutil.printWarning("Background region 1 is outside data array")
+    BK2_ij = getBackgroundRegion(data_ij, b_bkg2, bkg_height2)
+    dq2_ij = getBackgroundRegion(dq_ij, b_bkg2, bkg_height2)
+    good2_ij = np.where(np.bitwise_and(dq2_ij, sdqflags), 0.0, 1.0)
+    if BK2_ij is not None:
+        n_bkg2_rows = good2_ij.sum(axis=0)
+        BK2_ij = BK2_ij * good2_ij
+        bk2_i = BK2_ij.sum(axis=0, dtype=np.float64)
+    else:
+        n_bkg2_rows = 0
+        bk2_i = 0
+        cosutil.printWarning("Background region 2 is outside data array")
+    original_BK_i = bk1_i + bk2_i
+    BK_i = original_BK_i
+    n_bkg_rows = n_bkg1_rows + n_bkg2_rows
+    goodrows = np.where(n_bkg_rows > 0)
+    av_bkg = np.zeros(ncols, dtype=np.float32)
+    av_bkg[goodrows] = BK_i[goodrows] / n_bkg_rows[goodrows]
+    temp_bk = av_bkg.copy().astype(np.float32)
+    ccos.smoothbkg(temp_bk, bkg_smooth)
+    return temp_bk, n_bkg_rows
+
+def getPercentiles(xtract_info):
+    p1 = xtract_info.field("LOWER_OUTER")[0]
+    p2 = xtract_info.field("LOWER_INNER")[0]
+    p3 = xtract_info.field("UPPER_INNER")[0]
+    p4 = xtract_info.field("UPPER_OUTER")[0]
+    return (p1, p2, p3, p4)
+
+def NormalizeProfile(profile_ij, xtract_info, centroid):
+    #
+    # Normalize the profile to 1.0 within the area defined by the xtractab
+    # Returns the full-sized array
+    height = xtract_info.field("height")[0]
+    rowstart = int(round(centroid)) - height // 2
+    rowstop = int(round(centroid)) + height // 2
+    summed = profile_ij[rowstart:rowstop+1,:].sum(axis=0, dtype=np.float64)
+    nonzero_cols = np.where(summed != 0.0)
+    normalized = profile_ij.copy()
+    normalized[:,nonzero_cols] = normalized[:,nonzero_cols] / \
+        summed[nonzero_cols]
+    return normalized
+
+def getPercentileVectors(cumulative_profile, p1, p2, p3, p4):
+    nrows, ncols = cumulative_profile.shape
+    lower_outer_index = np.zeros(ncols)
+    lower_inner_index = np.zeros(ncols)
+    upper_inner_index = np.zeros(ncols)
+    upper_outer_index = np.zeros(ncols)
+    lower_outer_value = np.zeros(ncols)
+    lower_inner_value = np.zeros(ncols)
+    upper_inner_value = np.zeros(ncols)
+    upper_outer_value = np.zeros(ncols)
+    enclosed_fraction = np.zeros(ncols)
+    for column in range(ncols):
+        if cumulative_profile[-1, column] > 0:
+            lessthanp1 =  np.where(cumulative_profile[:, column] < p1)[0]
+            if len(lessthanp1) > 0:
+                row = lessthanp1[-1]
+            else:
+                row = 0
+            lower_outer_index[column] = row + 1
+            lower_outer_value[column] = cumulative_profile[row, column]
+            lessthanp2 =  np.where(cumulative_profile[:, column] < p2)[0]
+            if len(lessthanp2) > 0:
+                row = lessthanp2[-1]
+            else:
+                row = 0
+            lower_inner_index[column] = row + 1
+            lower_inner_value[column] = cumulative_profile[row, column]
+            morethanp3 =  np.where(cumulative_profile[:, column] > p3)[0]
+            if len(morethanp3) > 0:
+                row = morethanp3[0]
+            else:
+                row = nrows
+            upper_inner_index[column] = row + 1
+            upper_inner_value[column] = cumulative_profile[row, column]
+            morethanp4 =  np.where(cumulative_profile[:, column] > p4)[0]
+            if len(morethanp4) > 0:
+                row = morethanp4[0]
+            else:
+                row = nrows
+            upper_outer_index[column] = row + 1
+            upper_outer_value[column] =  cumulative_profile[row, column]
+            enclosed_fraction[column] = upper_outer_value[column] - \
+                lower_outer_value[column]
+    return (lower_outer_index, lower_inner_index, upper_inner_index,
+            upper_outer_index, enclosed_fraction, lower_outer_value,
+            lower_inner_value, upper_inner_value, upper_outer_value)
+
+def bitwise_or_vector(vector):
+    length = len(vector)
+    if length == 0: return 0
+    if length == 1: return vector[0]
+    new_length = next_power_of_two(length)
+    newvector = np.zeros((new_length),dtype=np.int16)
+    newvector[:length] = vector
+    while new_length > 1:
+        new_length = new_length//2
+        result = np.bitwise_or(newvector[:new_length],
+                               newvector[new_length:])
+        newvector = result
+    return result[0]
+
+def next_power_of_two(n):
+    """
+    Return next power of 2 greater than or equal to n
+    """
+    n -= 1 # greater than OR EQUAL TO n
+    shift = 1
+    while (n+1) & n: # n+1 is not a power of 2 yet
+        n |= n >> shift
+        shift *= 2
+    return n + 1
 
 def extractCorrtag(xi, eta, dq, epsilon, dq_array,
                    ofd_header, segment, axis_length,
@@ -1127,7 +1811,10 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
 
     local_find_targ = copy.deepcopy(find_target)
 
-    slope           = xtract_info.field("slope")[0]
+    try:
+        slope           = xtract_info.field("slope")[0]
+    except KeyError:
+        slope = 0.0
     b_spec          = xtract_info.field("b_spec")[0]    # see user_xdisp_locn
     extr_height     = xtract_info.field("height")[0]    # see user_xdisp_size
     b_bkg1          = xtract_info.field("b_bkg1")[0]
@@ -1217,9 +1904,10 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
                     x_offset, dq, SERIOUS_DQ_FLAGS)
 
     e_ij /= exptime
-    e_i = e_ij.sum(axis=0)
-    GCOUNTS_i = GC_ij.sum(axis=0)       # gross counts (not count rate)
-    GC_i = GCOUNTS_i / exptime          # gross count rate
+    e_i = e_ij.sum(axis=0, dtype=np.float64)
+    GCOUNTS_i = GC_ij.sum(axis=0,
+                          dtype=np.float64)   # gross counts (not count rate)
+    GC_i = GCOUNTS_i / exptime                # gross count rate
     del GC_ij
 
     eps_i = e_i / np.where(GC_i <= 0., 1., GC_i)
@@ -1248,7 +1936,8 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
         # background regions.
         BK1_ij *= good1_ij
         BK2_ij *= good2_ij
-        BK_i = BK1_ij.sum(axis=0) + BK2_ij.sum(axis=0)
+        BK_i = BK1_ij.sum(axis=0, dtype=np.float64) + \
+            BK2_ij.sum(axis=0, dtype=np.float64)
         BK_i /= exptime
         original_BK_i = BK_i.copy()
 
@@ -1309,8 +1998,24 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
                                  slope, extr_height,
                                  xd_nominal, xd_locn, 999., xd_offset,
                                  b_bkg1, b_bkg2, bkg_height1, bkg_height2)
+    DQ_ALL_i = DQ_i
+    LOWER_OUTER_INDEX_i = N_i*0.0 + xd_nominal - extr_height//2
+    UPPER_OUTER_INDEX_i = N_i*0.0 + xd_nominal + extr_height//2
+    LOWER_INNER_INDEX_i = LOWER_OUTER_INDEX_i.copy()
+    UPPER_INNER_INDEX_i = UPPER_OUTER_INDEX_i.copy()
+    ENCLOSED_FRACTION_i = N_i*0.0 + 1.0
+    AV_E_BKG_i = BK_i / float(bkg_height1 + bkg_height2)
+    LOWER_OUTER_VALUE_i = N_i*0.0 + 0.0
+    LOWER_INNER_VALUE_i = N_i*0.0 + 0.0
+    UPPER_INNER_VALUE_i = N_i*0.0 + 1.0
+    UPPER_OUTER_VALUE_i = N_i*0.0 + 1.0
 
-    return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i)
+    return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
+            DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
+            LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
+            ENCLOSED_FRACTION_i, AV_E_BKG_i,
+            LOWER_OUTER_VALUE_i, LOWER_INNER_VALUE_i,
+            UPPER_INNER_VALUE_i, UPPER_OUTER_VALUE_i)
 
 def doFluxCorr(ofd, info, reffiles, tdscorr):
     """Convert net counts to flux, updating flux and error columns.
@@ -1559,8 +2264,14 @@ def updateExtractionKeywords(hdr, segment, slope, height,
 
     key = "SP_LOC_" + segment[-1]           # SP_LOC_A, SP_LOC_B, SP_LOC_C
     hdr[key] = xd_locn
-    # xxx key = "SP_ERR_" + segment[-1]           # SP_ERR_A, SP_ERR_B, SP_ERR_C
-    # xxx hdr.update(key, found_locn_sigma)
+    if segment[-1] == "A":
+        othersegment = "B"
+    else:
+        othersegment = "A"
+    key = "SP_ERR_" + segment[-1]           # SP_ERR_A, SP_ERR_B, SP_ERR_C
+    hdr[key] = found_locn_sigma
+    key = "SP_ERR_" + othersegment
+    hdr[key] = -999.0
     key = "SP_OFF_" + segment[-1]           # SP_OFF_A, SP_OFF_B, SP_OFF_C
     hdr[key] = xd_offset
     key = "SP_NOM_" + segment[-1]           # SP_NOM_A, SP_NOM_B, SP_NOM_C
@@ -1613,6 +2324,7 @@ def copyKeywordsToInput(output, input, incounts):
     if ofd[0].header["detector"] == "FUV":
         keywords = ["sp_loc_a", "sp_loc_b",
                     "sp_off_a", "sp_off_b",
+                    "sp_err_a", "sp_err_b",
                     "sp_nom_a", "sp_nom_b",
                     "sp_slp_a", "sp_slp_b",
                     "sp_hgt_a", "sp_hgt_b",
@@ -1670,8 +2382,8 @@ def updateCorrtagKeywords(flt, corrtag):
     ohdr = ofd[1].header
 
     for segment in segment_list:
-        for key in ["SP_LOC_", "SP_OFF_", "SP_NOM_", "SP_SLP_", "SP_HGT_",
-                    "B_BKG1_", "B_BKG2_", "B_HGT1_", "B_HGT2_"]:
+        for key in ["SP_LOC_", "SP_OFF_", "SP_ERR_", "SP_NOM_", "SP_SLP_",
+                    "SP_HGT_", "B_BKG1_", "B_BKG2_", "B_HGT1_", "B_HGT2_"]:
             keyword = key + segment[-1]
             if keyword in ihdr:
                 ohdr[keyword] = ihdr[keyword]

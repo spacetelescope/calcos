@@ -109,7 +109,8 @@ def oneInputFile(input, output):
         if keyword in fd[0].header:
             del(fd[0].header[keyword])
     delSomeKeywords(fd[1].header)
-
+    newfd = delExtraColumns(fd[1])
+    fd[1] = newfd
     fd.writeto(output)
     fd.close()
 
@@ -129,6 +130,53 @@ def delSomeKeywords(hdr):
                 "dpixel1a", "dpixel1b", "dpixel1c"]:
         if key in hdr:
             del(hdr[key])
+
+def delExtraColumns(hdu):
+    """Delete extra columns in the output file.
+
+    Parameters
+    ----------
+    hdu: pyfits HDU object
+        HDU object to be modified to be modified
+    """
+
+    columns_to_delete = ["DQ_OUTER", "BACKGROUND_PER_ROW", "NUM_EXTRACT_ROWS",
+                         "ACTUAL_EE", "Y_LOWER_OUTER", "Y_UPPER_OUTER",
+                         "Y_LOWER_INNER", "Y_UPPER_INNER"]
+
+    table = hdu.data
+    header = hdu.header
+    columns = table.columns
+    outcols = []
+    for column in columns:
+        if column.name in columns_to_delete:
+            number = 0
+            while(True):
+                number = number + 1
+                tstring = 'TTYPE' + str(number)
+                try:
+                    ttype = header[tstring]
+                    if ttype in columns_to_delete:
+                        del header[tstring]
+                        tstring = 'TFORM' + str(number)
+                        del header[tstring]
+                        tstring = 'TUNIT' + str(number)
+                        try:
+                            del header[tstring]
+                        except KeyError:
+                            pass
+                        tstring = 'TDISP' + str(number)
+                        try:
+                            del header[tstring]
+                        except KeyError:
+                            pass
+                except KeyError:
+                    break
+        else:
+            outcols.append(column)
+    cd = fits.ColDefs(outcols)
+    newhdu = fits.new_table(cd, header=hdu.header)
+    return newhdu
 
 def makeStringList(inlist):
     """Construct a comma-separated string from elements of a list.
@@ -304,6 +352,8 @@ class OutputX1D(object):
             if asn_mtyp != "missing":
                 self.ofd[1].header["asn_mtyp"] = asn_mtyp
         self.updateArchiveSearch(self.ofd)      # minwave & maxwave
+        newhdu = delExtraColumns(self.ofd[1])
+        self.ofd[1] = newhdu
         self.ofd.writeto(self.output)
 
         if self.keywords["statflag"]:
@@ -558,6 +608,8 @@ class OutputX1D(object):
         #        cd.change_attrib(col_names[i], "format", newfmt)
 
         # Create output HDU for the table.
+        newhdu = delExtraColumns(ifd[1])
+        ifd[1].header = newhdu.header
         hdu = fits.new_table(cd, header=ifd[1].header, nrows=self.nrows)
 
         hdu.header["exptime"] = self.keywords["exptime"]

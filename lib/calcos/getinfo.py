@@ -114,7 +114,8 @@ def getGeneralInfo(phdr, hdr):
         "aperypos":  NOT_APPLICABLE,
         "coscoord":  DETECTOR_COORDINATES,
         "ra_targ":  -999.,
-        "dec_targ": -999.}
+        "dec_targ": -999.,
+        "xtrctalg": "BOXCAR"}
 
     for key in keylist.keys():
         info[key] = phdr.get(key, default=keylist[key])
@@ -262,7 +263,7 @@ def getSwitchValues(phdr):
     switches = {}
 
     for key in ["dqicorr", "randcorr", "tempcorr", "geocorr", "igeocorr",
-                "walkcorr",
+                "walkcorr", "trcecorr", "algncorr",
                 "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
                 "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
                 "fluxcorr", "photcorr", "tdscorr", "statflag"]:
@@ -298,12 +299,13 @@ def getRefFileNames(phdr):
     reffiles = {}
 
     for key in ["flatfile", "hvtab", "walktab", "bpixtab", "gsagtab",
-                "brftab", "geofile",
+                "brftab", "geofile", "twozxtab",
                 "deadtab", "phafile", "phatab",
-                "brsttab", "badttab",
+                "brsttab", "badttab", "tracetab",
                 "xtractab", "lamptab", "disptab",
                 "fluxtab", "imphttab", "phottab",
-                "spwcstab", "wcptab", "tdstab"]:
+                "spwcstab", "wcptab", "tdstab",
+                "proftab"]:
         reffiles[key+"_hdr"] = phdr.get(key, default=NOT_APPLICABLE)
         reffiles[key] = cosutil.expandFileName(reffiles[key+"_hdr"])
 
