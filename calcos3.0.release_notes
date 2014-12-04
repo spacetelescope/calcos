@@ -1,0 +1,121 @@
+CALCOS 3.0 Release Notes
+------------------------
+
+  This addresses the following PR:
+
+PR#79304  CALCOS should implement two-zone extraction
+
+  CALCOS was upgraded to Version 3.0 to support the move of the COS FUV
+channel to Lifetime Position 3.  This move involves changing the aperture
+block position so that the spectrum will be located approximately x
+pixels (y arcsec) below its location during Lifetime Position 1.  As a
+result of this move, some of the gain sagged regions from LP1 will be
+close to the edge of the extraction aperture at LP3.
+
+  CALCOS Version 3.0 addresses this by splitting the extraction region
+into two parts: the inner region, where most of the flux is, will be where
+DQ flags are propagated to the output extracted spectrum.  The outer region,
+containing a much smaller fraction of the flux, will contribute to the
+total flux measurement, but its DQ flags will be ignored.  This 'two zone'
+extraction algorithm involves several significant changes to CALCOS.
+
+  Most of the significant changes are confined to extract.py and the new
+module, trace.py.  The former now has two extractSegment methods:
+extractSegmentBoxcar and extractSegmentTwozone, with all of the new
+extraction algorithms in the latter function.
+
+  The new module trace.py includes code to perform two new calibration
+steps: trace correction (trcecorr) and profile alignment (algncorr).  In
+the trace correction step, the 1-d profile of the centroid of the spectrum
+is corrected for its up-and-down wiggles to make a horizontal spectrum.
+In the profile alignment step, the centroid of this spectrum in the cross
+dispersion direction is measured and compared to the centroid of a high
+signal to noise template, and shifted to make the science data spectrum and
+reference profile have the same centroid.  This ensures that the (narrower)
+extraction regions are still centered on the spectrum. 
+
+  Modules changed:
+
+  Setup.cfg:
+
+  Version and author(s) changed
+
+  lib/calcos/airglow.py:
+
+  New module to ensure that the regions around airglow lines are not included
+in the profile alignment centroid calculations.
+
+  lib/calcos/calcosparam.py:
+
+  Added sp_err_X to list of segment-specific keywords.
+  Added MissingColumnError exception.
+
+  lib/calcos/calcos.py:
+
+  Added code to deal with 3 new reference file types: TRACETAB, PROFTAB and
+TWOZXTAB.
+
+  lib/calcos/concurrent.py:
+
+  New calling sequence for extract.extractCorrtag
+
+  lib/calcos/extract.py:
+
+  Major changes.  extractSegment() is now split into extractSegmentBoxcar()
+and extractSegmentTwozone().  Calling sequence to extractSegmentBoxcar is
+different from extractSegment because of the new columns added to the x1d
+file.  extractSegmentTwoZone contains the code to do the two-zone extraction,
+and uses the following new functions:
+   getProfileCentroid()
+   getBackgroundCenters()
+   getBackgroundRegion()
+   getBackground()
+   getPercentiles()
+   NormalizeProfile()
+   getPercentileVectors()
+   bitwise_or_vector()
+   next_power_of_two()
+   remove_unwanted_columns()
+
+  lib/calcos/fpavg.py:
+
+  Remove added columns from x1dsum files.
+
+  lib/calcos/getinfo.py:
+
+  Added new correction steps (trcecorr, algncorr) and reference files
+(tracetab, proftab, twozxtab) to getSwitchValues() and getRefFileNames()
+
+  lib/calcos/timetag.py:
+
+  Added three new functions to do trace correction and profile alignment:
+    createTraceMask()
+    doTraceCorr()
+    doProfileAlignmentCorr()
+
+  lib/calcos/trace.py:
+
+  New module that holds all the code for trace correction and alignment
+correction.  Includes functions
+    def doTrace()
+    def getTrace()
+    def cleanTrace()
+    def applyTrace()
+    def doProfileAlignment()
+    def rebinData()
+    def rebinCounts()
+    def maskAirglowLines()
+    def applyWavelengthLimits()
+    def getWavelengthLimits()
+    def getGoodRows()
+    def getRegions()
+    def getGoodColumns()
+    def getScienceCentroid()
+    def getBackground()
+    def getCentroid()
+    def getCentroidError()
+    def calculateCentroidError()
+    def getReferenceBackground()
+    def getReferenceCentroid()
+    def applyOffset()
+    def updateTraceKeywords()
