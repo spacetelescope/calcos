@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division, print_function # confidence high
 import sys
 import os
 import time
@@ -11,18 +11,18 @@ import copy
 import numpy
 import astropy
 import astropy.io.fits as fits
-import accum
-import average
-import cosutil
-import extract
-import fpavg
-import getinfo
-import shiftfile
-import spwcs
-import timetag
-import trace
-import wavecal
-from calcosparam import *       # parameter definitions
+from . import accum
+from . import average
+from . import cosutil
+from . import extract
+from . import fpavg
+from . import getinfo
+from . import shiftfile
+from . import spwcs
+from . import timetag
+from . import trace
+from . import wavecal
+from .calcosparam import *       # parameter definitions
 
 # These values for Observation.exp_type are used in this file only.
 EXP_UNKNOWN     = 0
@@ -88,7 +88,7 @@ def main(args):
                             "csum", "raw", "only_csum",
                             "compress=", "binx=", "biny=",
                             "shift=", "stim=", "live=", "burst="])
-    except Exception, error:
+    except Exception as error:
         prtOptions()
         cosutil.printError(str(error))
         sys.exit()
@@ -2222,7 +2222,7 @@ class Observation(object):
         # dictionaries with OSM step position as key and tuple of
         # optical element, central wavelength, and FP offset as value;
         # also defines date ranges for NUV and OSM range for TA1Image.
-        import osmstep
+        from . import osmstep
 
         try:
             fd = fits.open(sptfile, mode="readonly")

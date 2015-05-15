@@ -4,15 +4,16 @@
 #  data - the TRCECORR and ALGNCORR steps
 #
 
+from __future__ import absolute_import
 import astropy.io.fits as fits
 import numpy as np
 import math
 
-import airglow
-from calcosparam import *
-import ccos
-import cosutil
-import dispersion
+from . import airglow
+from .calcosparam import *
+from . import ccos
+from . import cosutil
+from . import dispersion
 
 TRACE_OK = 1
 CENTROID_OK = 1

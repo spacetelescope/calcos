@@ -1,17 +1,17 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import copy
 import math
 import os
 import numpy as np
 import astropy.io.fits as fits
-import cosutil
-import dispersion
-import extract
-import shiftfile
-import wavecal
-import ccos
-from calcosparam import *       # parameter definitions
-import findshift1
+from . import cosutil
+from . import dispersion
+from . import extract
+from . import shiftfile
+from . import wavecal
+from . import ccos
+from .calcosparam import *       # parameter definitions
+from . import findshift1
 
 # add DELTA_SHIFT[12] to a shift for segment A to get the shift for B
 DELTA_SHIFT1 = 0.0

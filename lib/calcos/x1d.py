@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division, print_function # confidence high
 import os
 import sys
 import string
@@ -9,12 +9,12 @@ import getopt
 import numpy as np
 import astropy.io.fits as fits
 
-import calcosparam                      # parameter definitions
-import cosutil
-import getinfo
-import extract
-import spwcs
-import timetag
+from . import calcosparam                      # parameter definitions
+from . import cosutil
+from . import getinfo
+from . import extract
+from . import spwcs
+from . import timetag
 
 from .version import *
 
@@ -31,7 +31,7 @@ def main(args):
     """
 
     if len(args) < 1:
-        print "Specify one or more input corrtag file names."
+        print("Specify one or more input corrtag file names.")
         prtOptions()
         raise RuntimeError()
 
@@ -39,7 +39,7 @@ def main(args):
         (options, pargs) = getopt.getopt(args, "qvuo:",
                                          ["find=", "location=", "extrsize="])
     except Exception, error:
-        print str(error)
+        print(str(error))
         prtOptions()
         raise RuntimeError()
 

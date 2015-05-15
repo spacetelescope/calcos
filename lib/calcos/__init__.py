@@ -1,4 +1,4 @@
-from __future__ import division         # confidence high
+from __future__ import division, print_function         # confidence high
 
 from .version import *
 
@@ -172,4 +172,4 @@ def getHelpAsString(fulldoc=True):
 # xxx calcos.__doc__ = getHelpAsString(fulldoc=False)
 
 def help():
-    print getHelpAsString()
+    print(getHelpAsString())

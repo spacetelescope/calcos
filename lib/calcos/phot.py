@@ -1,6 +1,6 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 
-import cosutil
+from . import cosutil
 
 def doPhot(imphttab, obsmode, hdr):
     """Update photometry parameter keywords for imaging data.
@@ -38,20 +38,20 @@ def readImPhtTab(imphttab, obsmode):
     This version has hardcoded values, since the imphttab hasn't been
     created yet.  The values were determined using pysynphot (and synphot
     for the bandwidth) as follows:
-
+    
     % setenv PYSYN_CDBS <directory>
     % python
-    >>> import pysynphot as S
-    >>> for obsmode in ["cos,nuv,mirrora,psa",
-    >>>             "cos,nuv,mirrora,boa",
-    >>>             "cos,nuv,mirrorb,psa",
-    >>>             "cos,nuv,mirrorb,boa"]:
-    >>>     sp = S.FlatSpectrum(1., fluxunits="flam")
-    >>>     bp = S.ObsBandpass(obsmode)
-    >>>     obs = S.Observation(sp, bp)
-    >>>     print "#", fluxunits, obsmode
-    >>>     print 1. / obs.countrate()          # photflam
-    >>>     print obs.pivot()                   # photplam
+    > import pysynphot as S
+    > for obsmode in ["cos,nuv,mirrora,psa",
+    >             "cos,nuv,mirrora,boa",
+    >             "cos,nuv,mirrorb,psa",
+    >             "cos,nuv,mirrorb,boa"]:
+    >     sp = S.FlatSpectrum(1., fluxunits="flam")
+    >     bp = S.ObsBandpass(obsmode)
+    >     obs = S.Observation(sp, bp)
+    >     print "#", fluxunits, obsmode
+    >     print 1. / obs.countrate()          # photflam
+    >     print obs.pivot()                   # photplam
 
     obs.pivot() gave different values for flam vs fnu, so the values
     obtained via bandpar were used instead.  The bandwidth was also

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import shutil
@@ -10,8 +10,8 @@ import types
 import numpy as np
 import numpy.linalg as LA
 import astropy.io.fits as fits
-import ccos
-from calcosparam import *       # parameter definitions
+from . import ccos
+from .calcosparam import *       # parameter definitions
 
 # initial value
 verbosity = VERBOSE
@@ -1149,7 +1149,7 @@ def updateDQArray(info, reffiles, dq_array,
 
     if doppler_boundary > 0. and info["detector"] == "FUV":
         # split FUV into two regions, the PSA and the WCA
-        key = minmax_shift_dict.keys()[0]
+        key = list(minmax_shift_dict.keys())[0]
         value = minmax_shift_dict[key]
         (lower_y, upper_y) = key
         minmax_dict = {(lower_y, doppler_boundary): value,
@@ -1462,7 +1462,7 @@ def fuvFlagOutOfBounds(hdr, dq_array, info, switches,
     (ny, nx) = dq_array.shape
 
     # there's only one key for FUV
-    key = minmax_shift_dict.keys()[0]
+    key = list(minmax_shift_dict.keys())[0]
 
     # These are for shifting the out-of-bounds region into the subarray
     # due to the wavecal offset and Doppler shift during the exposure.
@@ -1834,7 +1834,7 @@ def flagOutsideActiveArea(dq_array, segment, brftab, x_offset,
     # These are for shifting and smearing the out-of-bounds region into
     # the active region due to the wavecal offset and Doppler shift and
     # their variation during the exposure.
-    key = minmax_shift_dict.keys()[0]
+    key = list(minmax_shift_dict.keys())[0]
     [min_shift1, max_shift1, min_shift2, max_shift2] = minmax_shift_dict[key]
     (mindopp, maxdopp) = minmax_doppler
 
@@ -3858,7 +3858,8 @@ def cmpPart(s1, s2):
 
 
 def _test():
-    import doctest, cosutil
+    from . import cosutil
+    import doctest
     return doctest.testmod(cosutil)
 
 if __name__ == "__main__":

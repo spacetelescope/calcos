@@ -103,6 +103,7 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 		in functions findSmallerBursts and median_boxcar.
 2011 June 29	Add an optional argument to smoothbkg, an array of flags;
 		rewrite smoothBackground to use these flags.
+2015 May 6 Add initialization code for Python 3
 */
 
 # include <Python.h>
@@ -114,6 +115,7 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 # include <time.h>
 
 # include <numpy/arrayobject.h>
+# include <numpy/npy_3kcompat.h>
 
 # define SZ_ERRMESS 1024
 
@@ -4032,16 +4034,41 @@ static PyMethodDef ccos_methods[] = {
 	{NULL, NULL, 0, NULL}
 };
 
-PyMODINIT_FUNC initccos(void) {
+#if defined(NPY_PY3K)
+static struct PyModuleDef moduledef = {
+    PyModuleDef_HEAD_INIT,
+    "ccos",
+    NULL,
+    -1,
+    ccos_methods,
+    NULL,
+    NULL,
+    NULL,
+    NULL
+};
+#endif
 
+#if defined(NPY_PY3K)
+PyObject *PyInit_ccos(void) 
+#else
+PyMODINIT_FUNC initccos(void)
+#endif
+{
 	PyObject *mod;		/* the module */
 	PyObject *dict;		/* the module's dictionary */
 
+#if defined(NPY_PY3K)
+    mod = PyModule_Create(&moduledef);
+#else
 	mod = Py_InitModule("ccos", ccos_methods);
+#endif
 	import_array();
 
 	/* set the doc string */
 	dict = PyModule_GetDict(mod);
 	PyDict_SetItemString(dict, "__doc__",
 		PyString_FromString(DocString()));
+#if defined(NPY_PY3K)
+    return mod;
+#endif
 }

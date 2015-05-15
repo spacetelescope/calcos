@@ -1,4 +1,4 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import copy
 import math
 import shutil
@@ -8,12 +8,12 @@ import numpy as np
 from numpy import random
 import astropy.io.fits as fits
 
-import cosutil
-import ccos
-import phot
-import timetag                  # actually for more generic functions
-import wavecal
-from calcosparam import *       # parameter definitions
+from . import cosutil
+from . import ccos
+from . import phot
+from . import timetag                  # actually for more generic functions
+from . import wavecal
+from .calcosparam import *       # parameter definitions
 
 def accumBasicCalibration(input, inpha, outtag,
                           outflt, outcounts, outcsum,

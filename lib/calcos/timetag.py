@@ -1,4 +1,4 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import time
@@ -6,17 +6,17 @@ import numpy as np
 from numpy import random
 import astropy.io.fits as fits
 
-import cosutil
-import burst
-import ccos
-import concurrent
-import dispersion
-import phot
-import shiftfile
-import timeline
-import wavecal
-import trace
-from calcosparam import *       # parameter definitions
+from . import cosutil
+from . import burst
+from . import ccos
+from . import concurrent
+from . import dispersion
+from . import phot
+from . import shiftfile
+from . import timeline
+from . import wavecal
+from . import trace
+from .calcosparam import *       # parameter definitions
 
 # These are column names in the corrtag table.  The default values are
 # appropriate for FUV data.  These can be reset in setCorrColNames().
@@ -3843,7 +3843,7 @@ def flagOmit(phdr):
         calibration switches to OMIT.
     """
 
-    keys = phdr.keys()
+    keys = list(phdr.keys())
     omit_switches = ["BRSTCORR",
                      "BADTCORR",
                      "RANDCORR",

@@ -1,14 +1,14 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import numpy as np
 from stsci.convolve import boxcar
 import astropy.io.fits as fits
-from calcosparam import *
-import ccos
-import cosutil
-import findshift1
-import shiftfile
+from .calcosparam import *
+from . import ccos
+from . import cosutil
+from . import findshift1
+from . import shiftfile
 
 # Each element of wavecal_info is a dictionary with the keys:
 # "time", "cenwave", "fpoffset", "shift_dict", "rootname", "filename".
@@ -432,7 +432,7 @@ def returnWavecalShift(wavecal_info, wcp_info, cenwave, fpoffset, time):
             shift_dict = wc_dict["shift_dict"].copy()
             fp_dict = wc_dict["fp_dict"]
             # Get any segment in fp_dict, use to construct segment in loop.
-            fp_dict_keys = fp_dict.keys()
+            fp_dict_keys = list(fp_dict.keys())
             (segment, fpoff) = fp_dict_keys.pop()       # ignore fpoff
             # Apply correction to all shift1[abc] values.
             for shift_dict_key in shift_dict:
