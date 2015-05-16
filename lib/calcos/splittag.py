@@ -1,11 +1,11 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import glob
 import math
 import os
 import numpy as np
 import astropy.io.fits as fits
-import cosutil
-import ccos
+from . import cosutil
+from . import ccos
 
 NOT_APPLICABLE = "N/A"
 SEC_PER_DAY = 86400.            # seconds in a day
@@ -84,7 +84,7 @@ def splitOneTag(input, outroot, starttime=None, increment=None, endtime=None,
     cosutil.setVerbosity(verbosity)
 
     if not cosutil.isCorrtag(input):
-        raise RuntimeError, "%s is not a corrtag file" % input
+        raise RuntimeError("%s is not a corrtag file" % input)
 
     (inroot, suffix) = splitName(input)
 
@@ -94,7 +94,7 @@ def splitOneTag(input, outroot, starttime=None, increment=None, endtime=None,
         hdr = ifd[("events")].header
     except KeyError:
         ifd.close()
-        raise RuntimeError, "%s is not a corrtag file" % input
+        raise RuntimeError("%s is not a corrtag file" % input)
     data = ifd[("events")].data
     time_col = data.field("TIME").astype(np.float64)
 

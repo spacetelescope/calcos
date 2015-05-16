@@ -1,9 +1,8 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import os
-import string
 import astropy.io.fits as fits
-import cosutil
-from calcosparam import *
+from . import cosutil
+from .calcosparam import *
 
 def initialInfo(filename):
     """Get DETECTOR, OBSMODE, and EXPTYPE from the primary header.

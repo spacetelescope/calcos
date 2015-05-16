@@ -1,8 +1,8 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import numpy as np
 import astropy.io.fits as fits
-import cosutil
-from calcosparam import *       # parameter definitions
+from . import cosutil
+from .calcosparam import *       # parameter definitions
 
 def avgImage(input, output):
     """Average 2-D image sets, assumed to be aligned.

@@ -1,9 +1,9 @@
-from __future__ import division         # confidence unknown
+from __future__ import absolute_import, division         # confidence unknown
 import numpy as np
 from stsci.convolve import boxcar
-import cosutil
-from calcosparam import *       # parameter definitions
-import ccos
+from . import cosutil
+from .calcosparam import *       # parameter definitions
+from . import ccos
 
 MASK_X = 189            # width of region to mask for each geocoronal line
 SEARCH_Y = 91           # height of search region
@@ -55,7 +55,7 @@ def xdSearch(data, dq_data, wavelength, axis, slope, y_nominal,
         Location of spectrum at left edge of detector, i.e. at
         X = x_offset.
 
-    x_offset: int
+    x_offset: intls
         Offset of the detector in the data array.
 
     detector: str

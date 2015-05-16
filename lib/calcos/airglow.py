@@ -1,6 +1,7 @@
-import cosutil
-import dispersion
-from calcosparam import *       # parameter definitions
+from __future__ import absolute_import, print_function
+from . import cosutil
+from . import dispersion
+from .calcosparam import *       # parameter definitions
 
 # Half width (pixels) of airglow region to be excluded.
 AIRGLOW_LyA = 250.      # Lyman alpha
@@ -45,7 +46,7 @@ def findAirglowLimits(info, segment, disptab, airglow_line):
         the obstype is not spectroscopic.
     """
     if info["obstype"] != "SPECTROSCOPIC":
-        print "Data is not spectroscopic"
+        print("Data is not spectroscopic")
         return None
 
     wl_airglow = AIRGLOW_WAVELENGTHS[airglow_line]

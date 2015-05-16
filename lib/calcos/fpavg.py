@@ -1,10 +1,10 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import copy
 import math
 import numpy as np
 import astropy.io.fits as fits
-import cosutil
-from calcosparam import *       # parameter definitions
+from . import cosutil
+from .calcosparam import *       # parameter definitions
 
 # Extract a slice of this height from the flat field in Spectrum.
 XD_WIDTH = 15

@@ -1,14 +1,14 @@
-from __future__ import division         # confidence high
+from __future__ import absolute_import, division         # confidence high
 import copy
 import os
 import numpy as np
 import astropy.io.fits as fits
-import cosutil
-import ccos
-import dispersion
-import getinfo
-import xd_search
-from calcosparam import *       # parameter definitions
+from . import cosutil
+from . import ccos
+from . import dispersion
+from . import getinfo
+from . import xd_search
+from .calcosparam import *       # parameter definitions
 
 def extract1D(input, incounts=None, output=None,
               update_input=True,
@@ -357,7 +357,7 @@ def checkLocation(info, location, extrsize, local_find_targ):
                 if nelem == 1:
                     extrsize = {info["segment"]: extrsize[0]}
                 else:
-                    raise TypeError,("for FUV, extrsize may have "
+                    raise TypeError("for FUV, extrsize may have "
                                      "only one element")
             elif info["detector"] == "NUV":
                 if nelem == 1:
