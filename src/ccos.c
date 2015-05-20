@@ -103,7 +103,8 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 		in functions findSmallerBursts and median_boxcar.
 2011 June 29	Add an optional argument to smoothbkg, an array of flags;
 		rewrite smoothBackground to use these flags.
-2015 May 6 Add initialization code for Python 3
+2015 May 6      Add initialization code for Python 3
+2015 May 20     Convert PyString function to PyUnicode
 */
 
 # include <Python.h>
@@ -4058,7 +4059,7 @@ PyMODINIT_FUNC initccos(void)
 	PyObject *dict;		/* the module's dictionary */
 
 #if defined(NPY_PY3K)
-    mod = PyModule_Create(&moduledef);
+	mod = PyModule_Create(&moduledef);
 #else
 	mod = Py_InitModule("ccos", ccos_methods);
 #endif
@@ -4066,9 +4067,13 @@ PyMODINIT_FUNC initccos(void)
 
 	/* set the doc string */
 	dict = PyModule_GetDict(mod);
+#if defined(NPY_PY3K)
+	PyDict_SetItemString(dict, "__doc__",
+		PyUnicode_FromString(DocString()));
+        return mod;
+#else
 	PyDict_SetItemString(dict, "__doc__",
 		PyString_FromString(DocString()));
-#if defined(NPY_PY3K)
-    return mod;
+	return;
 #endif
 }
