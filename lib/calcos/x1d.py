@@ -38,7 +38,7 @@ def main(args):
     try:
         (options, pargs) = getopt.getopt(args, "qvuo:",
                                          ["find=", "location=", "extrsize="])
-    except Exception, error:
+    except Exception as error:
         print(str(error))
         prtOptions()
         raise RuntimeError()

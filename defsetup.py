@@ -1,4 +1,4 @@
-from __future__ import division         # confidence high
+from __future__ import division, print_function # confidence high
 import distutils
 import distutils.core
 import distutils.sysconfig
@@ -6,7 +6,7 @@ import distutils.sysconfig
 try:
     import numpy
 except ImportError:
-    print "NUMPY was not found. It may not be installed or it may not be on your PYTHONPATH"
+    print("NUMPY was not found. It may not be installed or it may not be on your PYTHONPATH")
 
 pkg = "calcos"
 
