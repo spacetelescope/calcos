@@ -176,8 +176,8 @@ def extract1D(input, incounts=None, output=None,
     col.append(fits.Column(name="DQ", format=rpt+"I"))
     col.append(fits.Column(name="DQ_WGT", format=rpt+"E"))
     col.append(fits.Column(name="DQ_OUTER", format=rpt+"I"))
-    col.append(fits.Column(name="BACKGROUND_PER_ROW", format=rpt+"E",
-                           unit="count /s /pixel"))
+    col.append(fits.Column(name="BACKGROUND_PER_PIXEL", format=rpt+"E",
+                           unit="count /s /pixel",))
     col.append(fits.Column(name="NUM_EXTRACT_ROWS", format=rpt+"I"))
     col.append(fits.Column(name="ACTUAL_EE", format=rpt+"D"))
     col.append(fits.Column(name="Y_LOWER_OUTER", format=rpt+"D"))
@@ -240,6 +240,10 @@ def extract1D(input, incounts=None, output=None,
     # Remove unwanted columns (comment out this line to retain columns
     # for debug purposes)
     ofd = remove_unwanted_columns(ofd)
+    #
+    # Add comment for BACKGROUND_PER_PIXEL column
+    ofd = add_column_comment(ofd, 'BACKGROUND_PER_PIXEL',
+                             'Average background per pixel')
     ofd.writeto(output, output_verify="silentfix")
     del ofd
     ifd_e.close()
@@ -265,10 +269,28 @@ def remove_unwanted_columns(ofd):
             newcols.append(fits.Column(name=column.name,
                                        format=column.format,
                                        unit=column.unit,
+                                       disp=column.disp,
                                        array=table[column.name]))
     cd = fits.ColDefs(newcols)
     newhdu = fits.new_table(cd, header=ofd[1].header)
     ofd[1] = newhdu
+    return ofd
+
+def add_column_comment(ofd, column_name, comment):
+    #
+    # columns don't have comments, per se, but you can add a comment to the
+    # corresponding TTYPEn keyword
+    number = 1
+    while (True):
+        try:
+            keyword = 'TTYPE%s' % str(number)
+            if ofd[1].header[keyword] == column_name:
+                ofd[1].header.set(keyword, comment=comment)
+                break
+            else:
+                number = number + 1
+        except KeyError:
+            break
     return ofd
 
 def checkLocation(info, location, extrsize, local_find_targ):
@@ -438,7 +460,11 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
 
     hdr = ifd_e[1].header
     outdata = ofd[1].data
-
+    try:
+        sdqouter = hdr['sdqouter']
+    except KeyError:
+        cosutil.printWarning("No SDQOUTER keyword, setting to 0")
+        sdqouter = 0
     is_corrtag = (ifd_c is None)
     if is_corrtag:              # the input is a corrtag table
         (xi, eta, dq, epsilon) = getColumns(ifd_e, info["detector"])
@@ -612,10 +638,9 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                       extractSegmentTwozone(ifd_e["SCI"].data,
                                             ifd_c["SCI"].data,
                                             ifd_e["DQ"].data, ofd[1].header,
-                                            segment,
-                                            x_offset, hdr["sdqflags"], snr_ff,
-                                            exptime, switches["backcorr"], axis,
-                                            hdr,
+                                            segment, x_offset, hdr["sdqflags"],
+                                            sdqouter, snr_ff, exptime,
+                                            switches["backcorr"], axis, hdr,
                                             xtract_info, shift2, proftab_info,
                                             info, wavelength, is_wavecal,
                                             user_xdisp_locn, user_xdisp_size,
@@ -651,19 +676,19 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         outdata.field("BACKGROUND")[row][:] = BK_i.copy()
         outdata.field("DQ")[row][:] = DQ_i.copy()
         outdata.field("DQ_WGT")[row][:] = DQ_WGT_i.copy()
-        outdata.field("DQ_OUTER")[row][:] = DQ_i.copy()
+        outdata.field("DQ_OUTER")[row][:] = DQ_ALL_i.copy()
         outdata.field("Y_LOWER_OUTER")[row][:] = LOWER_OUTER_i.copy()
         outdata.field("Y_UPPER_OUTER")[row][:] = UPPER_OUTER_i.copy()
         outdata.field("Y_LOWER_INNER")[row][:] = LOWER_INNER_i.copy()
         outdata.field("Y_UPPER_INNER")[row][:] = UPPER_INNER_i.copy()
         outdata.field("ACTUAL_EE")[row][:] = ENCLOSED_FRACTION_i.copy()
-        outdata.field("BACKGROUND_PER_ROW")[row][:] = \
+        outdata.field("BACKGROUND_PER_PIXEL")[row][:] = \
             BACKGROUND_PER_ROW_i.copy()
         outdata.field("EE_LOWER_OUTER")[row][:] = EE_LOWER_OUTER_i.copy()
         outdata.field("EE_LOWER_INNER")[row][:] = EE_LOWER_INNER_i.copy()
         outdata.field("EE_UPPER_INNER")[row][:] = EE_UPPER_INNER_i.copy()
         outdata.field("EE_UPPER_OUTER")[row][:] = EE_UPPER_OUTER_i.copy()
-        NUM_EXTRACT_ROWS = UPPER_OUTER_i - LOWER_OUTER_i
+        NUM_EXTRACT_ROWS = UPPER_OUTER_i - LOWER_OUTER_i + 1
         outdata.field("NUM_EXTRACT_ROWS")[row][:] = NUM_EXTRACT_ROWS.copy()
         row += 1
 
@@ -1125,12 +1150,16 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
     #
     # Compute the 'extended' quantities
     DQ_ALL_i = DQ_i
-    LOWER_OUTER_INDEX_i = N_i*0.0 + xd_nominal - extr_height//2
-    UPPER_OUTER_INDEX_i = N_i*0.0 + xd_nominal + extr_height//2
+    #
+    # Make the INDEXes all vectors that follow the slope
+    half_height = extr_height // 2
+    y0 = (b_spec - half_height) + slope * np.arange(float(axis_length))
+    LOWER_OUTER_INDEX_i = (y0 + 0.5).astype(int)
+    UPPER_OUTER_INDEX_i = LOWER_OUTER_INDEX_i + extr_height - 1
     LOWER_INNER_INDEX_i = LOWER_OUTER_INDEX_i.copy()
     UPPER_INNER_INDEX_i = UPPER_OUTER_INDEX_i.copy()
     ENCLOSED_FRACTION_i = N_i*0.0 + 1.0
-    AV_E_BKG_i = BK_i / float(bkg_height1 + bkg_height2)
+    AV_E_BKG_i = BK_i / float(extr_height)
     LOWER_OUTER_VALUE_i = N_i*0.0 + 0.0
     LOWER_INNER_VALUE_i = N_i*0.0 + 0.0
     UPPER_INNER_VALUE_i = N_i*0.0 + 1.0
@@ -1200,7 +1229,7 @@ def excludeAllBad(good_i, i, j):
     return (ip, jp)
 
 def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
-                          x_offset, sdqflags, snr_ff,
+                          x_offset, sdqflags, sdqouter, snr_ff,
                           exptime, backcorr, axis, hdr,
                           xtract_info, shift2, proftab_info,
                           info, wavelength, is_wavecal,
@@ -1260,6 +1289,9 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
 
     sdqflags: int
         "Serious" data quality flags
+
+    sdqouter: int
+        "Serious" data quality flags for the outer extraction regions
 
     snr_ff: float
         The signal-to-noise ratio of the flat field reference file (from
@@ -1337,6 +1369,13 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     """
     cosutil.printMsg("Two-zone extraction method")
     #
+    # Check that the sdqouter dq value is in sdqflags, and print a warning
+    # if it isn't
+    sdqflags_ok = (sdqflags & sdqouter) == sdqouter
+    if not sdqflags_ok:
+        cosutil.printWarning("SDQOUTER (%d) is not in SDQFLAGS (%d)" % \
+                                 (sdqouter, sdqflags))
+    #
     # Get the profile array from the PROFTAB reference file record
     profile_ij = proftab_info["profile"][0]
     nrows, ncols = profile_ij.shape
@@ -1378,6 +1417,7 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     rowstop = int(round(refcentroid)) + height // 2
     cumulative_profile = np.cumsum(normalized_profile_ij[rowstart:rowstop+1],
                                    axis=0, dtype=np.float64)
+    cumrows, cumcols = cumulative_profile.shape
     (LOWER_OUTER_INDEX_i, LOWER_INNER_INDEX_i,
      UPPER_INNER_INDEX_i, UPPER_OUTER_INDEX_i,
      ENCLOSED_FRACTION_i, LOWER_OUTER_VALUE_i,
@@ -1387,7 +1427,7 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     #
     # Extend the ends so that the regions where there are no counts have the
     # same values as the first or last good columns
-    goodcolumns = np.where(LOWER_OUTER_INDEX_i != 0)
+    goodcolumns = np.where(UPPER_OUTER_INDEX_i != 0)
     firstgood = goodcolumns[0][0]
     lastgood = goodcolumns[0][-1]
     LOWER_OUTER_INDEX_i[:firstgood] = LOWER_OUTER_INDEX_i[firstgood]
@@ -1435,6 +1475,9 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     DQ_WGT_i = np.ones(ncols, dtype=np.float32)
     extr_height_i = np.ones(ncols, dtype=np.float32)
     bad_i = np.zeros(ncols, dtype=np.int32)
+    lowerbad_i = np.zeros(ncols, dtype=np.int32)
+    upperbad_i = np.zeros(ncols, dtype=np.int32)
+
     #
     # Loop over columns
     for column in range(ncols):
@@ -1445,12 +1488,14 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
                                        column].sum(dtype=np.float64)
             lower_ccounts = c_data[lowerstart:lowerstop,
                                    column].sum(dtype=np.float64)
-            upperstart = UPPER_INNER_INDEX_i[column]
-            upperstop = UPPER_OUTER_INDEX_i[column]
+            lowerdq = e_dq_data[lowerstart:lowerstop, column]
+            upperstart = UPPER_INNER_INDEX_i[column] + 1
+            upperstop = UPPER_OUTER_INDEX_i[column] + 1
             upper_ecounts = e_data_sub[upperstart:upperstop,
                                        column].sum(dtype=np.float64)
             upper_ccounts = c_data[upperstart:upperstop,
                                    column].sum(dtype=np.float64)
+            upperdq = e_dq_data[upperstart:upperstop, column]
             innerstart = lowerstop
             innerstop = upperstart
             inner_ecounts = e_data_sub[innerstart:innerstop,
@@ -1466,13 +1511,24 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
             DQ_WGT_i[column] = 1.0
             if bad_i[column] > 0.0:
                 DQ_WGT_i[column] = 0.0
-            DQ_i[column] = bitwise_or_vector(innerdq)
+            sdqlower = np.bitwise_and(lowerdq, sdqouter)
+            lowerbad_i[column] = np.where(sdqlower, 1, 0).sum()
+            if lowerbad_i[column] > 0.0:
+                DQ_WGT_i[column] = 0.0
+            sdqupper = np.bitwise_and(upperdq, sdqouter)
+            upperbad_i[column] = np.where(sdqupper, 1, 0).sum()
+            if upperbad_i[column] > 0.0:
+                DQ_WGT_i[column] = 0.0
+            DQ_i[column] = bitwise_or_vector(innerdq) | \
+                bitwise_or_vector(sdqlower) | \
+                bitwise_or_vector(sdqupper)
             DQ_ALL_i[column] = bitwise_or_vector(outerdq)
             total_ecounts[column] = lower_ecounts + upper_ecounts + \
                 inner_ecounts
             total_ccounts[column] = lower_ccounts + upper_ccounts + \
                 inner_ccounts
-            extr_height_i[column] = upperstop - lowerstart + 1
+            extr_height_i[column] = UPPER_OUTER_INDEX_i[column] - \
+                LOWER_OUTER_INDEX_i[column] + 1
             if ENCLOSED_FRACTION_i[column] != 0.0:
                 total_ecounts[column] = total_ecounts[column] / \
                     ENCLOSED_FRACTION_i[column]
@@ -1664,34 +1720,68 @@ def getPercentileVectors(cumulative_profile, p1, p2, p3, p4):
     enclosed_fraction = np.zeros(ncols)
     for column in range(ncols):
         if cumulative_profile[-1, column] > 0:
-            lessthanp1 =  np.where(cumulative_profile[:, column] < p1)[0]
-            if len(lessthanp1) > 0:
-                row = lessthanp1[-1]
+            if p1 == 0.0:
+                lower_outer_index[column] = 0
+                lower_outer_value[column] = 0.0
             else:
-                row = 0
-            lower_outer_index[column] = row + 1
-            lower_outer_value[column] = cumulative_profile[row, column]
-            lessthanp2 =  np.where(cumulative_profile[:, column] < p2)[0]
-            if len(lessthanp2) > 0:
-                row = lessthanp2[-1]
+                lessthanp1 =  np.where(cumulative_profile[:, column] < p1)[0]
+                if len(lessthanp1) > 0:
+                    #
+                    # Last row where profile < p1
+                    # First row of the lower outer region
+                    row = lessthanp1[-1]
+                else:
+                    row = 0
+                lower_outer_index[column] = row
+                lower_outer_value[column] = cumulative_profile[row, column]
+            if p2 == 0.0:
+                lower_inner_index[column] = 0
+                lower_inner_value[column] = 0.0
             else:
-                row = 0
-            lower_inner_index[column] = row + 1
-            lower_inner_value[column] = cumulative_profile[row, column]
-            morethanp3 =  np.where(cumulative_profile[:, column] > p3)[0]
-            if len(morethanp3) > 0:
-                row = morethanp3[0]
+                lessthanp2 =  np.where(cumulative_profile[:, column] < p2)[0]
+                if len(lessthanp2) > 0:
+                    #
+                    # Last row where profile < p2
+                    # First row of the inner region
+                    row = lessthanp2[-1]
+                else:
+                    row = 0
+                lower_inner_index[column] = row
+                lower_inner_value[column] = cumulative_profile[row, column]
+            if p3 == 1.0:
+                #
+                # The index of the last row is (nrows-1)
+                upper_inner_index[column] = nrows - 1
+                upper_inner_value[column] = 1.0
             else:
-                row = nrows
-            upper_inner_index[column] = row + 1
-            upper_inner_value[column] = cumulative_profile[row, column]
-            morethanp4 =  np.where(cumulative_profile[:, column] > p4)[0]
-            if len(morethanp4) > 0:
-                row = morethanp4[0]
+                morethanp3 =  np.where(cumulative_profile[:, column] > p3)[0]
+                if len(morethanp3) > 0:
+                    #
+                    # First row where profile > p3
+                    # Last row of the inner region, so we'll need to add
+                    # 1 to the slice index
+                    row = morethanp3[0]
+                else:
+                    row = nrows
+                upper_inner_index[column] = row
+                upper_inner_value[column] = cumulative_profile[row, column]
+            if p4 == 1.0:
+                #
+                # The index of the last row is (nrows-1)
+                upper_outer_index[column] = nrows - 1
+                upper_outer_value[column] = 1.0
             else:
-                row = nrows
-            upper_outer_index[column] = row + 1
-            upper_outer_value[column] =  cumulative_profile[row, column]
+                morethanp4 =  np.where(cumulative_profile[:, column] > p4)[0]
+                if len(morethanp4) > 0:
+                    #
+                    # First row where profile > p4
+                    # Last row of the upper outer region, so we'll add 1 to
+                    # the index in the slice
+                    row = morethanp4[0]
+                else:
+                    row = nrows
+                upper_outer_index[column] = row
+                upper_outer_value[column] =  cumulative_profile[row, column]
             enclosed_fraction[column] = upper_outer_value[column] - \
                 lower_outer_value[column]
     return (lower_outer_index, lower_inner_index, upper_inner_index,
