@@ -442,7 +442,8 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
     reffiles = getinfo.getRefFileNames(phdr)
     timetag.setActiveArea(events, info, reffiles["brftab"])
     minmax_shift_dict = timetag.getWavecalOffsets(
-                events, info, switches["wavecorr"], reffiles["xtractab"])
+                events, info, switches["wavecorr"], reffiles["xtractab"],
+                reffiles["brftab"])
     dq_array = timetag.doDqicorr(events, corrtag, info, switches, reffiles,
                                  phdr, headers[1], minmax_shift_dict)
 

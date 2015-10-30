@@ -7,6 +7,7 @@ import shutil
 import sys
 import time
 import types
+import copy
 import numpy as np
 import numpy.linalg as LA
 import astropy.io.fits as fits
@@ -1045,6 +1046,42 @@ def getInputDQ(input, imset=1):
 
     return dq_array
 
+def checkSpottabKeywords(reffiles, info):
+    """Check the SPOTTAB keywords against the PHA_LOW and PHA_HI values
+    from the PHATAB.  If they aren't the same, print a warning.
+
+    Parameters
+    ----------
+    reffiles: dictionary
+        Dictionary of reference files
+    """
+    
+    if reffiles["phafile"] == NOT_APPLICABLE:
+        #
+        # Skip the check if a PHAFILE is used, the PHA_LOW and PHA_HI
+        # aren't fixed in that case so the comparison makes no sense
+        phatab = reffiles["phatab"]
+        segment = info["segment"]
+        filter = {"segment": segment}
+        if findColumn(phatab, "opt_elem"):
+            filter["opt_elem"] = info["opt_elem"]
+        pha_info = getTable(phatab, filter, exactly_one=True)
+
+        low = pha_info.field("llt")[0]
+        high = pha_info.field("ult")[0]
+        spothdr = fits.open(reffiles["spottab"])[0].header
+        try:
+            spotlo = spothdr["phamin"]
+            spothi = spothdr["phamax"]
+            if spotlo != low and spothi != high:
+                printWarning("PHAMIN and PHAMAX in SPOTTAB are different")
+                printContinuation("from values in PHATAB")
+                printContinuation("SPOTTAB: %d %d" % (spotlo, spothi))
+                printContinuation("PHATAB: %d %d" % (low, high))
+        except KeyError:
+            printWarning("PHAMIN and PHAMAX keywords not found in SPOTTAB")
+    return
+
 def minmaxDoppler(info, doppcorr, doppmag, doppzero, orbitper):
     """Compute the range of Doppler shifts.
 
@@ -1097,7 +1134,7 @@ def minmaxDoppler(info, doppcorr, doppmag, doppzero, orbitper):
 
 def updateDQArray(info, reffiles, dq_array,
                   minmax_shift_dict,
-                  minmax_doppler, doppler_boundary):
+                  minmax_doppler, doppler_boundary, gti):
     """Apply the data quality initialization table to DQ array.
 
     dq_array is a 2-D array, to be written as the DQ extension in an
@@ -1131,7 +1168,7 @@ def updateDQArray(info, reffiles, dq_array,
             Y >= doppler_boundary is the WCA
     """
 
-    (lx, ly, dx, dy, dq, extn, message) = getDQArrays(info, reffiles)
+    (lx, ly, dx, dy, dq, extn, message) = getDQArrays(info, reffiles, gti)
     if len(lx) < 1:
         return
 
@@ -1146,7 +1183,6 @@ def updateDQArray(info, reffiles, dq_array,
     # suffix _s_s means shifted and relative to the lower limit of a slice
 
     (mindopp, maxdopp) = minmax_doppler
-
     if doppler_boundary > 0. and info["detector"] == "FUV":
         # split FUV into two regions, the PSA and the WCA
         key = list(minmax_shift_dict.keys())[0]
@@ -1159,7 +1195,6 @@ def updateDQArray(info, reffiles, dq_array,
     fd = fits.open(reffiles["bpixtab"])
     widen = fd[1].header.get("widen", default=PIXEL_FRACTION)
     fd.close()
-
     # Update the 2-D data quality extension array from the DQI table info
     # for each slice in the minmax_shift_dict.
     # The flagged region (each row in the DQI table) will be expanded:
@@ -1208,8 +1243,8 @@ def updateDQArray(info, reffiles, dq_array,
         ccos.bindq(lx_s, ly_s_slice, ux_s, uy_s_slice, dq,
                    dq_array[lower_y_s:upper_y_s,:], info["x_offset"])
 
-def getDQArrays(info, reffiles):
-    """Get DQ info from BPIXTAB and possibly GSAGTAB.
+def getDQArrays(info, reffiles, gti):
+    """Get DQ info from BPIXTAB and possibly GSAGTAB and SPOTTAB.
 
     Parameters
     ----------
@@ -1270,6 +1305,44 @@ def getDQArrays(info, reffiles):
                     dx = concatArrays(dx, gsag_dx)
                     dy = concatArrays(dy, gsag_dy)
                     dq = concatArrays(dq, gsag_dq)
+        #
+        # SPOTTAB processing is similar to GSAGTAB processing
+        spottab = reffiles["spottab"]
+        if spottab != NOT_APPLICABLE:
+            #
+            # Loop over good time intervals.  For each interval
+            # hotspot overlaps the interval if the start of the spot is
+            # before the end of the interval, and the end of the spot
+            # is after the beginning of the interval
+            # If there's no good time interval list, make one from exptime
+            # Remember the times in to good time interval are in seconds since the
+            # beginning of the exposure,  whereas the times in the SPOTTAB are in MJD
+            if gti is None:
+                gticopy = [[0.0, info["exptime"]]]
+            else:
+                gticopy = copy.deepcopy(gti)
+            for gtstart, gtstop in gticopy:
+                gti_start_mjd = info["expstart"] + gtstart / 86400.0
+                gti_stop_mjd = info["expstart"] + gtstop / 86400.0
+                spotfilter = {"segment": info["segment"],
+                              "start": (np.less_equal, gti_stop_mjd),
+                              "stop": (np.greater_equal, gti_start_mjd)}
+                spot_info = getTable(spottab, filter=spotfilter)
+                if spot_info is not None:
+                    spot_lx = spot_info.field("lx")
+                    spot_ly = spot_info.field("ly")
+                    spot_dx = spot_info.field("dx")
+                    spot_dy = spot_info.field("dy")
+                    spot_dq = spot_info.field("dq")
+                    
+                    lx = concatArrays(lx, spot_lx)
+                    ly = concatArrays(ly, spot_ly)
+                    dx = concatArrays(dx, spot_dx)
+                    dy = concatArrays(dy, spot_dy)
+                    dq = concatArrays(dq, spot_dq)
+                    # If we find a match for this start/stop time, we don't need to
+                    # check any other start/stop time combinations
+                    break
 
     return (lx, ly, dx, dy, dq, extn, message)
 
@@ -1859,6 +1932,39 @@ def flagOutsideActiveArea(dq_array, segment, brftab, x_offset,
         dq_array[:,0:b_left]   |= DQ_PIXEL_OUT_OF_BOUNDS
     if b_right < nx-1:
         dq_array[:,b_right+1:] |= DQ_PIXEL_OUT_OF_BOUNDS
+
+def correctTraceAndAlignment(dq_array, info, traceprofile, shift1,
+                             alignment_correction):
+    """Correct the DQ array for the trace and alignment correction.
+    The trace and alignment correction shifts every spectrum to a horizontal
+    spectrum in (xfull, yfull) space.  The DQ arrays need to be shifted in the
+    same way.
+
+    Parameters
+    ----------
+
+    dq_array: array-like
+        The input DQ array
+
+    info: dictionary
+        Keywords and values
+
+    traceprofile: array-like
+        Trace profile, a 1-d vector of delta YFULL values for each XCORR.  This
+        was SUBTRACTED from the yfull values, so we need to ADD the NEGATIVE
+        of this
+
+    alignment_correction:
+        The offset that was added to the YFULL values  to correct the alignment
+        
+    """
+    nrows, ncols = dq_array.shape
+    total_correction = None
+    if alignment_correction is not None:
+        total_correction = alignment_correction
+        if traceprofile is not None:
+            total_correction = -traceprofile + alignment_correction
+    return
 
 def getGeoData(geofile, segment):
     """Open and read the geofile.

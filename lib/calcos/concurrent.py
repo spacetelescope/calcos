@@ -538,7 +538,7 @@ class ConcurrentWavecal(object):
         dq_array = np.zeros((axis_height,axis_length), dtype=np.int16)
         cosutil.updateDQArray(self.info, self.reffiles, dq_array,
                               {(0, 1024): [0., 0., 0., 0.]},
-                              (0., 0.), -10)
+                              (0., 0.), -10, None)
         # weights from flat field or nonlinearity
         epsilon = self.events.field("epsilon")
 

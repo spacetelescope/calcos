@@ -33,6 +33,11 @@ yfull = "yfull"
 # for NUV (all True).
 active_area = None
 
+# Used as a default value in blurDQ.  The actual value should be
+# gotten via keyword WIDEN in the BPIXTAB table header.
+# (Should move this to calcosparam as it's in cosutil as well)
+PIXEL_FRACTION = 0.25
+
 def timetagBasicCalibration(input, inpha, outtag,
                             output, outcounts, outflash, outcsum,
                             cl_args,
@@ -281,19 +286,30 @@ def timetagBasicCalibration(input, inpha, outtag,
     if info["detector"] == "FUV":       # update keyword EXPTIMEA or EXPTIMEB
         key = cosutil.segmentSpecificKeyword("exptime", info["segment"])
         headers[1][key] = info["exptime"]
-
     minmax_shift_dict = getWavecalOffsets(events, info, switches["wavecorr"],
-                                          reffiles["xtractab"])
+                                          reffiles["xtractab"],
+                                          reffiles["brftab"])
     tracemask = createTraceMask(events, info, switches,
                                 reffiles['xtractab'], active_area)
-    trace = doTraceCorr(events, info, switches, reffiles, phdr, tracemask)
+
+    traceprofile = doTraceCorr(events, info, switches, reffiles, phdr,
+                               tracemask)
+
+    #
+    # Make sure we have a gti variable, and make one if we don't.  None is OK, it will be
+    # detected and filled in later if necessary
+    try:
+        temp_gti = gti
+    except NameError:
+        gti = None
 
     align = doProfileAlignmentCorr(events, input, info, switches, reffiles,
                                    phdr, headers[1], minmax_shift_dict,
-                                   tracemask)
+                                   tracemask, traceprofile, gti)
 
     dq_array = doDqicorr(events, input, info, switches, reffiles,
-                         phdr, headers[1], minmax_shift_dict)
+                         phdr, headers[1], minmax_shift_dict,
+                         traceprofile, gti)
 
 
     writeImages(events.field(xfull), events.field(yfull),
@@ -2116,7 +2132,7 @@ def xyWalk(xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float32):
     eta[:] = np.where(active_area, eta - delta_y, eta)
 
 def doDqicorr(events, input, info, switches, reffiles,
-               phdr, hdr, minmax_shift_dict):
+               phdr, hdr, minmax_shift_dict, traceprofile, gti):
     """Create a data quality array, initialized from the DQI table.
 
     This function applies the data quality initialization table (bpixtab)
@@ -2167,6 +2183,14 @@ def doDqicorr(events, input, info, switches, reffiles,
         different for the science spectrum and the wavecal, and for NUV
         data the shifts differ from one stripe to another.
 
+    traceprofile: 1-d array
+        The DQ array needs to be shifted in the y direction by an amount equal
+        to the trace correction, since that shift was applied to the YFULL
+        values of each event
+
+    gti: list
+        List of good time intervals.  Used to check for overlap with hotspots.
+
     Returns
     -------
     array like
@@ -2195,10 +2219,17 @@ def doDqicorr(events, input, info, switches, reffiles,
         cosutil.printRef("BPIXTAB", reffiles)
         if "gsagtab" in reffiles and reffiles["gsagtab"] != NOT_APPLICABLE:
             cosutil.printRef("GSAGTAB", reffiles)
-
+        if "spottab" in reffiles and reffiles["spottab"] != NOT_APPLICABLE:
+            cosutil.printRef("SPOTTAB", reffiles)
+            #
+            # Check that the header keywords in the SPOTTAB reference file
+            # agree with the PHAFILE/PHATAB, and print a warning if they
+            # don't
+            cosutil.checkSpottabKeywords(reffiles, info)
         # Update the dq column in the events list with the bpixtab regions.
+        # This also gets the gsagtab regions and the hotspot regions
         (lx, ly, dx, dy, dq, extn, message) = \
-                cosutil.getDQArrays(info, reffiles)
+                cosutil.getDQArrays(info, reffiles, gti)
         if message:
             cosutil.printWarning(message)
         if len(lx) > 0:
@@ -2224,23 +2255,138 @@ def doDqicorr(events, input, info, switches, reffiles,
             doppler_boundary = psaWcaBoundary(info, reffiles["xtractab"])
         else:
             doppler_boundary = -10
-        cosutil.updateDQArray(info, reffiles, dq_array,
-                              minmax_shift_dict,
-                              minmax_doppler, doppler_boundary)
+        #
+        # If the trace correction or alignment correction has been performed,
+        # we need to handle
+        # the DQ arrays differently - need to apply the trace correction
+        # to the DQ array in (XCORR, YCORR) space, then apply the range of
+        # shift1 and shift2 values in a bitwise_or 'convolution'
+        doBlur = False
+        #
+        # If the alignment correction has been performed, add this to the
+        # trace profile
+        alignment_correction = 0.0
+        keyword = "SP_OFF_" + info["segment"][-1]
+        #
+        # Check the SP_OFF_[AB] keyword.  If it exists, and is not -999.0,
+        # set doBlur to True.  Otherwise, set keep it False
+        try:
+            #
+            # Since the trace correction is SUBTRACTED, whereas the alignment
+            # corrction is ADDED, we need to subtract the alignment correction
+            # from the trace correction to ensure they are applied correctly.
+            # The header keyword is the NEGATIVE of the alignment correction,
+            # so we'll just add this.
+            alignment_correction = hdr[keyword]
+            if alignment_correction > -998.0:
+                doBlur = True
+            else:
+                alignment_correction = 0.0
+        except KeyError:
+            alignment_correction = 0.0
+        #
+        # Check whether the trace correction was done.  If it was, and even if
+        # the alignment correction is zero or not done, add the alignment
+        # correction and set doBlur to True
+        try:
+            if phdr['TRCECORR'] == 'COMPLETE':
+                #
+                # traceprofile is returned by trace.doTrace, and is None if TRCECORR is not
+                # 'PERFORM'.  We need to check against this, and if traceprofile is None, we
+                # need to reload the traceprofile.  This can happen if calcos is run twice,
+                # once up to and including the trace correction (so that TRCECORR becomes
+                # 'COMPLETE'), and then again starting at ALGNCORR.  Then TRCECORR is 'COMPLETE',
+                # but we don't have a traceprofile from this run...
+                if traceprofile is None:
+                    traceprofile = trace.getTrace(reffiles['tracetab'], info)
+                traceprofile = traceprofile + alignment_correction
+                doBlur = True
+            #
+            # If there's no TRCECORR keyword (e.g. for NUV data),  we don't do the blur
+            # correction
+        except KeyError:
+            doBlur = False
 
-        # Flag regions that are outside any subarray as out of bounds.
-        cosutil.flagOutOfBounds(hdr, dq_array, info, switches,
-                                reffiles["brftab"], reffiles["geofile"],
-                                minmax_shift_dict,
-                                minmax_doppler, doppler_boundary)
-
-        # Flag the region that is outside the active area.
-        if info["detector"] == "FUV":
-            cosutil.flagOutsideActiveArea(dq_array,
-                        info["segment"], reffiles["brftab"], info["x_offset"],
-                        minmax_shift_dict, minmax_doppler)
+        if doBlur:
+            #
+            # If we get to this point and the traceprofile is still None, just
+            # make a zeroed out traceprofile and add the alignment correction to it
+            # This should only happen if TRCECORR is set to 'OMIT' and ALGNCORR is
+            # set to PERFORM
+            if traceprofile is None:
+                cosutil.printWarning("No trace profile, using zero")
+                traceprofile = np.zeros((info["npix"][1]), dtype=np.float32)
+                traceprofile = traceprofile + alignment_correction
+            #
+            # First zero out the minmax_doppler dictionary and force the
+            # minmax_shift_dict to just be [0, 0, shift2, shift2]
+            temp_minmax_shift_dict = minmax_shift_dict.copy()
+            temp_minmax_doppler = (0.0, 0.0)
+            key = "SHIFT2" + info["segment"][-1]
+            shift2 = hdr[key]
+            for regionkey in temp_minmax_shift_dict.keys():
+                temp_minmax_shift_dict[regionkey] = [0.0, 0.0,
+                                                     shift2, shift2]
+            #
+            # Get the dq_array in (XCORR, YCORR) space
+            cosutil.updateDQArray(info, reffiles, dq_array,
+                                  temp_minmax_shift_dict,
+                                  temp_minmax_doppler, doppler_boundary, gti)
+            # Flag regions that are outside any subarray as out of bounds.
+            cosutil.flagOutOfBounds(hdr, dq_array, info, switches,
+                                    reffiles["brftab"], reffiles["geofile"],
+                                    temp_minmax_shift_dict,
+                                    temp_minmax_doppler, doppler_boundary)
+            # Flag the region that is outside the active area.
+            cosutil.flagOutsideActiveArea(dq_array, info["segment"],
+                                          reffiles["brftab"], info["x_offset"],
+                                          temp_minmax_shift_dict,
+                                          temp_minmax_doppler)
+            #
+            # Apply the trace correction to the DQ array by shifting it down
+            # by the amount in the trace profile.  Don't do any shift in the
+            # WCA aperture
+            filter = {"segment": info["segment"],
+                      "opt_elem": info["opt_elem"],
+                      "cenwave": info["cenwave"],
+                      "aperture": "WCA"
+                      }
+            wca_row = cosutil.getTable(reffiles["xtractab"], filter)
+            trace_dq = traceShiftDQ(dq_array, traceprofile, wca_row)
+            #
+            # Now do the bitwise_or blurring
+            widen = hdr.get("widen", default=PIXEL_FRACTION)
+            #
+            # We need to back out SHIFT2 from the minmax_shift_dict
+            # as we included it when we made the DQ array
+            temp_minmax_shift_dict = minmax_shift_dict.copy()
+            for regionkey in temp_minmax_shift_dict.keys():
+                [min_shift1, max_shift1, min_shift2, max_shift2] = \
+                    temp_minmax_shift_dict[regionkey]
+                temp_minmax_shift_dict[regionkey] = [min_shift1,
+                                                     max_shift1,
+                                                     min_shift2 - shift2,
+                                                     max_shift2 - shift2]
+            dq_array = blurDQ(trace_dq, temp_minmax_shift_dict, minmax_doppler,
+                              doppler_boundary, widen)
+        else:
+            cosutil.updateDQArray(info, reffiles, dq_array,
+                                  minmax_shift_dict,
+                                  minmax_doppler, doppler_boundary, gti)
+            # Flag regions that are outside any subarray as out of bounds.
+            cosutil.flagOutOfBounds(hdr, dq_array, info, switches,
+                                    reffiles["brftab"], reffiles["geofile"],
+                                    minmax_shift_dict,
+                                    minmax_doppler, doppler_boundary)
+            # Flag the region that is outside the active area.
+            if info["detector"] == "FUV":
+                cosutil.flagOutsideActiveArea(dq_array, info["segment"],
+                                              reffiles["brftab"], info["x_offset"],
+                                              minmax_shift_dict,
+                                              minmax_doppler)
 
         phdr["dqicorr"] = "COMPLETE"
+                                        
         if extn is not None:
             if "gsagtab" in phdr:
                 # replace the comment, to give the extension number
@@ -2253,6 +2399,119 @@ def doDqicorr(events, input, info, switches, reffiles,
                 phdr["gsagtab"] = (gsagtab, comment)
 
     return dq_array
+
+def traceShiftDQ(dq_array, traceprofile, wca_row):
+    """Shift the DQ array by the amount in the traceprofile.  This must be
+    SUBTRACTED from the row numbers.  Only do this outside the WCA, the same as for
+    the SCI data
+    For each column, we copy the WCA region to the output, then shift the regions
+    below and above the WCA aperture by the trace+aligncorr shift"""
+    shifted_dq = dq_array.copy() * 0
+    nrows, ncolumns = dq_array.shape
+    wca_0 = wca_row["B_SPEC"]
+    wcaslope = wca_row["SLOPE"]
+    wcaheight = wca_row["HEIGHT"]
+    for column in range(ncolumns):
+    #
+    # Calculate the extent of the WCA aperture
+        wcacenter = wca_0 + int(round(column*wcaslope)) 
+        wcastart = wcacenter - wcaheight // 2
+        wcastop = wcacenter + wcaheight // 2
+        tracevalue = int(round(traceprofile[column]))
+        #
+        # Put the unshifted (WCA) region into the output array
+        shifted_dq[wcastart:wcastop+1, column] = dq_array[wcastart:wcastop+1, column]
+        #
+        # Shift the region below the WCA
+        instart = max(0, tracevalue)
+        instop = min(wcastart+tracevalue-1, wcastart-1)
+        outstart = max(0, -tracevalue)
+        outstop = min(wcastart-tracevalue-1, wcastart-1)
+        n_in = instop - instart + 1
+        n_out = outstop - outstart + 1
+        if n_out != n_in:
+            cosutil.printWarning("Input and output arrays have different sizes")
+        shifted_dq[outstart:outstop+1, column] = dq_array[instart:instop+1, column]
+        #
+        # Now the part above the WCA
+        instart = max(wcastop+1, wcastop+1+tracevalue)
+        instop = min(nrows+tracevalue-1, nrows-1)
+        outstart = max(wcastop+1, wcastop+1-tracevalue)
+        outstop = min(nrows-tracevalue-1, nrows-1)
+        n_in = instop - instart + 1
+        n_out = outstop - outstart + 1
+        if n_out != n_in:
+            cosutil.printWarning("Input and output arrays have different sizes")
+        shifted_dq[outstart:outstop+1, column] = dq_array[instart:instop+1, column]
+    return shifted_dq
+
+def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen):
+    """Blur the DQ array by shifting it by the range of values in
+    minmax_shift_dict and minmax_doppler, and then bitwise_OR-ing it with
+    the running DQ array"""
+    nrows, ncols = trace_dq.shape
+    (mindopp, maxdopp) = minmax_doppler
+    if doppler_boundary > 0.0:
+        #
+        # Split into two regions, below the doppler boundary and above the
+        # doppler boundary
+        key = minmax_shift_dict.keys()[0]
+        value = minmax_shift_dict[key]
+        (lower_y, upper_y) = key
+        minmax_dict = {(lower_y, doppler_boundary): value,
+                       (doppler_boundary, upper_y): value}
+    else:
+        cosutil.printWarning("Running blurDQ when doppler boundary <= 0.0")
+        minmax_dict = minmax_shift_dict
+    #
+    # Do the shift and blur.  Do the Y first because the values are the same on either side
+    # of the Doppler boundary
+    blur_dq = trace_dq.copy() * 0
+    yshifts = []
+    #
+    # For the y shifts we can use the original minmax_shift_dict
+    [min_shift1, max_shift1, min_shift2, max_shift2] = \
+        minmax_shift_dict.values()[0]
+    yshifts.append(int(round(max_shift2 + widen)))
+    yshifts.append(int(round(min_shift2 - widen)))
+
+    for yshift in range(min(yshifts), max(yshifts)+1):
+        y_shifted_dq = arrayShift(trace_dq, yshift, 0)
+        #
+        # Now do the shift and blur in x
+        keys = sorted(minmax_dict)
+        for key in keys:
+            xshifts = []
+            (lower_y, upper_y) = key
+            [min_shift1, max_shift1, min_shift2, max_shift2] = \
+                minmax_dict[key]
+            if doppler_boundary > 0 and ((lower_y + upper_y) // 2 < doppler_boundary):
+                xshifts.append(int(round(max_shift1 + maxdopp + widen)))
+                xshifts.append(int(round(min_shift1 + mindopp - widen)))
+            else:
+                xshifts.append(int(round(max_shift1 + widen)))
+                xshifts.append(int(round(min_shift1 - widen)))
+            for xshift in range(min(xshifts), max(xshifts)+1):
+                cosutil.printMsg("Shifting to %d, %d" % (xshift, yshift))
+                shifted_dq = arrayShift(y_shifted_dq[lower_y:upper_y], 0, xshift)
+                blur_dq[lower_y:upper_y] = np.bitwise_or(blur_dq[lower_y:upper_y], shifted_dq)
+        
+    return blur_dq
+
+def arrayShift(array, yshift, xshift):
+    """Shift an array by xshift in x and yshift in y"""
+    outarray = array.copy() * 0
+    nrows, ncols = array.shape
+    inxstart = max(0, xshift)
+    inxstop = min(ncols + xshift, ncols)
+    outxstart = max(0, -xshift)
+    outxstop = min(ncols - xshift, ncols)
+    inystart = max(0, yshift)
+    inystop = min(nrows + yshift, nrows)
+    outystart = max(0, -yshift)
+    outystop = min(nrows - yshift, nrows)
+    outarray[outystart:outystop,outxstart:outxstop] = array[inystart:inystop, inxstart:inxstop]
+    return outarray
 
 def dopplerParam(info, disptab, doppcorr):
     """Return the appropriate set of Doppler keyword values.
@@ -3435,7 +3694,11 @@ def createTraceMask(events, info, switches, xtractab, active_area):
 def doTraceCorr(events, info, switches, reffiles, phdr, tracemask):
     """Do the trace correction.  The trace reference file follows the
     centroid of a point source.  Applying the correction involves subtracting
-    the profile of trace vs. xcorr from yfull"""
+    the profile of trace vs. xcorr from yfull
+    Returns the 1-d array of the trace correction"""
+    #
+    # If the TRCECORR step is omitted, return None
+    result = None
     if switches["trcecorr"] != 'N/A':
         cosutil.printSwitch("TRCECORR", switches)
         if switches["trcecorr"] == "PERFORM":
@@ -3452,10 +3715,10 @@ def doTraceCorr(events, info, switches, reffiles, phdr, tracemask):
                 raise Exception("Invalid Reference file")
             result = trace.doTrace(events, info, reffiles, tracemask)
             phdr["TRCECORR"] = "COMPLETE"
-    return
+    return result
 
 def doProfileAlignmentCorr(events, input, info, switches, reffiles, phdr, hdr,
-                           minmax_shift_dict, tracemask):
+                           minmax_shift_dict, tracemask, traceprofile, gti):
     """Do the profile alignment correction.  This is usually combined with the
     trace correction.  It involves calculating the flux-weighted centroid of a
     reference profile, the flux-weighted centroid of the science data, and
@@ -3469,7 +3732,8 @@ def doProfileAlignmentCorr(events, input, info, switches, reffiles, phdr, hdr,
             # Need to compute a temporary copy of the DQ array so that the
             # profile alignment step can use it
             dq_array = doDqicorr(events, input, info, switches, reffiles,
-                                 phdr, hdr, minmax_shift_dict)
+                                 phdr, hdr, minmax_shift_dict,
+                                 traceprofile, gti)
 
             result = trace.doProfileAlignment(events, input, info, switches,
                                               reffiles, phdr, hdr, dq_array,
@@ -4593,7 +4857,7 @@ def nuvWcaRegions(eta, info, xtractab):
 
     return region_flags_dict
 
-def getWavecalOffsets(events, info, wavecorr, xtractab):
+def getWavecalOffsets(events, info, wavecorr, xtractab, brftab):
     """Get min and max values of shift1 and shift2.
 
     Parameters
@@ -4609,6 +4873,9 @@ def getWavecalOffsets(events, info, wavecorr, xtractab):
 
     xtractab: str
         Name of spectral extraction parameters reference table.
+
+    brftab: str
+        Name of baseline reference table
 
     Returns
     -------
@@ -4637,6 +4904,11 @@ def getWavecalOffsets(events, info, wavecorr, xtractab):
         else:
             minmax_shift_dict[(0, FUV_Y)] = [0., 0., 0., 0.]
         return minmax_shift_dict
+
+    #
+    # Since we're going to be using the active_area array, make sure it's
+    # populated correctly
+    setActiveArea(events, info, brftab)
 
     if active_area.any():
         xi_dopp  = events.field(xdopp)
@@ -4674,6 +4946,26 @@ def getWavecalOffsets(events, info, wavecorr, xtractab):
 
             min_shift1 = xdiff.min()
             max_shift1 = xdiff.max()
+            #
+            # The difference between the min and max shift1 values should be < 20
+            # If it's greater than that, we need to prune the rogue values out
+            # This should happen VERY rarely, so we can leave the diagnostic print
+            # statements in
+            if (max_shift1 - min_shift1) > 20.0:
+                # Count the values on either side of the midpoint
+                midpoint = 0.5*(min_shift1 + max_shift1)
+                lowershift1 = np.where(xdiff < midpoint)[0].size
+                highershift1 = np.where(xdiff > midpoint)[0].size
+                cosutil.printWarning("Difference between min and max shift1 > 20.0")
+                cosutil.printContinuation("Min=%f, max=%f" % (min_shift1, max_shift1))
+                cosutil.printContinuation("%d events < midpt, %d events > midpt" % (lowershift1,
+                                                                                    highershift1))
+                if lowershift1 > highershift1:
+                    indices = np.where(xdiff < midpoint)
+                else:
+                    indices = np.where(xdiff > midpoint)
+                min_shift1 = xdiff[indices].min()
+                max_shift1 = xdiff[indices].max()
             min_shift2 = ydiff.min()
             max_shift2 = ydiff.max()
             minmax_shift_dict[(0, FUV_Y)] = [min_shift1, max_shift1,

@@ -1396,7 +1396,8 @@ class Association(object):
             "walktab":  ["2.0", "WALK CORRECTION TABLE"],
             "tracetab": ["2.0", "1D SPECTRAL TRACE TABLE"],
             "proftab": ["2.0", "2D SPECTRUM PROFILE TABLE"],
-            "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"]
+            "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"],
+            "spottab": ["2.0", "TRANSIENT BAD PIXEL REFERENCE TABLE"]
         }
         # The contents of these dictionaries must agree with what
         # cosutil.findRefFile expects.
@@ -1430,6 +1431,9 @@ class Association(object):
                                 missing, wrong_filetype, bad_version)
             if reffiles["gsagtab"] != NOT_APPLICABLE:
                 cosutil.findRefFile(ref["gsagtab"],
+                                    missing, wrong_filetype, bad_version)
+            if reffiles["spottab"] != NOT_APPLICABLE:
+                cosutil.findRefFile(ref["spottab"],
                                     missing, wrong_filetype, bad_version)
 
         if switches["deadcorr"] == "PERFORM":
@@ -1497,6 +1501,7 @@ class Association(object):
         if switches["trcecorr"] == "PERFORM":
             cosutil.findRefFile(ref["tracetab"],
                                 missing, wrong_filetype, bad_version)
+
         if switches["algncorr"] == "PERFORM":
             cosutil.findRefFile(ref["proftab"],
                                 missing, wrong_filetype, bad_version)

@@ -4,7 +4,7 @@
 #  data - the TRCECORR and ALGNCORR steps
 #
 
-from __future__ import absolute_import
+from __future__ import division, absolute_import
 import astropy.io.fits as fits
 import numpy as np
 import math
@@ -37,15 +37,16 @@ def doTrace(events, info, reffiles, tracemask):
     """Do the trace correction.  The trace reference file follows the
     centroid of a point source.  Applying the correction involves
     subtracting the profile of trace vs. xcorr from yfull"""
-    trace = getTrace(reffiles['tracetab'], info)
+    traceprofile = getTrace(reffiles['tracetab'], info)
     #
     # Remove bad values from the trace
-    cleanTrace(trace)
+    cleanTrace(traceprofile)
     #
     # Apply the trace correction to the yfull values
-    applyTrace(events.field('xcorr'), events.field('yfull'), trace, tracemask)
+    applyTrace(events.field('xcorr'), events.field('yfull'), traceprofile,
+               tracemask)
     
-    return TRACE_OK
+    return traceprofile
 
 def getTrace(tracetab, info):
     """Get the trace from the tracetab reference file."""
@@ -319,24 +320,24 @@ def getRegions(dq_array, xtract_info, dqexclude, center):
     regions['center'] = center
     return regions
 
-def getGoodColumns(dq_array, dqexclude, regions):
+def getGoodColumns(dq_array, dqexclude_target, dqexclude_background, regions):
     #
     # Only use columns where the DQ values are good for both background
     # regions and the source
     rowstart = regions['bg1start']
     rowstop = regions['bg1stop']
     dqsum1 = np.bitwise_and(dq_array[rowstart:rowstop+1],
-                            dqexclude).sum(axis=0)
+                            dqexclude_background).sum(axis=0)
 
     rowstart = regions['bg2start']
     rowstop = regions['bg2stop']
     dqsum2 = np.bitwise_and(dq_array[rowstart:rowstop+1],
-                            dqexclude).sum(axis=0)
+                            dqexclude_background).sum(axis=0)
 
     rowstart = regions['specstart']
     rowstop = regions['specstop']
     dqsum3 = np.bitwise_and(dq_array[rowstart:rowstop+1],
-                            dqexclude).sum(axis=0)
+                            dqexclude_target).sum(axis=0)
 
     dqsum = dqsum1 + dqsum2 + dqsum3
     goodcolumns = np.where(dqsum == 0)
@@ -360,7 +361,15 @@ def getScienceCentroid(rebinned_data, dq_array, xtract_info,
         # iterations, so the good columns can change from one iteration to
         # the next
         regions = getRegions(dq_array, xtract_info, dqexclude, center)
-        goodcolumns = getGoodColumns(dq_array, dqexclude, regions)
+        #
+        # Get the  DQ values for target and background regions.  Both
+        # use header value of SDQFLAGS or'd with DQ_AIRGLOW
+        # with the gain sag hole DQ taken out.  Put this in a couple of
+        # functions so we can change if needed
+        dqexclude_target = getTargetDQ(dqexclude)
+        dqexclude_background = getBackgroundDQ(dqexclude)
+        goodcolumns = getGoodColumns(dq_array, dqexclude_target,
+                                     dqexclude_background, regions)
         cosutil.printMsg("%d good columns" % (len(goodcolumns[0])))
         #
         # Now calculate the background.  Use the XTRACTAB reference file
@@ -400,6 +409,18 @@ def getScienceCentroid(rebinned_data, dq_array, xtract_info,
             status = NO_CONVERGENCE
             centroid = difference
     return status, centroid, goodcolumns, regions
+
+def getBackgroundDQ(dqexclude):
+    """Return the DQ value to be used for the background regions.  For now, this
+    means removing the bit corresponding to DQ_GAIN_SAG_HOLE.  To unset a bit,
+    AND it with NOT"""
+    return dqexclude&(~DQ_GAIN_SAG_HOLE)
+
+def getTargetDQ(dqexclude):
+    """Return the DQ value to be used for the target region.  For now, this
+    means removing the bit corresponding to DQ_GAIN_SAG_HOLE.  To unset a bit,
+    AND it with NOT"""
+    return dqexclude&(~DQ_GAIN_SAG_HOLE)
 
 def getBackground(data_array, goodcolumns, regions):
     bg1start = regions['bg1start']
