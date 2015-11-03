@@ -487,7 +487,7 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         dq_array = np.zeros((axis_height,axis_length), dtype=np.int16)
         cosutil.updateDQArray(info, reffiles, dq_array,
                               minmax_shift_dict,
-                              minmax_doppler, doppler_boundary)
+                              minmax_doppler, doppler_boundary, None)
 
     row = 0
     for segment in segments:

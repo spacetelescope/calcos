@@ -322,7 +322,7 @@ def doDqicorr(info, switches, reffiles, phdr, dq_array):
         doppler_boundary = -10          # anywhere below 0
         cosutil.updateDQArray(info, reffiles, dq_array,
                               minmax_shift_dict,
-                              minmax_doppler, doppler_boundary)
+                              minmax_doppler, doppler_boundary, None)
 
         phdr["dqicorr"] = "COMPLETE"
 
