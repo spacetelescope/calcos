@@ -327,7 +327,7 @@ def findFwhm(e_j, y_locn):
     e_j_sorted = np.sort(e_j)
 
     third = nelem // 3
-    background = e_j_sorted[0:third].mean()
+    background = e_j_sorted[0:third].mean(dtype=np.float64)
 
     find_this_level = (e_max - background) / 2. + background
 

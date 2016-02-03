@@ -191,7 +191,10 @@ def acqImage(input, outflt, outcounts, outcsum, cl_args,
         hdr_list.append(sci_hdr)
 
         counts_sci = fd[("SCI",imset)].data
-        flt_sci = counts_sci.copy()
+        #
+        # Allow subsequent floating point processing
+        # astype returns a copy by default, not a view
+        flt_sci = counts_sci.astype(np.float64)
 
         dq_array = cosutil.getInputDQ(input, imset)
 
