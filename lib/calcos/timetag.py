@@ -2408,9 +2408,9 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
     below and above the WCA aperture by the trace+aligncorr shift"""
     shifted_dq = dq_array.copy() * 0
     nrows, ncolumns = dq_array.shape
-    wca_0 = wca_row["B_SPEC"]
-    wcaslope = wca_row["SLOPE"]
-    wcaheight = wca_row["HEIGHT"]
+    wca_0 = wca_row["B_SPEC"][0]
+    wcaslope = wca_row["SLOPE"][0]
+    wcaheight = wca_row["HEIGHT"][0]
     for column in range(ncolumns):
     #
     # Calculate the extent of the WCA aperture
@@ -2455,7 +2455,7 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
         #
         # Split into two regions, below the doppler boundary and above the
         # doppler boundary
-        key = minmax_shift_dict.keys()[0]
+        key = list(minmax_shift_dict.keys())[0]
         value = minmax_shift_dict[key]
         (lower_y, upper_y) = key
         minmax_dict = {(lower_y, doppler_boundary): value,
@@ -2471,7 +2471,7 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
     #
     # For the y shifts we can use the original minmax_shift_dict
     [min_shift1, max_shift1, min_shift2, max_shift2] = \
-        minmax_shift_dict.values()[0]
+        list(minmax_shift_dict.values())[0]
     yshifts.append(int(round(max_shift2 + widen)))
     yshifts.append(int(round(min_shift2 - widen)))
 
@@ -4427,7 +4427,7 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
             xi_psa = xi_full[psa_region_flags_dict[segment]]
             xi_diff = xi_psa - np.around(xi_psa)
         if len(xi_diff) > 0:
-            dpixel1 = xi_diff.mean()
+            dpixel1 = xi_diff.mean(dtype=np.float64)
         else:
             dpixel1 = 0.
         key = "DPIXEL1" + segment[-1]

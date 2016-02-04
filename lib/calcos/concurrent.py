@@ -1330,7 +1330,7 @@ class ConcurrentWavecal(object):
             xi = self.xi_corr[shift_flags]      # copy out the relevant subset
             if len(xi) > 0:
                 xi_diff = xi - np.around(xi)
-                dpixel1 = xi_diff.mean()
+                dpixel1 = xi_diff.mean(dtype=np.float64)
                 value = round(dpixel1, 4)
             else:
                 value = 0.
