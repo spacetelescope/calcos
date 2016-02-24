@@ -2,7 +2,7 @@ from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import numpy as np
-from stsci.convolve import boxcar
+from scipy.signal import boxcar
 import astropy.io.fits as fits
 from .calcosparam import *
 from . import ccos
