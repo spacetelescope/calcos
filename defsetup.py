@@ -11,21 +11,20 @@ except ImportError:
 pkg = "calcos"
 
 setupargs = {
-    'version' :			"1.0",
+    'version' :			"3.1.2",
     'description' :		"C extension module for calcos",
-    'author' :			"Phil Hodge",
+    'author' :			"Phil Hodge and Robert Jedrzejewski",
     'author_email' :	"help@stsci.edu",
     'platforms' :		["Linux", "Solaris", "Mac OS X", "Windows"],
     'scripts' :			['lib/calcos/calcos'],
     'package_dir' :     { 'calcos' : 'lib/calcos', },
 
-    'ext_modules' :		[ 
+    'ext_modules' :		[
                             distutils.core.Extension ("calcos.ccos", ["src/ccos.c"],
                                define_macros = [('NUMPY', '1')],
-                               include_dirs = [ distutils.sysconfig.get_python_inc(), 
+                               include_dirs = [ distutils.sysconfig.get_python_inc(),
                                                 numpy.get_include()
                                               ]
                             )
                         ],
 }
-

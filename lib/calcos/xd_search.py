@@ -1,6 +1,6 @@
 from __future__ import absolute_import, division         # confidence unknown
 import numpy as np
-from stsci.convolve import boxcar
+from scipy.signal import boxcar
 from . import cosutil
 from .calcosparam import *       # parameter definitions
 from . import ccos
