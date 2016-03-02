@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division         # confidence unknown
 import numpy as np
-from scipy.signal import boxcar
+from scipy import signal
+from scipy import ndimage
 from . import cosutil
 from .calcosparam import *       # parameter definitions
 from . import ccos
@@ -246,7 +247,8 @@ def findPeak(e_j, box):
         profile
     """
 
-    e_j_sm = boxcar(e_j, (box,), mode="nearest")
+    boxcar_kernel = signal.boxcar(box) / box
+    e_j_sm = ndimage.convolve(e_j, boxcar_kernel, mode="nearest")
 
     index = np.argsort(e_j_sm)
     ymax = index[-1]
