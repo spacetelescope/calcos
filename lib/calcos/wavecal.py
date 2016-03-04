@@ -2,7 +2,8 @@ from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import numpy as np
-from scipy.signal import boxcar
+from scipy import signal as scipysignal
+from scipy import ndimage
 import astropy.io.fits as fits
 from .calcosparam import *
 from . import ccos
@@ -969,7 +970,8 @@ def ttFindSpec(xdisp, xtract_info, life_adj_offset, xd_range, box):
         y0 = max(y0, 0)
         y1 = min(y1, len(xdisp) - 1)
 
-    xdisp_sm = boxcar(xdisp, (box,), mode="nearest")
+    boxcar_kernel = scipysignal.boxcar(box) / box
+    xdisp_sm = ndimage.convolve(xdisp, boxcar_kernel, mode="nearest")
     len_xdisp_sm = len(xdisp_sm)
 
     if y0 >= y1:
