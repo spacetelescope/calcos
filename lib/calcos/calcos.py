@@ -45,7 +45,7 @@ BAD_APER_MISSING_ROW_EXCEPTION = 16
 # will be set to True.
 raw_input_trailer = False
 
-def main(args):
+def main():
     """Check arguments and call calcos.
 
     This driver interprets command-line arguments and calls calcos for
@@ -74,6 +74,9 @@ def main(args):
     or more association files or raw files, specified by rootname with
     "_asn" or "_raw".
     """
+
+
+    args = sys.argv[1:]
 
     if len(args) < 1:
         prtOptions()
@@ -3430,4 +3433,4 @@ class Calibration(object):
 
 if __name__ == "__main__":
 
-    main(sys.argv[1:])
+    main()
