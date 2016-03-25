@@ -1,0 +1,7 @@
+RELEASE-VERSION
+lib/*/version.py
+build/
+dist/
+*.pyc
+*.so
+*.egg-info

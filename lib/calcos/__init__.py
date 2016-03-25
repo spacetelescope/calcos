@@ -1,6 +1,6 @@
 from __future__ import division, print_function         # confidence high
 
-from .version import *
+from .version import __version__
 
 from .calcos import *
 
