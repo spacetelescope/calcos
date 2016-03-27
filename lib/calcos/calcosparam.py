@@ -14,7 +14,7 @@ from __future__ import division         # confidence high
 from .version import *
 
 CALCOS_VERSION_NUMBER = __version__
-CALCOS_VERSION_DATE = __vdate__
+CALCOS_VERSION_DATE = __version_date__
 CALCOS_VERSION = "%s (%s)" % (CALCOS_VERSION_NUMBER, CALCOS_VERSION_DATE)
 
 # These are the values to indicate the detector (original) and user
