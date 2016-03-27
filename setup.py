@@ -1,17 +1,19 @@
 #!/usr/bin/env python
+import sys
+sys.path.insert(1, 'recon')
+
+import recon.release
 from glob import glob
 from numpy import get_include as np_include
 from setuptools import setup, find_packages, Extension
-from version import get_git_version
 
-git_version = get_git_version()
-with open('lib/calcos/version.py', 'w') as version_data:
-    version_data.write("__version__ = '{0}'".format(git_version))
 
+version = recon.release.get_info()
+recon.release.write_template(version, 'lib/calcos')
 
 setup(
     name = 'calcos',
-    version = git_version,
+    version = version.pep386,
     author = 'Phil Hodge and Rober Jedrzejewski',
     author_email = 'help@stsci.edu',
     description = 'Calibration software for COS (Cosmic Origins Spectrograph)',
