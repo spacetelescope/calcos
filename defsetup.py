@@ -11,9 +11,9 @@ except ImportError:
 pkg = "calcos"
 
 setupargs = {
-    'version' :			"3.1.2",
+    'version' :			"3.1.7",
     'description' :		"C extension module for calcos",
-    'author' :			"Phil Hodge and Robert Jedrzejewski",
+    'author' :			"Phil Hodge",
     'author_email' :	"help@stsci.edu",
     'platforms' :		["Linux", "Solaris", "Mac OS X", "Windows"],
     'scripts' :			['lib/calcos/calcos'],
@@ -28,3 +28,4 @@ setupargs = {
                             )
                         ],
 }
+
