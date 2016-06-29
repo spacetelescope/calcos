@@ -2039,7 +2039,7 @@ def doWalkCorr(events, info, switches, reffiles, phdr):
             xyWalk(xi, eta, pha, x0, y0, xcoeff, ycoeff)
             phdr["walkcorr"] = "COMPLETE"
 
-def xyWalk(xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float32):
+def xyWalk(xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float64):
     """Apply a 'walk' correction, i.e. change x,y depending on PHA.
 
     The correction will be subtracted from the pixel coordinates.
