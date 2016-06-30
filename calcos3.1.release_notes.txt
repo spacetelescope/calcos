@@ -1,7 +1,16 @@
-CALCOS 3.1 Release Notes
-------------------------
+CALCOS 3.1.8 Release Notes
+--------------------------
 
-  Calcos 3.1 addresses the following PRs:
+  Calcos 3.1.8 addresses the following PRs:
+
+PR#84986 CALCOS walk correction should use 64 bit datatype
+
+A 32-bit correction gives results that are significantly platform dependent.
+Switching to 64 bit datatypes mitigates against this.
+
+The following PRs were addressed in the previous release of CALCOS, version 3.1.7
+
+  Calcos 3.1.7 addressed the following PRs:
 
 PR#79558  CALCOS bugfix: allow flux extraction from 0 to 100%
 
