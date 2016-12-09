@@ -190,7 +190,7 @@ def extract1D(input, incounts=None, output=None,
     col.append(fits.Column(name="EE_UPPER_INNER", format=rpt+"D"))
     cd = fits.ColDefs(col)
 
-    hdu = fits.new_table(cd, header=hdr, nrows=nrows)
+    hdu = fits.BinTableHDU.from_columns(cd, header=hdr, nrows=nrows)
     hdu.name = "SCI"
     ofd.append(hdu)
 
@@ -272,7 +272,7 @@ def remove_unwanted_columns(ofd):
                                        disp=column.disp,
                                        array=table[column.name]))
     cd = fits.ColDefs(newcols)
-    newhdu = fits.new_table(cd, header=ofd[1].header)
+    newhdu = fits.BinTableHDU.from_columns(cd, header=ofd[1].header)
     ofd[1] = newhdu
     return ofd
 
@@ -1482,15 +1482,15 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     # Loop over columns
     for column in range(ncols):
         if UPPER_OUTER_INDEX_i[column] > LOWER_OUTER_INDEX_i[column]:
-            lowerstart = LOWER_OUTER_INDEX_i[column]
-            lowerstop = LOWER_INNER_INDEX_i[column]
+            lowerstart = int(round(LOWER_OUTER_INDEX_i[column]))
+            lowerstop = int(round(LOWER_INNER_INDEX_i[column]))
             lower_ecounts = e_data_sub[lowerstart:lowerstop,
                                        column].sum(dtype=np.float64)
             lower_ccounts = c_data[lowerstart:lowerstop,
                                    column].sum(dtype=np.float64)
             lowerdq = e_dq_data[lowerstart:lowerstop, column]
-            upperstart = UPPER_INNER_INDEX_i[column] + 1
-            upperstop = UPPER_OUTER_INDEX_i[column] + 1
+            upperstart = int(round(UPPER_INNER_INDEX_i[column])) + 1
+            upperstop = int(round(UPPER_OUTER_INDEX_i[column])) + 1
             upper_ecounts = e_data_sub[upperstart:upperstop,
                                        column].sum(dtype=np.float64)
             upper_ccounts = c_data[upperstart:upperstop,
@@ -2628,7 +2628,7 @@ def concatenateFUVSegments(infiles, output):
 
     # Take output column definitions from input for segment A.
     cd = fits.ColDefs(seg_a[1])
-    hdu = fits.new_table(cd, seg_a[1].header, nrows=nrows_a+nrows_b)
+    hdu = fits.BinTableHDU.from_columns(cd, seg_a[1].header, nrows=nrows_a+nrows_b)
 
     # Copy data from input to output.
     copySegments(seg_a[1].data, nrows_a, seg_b[1].data, nrows_b, hdu.data)

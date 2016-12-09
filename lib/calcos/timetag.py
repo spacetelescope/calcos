@@ -949,7 +949,7 @@ def saveNewGTI(ofd, gti):
     col.append(fits.Column(name="START", format="1D", unit="s"))
     col.append(fits.Column(name="STOP", format="1D", unit="s"))
     cd = fits.ColDefs(col)
-    hdu = fits.new_table(cd, nrows=len_gti)
+    hdu = fits.BinTableHDU.from_columns(cd, nrows=len_gti)
     hdu.header["extname"] = "GTI"
     outdata = hdu.data
     startcol = outdata.field("START")
@@ -2408,7 +2408,7 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
     below and above the WCA aperture by the trace+aligncorr shift"""
     shifted_dq = dq_array.copy() * 0
     nrows, ncolumns = dq_array.shape
-    wca_0 = wca_row["B_SPEC"][0]
+    wca_0 = int(round(wca_row["B_SPEC"][0]))
     wcaslope = wca_row["SLOPE"][0]
     wcaheight = wca_row["HEIGHT"][0]
     for column in range(ncolumns):

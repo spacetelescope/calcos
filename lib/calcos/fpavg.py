@@ -175,7 +175,7 @@ def delExtraColumns(hdu):
         else:
             outcols.append(column)
     cd = fits.ColDefs(outcols)
-    newhdu = fits.new_table(cd, header=hdu.header)
+    newhdu = fits.BinTableHDU.from_columns(cd, header=hdu.header)
     return newhdu
 
 def makeStringList(inlist):
@@ -610,7 +610,7 @@ class OutputX1D(object):
         # Create output HDU for the table.
         newhdu = delExtraColumns(ifd[1])
         ifd[1].header = newhdu.header
-        hdu = fits.new_table(cd, header=ifd[1].header, nrows=self.nrows)
+        hdu = fits.BinTableHDU.from_columns(cd, header=ifd[1].header, nrows=self.nrows)
 
         hdu.header["exptime"] = self.keywords["exptime"]
         if detector == "FUV":
