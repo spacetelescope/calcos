@@ -185,6 +185,8 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doGeocorr(events, info, switches, reffiles, phdr)
 
+    doDgeocorr(events, info, switches, reffiles, phdr)
+
     # Set active_area based on (xcorr, ycorr) coordinates.
     setActiveArea(events, info, reffiles["brftab"])
 
@@ -1967,7 +1969,7 @@ def doGeocorr(events, info, switches, reffiles, phdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -1979,7 +1981,7 @@ def doGeocorr(events, info, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
     """
 
@@ -1993,6 +1995,40 @@ def doGeocorr(events, info, switches, reffiles, phdr):
                                         reffiles["geofile"],
                                         info["segment"], switches["igeocorr"])
             phdr["geocorr"] = "COMPLETE"
+            if switches["igeocorr"] == "PERFORM":
+                phdr["igeocorr"] = "COMPLETE"
+
+def doDgeocorr(events, info, switches, reffiles, phdr):
+    """Apply delta geometric correction.
+
+    Parameters
+    ----------
+    events: astropy.io.fits record array
+        The data unit containing the events table.
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    phdr: astropy.io.fits Header object
+        The input primary header.
+    """
+
+    if info["detector"] == "FUV":
+        cosutil.printSwitch("DGEOCORR", switches)
+        if switches["dgeocorr"] == "PERFORM":
+            cosutil.printRef("DGEOFILE", reffiles)
+            cosutil.printSwitch("IGEOCORR", switches)
+            cosutil.geometricDistortion(events.field(xcorr),
+                                        events.field(ycorr),
+                                        reffiles["dgeofile"],
+                                        info["segment"], switches["igeocorr"])
+            phdr["dgeocorr"] = "COMPLETE"
             if switches["igeocorr"] == "PERFORM":
                 phdr["igeocorr"] = "COMPLETE"
 
