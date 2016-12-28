@@ -2371,6 +2371,7 @@ def doDqicorr(events, input, info, switches, reffiles,
             # Flag regions that are outside any subarray as out of bounds.
             cosutil.flagOutOfBounds(hdr, dq_array, info, switches,
                                     reffiles["brftab"], reffiles["geofile"],
+                                    reffiles["dgeofile"],
                                     temp_minmax_shift_dict,
                                     temp_minmax_doppler, doppler_boundary)
             # Flag the region that is outside the active area.
@@ -2412,6 +2413,7 @@ def doDqicorr(events, input, info, switches, reffiles,
             # Flag regions that are outside any subarray as out of bounds.
             cosutil.flagOutOfBounds(hdr, dq_array, info, switches,
                                     reffiles["brftab"], reffiles["geofile"],
+                                    reffiles["dgeofile"],
                                     minmax_shift_dict,
                                     minmax_doppler, doppler_boundary)
             # Flag the region that is outside the active area.
