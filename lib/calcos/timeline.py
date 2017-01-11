@@ -366,7 +366,7 @@ def timelineHDU(nrows_timeline, hdr):
                            unit="count /s /pixel", disp="G15.6"))
     cd = fits.ColDefs(col)
 
-    hdu = fits.new_table(cd, header=hdr, nrows=nrows_timeline)
+    hdu = fits.BinTableHDU.from_columns(cd, header=hdr, nrows=nrows_timeline)
 
     hdu.header.set("extname", "TIMELINE", after="TFIELDS")      # xxx temp
     hdu.header.set("extver", 1, after="EXTNAME")        # xxx temporary

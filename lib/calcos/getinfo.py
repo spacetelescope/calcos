@@ -261,8 +261,8 @@ def getSwitchValues(phdr):
 
     switches = {}
 
-    for key in ["dqicorr", "randcorr", "tempcorr", "geocorr", "igeocorr",
-                "walkcorr", "trcecorr", "algncorr",
+    for key in ["dqicorr", "randcorr", "tempcorr", "geocorr", "dgeocorr",
+                "igeocorr", "walkcorr", "trcecorr", "algncorr",
                 "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
                 "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
                 "fluxcorr", "photcorr", "tdscorr", "statflag"]:
@@ -298,8 +298,8 @@ def getRefFileNames(phdr):
     reffiles = {}
 
     for key in ["flatfile", "hvtab", "walktab", "bpixtab", "gsagtab",
-                "spottab", "brftab", "geofile", "twozxtab",
-                "deadtab", "phafile", "phatab",
+                "spottab", "brftab", "geofile", "dgeofile",
+                "twozxtab", "deadtab", "phafile", "phatab",
                 "brsttab", "badttab", "tracetab",
                 "xtractab", "lamptab", "disptab",
                 "fluxtab", "imphttab", "phottab",
@@ -345,6 +345,7 @@ def resetSwitches(switches, reffiles):
     #               "flatcorr": ["flatfile"],
     #               "deadcorr": ["deadtab"],
     #               "geocorr": ["geofile"],
+    #               "dgeocorr": ["dgeofile"],
     #               "x1dcorr": ["xtractab", "disptab"],
     #               "fluxcorr": ["fluxtab"],
     #               "photcorr": ["imphttab"]}

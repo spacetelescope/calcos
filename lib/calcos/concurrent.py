@@ -364,7 +364,7 @@ class ConcurrentWavecal(object):
 
         primary_hdu = fits.PrimaryHDU(header=self.phdr)
         self.ofd = fits.HDUList(primary_hdu)
-        hdu = fits.new_table(cd, header=self.hdr, nrows=nrows)
+        hdu = fits.BinTableHDU.from_columns(cd, header=self.hdr, nrows=nrows)
         hdu.name = "LAMPFLASH"
         self.deleteCoordinateKeywords(hdu)
         self.ofd.append(hdu)

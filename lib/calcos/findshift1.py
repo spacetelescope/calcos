@@ -393,6 +393,16 @@ class Shift1(object):
             else:
                 ratio = chisq
             if shift is None or ratio > N_SIGMA or ratio < 1./N_SIGMA:
+                cosutil.printWarning("findshiftsFUV")
+                if shift is None:
+                    cosutil.printContinuation("shift is None")
+                elif ratio > N_SIGMA:
+                    cosutil.printContinuation("ratio > N_SIGMA")
+                    cosutil.printContinuation("ratio: {}, N_SIGMA: {}".format(ratio, N_SIGMA))
+                elif ratio < 1./N_SIGMA:
+                    cosutil.printContinuation("ratio < 1./N_SIGMA")
+                    cosutil.printContinuation("ratio: {}, N_SIGMA: {}".format(ratio, N_SIGMA))
+                cosutil.printContinuation("shift set to 0")
                 shift = 0.
                 self.spec_found[key] = False
             self.shift1_dict[key] = shift
@@ -542,6 +552,7 @@ class Shift1(object):
                         self.computeChiSquare(spectrum, template)
                 chisq[i] = chisq_i / float(max(ndf, 1))
             if self.factor is None:
+                cosutil.printWarning("At shift = {0}".format(shift))
                 flag[i] = BAD_VALUE
             else:
                 flag[i] = GOOD_VALUE
@@ -558,6 +569,12 @@ class Shift1(object):
         local_minima = np.where(np.logical_and(rms[1:n-1] <= rms[0:n-2],
                                                rms[1:n-1] <= rms[2:n]))
         if len(good_values[0]) <= 0 or len(local_minima[0]) <= 0:
+            cosutil.printWarning("findshift:")
+            if len(good_values[0]) <= 0:
+                cosutil.printContinuation("good_values[0] has 0 or -ve length")
+            else:
+                cosutil.printContinuation("local_minima[0] has 0 or -ve length")
+            cosutil.printContinuation("shift set to 0")
             return (0., 0., 0., False)
         # Extract the array of indices, and add one to get indices in rms
         # (because rms[1:n-1] starts with 1).
@@ -584,6 +601,9 @@ class Shift1(object):
             rms_list.append(rms[imin])
             chisq_list.append(chisq[imin])
         if len(real_minima) <= 0:
+            cosutil.printWarning("findshift:")
+            cosutil.printContinuation("No real minima found")
+            cpsutil.printContinuation("shift set to 0")
             return (0., 0., 0., False)
 
         # Pick the location with the smallest RMS.  index_of_min is the
@@ -629,6 +649,9 @@ class Shift1(object):
                 min_chisq = chisq_list[k]
                 index_of_min = k
         if index_of_min is None:
+            cosutil.printWarning("findshift:")
+            cosutil.printContinuation("Unable to find index of min chi-squared")
+            cosutil.printContinuation("shift set to 0")
             return (0., 0., 0., False)
 
         # Fit a quadratic to points near the minimum of chisq.
@@ -674,6 +697,9 @@ class Shift1(object):
             (coeff, var) = cosutil.fitQuadratic(x, chisq[i1:i2])
             (x_min, sigma_shift) = cosutil.centerOfQuadratic(coeff, var)
             if x_min is None:
+                cosutil.printWarning("findMinimum")
+                cosutil.printContinuation("Unable to find center of quadratic")
+                cosutil.printContinuation("shift set to 0")
                 shift = 0.
                 orig_shift1 = imin + self.initial_offset - maxlag
                 self.spec_found[self.current_key] = False
@@ -762,6 +788,9 @@ class Shift1(object):
             if s1 <= s0:
                 done = True
         if done:
+            cosutil.printWarning("From ComputeNormalization:")
+            cosutil.printContinuation("Overlap region is all zeros")
+            cosutil.printContinuation("self.factor set to None")
             self.factor = None
             return
 
@@ -779,11 +808,20 @@ class Shift1(object):
         sum_st = (spec * tmpl).sum(dtype=np.float64)
         denominator = sum_t**2 - n * sum_t2
         if denominator == 0.:
+            cosutil.printWarning("From ComputeNormalization:")
+            cosutil.printContinuation("Denominator = 0")
+            cosutil.printContinuation("self.factor set to None")
             self.factor = None
             return
         else:
             self.factor = (sum_s * sum_t - n * sum_st) / denominator
             if self.factor <= 0.:
+                cosutil.printWarning("From ComputeNormalization:")
+                cosutil.printContinuation("Self.factor <= 0")
+                cosutil.printContinuation("sum_s = {}, sum_t = {}, n = {}, sum_st = {}".format(sum_s, sum_t, n, sum_st))
+                cosutil.printContinuation("sum_t2 = {}, denominator = {}".format(sum_t2, denominator))
+                cosutil.printContinuation("self.factor = {}".format(self.factor))
+                cosutil.printContinuation("self.factor set to None")
                 self.factor = None
                 return
 

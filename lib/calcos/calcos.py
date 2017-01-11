@@ -1220,7 +1220,7 @@ class Association(object):
         if self.cl_args["raw_csum_coords"]:
             leave_unchanged = []        # reset all switches to OMIT
         else:
-            leave_unchanged = ["tempcorr", "geocorr", "igeocorr", "randcorr"]
+            leave_unchanged = ["tempcorr", "geocorr", "dgeocorr", "igeocorr", "randcorr"]
 
         for obs in self.obs:
             for key in obs.switches:
@@ -1384,6 +1384,7 @@ class Association(object):
             "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
             "phafile":  ["2.0", "PULSE HEIGHT THRESHOLD REFERENCE IMAGE"],
             "geofile":  ["2.0", "GEOMETRIC DISTORTION REFERENCE IMAGE"],
+            "dgeofile": ["2.0", "DELTA GEOMETRIC DISTORTION REFERENCE IMAGE"],
             "lamptab":  ["2.0", "TEMPLATE CAL LAMP SPECTRA TABLE"],
             "wcptab":   ["2.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
             "spwcstab": ["2.0", "SPECTROSCOPIC WCS PARAMETERS TABLE"],
@@ -1463,6 +1464,10 @@ class Association(object):
 
         if switches["geocorr"] == "PERFORM":
             cosutil.findRefFile(ref["geofile"],
+                                missing, wrong_filetype, bad_version)
+
+        if switches["dgeocorr"] == "PERFORM":
+            cosutil.findRefFile(ref["dgeofile"],
                                 missing, wrong_filetype, bad_version)
 
         if switches["wavecorr"] == "PERFORM":
@@ -1570,7 +1575,8 @@ class Association(object):
         if self.cl_args["create_csum_image"]:
             self.global_switches["any"] = "PERFORM"
         for key in ["badtcorr", "brstcorr", "deadcorr", "doppcorr",
-                    "dqicorr",  "flatcorr", "geocorr",  "helcorr",
+                    "dqicorr",  "flatcorr", "geocorr",
+                    "dgeocorr", "helcorr",
                     "phacorr",  "randcorr", "tempcorr", "x1dcorr",
                     "wavecorr", "trcecorr", "algncorr"]:
             if switches[key] == "PERFORM":
@@ -2561,6 +2567,7 @@ class NUVTimetagObs(Observation):
 
         self.overrideSwitch("tempcorr", messages)
         self.overrideSwitch("geocorr", messages)
+        self.overrideSwitch("dgeocorr", messages)
         self.overrideSwitch("igeocorr", messages)
         self.overrideSwitch("randcorr", messages)
         self.overrideSwitch("phacorr", messages)
@@ -2580,6 +2587,7 @@ class NUVAccumObs(Observation):
 
         self.overrideSwitch("tempcorr", messages)
         self.overrideSwitch("geocorr", messages)
+        self.overrideSwitch("dgeocorr", messages)
         self.overrideSwitch("igeocorr", messages)
         self.overrideSwitch("randcorr", messages)
         self.overrideSwitch("phacorr", messages)

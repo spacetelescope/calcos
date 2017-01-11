@@ -185,6 +185,8 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doGeocorr(events, info, switches, reffiles, phdr)
 
+    doDgeocorr(events, info, switches, reffiles, phdr)
+
     # Set active_area based on (xcorr, ycorr) coordinates.
     setActiveArea(events, info, reffiles["brftab"])
 
@@ -949,7 +951,7 @@ def saveNewGTI(ofd, gti):
     col.append(fits.Column(name="START", format="1D", unit="s"))
     col.append(fits.Column(name="STOP", format="1D", unit="s"))
     cd = fits.ColDefs(col)
-    hdu = fits.new_table(cd, nrows=len_gti)
+    hdu = fits.BinTableHDU.from_columns(cd, nrows=len_gti)
     hdu.header["extname"] = "GTI"
     outdata = hdu.data
     startcol = outdata.field("START")
@@ -1967,7 +1969,7 @@ def doGeocorr(events, info, switches, reffiles, phdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -1979,7 +1981,7 @@ def doGeocorr(events, info, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
     """
 
@@ -1993,6 +1995,40 @@ def doGeocorr(events, info, switches, reffiles, phdr):
                                         reffiles["geofile"],
                                         info["segment"], switches["igeocorr"])
             phdr["geocorr"] = "COMPLETE"
+            if switches["igeocorr"] == "PERFORM":
+                phdr["igeocorr"] = "COMPLETE"
+
+def doDgeocorr(events, info, switches, reffiles, phdr):
+    """Apply delta geometric correction.
+
+    Parameters
+    ----------
+    events: astropy.io.fits record array
+        The data unit containing the events table.
+
+    info: dictionary
+        Header keywords and values.
+
+    switches: dictionary
+        Calibration switches.
+
+    reffiles: dictionary
+        Reference file names.
+
+    phdr: astropy.io.fits Header object
+        The input primary header.
+    """
+
+    if info["detector"] == "FUV":
+        cosutil.printSwitch("DGEOCORR", switches)
+        if switches["dgeocorr"] == "PERFORM":
+            cosutil.printRef("DGEOFILE", reffiles)
+            cosutil.printSwitch("IGEOCORR", switches)
+            cosutil.geometricDistortion(events.field(xcorr),
+                                        events.field(ycorr),
+                                        reffiles["dgeofile"],
+                                        info["segment"], switches["igeocorr"])
+            phdr["dgeocorr"] = "COMPLETE"
             if switches["igeocorr"] == "PERFORM":
                 phdr["igeocorr"] = "COMPLETE"
 
@@ -2335,6 +2371,7 @@ def doDqicorr(events, input, info, switches, reffiles,
             # Flag regions that are outside any subarray as out of bounds.
             cosutil.flagOutOfBounds(hdr, dq_array, info, switches,
                                     reffiles["brftab"], reffiles["geofile"],
+                                    reffiles["dgeofile"],
                                     temp_minmax_shift_dict,
                                     temp_minmax_doppler, doppler_boundary)
             # Flag the region that is outside the active area.
@@ -2376,6 +2413,7 @@ def doDqicorr(events, input, info, switches, reffiles,
             # Flag regions that are outside any subarray as out of bounds.
             cosutil.flagOutOfBounds(hdr, dq_array, info, switches,
                                     reffiles["brftab"], reffiles["geofile"],
+                                    reffiles["dgeofile"],
                                     minmax_shift_dict,
                                     minmax_doppler, doppler_boundary)
             # Flag the region that is outside the active area.
@@ -2408,7 +2446,7 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
     below and above the WCA aperture by the trace+aligncorr shift"""
     shifted_dq = dq_array.copy() * 0
     nrows, ncolumns = dq_array.shape
-    wca_0 = wca_row["B_SPEC"][0]
+    wca_0 = int(wca_row["B_SPEC"][0])
     wcaslope = wca_row["SLOPE"][0]
     wcaheight = wca_row["HEIGHT"][0]
     for column in range(ncolumns):
