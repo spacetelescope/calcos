@@ -1482,15 +1482,15 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     # Loop over columns
     for column in range(ncols):
         if UPPER_OUTER_INDEX_i[column] > LOWER_OUTER_INDEX_i[column]:
-            lowerstart = int(round(LOWER_OUTER_INDEX_i[column]))
-            lowerstop = int(round(LOWER_INNER_INDEX_i[column]))
+            lowerstart = int(LOWER_OUTER_INDEX_i[column])
+            lowerstop = int(LOWER_INNER_INDEX_i[column])
             lower_ecounts = e_data_sub[lowerstart:lowerstop,
                                        column].sum(dtype=np.float64)
             lower_ccounts = c_data[lowerstart:lowerstop,
                                    column].sum(dtype=np.float64)
             lowerdq = e_dq_data[lowerstart:lowerstop, column]
-            upperstart = int(round(UPPER_INNER_INDEX_i[column])) + 1
-            upperstop = int(round(UPPER_OUTER_INDEX_i[column])) + 1
+            upperstart = int(UPPER_INNER_INDEX_i[column]) + 1
+            upperstop = int(UPPER_OUTER_INDEX_i[column]) + 1
             upper_ecounts = e_data_sub[upperstart:upperstop,
                                        column].sum(dtype=np.float64)
             upper_ccounts = c_data[upperstart:upperstop,
