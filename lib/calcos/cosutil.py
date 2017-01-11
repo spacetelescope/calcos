@@ -1441,7 +1441,7 @@ def findGSagExtn(gsagtab, hvlevel, segment):
     return (extn, message)
 
 def flagOutOfBounds(hdr, dq_array, info, switches,
-                     brftab, geofile, minmax_shift_dict,
+                     brftab, geofile, dgeofile, minmax_shift_dict,
                      minmax_doppler, doppler_boundary):
     """Flag regions that are outside all subarrays (done in-place).
 
@@ -1481,16 +1481,16 @@ def flagOutOfBounds(hdr, dq_array, info, switches,
 
     if info["detector"] == "FUV":
         fuvFlagOutOfBounds(hdr, dq_array, info, switches,
-                           brftab, geofile, minmax_shift_dict,
-                           minmax_doppler)
+                           brftab, geofile, dgeofile,
+                           minmax_shift_dict, minmax_doppler)
     else:
         nuvFlagOutOfBounds(hdr, dq_array, info, switches,
                            minmax_shift_dict,
                            minmax_doppler, doppler_boundary)
 
 def fuvFlagOutOfBounds(hdr, dq_array, info, switches,
-                       brftab, geofile, minmax_shift_dict,
-                       minmax_doppler):
+                       brftab, geofile, dgeofile, 
+                       minmax_shift_dict, minmax_doppler):
     """In FUV data, flag regions that are outside all subarrays (in-place).
 
     Parameters
@@ -1701,6 +1701,20 @@ def fuvFlagOutOfBounds(hdr, dq_array, info, switches,
         ccos.geocorrection(x_right, y_right, x_data, y_data, interp_flag,
                            origin_x, origin_y, xbin, ybin)
         del(x_data, y_data)
+        if switches["dgeocorr"] == "PERFORM" or switches["dgeocorr"] == "COMPLETE":
+            interp_flag = (switches["igeocorr"] == "PERFORM")
+            (x_data, origin_x, xbin, y_data, origin_y, ybin) = \
+                getGeoData(dgeofile, segment)
+            # Undistort x_lower, y_lower, etc., in-place.
+            ccos.geocorrection(x_lower, y_lower, x_data, y_data, interp_flag,
+                               origin_x, origin_y, xbin, ybin)
+            ccos.geocorrection(x_upper, y_upper, x_data, y_data, interp_flag,
+                               origin_x, origin_y, xbin, ybin)
+            ccos.geocorrection(x_left, y_left, x_data, y_data, interp_flag,
+                               origin_x, origin_y, xbin, ybin)
+            ccos.geocorrection(x_right, y_right, x_data, y_data, interp_flag,
+                               origin_x, origin_y, xbin, ybin)
+            del(x_data, y_data)
         # Interpolate to uniform spacing (pixel spacing).
         ccos.interp1d(x_lower, y_lower, x_lower_uniform, y_lower_interp)
         ccos.interp1d(x_upper, y_upper, x_upper_uniform, y_upper_interp)
