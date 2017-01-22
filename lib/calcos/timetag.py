@@ -949,7 +949,7 @@ def saveNewGTI(ofd, gti):
     col.append(fits.Column(name="START", format="1D", unit="s"))
     col.append(fits.Column(name="STOP", format="1D", unit="s"))
     cd = fits.ColDefs(col)
-    hdu = fits.new_table(cd, nrows=len_gti)
+    hdu = fits.BinTableHDU.from_columns(cd, nrows=len_gti)
     hdu.header["extname"] = "GTI"
     outdata = hdu.data
     startcol = outdata.field("START")

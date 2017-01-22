@@ -122,7 +122,7 @@ def splitOneTag(input, outroot, starttime=None, increment=None, endtime=None,
 
         filename = constructOutputName(outroot, file_index, suffix)
         ofd = fits.HDUList(fits.PrimaryHDU(header=phdr))
-        hdu = fits.new_table(cd, header=hdr, nrows=nrows)
+        hdu = fits.BinTableHDU.from_columns(cd, header=hdr, nrows=nrows)
         ofd.append(hdu)
 
         copyRows(data, ofd, i, j)
@@ -553,7 +553,7 @@ def createNewGTI(gti_hdu, t0, t1):
             cd = fits.ColDefs(col)
         else:
             cd = gti_hdu.columns
-        out_gti_hdu = fits.new_table(cd, header=gti_hdu.header,
+        out_gti_hdu = fits.BinTableHDU.from_columns(cd, header=gti_hdu.header,
                                                     nrows=1)
         out_start_col = out_gti_hdu.data.field("start")
         out_stop_col = out_gti_hdu.data.field("stop")
@@ -586,7 +586,7 @@ def createNewGTI(gti_hdu, t0, t1):
         gti.append((0., 0.))
     out_nrows = len(gti)
 
-    out_gti_hdu = fits.new_table(cd, header=gti_hdu.header,
+    out_gti_hdu = fits.BinTableHDU.from_columns(cd, header=gti_hdu.header,
                                                 nrows=out_nrows)
     out_start_col = out_gti_hdu.data.field("start")
     out_stop_col = out_gti_hdu.data.field("stop")
@@ -677,7 +677,7 @@ def createNewTimeline(timeline_hdu, t0, t1):
     else:
         out_nrows = 0
 
-    out_timeline_hdu = fits.new_table(cd, header=timeline_hdu.header,
+    out_timeline_hdu = fits.BinTableHDU.from_columns(cd, header=timeline_hdu.header,
                                                      nrows=out_nrows)
     if in_nrows > 0:
         out_data = out_timeline_hdu.data
