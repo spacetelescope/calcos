@@ -188,7 +188,8 @@ def timetagBasicCalibration(input, inpha, outtag,
     # Set active_area based on (xcorr, ycorr) coordinates.
     setActiveArea(events, info, reffiles["brftab"])
 
-    doWalkCorr(events, info, switches, reffiles, phdr)
+    doXWalkcorr(events, info, switches, reffiles, phdr)
+    doYWalkcorr(events, info, switches, reffiles, phdr)
 
     updateGlobrate(info, headers[1])
 
@@ -1996,12 +1997,12 @@ def doGeocorr(events, info, switches, reffiles, phdr):
             if switches["igeocorr"] == "PERFORM":
                 phdr["igeocorr"] = "COMPLETE"
 
-def doWalkCorr(events, info, switches, reffiles, phdr):
-    """Apply a 'walk' correction to FUV TIME-TAG data.
+def doXWalkcorr(events, info, switches, reffiles, phdr):
+    """Apply X walk correction.
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -2013,123 +2014,92 @@ def doWalkCorr(events, info, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
-        The input primary header.  Keyword walkcorr may be updated.
+    phdr: astropy.io.fits Header object
+        The input primary header.
     """
 
-    if info["detector"] == "FUV" and info["obsmode"] == "TIME-TAG":
-        cosutil.printSwitch("WALKCORR", switches)
-        if switches["walkcorr"] == "PERFORM":
-            cosutil.printRef("WALKTAB", reffiles)
-            xi  = events.field(xcorr)
-            eta = events.field(ycorr)
-            pha = events.field("pha")
-            walk_info = cosutil.getTable(reffiles["walktab"],
-                                         filter={"segment": info["segment"]},
-                                         exactly_one=True)
-            x0 = walk_info.field("x0")[0]
-            y0 = walk_info.field("y0")[0]
-            n_x = walk_info.field("n_x")[0]
-            n_y = walk_info.field("n_y")[0]
-            n_pha_coeff = walk_info.field("n_pha_coeff")[0]
-            xcoeff = walk_info.field("xcoeff")[0]
-            xcoeff = xcoeff.reshape((n_pha_coeff, n_y, n_x))
-            ycoeff = walk_info.field("ycoeff")[0]
-            ycoeff = ycoeff.reshape((n_pha_coeff, n_y, n_x))
-            xyWalk(xi, eta, pha, x0, y0, xcoeff, ycoeff)
-            phdr["walkcorr"] = "COMPLETE"
+    if info["detector"] == "FUV":
+        cosutil.printSwitch("XWLKCORR", switches)
+        if switches["xwlkcorr"] == "PERFORM":
+            cosutil.printRef("XWLKFILE", reffiles)
+            walkCorrection(events.field('xcorr'),
+                           events.field('pha'),
+                           reffiles["xwlkfile"],
+                           info["segment"],
+                           events.field('xcorr'))
+            phdr["xwlkcorr"] = "COMPLETE"
 
-def xyWalk(xi, eta, pha, x0, y0, xcoeff, ycoeff, datatype=np.float64):
-    """Apply a 'walk' correction, i.e. change x,y depending on PHA.
-
-    The correction will be subtracted from the pixel coordinates.
+def doYWalkcorr(events, info, switches, reffiles, phdr):
+    """Apply Y walk correction.
 
     Parameters
     ----------
-    xi: array_like
-        Array of pixel coordinates of events, dispersion direction.  These
-        will be updated in-place.
+    events: astropy.io.fits record array
+        The data unit containing the events table.
 
-    eta: array_like
-        Array of pixel coordinates of events, cross-dispersion direction.
-        These will be updated in-place.
+    info: dictionary
+        Header keywords and values.
 
-    pha: array_like
-        Array of pulse height amplitudes of events.
+    switches: dictionary
+        Calibration switches.
 
-    x0: float
-        Zero point to be subtracted from xi before evaluating polynomial
-        expressions.
+    reffiles: dictionary
+        Reference file names.
 
-    y0: float
-        Zero point to be subtracted from eta before evaluating polynomial
-        expressions.
-
-    xcoeff: array_like
-        Array of coefficients for a polynomial expression for the change
-        in xi as a function of pha.
-
-    ycoeff: array_like
-        Array of coefficients for a polynomial expression for the change
-        in eta as a function of pha.
-
-    datatype: numpy dtype
-        This is the data type used for local arrays.  The default is single
-        precision.  If it is anticipated that the polynomial coefficients
-        xcoeff and ycoeff may include terms of high order, datatype
-        should be set to double precision.
+    phdr: astropy.io.fits Header object
+        The input primary header.
     """
 
-    global active_area
+    if info["detector"] == "FUV":
+        cosutil.printSwitch("YWLKCORR", switches)
+        if switches["ywlkcorr"] == "PERFORM":
+            cosutil.printRef("YWLKFILE", reffiles)
+            walkCorrection(events.field('xcorr'),
+                           events.field('pha'),
+                           reffiles["ywlkfile"],
+                           info["segment"],
+                           events.field('ycorr'))
+            phdr["ywlkcorr"] = "COMPLETE"
 
-    nevents = len(xi)
-    # Subtract a point near the middle of the detector, so the powers of
-    # xi and eta will be smaller and more symmetrical.
-    dx = xi - x0
-    dy = eta - y0
+def walkCorrection(slowCoordinate, fastCoordinate, reference_file, segment,
+                   changedCoordinate):
+    """Apply walk correction
+    The same algorithm is used for both.
+    slowCoordinate and fastCoordinate are arrays of coordinates that are used
+    to look up in the reference image
 
-    # n_pha_coeff is the number of coefficients for the function of pha
-    (n_pha_coeff, n_y, n_x) = xcoeff.shape
+    Parameters
+    ----------
+    slowCoordinate: numpy ndarray
+        The array of coordinates that is used to look up the correction in the
+        slow direction of the reference array
 
-    # 1., xi, eta, xi^2, xi*eta, eta^2, etc.
-    powers_of_data = np.zeros((n_y, n_x, nevents), dtype=datatype)
-    powers_of_data[0,0,:] = 1.
-    for i in range(n_x):
-        if i > 0:
-            powers_of_data[0,i,:] = powers_of_data[0,i-1,:] * dx
-        for j in range(1, n_y):
-            powers_of_data[j,i,:] = powers_of_data[j-1,i,:] * dy
+    fastCoordinate: numpy ndarray
+        The array of coordinates that is used to look up the correction in the
+        fast direction of the reference array
 
-    # polynomial coefficients for the change in xi as a function of pha
-    pha_coeff = np.zeros((n_pha_coeff, nevents), dtype=datatype)
-    for k in range(n_pha_coeff):
-        for j in range(n_y):
-            for i in range(n_x):
-                pha_coeff[k,:] += xcoeff[k,j,i] * powers_of_data[j,i,:]
+    reference_file: string
+        Name of reference file
 
-    # pha0 = c0; delta_x = c1 * (pha - pha0) + c2 * (pha - pha0)**2 + ...
-    pha0 = pha_coeff[0]
-    dpha = pha - pha0
-    delta_x = pha_coeff[n_pha_coeff-1,:]
-    for k in range(n_pha_coeff-2, 0, -1):
-        delta_x = delta_x * dpha + pha_coeff[k,:]
-    delta_x *= dpha
-    xi[:] = np.where(active_area, xi - delta_x, xi)
-    del(dpha, delta_x)
+    segment: string
+        FUV segment ("FUVA" or "FUVB")
 
-    # we've already computed powers_of_data
-    pha_coeff = np.zeros((n_pha_coeff, nevents), dtype=datatype)
-    for k in range(n_pha_coeff):
-        for j in range(n_y):
-            for i in range(n_x):
-                pha_coeff[k,:] += ycoeff[k,j,i] * powers_of_data[j,i,:]
-    pha0 = pha_coeff[0]
-    dpha = pha - pha0
-    delta_y = pha_coeff[n_pha_coeff-1,:]
-    for k in range(n_pha_coeff-2, 0, -1):
-        delta_y = delta_y * dpha + pha_coeff[k,:]
-    delta_y *= dpha
-    eta[:] = np.where(active_area, eta - delta_y, eta)
+    changedCoordinate: numpy ndarray
+        The array of coordinates that is changed by the amount looked up in the
+        reference array at the specified positions
+
+    """
+    nevents = len(fastCoordinate)
+    fd = fits.open(reference_file)
+    for extension in fd[1:]:
+        if extension.header['SEGMENT'] == segment:
+            reference_array = extension.data
+            break
+    delta = np.zeros(len(fastCoordinate))
+    ccos.walkCorrection(fastCoordinate, slowCoordinate, 
+                        reference_array, delta)
+    changedCoordinate[i] -= delta
+    return
 
 def doDqicorr(events, input, info, switches, reffiles,
                phdr, hdr, minmax_shift_dict, traceprofile, gti):

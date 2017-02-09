@@ -1393,7 +1393,8 @@ class Association(object):
             "imphttab": ["2.0", "IMAGING PHOTOMETRIC TABLE"],
             "tdstab":   ["2.0", "TIME DEPENDENT SENSITIVITY TABLE"],
             "brsttab":  ["2.0", "BURST PARAMETERS TABLE"],
-            "walktab":  ["2.0", "WALK CORRECTION TABLE"],
+            "xwlkfile": ["3.1", "X WALK CORRECTION TABLE"],
+            "ywlkfile": ["3.1", "Y WALK CORRECTION TABLE"],
             "tracetab": ["2.0", "1D SPECTRAL TRACE TABLE"],
             "proftab": ["2.0", "2D SPECTRUM PROFILE TABLE"],
             "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"],
@@ -1488,10 +1489,12 @@ class Association(object):
                 cosutil.findRefFile(ref["tdstab"],
                                     missing, wrong_filetype, bad_version)
 
-        if switches["walkcorr"] == "PERFORM":
-            cosutil.findRefFile(ref["walktab"],
+        if switches["xwlkcorr"] == "PERFORM":
+            cosutil.findRefFile(ref["xwlktab"],
                                 missing, wrong_filetype, bad_version)
-
+        if switches["ywlkcorr"] == "PERFORM":
+            cosutil.findRefFile(ref["ywlktab"],
+                                missing, wrong_filetype, bad_version)
         if switches["photcorr"] == "PERFORM":
             # xxx commented out because we don't have this table yet
             # cosutil.findRefFile(ref["imphttab"],

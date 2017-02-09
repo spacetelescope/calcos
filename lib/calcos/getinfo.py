@@ -262,7 +262,7 @@ def getSwitchValues(phdr):
     switches = {}
 
     for key in ["dqicorr", "randcorr", "tempcorr", "geocorr", "igeocorr",
-                "walkcorr", "trcecorr", "algncorr",
+                "xwlkcorr", "ywlkcorr", "trcecorr", "algncorr",
                 "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
                 "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
                 "fluxcorr", "photcorr", "tdscorr", "statflag"]:
@@ -297,14 +297,13 @@ def getRefFileNames(phdr):
 
     reffiles = {}
 
-    for key in ["flatfile", "hvtab", "walktab", "bpixtab", "gsagtab",
-                "spottab", "brftab", "geofile", "twozxtab",
-                "deadtab", "phafile", "phatab",
-                "brsttab", "badttab", "tracetab",
-                "xtractab", "lamptab", "disptab",
-                "fluxtab", "imphttab", "phottab",
-                "spwcstab", "wcptab", "tdstab",
-                "proftab"]:
+    for key in ["flatfile", "hvtab", "xwlkfile", "ywlkfile",
+                "bpixtab", "gsagtab", "spottab", "brftab",
+                "geofile", "twozxtab", "deadtab", "phafile",
+                "phatab", "brsttab", "badttab", "tracetab",
+                "xtractab", "lamptab", "disptab", "fluxtab",
+                "imphttab", "phottab", "spwcstab", "wcptab",
+                "tdstab", "proftab"]:
         reffiles[key+"_hdr"] = phdr.get(key, default=NOT_APPLICABLE)
         reffiles[key] = cosutil.expandFileName(reffiles[key+"_hdr"])
 
@@ -337,7 +336,8 @@ def resetSwitches(switches, reffiles):
     """
 
     check_these = {"badtcorr": ["badttab"],
-                   "walkcorr": ["walktab"],
+                   "xwlkcorr": ["xwlkfile"],
+                   "ywlkcorr": ["ywlkfile"],
                    "tdscorr": ["tdstab"]}
     #check_these = {"badtcorr": ["badttab"],
     #               "brstcorr": ["brsttab"],
