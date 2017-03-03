@@ -2096,10 +2096,45 @@ def walkCorrection(slowCoordinate, fastCoordinate, reference_file, segment,
             reference_array = extension.data
             break
     delta = np.zeros(len(fastCoordinate))
-    ccos.walkCorrection(fastCoordinate, slowCoordinate, 
-                        reference_array, delta)
-    changedCoordinate[i] -= delta
+    delta = bilinear_interpolation(fastCoordinate, slowCoordinate, 
+                           reference_array)
+    changedCoordinate -= delta
     return
+
+def bilinear_interpolation(fastCoordinate, slowCoordinate,
+                               reference_array):
+    nrows, ncols = reference_array.shape
+    extended_ref = np.zeros((nrows+1,ncols+1),
+                            dtype=reference_array.dtype)
+    extended_ref[:nrows,:ncols] = reference_array
+    fastcopy = fastCoordinate.copy()
+    slowcopy = slowCoordinate.copy()
+    nevents = len(fastCoordinate)
+    negx = np.where(fastcopy < 0.0)
+    xtoobig = np.where(fastcopy > ncols-1)
+    fastcopy[negx] = 0.0
+    fastcopy[xtoobig] = ncols - 1.0
+    ix = fastcopy.astype(np.int32)
+    negy = np.where(slowcopy < 0.0)
+    ytoobig = np.where(slowcopy > nrows-1)
+    slowcopy[negy] = 0.0
+    slowcopy[ytoobig] = nrows-1.0
+    iy = slowcopy.astype(np.int32)
+    ix1 = ix + 1
+    iy1 = iy + 1
+    dx1 = fastcopy - ix
+    dx2 = 1.0 - dx1
+    dy1 = slowcopy - iy
+    dy2 = 1.0 - dy1
+    flat = extended_ref.ravel()
+    f11 = (ncols+1)*iy + ix
+    f12 = (ncols+1)*iy1 + ix
+    f21 = (ncols+1)*iy + ix1
+    f22 = (ncols+1)*iy1 + ix1
+    delta = flat[f11]*dx2*dy2 + flat[f12]*dx2*dy1 + \
+        flat[f21]*dx1*dy2 + flat[f22]*dx1*dy1
+    return delta
+
 
 def doDqicorr(events, input, info, switches, reffiles,
                phdr, hdr, minmax_shift_dict, traceprofile, gti):
