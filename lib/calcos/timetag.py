@@ -188,8 +188,14 @@ def timetagBasicCalibration(input, inpha, outtag,
     # Set active_area based on (xcorr, ycorr) coordinates.
     setActiveArea(events, info, reffiles["brftab"])
 
-    doXWalkcorr(events, info, switches, reffiles, phdr)
-    doYWalkcorr(events, info, switches, reffiles, phdr)
+    #
+    # The X and Y walk correction need to be independent, and applied to the
+    # same xcorr/pha values
+    if doWalkCorr(switches):
+        
+        xcorrection = doXWalkcorr(events, info, switches, reffiles, phdr)
+        ycorrection = doYWalkcorr(events, info, switches, reffiles, phdr)
+        applyWalkCorrection(events, xcorrection, ycorrection)
 
     updateGlobrate(info, headers[1])
 
@@ -1997,6 +2003,14 @@ def doGeocorr(events, info, switches, reffiles, phdr):
             if switches["igeocorr"] == "PERFORM":
                 phdr["igeocorr"] = "COMPLETE"
 
+def doWalkCorr(switches):
+    """Returns True if we are going to do either xwlkcorr or ywlkcorr
+    """
+    if switches["xwlkcorr"] == "PERFORM" or switches["ywlkcorr"] == "PERFORM":
+        return True
+    else:
+        return False
+
 def doXWalkcorr(events, info, switches, reffiles, phdr):
     """Apply X walk correction.
 
@@ -2022,12 +2036,14 @@ def doXWalkcorr(events, info, switches, reffiles, phdr):
         cosutil.printSwitch("XWLKCORR", switches)
         if switches["xwlkcorr"] == "PERFORM":
             cosutil.printRef("XWLKFILE", reffiles)
-            walkCorrection(events.field('xcorr'),
-                           events.field('pha'),
-                           reffiles["xwlkfile"],
-                           info["segment"],
-                           events.field('xcorr'))
+            xcorrection = walkCorrection(events.field('xcorr'),
+                                         events.field('pha'),
+                                         reffiles["xwlkfile"],
+                                         info["segment"])
             phdr["xwlkcorr"] = "COMPLETE"
+            return xcorrection
+        else:
+            return None
 
 def doYWalkcorr(events, info, switches, reffiles, phdr):
     """Apply Y walk correction.
@@ -2054,15 +2070,16 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
         cosutil.printSwitch("YWLKCORR", switches)
         if switches["ywlkcorr"] == "PERFORM":
             cosutil.printRef("YWLKFILE", reffiles)
-            walkCorrection(events.field('xcorr'),
-                           events.field('pha'),
-                           reffiles["ywlkfile"],
-                           info["segment"],
-                           events.field('ycorr'))
+            ycorrection = walkCorrection(events.field('xcorr'),
+                                         events.field('pha'),
+                                         reffiles["ywlkfile"],
+                                         info["segment"])
             phdr["ywlkcorr"] = "COMPLETE"
+            return ycorrection
+        else:
+            return None
 
-def walkCorrection(slowCoordinate, fastCoordinate, reference_file, segment,
-                   changedCoordinate):
+def walkCorrection(slowCoordinate, fastCoordinate, reference_file, segment):
     """Apply walk correction
     The same algorithm is used for both.
     slowCoordinate and fastCoordinate are arrays of coordinates that are used
@@ -2084,9 +2101,11 @@ def walkCorrection(slowCoordinate, fastCoordinate, reference_file, segment,
     segment: string
         FUV segment ("FUVA" or "FUVB")
 
-    changedCoordinate: numpy ndarray
-        The array of coordinates that is changed by the amount looked up in the
-        reference array at the specified positions
+    Returns:
+    --------
+
+    correction: numpy ndarray
+        The array of lookups in the reference array
 
     """
     nevents = len(fastCoordinate)
@@ -2098,8 +2117,7 @@ def walkCorrection(slowCoordinate, fastCoordinate, reference_file, segment,
     delta = np.zeros(len(fastCoordinate))
     delta = bilinear_interpolation(fastCoordinate, slowCoordinate, 
                            reference_array)
-    changedCoordinate -= delta
-    return
+    return delta
 
 def bilinear_interpolation(fastCoordinate, slowCoordinate,
                                reference_array):
@@ -2135,6 +2153,17 @@ def bilinear_interpolation(fastCoordinate, slowCoordinate,
         flat[f21]*dx1*dy2 + flat[f22]*dx1*dy1
     return delta
 
+def applyWalkCorrection(events, xcorrection, ycorrection):
+    """Apply the walk correction
+    """
+    global active_area
+    if xcorrection is not None:
+        events['xcorr'] = np.where(active_area, events['xcorr'] - xcorrection,
+                                   events['xcorr'])
+    if ycorrection is not None:
+        events['ycorr'] = np.where(active_area, events['ycorr'] - ycorrection,
+                                   events['ycorr'])
+    return
 
 def doDqicorr(events, input, info, switches, reffiles,
                phdr, hdr, minmax_shift_dict, traceprofile, gti):
