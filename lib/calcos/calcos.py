@@ -786,6 +786,7 @@ class Association(object):
             i = j
         self.first_science = i
 
+        self.checkforWalk()
         self.compareConfig()
         self.resetSwitches()    # set switches to OMIT if only_csum is True
         self.compareRefFiles()
@@ -794,6 +795,26 @@ class Association(object):
         self.globalSwitches()
         self.checkOutputExists()
         self.stimfileSanityCheck()
+
+    def checkforWalk(self):
+        """Check for the existence of any WALK-related keywords:
+        [WALKCORR, WALKTAB] in the primary header of all members
+        """
+        walkreferrers = []
+        for rawfile in self.rawfiles:
+            f1 = fits.open(rawfile)
+            phdr = f1[0].data
+            if 'WALKCORR' in phdr.keys:
+                walkreferrers.append((rawfile, 'WALKCORR'))
+            if 'WALKTAB' in phdr.keys:
+                walkreferrers.append((rawfile, 'WALKTAB'))
+            f1.close()
+
+        if len(walkreferrers) > 0:
+            errormessage = "Input file(s) contain keywords WALKCORR and/or WALKTAB"
+            for referrer in walkreferrers:
+                errormessage.append("\n   " + referrer[0] + ":  " + referrer[1])
+            raise RunTimeError(errormessage)
 
     def readAsnTable(self):
         """Read an association table into memory, and get product info."""
