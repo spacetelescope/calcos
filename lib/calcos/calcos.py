@@ -1467,6 +1467,12 @@ class Association(object):
                                 missing, wrong_filetype, bad_version)
 
         if switches["dgeocorr"] == "PERFORM":
+            # check that geocorr is not 'OMIT'
+            if switches["geocorr"] == 'OMIT':
+                cosutil.printError("DGEOCORR = 'PERFORM' but GEOCORR = 'OMIT'")
+                cosutil.printContinuation("This combination is not permitted")
+                cosutil.printContinuation("Please change the GEOCORR keyword to 'PERFORM' or 'COMPLETE'")
+                raise RuntimeError("Error in GEOCORR switch when DGEOCORR = 'PERFORM'")
             cosutil.findRefFile(ref["dgeofile"],
                                 missing, wrong_filetype, bad_version)
 
