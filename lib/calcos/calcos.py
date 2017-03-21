@@ -791,6 +791,7 @@ class Association(object):
         self.compareRefFiles()
         self.compareSwitches()
         self.missingRefFiles()
+        self.checkGeoSwitches()
         self.globalSwitches()
         self.checkOutputExists()
         self.stimfileSanityCheck()
@@ -1045,6 +1046,30 @@ class Association(object):
         basic_info["rawfiles"] = rawfiles
 
         return basic_info
+
+    def checkGeoSwitches(self):
+        """Check that GEOCORR switches aren't set to 'OMIT' if the DGEOCORR switches are
+        set to 'PERFORM'"""
+        incompatibleSwitches = []
+        for rawfile in self.rawfiles:
+            f1 = fits.open(rawfile)
+            phdr = f1[0].header
+            if 'DGEOCORR' in phdr.keys():
+                geocorr = phdr['GEOCORR']
+                dgeocorr = phdr['DGEOCORR']
+                if dgeocorr == 'PERFORM':
+                    if geocorr == 'OMIT':
+                        incompatibleSwitches.append((rawfile, geocorr, dgeocorr))
+            f1.close()
+
+        if len(incompatibleSwitches) > 0:
+            errormessage = "Input file(s) have illegal combination of GEOCORR='OMIT' and DGEOCORR='PERFORM'"
+            for badfile in incompatibleSwitches:
+                errormessage = "".join([errormessage,"\n   " + badfile[0])
+            errormessage = "".join([errormessage,"\n\nPlease either set the GEOCORR switch to 'PERFORM'"])
+            errormessage = "".join([errormessage,"\nif the GEO correction hasn't been applied, or 'COMPLETE'"])
+            errormessage = "".join([errormessage,"\nif it has"])
+            raise RuntimeError(errormessage)
 
     def isAcqImage(self, rawacq):
         """Check whether rawacq is an ACQ/IMAGE.
