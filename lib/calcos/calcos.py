@@ -1065,7 +1065,7 @@ class Association(object):
         if len(incompatibleSwitches) > 0:
             errormessage = "Input file(s) have illegal combination of GEOCORR='OMIT' and DGEOCORR='PERFORM'"
             for badfile in incompatibleSwitches:
-                errormessage = "".join([errormessage,"\n   " + badfile[0])
+                errormessage = "".join([errormessage,"\n   " + badfile[0]])
             errormessage = "".join([errormessage,"\n\nPlease either set the GEOCORR switch to 'PERFORM'"])
             errormessage = "".join([errormessage,"\nif the GEO correction hasn't been applied, or 'COMPLETE'"])
             errormessage = "".join([errormessage,"\nif it has"])
