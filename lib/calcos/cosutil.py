@@ -207,7 +207,7 @@ def createCorrtagHDU(nrows, detector, header):
     # Rename or delete some image-specific keywords.
     header = imageHeaderToCorrtag(header)
 
-    hdu = fits.new_table(cd, header=header, nrows=nrows)
+    hdu = fits.BinTableHDU.from_columns(cd, header=header, nrows=nrows)
 
     return hdu
 
@@ -311,7 +311,7 @@ def dummyGTI(exptime):
     col.append(fits.Column(name="START", format="1D", unit="s"))
     col.append(fits.Column(name="STOP", format="1D", unit="s"))
     cd = fits.ColDefs(col)
-    hdu = fits.new_table(cd, nrows=1)
+    hdu = fits.BinTableHDU.from_columns(cd, nrows=1)
     hdu.header["extname"] = "GTI"
     outdata = hdu.data
     outdata.field("START")[:] = 0.
