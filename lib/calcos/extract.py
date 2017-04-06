@@ -1395,7 +1395,7 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
         # Need a subarray of the original dq array of the same shape as the
         # profile
         cosutil.printMsg("Calculating background for reference profile")
-        dq_profile = e_dq_data[row_0:row_0+nrows]
+        dq_profile = e_dq_data[int(row_0):int(row_0+nrows)]
         ref_background_i, nrows = getBackground(profile_ij, dq_profile,
                                                 xtract_info,
                                                 refcentroid, sdqflags)
@@ -1484,28 +1484,28 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
         if UPPER_OUTER_INDEX_i[column] > LOWER_OUTER_INDEX_i[column]:
             lowerstart = LOWER_OUTER_INDEX_i[column]
             lowerstop = LOWER_INNER_INDEX_i[column]
-            lower_ecounts = e_data_sub[lowerstart:lowerstop,
+            lower_ecounts = e_data_sub[int(lowerstart):int(lowerstop),
                                        column].sum(dtype=np.float64)
-            lower_ccounts = c_data[lowerstart:lowerstop,
+            lower_ccounts = c_data[int(lowerstart):int(lowerstop),
                                    column].sum(dtype=np.float64)
-            lowerdq = e_dq_data[lowerstart:lowerstop, column]
+            lowerdq = e_dq_data[int(lowerstart):int(lowerstop), column]
             upperstart = UPPER_INNER_INDEX_i[column] + 1
             upperstop = UPPER_OUTER_INDEX_i[column] + 1
-            upper_ecounts = e_data_sub[upperstart:upperstop,
+            upper_ecounts = e_data_sub[int(upperstart):int(upperstop),
                                        column].sum(dtype=np.float64)
-            upper_ccounts = c_data[upperstart:upperstop,
+            upper_ccounts = c_data[int(upperstart):int(upperstop),
                                    column].sum(dtype=np.float64)
-            upperdq = e_dq_data[upperstart:upperstop, column]
+            upperdq = e_dq_data[int(upperstart):int(upperstop), column]
             innerstart = lowerstop
             innerstop = upperstart
-            inner_ecounts = e_data_sub[innerstart:innerstop,
+            inner_ecounts = e_data_sub[int(innerstart):int(innerstop),
                                        column].sum(dtype=np.float64)
-            inner_ccounts = c_data[innerstart:innerstop,
+            inner_ccounts = c_data[int(innerstart):int(innerstop),
                                    column].sum(dtype=np.float64)
-            innerdq = e_dq_data[innerstart:innerstop, column]
+            innerdq = e_dq_data[int(innerstart):int(innerstop), column]
             outerstart = lowerstart
             outerstop = upperstop
-            outerdq = e_dq_data[outerstart:outerstop, column]
+            outerdq = e_dq_data[int(outerstart):int(outerstop), column]
             bad_i[column] = np.where(np.bitwise_and(innerdq, sdqflags), 1,
                                      0).sum()
             DQ_WGT_i[column] = 1.0
@@ -1632,7 +1632,7 @@ def getBackgroundRegion(data_ij, b_bkg, bkg_height):
         rowstart = 0
     elif rowstop > nrows:
         rowstop = nrows
-    return data_ij[rowstart:rowstop+1,:]
+    return data_ij[int(rowstart):int(rowstop+1),:]
 
 def getBackground(data_ij, dq_ij, xtract_info, centroid, sdqflags):
     nrows, ncols = data_ij.shape

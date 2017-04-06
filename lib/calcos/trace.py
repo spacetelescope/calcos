@@ -220,8 +220,8 @@ def maskAirglowLines(dq_image, info, disptab, airglow_bits):
                                            airglow_line)
         if limits is not None:
             colstart, colstop = limits
-            dq_image[:,colstart:colstop+1] = \
-            np.bitwise_or(dq_image[:,colstart:colstop+1], airglow_bits)
+            dq_image[:,int(colstart):int(colstop+1)] = \
+            np.bitwise_or(dq_image[:,int(colstart):int(colstop+1)], airglow_bits)
     return
 
 def applyWavelengthLimits(dq_image, info, proftab, disptab):
@@ -250,9 +250,9 @@ def applyWavelengthLimits(dq_image, info, proftab, disptab):
     cosutil.printMsg("Upper wavelength limit of %f corresponds to column %d" % \
                          (wmax, int(max_column)))
     if min_column >= 0:
-        dq_image[:, 0:min_column+1] = DQ_AIRGLOW
+        dq_image[:, 0:int(min_column+1)] = DQ_AIRGLOW
     if max_column <= FUV_X:
-        dq_image[:, max_column:] = DQ_AIRGLOW
+        dq_image[:, int(max_column):] = DQ_AIRGLOW
     return
 
 def getWavelengthLimits(prof_row):
@@ -326,17 +326,17 @@ def getGoodColumns(dq_array, dqexclude_target, dqexclude_background, regions):
     # regions and the source
     rowstart = regions['bg1start']
     rowstop = regions['bg1stop']
-    dqsum1 = np.bitwise_and(dq_array[rowstart:rowstop+1],
+    dqsum1 = np.bitwise_and(dq_array[int(rowstart):int(rowstop+1)],
                             dqexclude_background).sum(axis=0)
 
     rowstart = regions['bg2start']
     rowstop = regions['bg2stop']
-    dqsum2 = np.bitwise_and(dq_array[rowstart:rowstop+1],
+    dqsum2 = np.bitwise_and(dq_array[int(rowstart):int(rowstop+1)],
                             dqexclude_background).sum(axis=0)
 
     rowstart = regions['specstart']
     rowstop = regions['specstop']
-    dqsum3 = np.bitwise_and(dq_array[rowstart:rowstop+1],
+    dqsum3 = np.bitwise_and(dq_array[int(rowstart):int(rowstop+1)],
                             dqexclude_target).sum(axis=0)
 
     dqsum = dqsum1 + dqsum2 + dqsum3
@@ -430,11 +430,11 @@ def getBackground(data_array, goodcolumns, regions):
     cosutil.printMsg("Background regions are from %d to %d" % (bg1start,
                                                                bg1stop))
     cosutil.printMsg("and from %d to %d" % (bg2start, bg2stop))
-    bkg1 = data_array[bg1start:bg1stop+1].mean(axis=0,
-                                               dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
+    bkg1 = data_array[int(bg1start):int(bg1stop+1)].mean(axis=0,
+                                                         dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
     nbkg1 = bg1stop - bg1start + 1
-    bkg2 = data_array[bg2start:bg2stop+1].mean(axis=0,
-                                               dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
+    bkg2 = data_array[int(bg2start):int(bg2stop+1)].mean(axis=0,
+                                                         dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
     nbkg2 = bg2stop - bg2start + 1
     bkg = (nbkg1*bkg1 + nbkg2*bkg2)/float(nbkg1 + nbkg2)
     return bkg
@@ -443,7 +443,7 @@ def getCentroid(data_array, goodcolumns, rowstart, rowstop, background=None):
     """Calculate the centroid of data_array."""
     rows = np.arange(rowstart, rowstop+1)
     if background is None: background = 0.0
-    i = data_array[rowstart:rowstop+1] - background
+    i = data_array[int(rowstart):int(rowstop+1)] - background
     y = rows[:,np.newaxis]
     sumy = (i*y).sum(axis=0, dtype=np.float64)[goodcolumns].sum(dtype=np.float64)
     sumi = i.sum(axis=0,dtype=np.float64)[goodcolumns].sum(dtype=np.float64)
@@ -485,7 +485,7 @@ def calculateCentroidError(data_ij, goodcolumns, regions,
     rowstop = regions['specstop']
     rows = np.arange(rowstart, rowstop+1)
     if background is None: background = 0.0
-    i = data_ij[rowstart:rowstop+1]
+    i = data_ij[int(rowstart):int(rowstop+1)]
     y = rows[:,np.newaxis]
     sumi = (i - background).sum(axis=0, dtype=np.float64)[goodcolumns].sum(dtype=np.float64)
     sumsq = (i*(y - centroid) * \
@@ -510,8 +510,8 @@ def getReferenceBackground(profile, goodcolumns, refcenter, regions):
     bg2start = offset + regions['bg2start']
     bg2stop = offset + regions['bg2stop']
     if bg1start >= 0:
-        bkg = profile[bg1start:bg1stop+1].mean(axis=0,
-                                               dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
+        bkg = profile[int(bg1start):int(bg1stop+1)].mean(axis=0,
+                                                         dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
         wbkg = 1.0
     elif bg1stop > 0:
         cosutil.printMsg("Background region #1 truncated")
@@ -520,16 +520,16 @@ def getReferenceBackground(profile, goodcolumns, refcenter, regions):
         bg1start = 0
         cosutil.printMsg("Using %d to %d, with weight %f" % (bg1start, 
                                                              bg1stop, wbkg))
-        bkg = profile[bg1start:bg1stop+1].mean(axis=0,
-                                               dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
+        bkg = profile[int(bg1start):int(bg1stop+1)].mean(axis=0,
+                                                         dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
     else:
         cosutil.printMsg("Unable to extract background region #1 from reference profile")
         cosutil.printMsg("Requested rows: %d to %d" % (bg1start, bg1stop))
         bkg = 0
         wbkg = 0.0
     if bg2stop <= nrows:
-        bkg = bkg + profile[bg2start:bg2stop+1].mean(axis=0,
-                                                     dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
+        bkg = bkg + profile[int(bg2start):int(bg2stop+1)].mean(axis=0,
+                                                               dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
         wbkg2 = 1.0
     elif bg2start <= nrows:
         cosutil.printMsg("Background region #2 truncated")
@@ -538,8 +538,8 @@ def getReferenceBackground(profile, goodcolumns, refcenter, regions):
         bg2stop = nrows
         cosutil.printMsg("Using %d to %d, with weight %f" % (bg2start,
                                                              bg2stop, wbkg2))
-        bkg = bkg + profile[bg2start:bg2stop+1].mean(axis=0,
-                                                     dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
+        bkg = bkg + profile[int(bg2start):int(bg2stop+1)].mean(axis=0,
+                                                               dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
     else:
         cosutil.printMsg("Unable to extract background region #2 from", \
                              " reference profile")

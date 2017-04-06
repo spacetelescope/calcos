@@ -155,7 +155,7 @@ def extractBand(data, dq_data, wavelength, axis, slope, y_nominal,
                 continue
             pixel0 = max(pixel0, 0)
             pixel1 = min(pixel1, axis_length-1)
-            e_ij[:,pixel0:pixel1] = 0.
+            e_ij[:,int(pixel0):int(pixel1)] = 0.
 
     # sum the data along the dispersion direction
     e_j = e_ij.sum(axis=1)
