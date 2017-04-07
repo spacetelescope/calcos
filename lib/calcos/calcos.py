@@ -1514,10 +1514,10 @@ class Association(object):
                                     missing, wrong_filetype, bad_version)
 
         if switches["xwlkcorr"] == "PERFORM":
-            cosutil.findRefFile(ref["xwlktab"],
+            cosutil.findRefFile(ref["xwlkfile"],
                                 missing, wrong_filetype, bad_version)
         if switches["ywlkcorr"] == "PERFORM":
-            cosutil.findRefFile(ref["ywlktab"],
+            cosutil.findRefFile(ref["ywlkfile"],
                                 missing, wrong_filetype, bad_version)
         if switches["photcorr"] == "PERFORM":
             # xxx commented out because we don't have this table yet

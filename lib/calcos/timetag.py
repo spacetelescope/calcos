@@ -2079,7 +2079,7 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
         else:
             return None
 
-def walkCorrection(slowCoordinate, fastCoordinate, reference_file, segment):
+def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
     """Apply walk correction
     The same algorithm is used for both.
     slowCoordinate and fastCoordinate are arrays of coordinates that are used
