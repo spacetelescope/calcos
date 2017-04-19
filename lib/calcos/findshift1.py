@@ -131,6 +131,11 @@ class Shift1(object):
 
         self.status = 0                 # currently not used
 
+        # LP4 and later wcptab ref files will include the chi-squared threshold
+        # Will read from the wcptab column "N_SIGMA" if it exists
+        # If not, will revert to default value
+        self.chi_sq_threshold = N_SIGMA
+
         # Trim bright lines off the ends of the spectra.
         self.trimSpectra()
 
@@ -352,7 +357,19 @@ class Shift1(object):
         nelem = len(self.keys)
         if nelem < 1:
             return
-
+        #
+        # Try reading the chi square threshold from the wcptab
+        opt_elem = self.info["opt_elem"]
+        wcp_info = cosutil.getTable(self.reffiles["wcptab"],
+                                    filter={"opt_elem": opt_elem},
+                                    exactly_one=True)
+        try:
+            # This field should exist in LP4 and later data
+            self.chi_sq_threshold = wcp_info.field("N_SIGMA")
+        except KeyError:
+            # We already have the threshold set in the constructor, so
+            # we don't need to do anything if the field isn't present
+            pass
         self.checkCounts()              # flag spectra with negligible counts
 
         if self.info["detector"] == "FUV":
@@ -392,7 +409,8 @@ class Shift1(object):
                 ratio = chisq / ndf
             else:
                 ratio = chisq
-            if shift is None or ratio > N_SIGMA or ratio < 1./N_SIGMA:
+            if shift is None or ratio > self.chi_sq_threshold \
+                    or ratio < 1./self.chi_sq_threshold:
                 shift = 0.
                 self.spec_found[key] = False
             self.shift1_dict[key] = shift
@@ -435,7 +453,8 @@ class Shift1(object):
                 ratio = chisq / ndf
             else:
                 ratio = chisq
-            if shift is None or ratio > N_SIGMA or ratio < 1./N_SIGMA:
+            if shift is None or ratio > self.chi_sq_threshold \
+                    or ratio < 1./self.chi_sq_threshold:
                 self.spec_found[key] = False
                 shift = 0.
 
