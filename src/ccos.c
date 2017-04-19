@@ -105,6 +105,7 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 		rewrite smoothBackground to use these flags.
 2015 May 6      Add initialization code for Python 3
 2015 May 20     Convert PyString function to PyUnicode
+2017 Jan 30     Add bilinear_interpolation function for walk correction
 */
 
 # include <Python.h>
@@ -158,6 +159,7 @@ static PyObject *ccos_xy_extract(PyObject *, PyObject *);
 static PyObject *ccos_xy_collapse(PyObject *, PyObject *);
 static PyObject *ccos_csum_3d(PyObject *, PyObject *);
 static PyObject *ccos_csum_2d(PyObject *, PyObject *);
+static PyObject *ccos_walkcorrection(PyObject *, PyObject *);
 
 static int binEventsToImage(PyArrayObject *, PyArrayObject *,
 	PyArrayObject *, int, PyArrayObject *, short, PyArrayObject *);
@@ -194,6 +196,8 @@ static int clearRows(PyArrayObject *,
 static void bilinearInterp(float, float,
 	PyArrayObject *, PyArrayObject *, int, int,
 	float *, float *);
+static int bilinearinterpolation(float x[], float y[],
+        int n_events, PyArrayObject *image, float delta[]);
 static int interp_check(PyArrayObject *, PyArrayObject *,
 			 PyArrayObject *, PyArrayObject *);
 static void interp1d(double [], double [], int, double [], double [], int);
@@ -253,6 +257,7 @@ static char *DocString(void) {
     addlines(intensity, wavelength, reswidth, x1d_wl, dq, template)\n\
     geocorrection(x, y, x_image, y_image, interp_flag,\n\
                   <optional:  origin_x, origin_y, xbin, ybin>)\n\
+    walkcorrection(fast, slow, refimage, delta)\n\
     counters = pha_check(x, y, pha, dq, im_low, im_high, pha_flag)\n\
     clear_rows(dq, y_lower, y_upper, x_left, x_right)\n\
     interp1d(x_a, y_a, x_b, y_b)\n\
@@ -2244,6 +2249,113 @@ static int geoInterp2D(float x[], float y[], int n_events,
 	return 0;
 }
 
+/* calling sequence for walkcorrection:
+
+   walkcorrection(x, y, image, delta)
+
+    x, y       i: arrays of pixel coordinates of the events (float32)
+    image       i: the 2-D image array of delta values (float32)
+    delta:     io: array of lookups in the image at the x, y coordinates
+   ccos_walkcorrection calls bilinearinterpolation, which calculates the
+   walk correction.
+*/
+
+static PyObject *ccos_walkcorrection(PyObject *self, PyObject *args) {
+
+        PyObject *ox, *oy, *o_image, *o_delta;
+	PyArrayObject *x, *y, *image, *delta;
+	int status;
+	int n_events;		/* number of rows in events table */
+
+	if (!PyArg_ParseTuple(args, "OOOO",
+			      &ox, &oy, &o_image, &o_delta)) {
+	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
+	    return NULL;
+	}
+
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	image = (PyArrayObject *)PyArray_FROM_OTF(o_image, NPY_FLOAT32,
+			NPY_IN_ARRAY);
+	delta = (PyArrayObject *)PyArray_FROM_OTF(o_delta, NPY_FLOAT32,
+			NPY_INOUT_ARRAY);
+	if (x == NULL || y == NULL || image == NULL || delta == NULL)
+	    return NULL;
+
+	n_events = PyArray_DIM(x, 0);	/* rows in events table */
+	status = bilinearinterpolation(
+		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y), n_events,
+		image, (float *)PyArray_DATA(delta));
+
+	Py_DECREF(x);
+	Py_DECREF(y);
+	Py_DECREF(image);
+	Py_DECREF(delta);
+
+	if (status) {
+	    return NULL;
+	} else {
+	    Py_INCREF(Py_None);
+	    return Py_None;
+	}
+}
+
+/* This is called by ccos_walkcorrection. */
+
+static int bilinearinterpolation(float x[], float y[], int n_events,
+				 PyArrayObject *image, float delta[]) {
+
+	/* delta is the array of values interpolated from image;
+	   they will be subtracted from the x and y columns to correct
+	   the geometric distortion.
+	*/
+
+	int nx, ny;		/* size of images */
+	int k;			/* loop index for events */
+	float ix, jy;		/* pixel coordinates in x_image and y_image */
+	float p, q;
+	float r, s;
+	int i, j;
+
+	nx = PyArray_DIM(image, 1);	/* shape (ny,nx) */
+	ny = PyArray_DIM(image, 0);
+
+	for (k = 0;  k < n_events;  k++) {
+	        ix = x[k];
+	        jy = y[k];
+	        if (ix <= -0.5 || ix >= nx-0.5 || jy <= -0.5 || jy >= ny-0.5)
+	                continue;
+	        i = (int)floor((double)ix);
+	        j = (int)floor((double)jy);
+
+	        if (i < 0)
+	            i = 0;
+	        if (i > nx-2)
+	            i = nx-2;
+	        if (j < 0)
+	            j = 0;
+	        if (j > ny-2)
+	            j = ny-2;
+
+	        /* weights for X direction */
+	        q = ix - (float)i;
+	        p = 1.0F - q;
+
+	        /* weights for Y direction */
+	        s = jy - (float)j;
+	        r = 1.0F - s;
+
+	        delta[k] = p * r * *(float *)PyArray_GETPTR2(image, j, i) +
+	          q * r * *(float *)PyArray_GETPTR2(image, j, i+1) +
+	          p * s * *(float *)PyArray_GETPTR2(image, j+1, i) +
+	          q * s * *(float *)PyArray_GETPTR2(image, j+1, i+1);
+
+	}
+	return 0;
+}
+
 /* calling sequence for pha_check:
 
    counters = pha_check(x, y, pha, dq, im_low, im_high, pha_flag)
@@ -3995,6 +4107,9 @@ static PyMethodDef ccos_methods[] = {
 
 	{"geocorrection", ccos_geocorrection, METH_VARARGS,
 	"apply the geometric correction to events table x and y arrays"},
+
+	{"walkcorrection", ccos_walkcorrection, METH_VARARGS,
+	 "calculate the walk correction for x or y event tables"},
 
 	{"pha_check", ccos_pha_check, METH_VARARGS,
 	"apply the pulse height correction to events table pha array"},

@@ -786,6 +786,7 @@ class Association(object):
             i = j
         self.first_science = i
 
+        self.checkforWalk()
         self.compareConfig()
         self.resetSwitches()    # set switches to OMIT if only_csum is True
         self.compareRefFiles()
@@ -794,6 +795,29 @@ class Association(object):
         self.globalSwitches()
         self.checkOutputExists()
         self.stimfileSanityCheck()
+
+    def checkforWalk(self):
+        """Check for the existence of any WALK-related keywords:
+        [WALKCORR, WALKTAB] in the primary header of all members
+        """
+        walkreferrers = []
+        for rawfile in self.rawfiles:
+            f1 = fits.open(rawfile)
+            phdr = f1[0].header
+            if 'WALKCORR' in phdr.keys():
+                walkreferrers.append((rawfile, 'WALKCORR'))
+            if 'WALKTAB' in phdr.keys():
+                walkreferrers.append((rawfile, 'WALKTAB'))
+            f1.close()
+
+        if len(walkreferrers) > 0:
+            errormessage = "Input file(s) contain keywords WALKCORR and/or WALKTAB"
+            for referrer in walkreferrers:
+                errormessage = "".join([errormessage,"\n   " + referrer[0] + ":  " + referrer[1]])
+            errormessage = "".join([errormessage,"\n\nPlease either re-retrieve the data from MAST or"])
+            errormessage = "".join([errormessage,"\nreplace these keywords with XWLKCORR+YWLKCORR and"])
+            errormessage = "".join([errormessage,"\nXWLKFILE+YWLKFILE"])
+            raise RuntimeError(errormessage)
 
     def readAsnTable(self):
         """Read an association table into memory, and get product info."""
@@ -1393,7 +1417,8 @@ class Association(object):
             "imphttab": ["2.0", "IMAGING PHOTOMETRIC TABLE"],
             "tdstab":   ["2.0", "TIME DEPENDENT SENSITIVITY TABLE"],
             "brsttab":  ["2.0", "BURST PARAMETERS TABLE"],
-            "walktab":  ["2.0", "WALK CORRECTION TABLE"],
+            "xwlkfile": ["3.1", "X WALK CORRECTION LOOKUP REFERENCE IMAGE"],
+            "ywlkfile": ["3.1", "Y WALK CORRECTION LOOKUP REFERENCE IMAGE"],
             "tracetab": ["2.0", "1D SPECTRAL TRACE TABLE"],
             "proftab": ["2.0", "2D SPECTRUM PROFILE TABLE"],
             "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"],
@@ -1488,10 +1513,12 @@ class Association(object):
                 cosutil.findRefFile(ref["tdstab"],
                                     missing, wrong_filetype, bad_version)
 
-        if switches["walkcorr"] == "PERFORM":
-            cosutil.findRefFile(ref["walktab"],
+        if switches["xwlkcorr"] == "PERFORM":
+            cosutil.findRefFile(ref["xwlkfile"],
                                 missing, wrong_filetype, bad_version)
-
+        if switches["ywlkcorr"] == "PERFORM":
+            cosutil.findRefFile(ref["ywlkfile"],
+                                missing, wrong_filetype, bad_version)
         if switches["photcorr"] == "PERFORM":
             # xxx commented out because we don't have this table yet
             # cosutil.findRefFile(ref["imphttab"],
