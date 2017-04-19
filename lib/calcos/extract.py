@@ -190,7 +190,7 @@ def extract1D(input, incounts=None, output=None,
     col.append(fits.Column(name="EE_UPPER_INNER", format=rpt+"D"))
     cd = fits.ColDefs(col)
 
-    hdu = fits.new_table(cd, header=hdr, nrows=nrows)
+    hdu = fits.BinTableHDU.from_columns(cd, header=hdr, nrows=nrows)
     hdu.name = "SCI"
     ofd.append(hdu)
 
@@ -272,7 +272,7 @@ def remove_unwanted_columns(ofd):
                                        disp=column.disp,
                                        array=table[column.name]))
     cd = fits.ColDefs(newcols)
-    newhdu = fits.new_table(cd, header=ofd[1].header)
+    newhdu = fits.BinTableHDU.from_columns(cd, header=ofd[1].header)
     ofd[1] = newhdu
     return ofd
 
@@ -2628,7 +2628,8 @@ def concatenateFUVSegments(infiles, output):
 
     # Take output column definitions from input for segment A.
     cd = fits.ColDefs(seg_a[1])
-    hdu = fits.new_table(cd, seg_a[1].header, nrows=nrows_a+nrows_b)
+    hdu = fits.BinTableHDU.from_columns(cd, seg_a[1].header,
+                                        nrows=nrows_a+nrows_b)
 
     # Copy data from input to output.
     copySegments(seg_a[1].data, nrows_a, seg_b[1].data, nrows_b, hdu.data)
