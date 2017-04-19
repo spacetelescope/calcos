@@ -2476,7 +2476,7 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
     yshifts.append(int(round(min_shift2 - widen)))
 
     for yshift in range(min(yshifts), max(yshifts)+1):
-        y_shifted_dq = arrayShift(trace_dq, yshift, 0)
+        y_shifted_dq = arrayShift(trace_dq, yshift, 0, DQ_PIXEL_OUT_OF_BOUNDS)
         #
         # Now do the shift and blur in x
         keys = sorted(minmax_dict)
@@ -2493,14 +2493,15 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
                 xshifts.append(int(round(min_shift1 - widen)))
             for xshift in range(min(xshifts), max(xshifts)+1):
                 cosutil.printMsg("Shifting to %d, %d" % (xshift, yshift))
-                shifted_dq = arrayShift(y_shifted_dq[lower_y:upper_y], 0, xshift)
+                shifted_dq = arrayShift(y_shifted_dq[lower_y:upper_y], 0, xshift,
+                                        DQ_PIXEL_OUT_OF_BOUNDS)
                 blur_dq[lower_y:upper_y] = np.bitwise_or(blur_dq[lower_y:upper_y], shifted_dq)
         
     return blur_dq
 
-def arrayShift(array, yshift, xshift):
+def arrayShift(array, yshift, xshift, default):
     """Shift an array by xshift in x and yshift in y"""
-    outarray = array.copy() * 0
+    outarray = array.copy() * 0 + default
     nrows, ncols = array.shape
     inxstart = max(0, xshift)
     inxstop = min(ncols + xshift, ncols)
