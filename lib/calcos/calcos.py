@@ -1409,7 +1409,7 @@ class Association(object):
             "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
             "phafile":  ["2.0", "PULSE HEIGHT THRESHOLD REFERENCE IMAGE"],
             "geofile":  ["2.0", "GEOMETRIC DISTORTION REFERENCE IMAGE"],
-            "dgeofile": ["2.0", "DELTA GEOMETRIC DISTORTION REFERENCE IMAGE"],
+            "dgeofile": ["2.0", "DELTA GEOMETRIC CORRECTION REFERENCE IMAGE"],
             "lamptab":  ["2.0", "TEMPLATE CAL LAMP SPECTRA TABLE"],
             "wcptab":   ["2.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
             "spwcstab": ["2.0", "SPECTROSCOPIC WCS PARAMETERS TABLE"],
