@@ -861,7 +861,7 @@ class Spectrum(object):
 
         lowlim = sp_loc - width // 2 + shift2 - self.origin_ff[0]
         lowlim = int(round(lowlim))
-        highlim = lowlim + width        # upper limit of a slice
+        highlim = int(lowlim + width)        # upper limit of a slice
         if highlim < 0 or lowlim >= height_ff:
             cosutil.printWarning("Target is outside range of flat field")
             self.data_ff = self.data_ff.mean(axis=0, dtype=np.float64)
@@ -911,9 +911,9 @@ class Spectrum(object):
                 middle = nelem // 2
             else:
                 middle = hdr.get("x_offset", default=0) + NUV_X // 2
-            wavelength = self.wavelength[middle]
-            low = middle - 50
-            high = middle + 50
+            wavelength = self.wavelength[int(middle)]
+            low = int(middle - 50)
+            high = int(middle + 50)
             if low > 0 and high < nelem:
                 disp = (self.wavelength[high] - self.wavelength[low]) / 100.
             else:
@@ -988,12 +988,12 @@ class Spectrum(object):
                                  " the flat will be truncated.")
             if offset1 < 0:
                 trim = -offset1
-                flat[:offset1+len_ff] = self.data_ff[trim:]
+                flat[:int(offset1+len_ff)] = self.data_ff[int(trim):]
             else:               # offset1 + len_ff > nelem
                 trim = (offset1 + len_ff) - nelem
-                flat[offset1:offset1+len_ff-trim] = self.data_ff[:len_ff-trim]
+                flat[int(offset1):int(offset1+len_ff-trim)] = self.data_ff[:int(len_ff-trim)]
         else:
-            flat[offset1:offset1+len_ff] = self.data_ff
+            flat[int(offset1):int(offset1+len_ff)] = self.data_ff
         self.data_ff = self.convolveFlat(flat, doppmag, doppzero, orbitper,
                                          expstart, expend)
 

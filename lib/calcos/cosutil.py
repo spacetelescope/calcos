@@ -1232,7 +1232,7 @@ def updateDQArray(info, reffiles, dq_array,
         if lower_y_s >= dq_shape[0]:
             continue
         if lower_y_s < 0.:
-            lower_y_s = 0.
+            lower_y_s = 0
         if upper_y_s > dq_shape[0]:
             upper_y_s = dq_shape[0]
 
@@ -1241,7 +1241,7 @@ def updateDQArray(info, reffiles, dq_array,
         uy_s_slice = (uy_s - lower_y_s).astype(np.int32)
 
         ccos.bindq(lx_s, ly_s_slice, ux_s, uy_s_slice, dq,
-                   dq_array[lower_y_s:upper_y_s,:], info["x_offset"])
+                   dq_array[int(lower_y_s):int(upper_y_s),:], info["x_offset"])
 
 def getDQArrays(info, reffiles, gti):
     """Get DQ info from BPIXTAB and possibly GSAGTAB and SPOTTAB.
@@ -1747,7 +1747,7 @@ def clearSubarray(temp, x0, x1, y0, y1, dx, dy, x_offset):
     y0 = max(y0, 0)
     x1 = min(x1, nx)
     y1 = min(y1, ny)
-    temp[y0:y1,x0:x1] = DQ_OK
+    temp[int(y0):int(y1),int(x0):int(x1)] = DQ_OK
 
 def nuvFlagOutOfBounds(hdr, dq_array, info, switches,
                        minmax_shift_dict, minmax_doppler, doppler_boundary):
@@ -1869,7 +1869,7 @@ def nuvFlagOutOfBounds(hdr, dq_array, info, switches,
             y0 = max(y0, 0)
             x1 = min(x1, nx)
             y1 = min(y1, ny)
-            temp[y0:y1,x0:x1] = DQ_OK
+            temp[int(y0):int(y1),int(x0):int(x1)] = DQ_OK
 
     dq_array[:,:] = np.bitwise_or(dq_array, temp)
 
@@ -1925,13 +1925,13 @@ def flagOutsideActiveArea(dq_array, segment, brftab, x_offset,
     (ny, nx) = dq_array.shape
 
     if b_low >= 0:
-        dq_array[0:b_low,:]    |= DQ_PIXEL_OUT_OF_BOUNDS
+        dq_array[0:int(b_low),:]    |= DQ_PIXEL_OUT_OF_BOUNDS
     if b_high < ny-1:
-        dq_array[b_high+1:,:]  |= DQ_PIXEL_OUT_OF_BOUNDS
+        dq_array[int(b_high)+1:,:]  |= DQ_PIXEL_OUT_OF_BOUNDS
     if b_left >= 0:
-        dq_array[:,0:b_left]   |= DQ_PIXEL_OUT_OF_BOUNDS
+        dq_array[:,0:int(b_left)]   |= DQ_PIXEL_OUT_OF_BOUNDS
     if b_right < nx-1:
-        dq_array[:,b_right+1:] |= DQ_PIXEL_OUT_OF_BOUNDS
+        dq_array[:,int(b_right)+1:] |= DQ_PIXEL_OUT_OF_BOUNDS
 
 def correctTraceAndAlignment(dq_array, info, traceprofile, shift1,
                              alignment_correction):

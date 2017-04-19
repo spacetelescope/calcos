@@ -170,7 +170,7 @@ class Shift1(object):
             cutoff_brightness = float(BIN * max(1., median))
             cutoff_brightness = max(BIN*10., cutoff_brightness)
             # first and last pixels that are on the detector
-            left = self.info["x_offset"]
+            left = int(self.info["x_offset"])
             right = left + NUV_X - 1
             assert left < nelem and right < nelem
             # first and last twelve (detector) pixel values, binned by three

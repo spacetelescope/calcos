@@ -2420,7 +2420,7 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
         tracevalue = int(round(traceprofile[column]))
         #
         # Put the unshifted (WCA) region into the output array
-        shifted_dq[wcastart:wcastop+1, column] = dq_array[wcastart:wcastop+1, column]
+        shifted_dq[int(wcastart):int(wcastop+1), column] = dq_array[int(wcastart):int(wcastop+1), column]
         #
         # Shift the region below the WCA
         instart = max(0, tracevalue)
@@ -2431,7 +2431,7 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
         n_out = outstop - outstart + 1
         if n_out != n_in:
             cosutil.printWarning("Input and output arrays have different sizes")
-        shifted_dq[outstart:outstop+1, column] = dq_array[instart:instop+1, column]
+        shifted_dq[int(outstart):int(outstop+1), column] = dq_array[int(instart):int(instop+1), column]
         #
         # Now the part above the WCA
         instart = max(wcastop+1, wcastop+1+tracevalue)
@@ -2442,7 +2442,7 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
         n_out = outstop - outstart + 1
         if n_out != n_in:
             cosutil.printWarning("Input and output arrays have different sizes")
-        shifted_dq[outstart:outstop+1, column] = dq_array[instart:instop+1, column]
+        shifted_dq[int(outstart):int(outstop+1), column] = dq_array[int(instart):int(instop+1), column]
     return shifted_dq
 
 def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen):
@@ -2493,8 +2493,9 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
                 xshifts.append(int(round(min_shift1 - widen)))
             for xshift in range(min(xshifts), max(xshifts)+1):
                 cosutil.printMsg("Shifting to %d, %d" % (xshift, yshift))
-                shifted_dq = arrayShift(y_shifted_dq[lower_y:upper_y], 0, xshift)
-                blur_dq[lower_y:upper_y] = np.bitwise_or(blur_dq[lower_y:upper_y], shifted_dq)
+                shifted_dq = arrayShift(y_shifted_dq[int(lower_y):int(upper_y)], 0, xshift)
+                blur_dq[int(lower_y):int(upper_y)] = np.bitwise_or(blur_dq[int(lower_y):int(upper_y)],
+                                                                   shifted_dq)
         
     return blur_dq
 
@@ -2502,14 +2503,14 @@ def arrayShift(array, yshift, xshift):
     """Shift an array by xshift in x and yshift in y"""
     outarray = array.copy() * 0
     nrows, ncols = array.shape
-    inxstart = max(0, xshift)
-    inxstop = min(ncols + xshift, ncols)
-    outxstart = max(0, -xshift)
-    outxstop = min(ncols - xshift, ncols)
-    inystart = max(0, yshift)
-    inystop = min(nrows + yshift, nrows)
-    outystart = max(0, -yshift)
-    outystop = min(nrows - yshift, nrows)
+    inxstart = int(max(0, xshift))
+    inxstop = int(min(ncols + xshift, ncols))
+    outxstart = int(max(0, -xshift))
+    outxstop = int(min(ncols - xshift, ncols))
+    inystart = int(max(0, yshift))
+    inystop = int(min(nrows + yshift, nrows))
+    outystart = int(max(0, -yshift))
+    outystop = int(min(nrows - yshift, nrows))
     outarray[outystart:outystop,outxstart:outxstop] = array[inystart:inystop, inxstart:inxstop]
     return outarray
 

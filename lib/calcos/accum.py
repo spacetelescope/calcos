@@ -494,7 +494,7 @@ def doFlatcorr(flt_sci, switches, reffiles, phdr):
         x0 = hdu.header.get("origin_x", 0)
         y0 = hdu.header.get("origin_y", 0)
 
-        flt_sci[y0:y0+ny,x0:x0+nx] /= flat
+        flt_sci[int(y0):int(y0+ny),int(x0):int(x0+nx)] /= flat
 
         phdr["flatcorr"] = "COMPLETE"
 
