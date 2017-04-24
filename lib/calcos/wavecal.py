@@ -62,6 +62,9 @@ def findWavecalShift(input, shift_file, info, wcp_info):
     lamptab = cosutil.expandFileName(phdr["lamptab"])
     reffiles["lamptab"] = lamptab
 
+    wcptab = cosutil.expandFileName(phdr["wcptab"])
+    reffiles["wcptab"] = wcptab
+
     x_offset = sci_extn.header.get("x_offset", default=0)
     info["x_offset"] = x_offset
 
