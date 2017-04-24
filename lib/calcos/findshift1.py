@@ -357,18 +357,17 @@ class Shift1(object):
         nelem = len(self.keys)
         if nelem < 1:
             return
+        #
+        # Try reading the chi square threshold from the wcptab
+        opt_elem = self.info["opt_elem"]
+        wcp_info = cosutil.getTable(self.reffiles["wcptab"],
+                                    filter={"opt_elem": opt_elem},
+                                    exactly_one=True)
         try:
-            #
-            # Try reading the chi square threshold from the wcptab
-            opt_elem = self.info["opt_elem"]
-            wcp_info = cosutil.getTable(self.reffiles["wcptab"],
-                                        filter={"opt_elem": opt_elem},
-                                        exactly_one=True)
             # This field should exist in LP4 and later data
             self.chi_sq_threshold = wcp_info.field("N_SIGMA")
         except KeyError:
-            # This could occur if there's no wcptab reference file
-            # (eg in a wavecal), or if the wcptab doesn't have the
+            # This could occur if the wcptab doesn't have the
             # N_SIGMA column.
             # We already have the threshold set in the constructor, so
             # we don't need to do anything if we can't get it from the
