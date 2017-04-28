@@ -786,14 +786,39 @@ class Association(object):
             i = j
         self.first_science = i
 
+        self.checkforWalk()
         self.compareConfig()
         self.resetSwitches()    # set switches to OMIT if only_csum is True
         self.compareRefFiles()
         self.compareSwitches()
         self.missingRefFiles()
+        self.checkGeoSwitches()
         self.globalSwitches()
         self.checkOutputExists()
         self.stimfileSanityCheck()
+
+    def checkforWalk(self):
+        """Check for the existence of any WALK-related keywords:
+        [WALKCORR, WALKTAB] in the primary header of all members
+        """
+        walkreferrers = []
+        for rawfile in self.rawfiles:
+            f1 = fits.open(rawfile)
+            phdr = f1[0].header
+            if 'WALKCORR' in phdr.keys():
+                walkreferrers.append((rawfile, 'WALKCORR'))
+            if 'WALKTAB' in phdr.keys():
+                walkreferrers.append((rawfile, 'WALKTAB'))
+            f1.close()
+
+        if len(walkreferrers) > 0:
+            errormessage = "Input file(s) contain keywords WALKCORR and/or WALKTAB"
+            for referrer in walkreferrers:
+                errormessage = "".join([errormessage,"\n   " + referrer[0] + ":  " + referrer[1]])
+            errormessage = "".join([errormessage,"\n\nPlease either re-retrieve the data from MAST or"])
+            errormessage = "".join([errormessage,"\nreplace these keywords with XWLKCORR+YWLKCORR and"])
+            errormessage = "".join([errormessage,"\nXWLKFILE+YWLKFILE"])
+            raise RuntimeError(errormessage)
 
     def readAsnTable(self):
         """Read an association table into memory, and get product info."""
@@ -1046,6 +1071,30 @@ class Association(object):
 
         return basic_info
 
+    def checkGeoSwitches(self):
+        """Check that GEOCORR switches aren't set to 'OMIT' if the DGEOCORR switches are
+        set to 'PERFORM'"""
+        incompatibleSwitches = []
+        for rawfile in self.rawfiles:
+            f1 = fits.open(rawfile)
+            phdr = f1[0].header
+            if 'DGEOCORR' in phdr.keys():
+                geocorr = phdr['GEOCORR']
+                dgeocorr = phdr['DGEOCORR']
+                if dgeocorr == 'PERFORM':
+                    if geocorr == 'OMIT':
+                        incompatibleSwitches.append((rawfile, geocorr, dgeocorr))
+            f1.close()
+
+        if len(incompatibleSwitches) > 0:
+            errormessage = "Input file(s) have illegal combination of GEOCORR='OMIT' and DGEOCORR='PERFORM'"
+            for badfile in incompatibleSwitches:
+                errormessage = "".join([errormessage,"\n   " + badfile[0]])
+            errormessage = "".join([errormessage,"\n\nPlease either set the GEOCORR switch to 'PERFORM'"])
+            errormessage = "".join([errormessage,"\nif the GEO correction hasn't been applied, or 'COMPLETE'"])
+            errormessage = "".join([errormessage,"\nif it has"])
+            raise RuntimeError(errormessage)
+
     def isAcqImage(self, rawacq):
         """Check whether rawacq is an ACQ/IMAGE.
 
@@ -1220,7 +1269,7 @@ class Association(object):
         if self.cl_args["raw_csum_coords"]:
             leave_unchanged = []        # reset all switches to OMIT
         else:
-            leave_unchanged = ["tempcorr", "geocorr", "igeocorr", "randcorr"]
+            leave_unchanged = ["tempcorr", "geocorr", "dgeocorr", "igeocorr", "randcorr"]
 
         for obs in self.obs:
             for key in obs.switches:
@@ -1384,6 +1433,7 @@ class Association(object):
             "phatab":   ["2.0", "PULSE HEIGHT PARAMETERS REFERENCE TABLE"],
             "phafile":  ["2.0", "PULSE HEIGHT THRESHOLD REFERENCE IMAGE"],
             "geofile":  ["2.0", "GEOMETRIC DISTORTION REFERENCE IMAGE"],
+            "dgeofile": ["2.0", "DELTA GEOMETRIC CORRECTION REFERENCE IMAGE"],
             "lamptab":  ["2.0", "TEMPLATE CAL LAMP SPECTRA TABLE"],
             "wcptab":   ["2.0", "WAVECAL PARAMETERS REFERENCE TABLE"],
             "spwcstab": ["2.0", "SPECTROSCOPIC WCS PARAMETERS TABLE"],
@@ -1393,7 +1443,8 @@ class Association(object):
             "imphttab": ["2.0", "IMAGING PHOTOMETRIC TABLE"],
             "tdstab":   ["2.0", "TIME DEPENDENT SENSITIVITY TABLE"],
             "brsttab":  ["2.0", "BURST PARAMETERS TABLE"],
-            "walktab":  ["2.0", "WALK CORRECTION TABLE"],
+            "xwlkfile": ["3.1", "X WALK CORRECTION LOOKUP REFERENCE IMAGE"],
+            "ywlkfile": ["3.1", "Y WALK CORRECTION LOOKUP REFERENCE IMAGE"],
             "tracetab": ["2.0", "1D SPECTRAL TRACE TABLE"],
             "proftab": ["2.0", "2D SPECTRUM PROFILE TABLE"],
             "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"],
@@ -1465,6 +1516,16 @@ class Association(object):
             cosutil.findRefFile(ref["geofile"],
                                 missing, wrong_filetype, bad_version)
 
+        if switches["dgeocorr"] == "PERFORM":
+            # check that geocorr is not 'OMIT'
+            if switches["geocorr"] == 'OMIT':
+                cosutil.printError("DGEOCORR = 'PERFORM' but GEOCORR = 'OMIT'")
+                cosutil.printContinuation("This combination is not permitted")
+                cosutil.printContinuation("Please change the GEOCORR keyword to 'PERFORM' or 'COMPLETE'")
+                raise RuntimeError("Error in GEOCORR switch when DGEOCORR = 'PERFORM'")
+            cosutil.findRefFile(ref["dgeofile"],
+                                missing, wrong_filetype, bad_version)
+
         if switches["wavecorr"] == "PERFORM":
             if self.obs[i].info["obstype"] != "IMAGING":
                 cosutil.findRefFile(ref["lamptab"],
@@ -1488,10 +1549,12 @@ class Association(object):
                 cosutil.findRefFile(ref["tdstab"],
                                     missing, wrong_filetype, bad_version)
 
-        if switches["walkcorr"] == "PERFORM":
-            cosutil.findRefFile(ref["walktab"],
+        if switches["xwlkcorr"] == "PERFORM":
+            cosutil.findRefFile(ref["xwlkfile"],
                                 missing, wrong_filetype, bad_version)
-
+        if switches["ywlkcorr"] == "PERFORM":
+            cosutil.findRefFile(ref["ywlkfile"],
+                                missing, wrong_filetype, bad_version)
         if switches["photcorr"] == "PERFORM":
             # xxx commented out because we don't have this table yet
             # cosutil.findRefFile(ref["imphttab"],
@@ -1570,7 +1633,8 @@ class Association(object):
         if self.cl_args["create_csum_image"]:
             self.global_switches["any"] = "PERFORM"
         for key in ["badtcorr", "brstcorr", "deadcorr", "doppcorr",
-                    "dqicorr",  "flatcorr", "geocorr",  "helcorr",
+                    "dqicorr",  "flatcorr", "geocorr",
+                    "dgeocorr", "helcorr",
                     "phacorr",  "randcorr", "tempcorr", "x1dcorr",
                     "wavecorr", "trcecorr", "algncorr"]:
             if switches[key] == "PERFORM":
@@ -2561,6 +2625,7 @@ class NUVTimetagObs(Observation):
 
         self.overrideSwitch("tempcorr", messages)
         self.overrideSwitch("geocorr", messages)
+        self.overrideSwitch("dgeocorr", messages)
         self.overrideSwitch("igeocorr", messages)
         self.overrideSwitch("randcorr", messages)
         self.overrideSwitch("phacorr", messages)
@@ -2580,6 +2645,7 @@ class NUVAccumObs(Observation):
 
         self.overrideSwitch("tempcorr", messages)
         self.overrideSwitch("geocorr", messages)
+        self.overrideSwitch("dgeocorr", messages)
         self.overrideSwitch("igeocorr", messages)
         self.overrideSwitch("randcorr", messages)
         self.overrideSwitch("phacorr", messages)
