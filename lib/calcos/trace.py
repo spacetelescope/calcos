@@ -541,7 +541,7 @@ def getReferenceBackground(profile, goodcolumns, refcenter, regions):
         bkg = bkg + profile[int(bg2start):int(bg2stop+1)].mean(axis=0,
                                                                dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
     else:
-        cosutil.printMsg("Unable to extract background region #2 from", \
+        cosutil.printMsg("Unable to extract background region #2 from" \
                              " reference profile")
         cosutil.printMsg("Requested rows: %d to %d" % (bg2start, bg2stop))
         wbkg2 = 0.0

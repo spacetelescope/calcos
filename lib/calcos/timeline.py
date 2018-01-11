@@ -222,15 +222,12 @@ def makeSptFileName(input):
     str
         Name of support file, or "notfound".
     """
-
-    sptfile = "notfound"        # initial value
-    i = input.find("_raw")
-    if i >= 0:
-        sptfile = input[:i] + "_spt.fits"
-    else:
-        i = input.find("_corrtag")
-        if i >= 0:
-            sptfile = input[:i] + "_spt.fits"
+    pathname = os.path.dirname(input)
+    filename = os.path.basename(input)
+    rootname = filename.split("_")[0]
+    sptfile = os.path.join(pathname, rootname + "_spt.fits")
+    if not os.path.isfile:
+        sptfile = "notfound"
 
     return sptfile
 
