@@ -9,9 +9,9 @@ bc.name = "release"
 bc.env_vars = ['TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory/scsb-calcos',
                'lref=/grp/hst/cdbs/lref/']
 bc.conda_channels = ['http://ssb.stsci.edu/astroconda']
-bc.conda_packages = ['python=3.6',
-                     'ci-watson']
-bc.build_cmds = ["python setup.py install"]
+bc.conda_packages = ['python=3.6']
+bc.build_cmds = ["pip install ci-watson",
+                 "python setup.py install"]
 bc.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --bigdata --slow -v"]
 bc.failedUnstableThresh = 1
 bc.failedFailureThresh = 6
