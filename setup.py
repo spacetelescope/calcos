@@ -10,6 +10,7 @@ except ImportError:
 
 setup(
     setup_requires=['d2to1>=0.2.5', 'stsci.distutils>=0.3.2'],
+    tests_require=['pytest'],
     d2to1=True,
     use_2to3=False,
     zip_safe=False
