@@ -23,9 +23,9 @@ def calref_from_image(input_image):
     # NOTE: Add additional mapping as needed.
     # Map mandatory CRDS reference file for instrument/detector combo.
     # This is for file not tied to any particular *CORR or used throughout.
-    #det_lookup = {
-    #    ('COS', 'FUV'): [],
-    #    ('COS', 'NUV'): []}
+    det_lookup = {
+        ('COS', 'FUV'): ['PROFTAB', 'SPWCSTAB'],
+        ('COS', 'NUV'): []}
 
     # NOTE: Add additional mapping as needed.
     # Map *CORR to associated CRDS reference file.
@@ -50,16 +50,15 @@ def calref_from_image(input_image):
         'WALKCORR': ['WALKTAB']}
 
     hdr = fits.getheader(input_image, ext=0)
-    #ref_files = ref_from_image(
-    #    input_image, det_lookup[(hdr['INSTRUME'], hdr['DETECTOR'])])
+    ref_files = ref_from_image(
+        input_image, det_lookup[(hdr['INSTRUME'], hdr['DETECTOR'])])
 
     for step in corr_lookup:
         # Not all images have the CORR step and it is not always on.
         if (step not in hdr) or (hdr[step].strip().upper() != 'PERFORM'):
             continue
 
-        #ref_files += ref_from_image(input_image, corr_lookup[step])
-        ref_files = ref_from_image(input_image, corr_lookup[step])
+        ref_files += ref_from_image(input_image, corr_lookup[step])
 
     return list(set(ref_files))  # Remove duplicates
 
