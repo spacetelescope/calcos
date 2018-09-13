@@ -15,8 +15,7 @@ bc1.build_cmds = ["conda config --add channels http://ssb.stsci.edu/astroconda",
                   "conda install -q -y numpy",
                   "pip install ci-watson",
                   "python setup.py install"]
-// TODO: Enable this when test is added
-// bc1.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --bigdata -v"]
+bc1.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --bigdata -v"]
 bc1.failedUnstableThresh = 1
 bc1.failedFailureThresh = 6
 
