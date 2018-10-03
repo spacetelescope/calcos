@@ -16,7 +16,7 @@ bc1.conda_packages = ['python=3.6',
                       'requests',
                       'numpy',
                       'stsci.tools']
-bc1.build_cmds = ["pip install ci-watson",
+bc1.build_cmds = ["pip install install git+https://github.com/pllim/ci_watson.git@pr14#egg=ci-watson",
                   "python setup.py install"]
 bc1.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --bigdata -v"]
 bc1.failedUnstableThresh = 1
@@ -26,7 +26,7 @@ bc1.failedFailureThresh = 6
 bc2 = utils.copy(bc1)
 bc2.name = "dev"
 bc2.conda_packages[0] = "python=3.7"
-bc2.build_cmds = ["pip install ci-watson",
+bc2.build_cmds = ["pip install install git+https://github.com/pllim/ci_watson.git@pr14#egg=ci-watson",
                   "pip install git+https://github.com/astropy/astropy.git#egg=astropy --upgrade --no-deps",
                   "python setup.py install"]
 
