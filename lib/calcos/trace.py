@@ -527,11 +527,11 @@ def getReferenceBackground(profile, goodcolumns, refcenter, regions):
         cosutil.printMsg("Requested rows: %d to %d" % (bg1start, bg1stop))
         bkg = 0
         wbkg = 0.0
-    if bg2stop <= nrows:
+    if bg2stop < nrows:
         bkg = bkg + profile[int(bg2start):int(bg2stop+1)].mean(axis=0,
                                                                dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
         wbkg2 = 1.0
-    elif bg2start <= nrows:
+    elif bg2start < nrows:
         cosutil.printMsg("Background region #2 truncated")
         cosutil.printMsg("Reguested region: %d to %d" % (bg2start, bg2stop))
         wbkg2 = float(nrows-bg2start+1)/(bg2stop+1-bg2start)
