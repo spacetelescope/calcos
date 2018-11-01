@@ -119,6 +119,7 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 # include <numpy/arrayobject.h>
 # include <numpy/npy_3kcompat.h>
 
+# define NPY_NO_DEPRECATED_API NPY_API_VERSION
 # define SZ_ERRMESS 1024
 
 /* This is the multiplier for the pseudo-random number generator.
@@ -374,7 +375,7 @@ static PyObject *ccos_binevents(PyObject *self, PyObject *args) {
 	    return NULL;
 
 	array = (PyArrayObject *)PyArray_FROM_OTF(oarray, NPY_FLOAT32,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY2);
 	if (array == NULL)
 	    return NULL;
 
@@ -400,6 +401,7 @@ static PyObject *ccos_binevents(PyObject *self, PyObject *args) {
 
 	Py_DECREF(x);
 	Py_DECREF(y);
+	PyArray_ResolveWritebackIfCopy(array);
 	Py_DECREF(array);
 	Py_XDECREF(dq);
 	Py_XDECREF(epsilon);
@@ -548,7 +550,7 @@ static PyObject *ccos_bindq(PyObject *self, PyObject *args) {
 		flag == NULL)
 	    return NULL;
 	dq_array = (PyArrayObject *)PyArray_FROM_OTF(odq_array, NPY_INT16,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY2);
 	if (dq_array == NULL)
 	    return NULL;
 
@@ -564,6 +566,7 @@ static PyObject *ccos_bindq(PyObject *self, PyObject *args) {
 	Py_DECREF(ux);
 	Py_DECREF(uy);
 	Py_DECREF(flag);
+	PyArray_ResolveWritebackIfCopy(dq_array);
 	Py_DECREF(dq_array);
 
 	if (status) {
@@ -680,7 +683,7 @@ static PyObject *ccos_applydq(PyObject *self, PyObject *args) {
 		NPY_IN_ARRAY);
 	}
 	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY2);
 	if (x == NULL || y == NULL || dq == NULL)
 	    return NULL;
 
@@ -699,6 +702,8 @@ static PyObject *ccos_applydq(PyObject *self, PyObject *args) {
 	Py_DECREF(flag);
 	Py_DECREF(x);
 	Py_DECREF(y);
+
+	PyArray_ResolveWritebackIfCopy(dq);
 	Py_DECREF(dq);
 
 	if (status) {
@@ -808,7 +813,7 @@ static PyObject *ccos_dq_or(PyObject *self, PyObject *args) {
 	dq_2d = (PyArrayObject *)PyArray_FROM_OTF(odq_2d, NPY_INT16,
 			NPY_IN_ARRAY);
 	dq_1d = (PyArrayObject *)PyArray_FROM_OTF(odq_1d, NPY_INT16,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY2);
 	if (dq_2d == NULL || dq_1d == NULL)
 	    return NULL;
 
@@ -823,6 +828,7 @@ static PyObject *ccos_dq_or(PyObject *self, PyObject *args) {
 			     (short *)PyArray_DATA(dq_1d), nx, ny);
 
 	Py_DECREF(dq_2d);
+	PyArray_ResolveWritebackIfCopy(dq_1d);
 	Py_DECREF(dq_1d);
 
 	if (status) {
@@ -907,7 +913,7 @@ static PyObject *ccos_applyflat(PyObject *self, PyObject *args) {
 			NPY_IN_ARRAY);
 	}
 	epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY2);
 	flat = (PyArrayObject *)PyArray_FROM_OTF(oflat, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	if (x == NULL || y == NULL || epsilon == NULL || flat == NULL)
@@ -917,6 +923,7 @@ static PyObject *ccos_applyflat(PyObject *self, PyObject *args) {
 
 	Py_DECREF(x);
 	Py_DECREF(y);
+	PyArray_ResolveWritebackIfCopy(epsilon);
 	Py_DECREF(epsilon);
 	Py_DECREF(flat);
 
@@ -1183,9 +1190,9 @@ static PyObject *ccos_unbinaccum(PyObject *self, PyObject *args) {
 		NPY_IN_ARRAY);
 	}
 	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY2);
 	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY2);
 	if (image == NULL || x == NULL || y == NULL)
 	    return NULL;
 
@@ -1196,6 +1203,8 @@ static PyObject *ccos_unbinaccum(PyObject *self, PyObject *args) {
 		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y), n_events);
 
 	Py_DECREF(image);
+	PyArray_ResolveWritebackIfCopy(x);
+	PyArray_ResolveWritebackIfCopy(y);
 	Py_DECREF(x);
 	Py_DECREF(y);
 
@@ -1294,13 +1303,14 @@ static PyObject *ccos_addrandom(PyObject *self, PyObject *args) {
 	}
 
 	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY2);
 	if (x == NULL)
 	    return NULL;
 
 	n_events = PyArray_DIM(x, 0);
 	newseed = addRN((float *)PyArray_DATA(x), n_events, seed, use_clock);
 
+	PyArray_ResolveWritebackIfCopy(x);
 	Py_DECREF(x);
 
 	return Py_BuildValue("i", newseed);
@@ -1363,7 +1373,7 @@ static PyObject *ccos_convolve1d(PyObject *self, PyObject *args) {
 	}
 
 	flat = (PyArrayObject *)PyArray_FROM_OTF(oflat, NPY_FLOAT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY2);
 	dopp = (PyArrayObject *)PyArray_FROM_OTF(odopp, NPY_FLOAT32,
 		NPY_IN_ARRAY);
 	if (flat == NULL || dopp == NULL)
@@ -1383,6 +1393,8 @@ static PyObject *ccos_convolve1d(PyObject *self, PyObject *args) {
 
 	status = convolveWithDopp(flat, nx, ny,
 		(float *)PyArray_DATA(dopp), lendopp, axis);
+
+	PyArray_ResolveWritebackIfCopy(flat);
 
 	Py_DECREF(flat);
 	Py_DECREF(dopp);
@@ -1716,7 +1728,7 @@ static PyObject *ccos_smoothbkg(PyObject *self, PyObject *args) {
 	}
 
 	data = (PyArrayObject *)PyArray_FROM_OTF(odata, NPY_FLOAT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY2);
 	if (data == NULL)
 	    return NULL;
 	if (PyArray_NDIM(data) != 1) {
@@ -1753,6 +1765,7 @@ static PyObject *ccos_smoothbkg(PyObject *self, PyObject *args) {
 	    Py_DECREF(flags);
 	}
 
+	PyArray_ResolveWritebackIfCopy(data);
 	Py_DECREF(data);
 
 	if (status) {
@@ -1891,7 +1904,7 @@ static PyObject *ccos_addlines(PyObject *self, PyObject *args) {
 	x1d_wl = (PyArrayObject *)PyArray_FROM_OTF(ox1d_wl,
 			NPY_FLOAT64, NPY_IN_ARRAY);
 	template = (PyArrayObject *)PyArray_FROM_OTF(otemplate,
-			NPY_FLOAT32, NPY_INOUT_ARRAY);
+			NPY_FLOAT32, NPY_ARRAY_INOUT_ARRAY2);
 	if (intensity == NULL || wavelength == NULL ||
 		x1d_wl == NULL || template == NULL)
 	    return NULL;
@@ -1919,6 +1932,7 @@ static PyObject *ccos_addlines(PyObject *self, PyObject *args) {
 	Py_DECREF(intensity);
 	Py_DECREF(wavelength);
 	Py_DECREF(x1d_wl);
+	PyArray_ResolveWritebackIfCopy(template);
 	Py_DECREF(template);
 
 	if (status) {
@@ -2166,9 +2180,9 @@ static PyObject *ccos_geocorrection(PyObject *self, PyObject *args) {
 	}
 
 	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY2);
 	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY2);
 	x_image = (PyArrayObject *)PyArray_FROM_OTF(ox_image, NPY_FLOAT32,
 			NPY_IN_ARRAY);
 	y_image = (PyArrayObject *)PyArray_FROM_OTF(oy_image, NPY_FLOAT32,
@@ -2181,6 +2195,9 @@ static PyObject *ccos_geocorrection(PyObject *self, PyObject *args) {
 		(float *)PyArray_DATA(x), (float *)PyArray_DATA(y), n_events,
 		x_image, y_image, interp_flag,
 		(float)origin_x, (float)origin_y, (float)xbin, (float)ybin);
+
+	PyArray_ResolveWritebackIfCopy(x);
+	PyArray_ResolveWritebackIfCopy(y);
 
 	Py_DECREF(x);
 	Py_DECREF(y);
@@ -2382,7 +2399,6 @@ static PyObject *ccos_pha_check(PyObject *self, PyObject *args) {
 
 	PyObject *ox, *oy, *opha, *odq, *oim_low, *oim_high;
         int pha_flag;
-	int interp_flag;
 	PyArrayObject *x, *y, *pha, *dq, *im_low, *im_high;
 	int status;
 	int n_events;		/* number of rows in events table */
@@ -2686,7 +2702,7 @@ static PyObject *ccos_interp1d(PyObject *self, PyObject *args) {
 	x_b = (PyArrayObject *)PyArray_FROM_OTF(ox_b, NPY_FLOAT64,
 		NPY_IN_ARRAY);
 	y_b = (PyArrayObject *)PyArray_FROM_OTF(oy_b, NPY_FLOAT64,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY2);
 	if (x_a == NULL || y_a == NULL || x_b == NULL || y_b == NULL)
 	    return NULL;
 
@@ -2706,6 +2722,7 @@ static PyObject *ccos_interp1d(PyObject *self, PyObject *args) {
 	Py_DECREF(x_a);
 	Py_DECREF(y_a);
 	Py_DECREF(x_b);
+	PyArray_ResolveWritebackIfCopy(y_b);
 	Py_DECREF(y_b);
 
 	Py_INCREF(Py_None);
@@ -3717,7 +3734,7 @@ static PyObject *ccos_xy_collapse(PyObject *self, PyObject *args) {
 	}
 	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_IN_ARRAY);
 	xdisp = (PyArrayObject *)PyArray_FROM_OTF(oxdisp, NPY_FLOAT64,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY2);
 	if (xi == NULL || eta == NULL || dq == NULL || xdisp == NULL)
 	    return NULL;
 
@@ -3737,6 +3754,7 @@ static PyObject *ccos_xy_collapse(PyObject *self, PyObject *args) {
 	Py_DECREF(xi);
 	Py_DECREF(eta);
 	Py_DECREF(dq);
+	PyArray_ResolveWritebackIfCopy(xdisp);
 	Py_DECREF(xdisp);
 
 	if (status) {
