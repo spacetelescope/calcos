@@ -142,6 +142,11 @@ def doProfileAlignment(events, input, info, switches, reffiles, phdr, hdr,
     centroid = None
     goodcolumns = None
     regions = None
+    try:
+        slope = xtract_info.field('SLOPE')[0]
+    except KeyError:
+        slope = 0.0
+    startcenter = xtract_info.field('B_SPEC')[0] + slope*(ncols / 2)
     #
     # Calculate the centroid in the science data
     status, centroid, goodcolumns, regions = getScienceCentroid(rebinned_data,
@@ -178,7 +183,14 @@ def doProfileAlignment(events, input, info, switches, reffiles, phdr, hdr,
             offset = ref_centroid - centroid
             cosutil.printMsg("Using calculated offset of %f" % (offset))
         else:
-            offset = 0.0
+            #
+            # If something went wrong with the centroid calculation, use
+            # the center from the xtractab or twozxtab in calculating the
+            # offset to make the centroid the same as that in the reference
+            # profile
+            offset = ref_centroid - startcenter
+            cosutil.printMsg("Using offset of {:+f} calculated using".format(offset))
+            cosutil.printMsg("initial reference file aperture center")
     else:
         offset = -user_offset
         cosutil.printMsg("Using user-supplied offset of %f" % (offset))
@@ -370,7 +382,26 @@ def getScienceCentroid(rebinned_data, dq_array, xtract_info,
         dqexclude_background = getBackgroundDQ(dqexclude)
         goodcolumns = getGoodColumns(dq_array, dqexclude_target,
                                      dqexclude_background, regions)
+        n_goodcolumns = len(goodcolumns[0])
         cosutil.printMsg("%d good columns" % (len(goodcolumns[0])))
+        if n_goodcolumns == 0:
+            #
+            # If this happens, it means the region over which we are calculating the
+            # centroid and associated backgrounds is overlapping part of the detector
+            # with non-zero DQ (usually the DQ=8/poorly calibrated regions at the top
+            # and bottom edges of the active area)
+            # In that case, return with a status of CENTROID_UNDEFINED and set the
+            # centroid to the center from the reference file and the goodcolumns and
+            # regions to what are appropriate for that centroid
+            centroid = startcenter
+            center = None
+            regions = getRegions(dq_array, xtract_info, dqexclude, center)
+            goodcolumns = getGoodColumns(dq_array, dqexclude_target,
+                                         dqexclude_background, regions)
+            status = CENTROID_UNDEFINED
+            cosutil.printMsg("No good columns.")
+            cosutil.printMsg("Centroid set to input value from reference file: {}".format(centroid))
+            return status, centroid, goodcolumns, regions
         #
         # Now calculate the background.  Use the XTRACTAB reference file
         # to determine the background regions but center them on the 'center'
@@ -464,6 +495,9 @@ def getCentroidError(events, info, goodcolumns, regions):
     # Even though the centroid and background may be different, the error should
     # be appropriate
     #
+    if len(goodcolumns[0]) == 0:
+        cosutil.printMsg("No good columns, cannot calculate centroid error")
+        return None
     # First need to rebin evens to counts
     counts_ij = rebinCounts(events, info)
     #
