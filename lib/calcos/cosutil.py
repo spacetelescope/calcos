@@ -65,7 +65,7 @@ def writeOutputEvents(infile, outfile):
     tagflash = (ifd[0].header.get("tagflash", default="NONE") != "NONE")
 
     # Create the output events HDU.
-    hdu = createCorrtagHDU(nrows, detector, events_extn.header)
+    hdu = createCorrtagHDU(nrows, detector, events_extn)
 
     if nrows == 0:
         primary_hdu = fits.PrimaryHDU(header=ifd[0].header)
@@ -168,7 +168,7 @@ def isCorrtag(filename):
 
     return got_xfull
 
-def createCorrtagHDU(nrows, detector, header):
+def createCorrtagHDU(nrows, detector, hdu):
     """Create the output events HDU.
 
     Parameters
@@ -179,19 +179,28 @@ def createCorrtagHDU(nrows, detector, header):
     detector: {"FUV", "NUV"}
         Detector name.
 
-    header: pyfits Header object
-        Events extension header.
+    hdu: fits HDU object
+        Events extension hdu.
 
     Returns
     -------
-    pyfits BinTableHDU object
+    fits BinTableHDU object
         Header/data unit for a corrtag table.
     """
 
     col = []
-    col.append(fits.Column(name="TIME", format="1E", unit="s"))
-    col.append(fits.Column(name="RAWX", format="1I", unit="pixel"))
-    col.append(fits.Column(name="RAWY", format="1I", unit="pixel"))
+    try:
+        col.append(hdu.column["TIME"])
+    except (AttributeError, KeyError):
+        col.append(fits.Column(name="TIME", format="1E", unit="s"))
+    try:
+        col.append(hdu.column["RAWX"])
+    except (AttributeError, KeyError):
+        col.append(fits.Column(name="RAWX", format="1I", unit="pixel"))
+    try:
+        col.append(hdu.column["RAWY"])
+    except (AttributeError, KeyError):
+        col.append(fits.Column(name="RAWY", format="1I", unit="pixel"))
     col.append(fits.Column(name="XCORR", format="1E", unit="pixel"))
     col.append(fits.Column(name="YCORR", format="1E", unit="pixel"))
     col.append(fits.Column(name="XDOPP", format="1E", unit="pixel"))
@@ -205,11 +214,11 @@ def createCorrtagHDU(nrows, detector, header):
     cd = fits.ColDefs(col)
 
     # Rename or delete some image-specific keywords.
-    header = imageHeaderToCorrtag(header)
+    header = imageHeaderToCorrtag(hdu.header)
 
-    hdu = fits.BinTableHDU.from_columns(cd, header=header, nrows=nrows)
+    outhdu = fits.BinTableHDU.from_columns(cd, header=header, nrows=nrows)
 
-    return hdu
+    return outhdu
 
 def copyExptimeKeywords(inhdr, outhdr):
     """Copy the exposure time keywords from one header to another.
