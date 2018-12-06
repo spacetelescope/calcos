@@ -445,7 +445,8 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
                 events, info, switches["wavecorr"], reffiles["xtractab"],
                 reffiles["brftab"])
     dq_array = timetag.doDqicorr(events, corrtag, info, switches, reffiles,
-                                 phdr, headers[1], minmax_shift_dict)
+                                 phdr, headers[1], minmax_shift_dict,
+                                 traceprofile=None, gti=None)
 
     timetag.writeImages(x, y, epsilon, dq,
                         phdr, headers, dq_array, npix, x_offset, exptime,
