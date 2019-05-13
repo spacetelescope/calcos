@@ -100,10 +100,10 @@ class BaseCOS:
 
         self.env = envopt
 
-    def get_input_file(self, filename):
+    def get_input_files(self, filenames):
         """
-        Copy input file (ASN, RAW, etc) into the working directory.
-        If ASN is given, RAW files in the ASN table is also copied.
+        Copy input files (ASN, RAW, etc) into the working directory.
+        If ASN is given, RAW files in the ASN table are also copied.
         The associated CRDS reference files are also copied or
         downloaded, if necessary.
 
@@ -115,27 +115,26 @@ class BaseCOS:
 
         Parameters
         ----------
-        filename : str
-            Filename of the ASN/RAW/etc to copy over, along with its
+        filename : list
+            List of filenames of the ASN/RAW/etc to copy over, along with their
             associated files.
 
         """
-        # Copy over main input file.
-        dest = get_bigdata('scsb-calcos', self.env, self.detector, 'input',
-                           filename)
-
-        # TODO: This logic was based on ONE FUV test. Please revise as needed.
-        if filename.endswith('_asn.fits'):
-            all_raws = raw_from_asn(filename, '_rawtag_a.fits')
-            all_raws += raw_from_asn(filename, '_rawtag_b.fits')
-            for raw in all_raws:  # Download RAWs in ASN.
-                get_bigdata('scsb-calcos', self.env, self.detector, 'input',
-                            raw)
-            for raw in raw_from_asn(filename, '_spt.fits'):  # Input SPTs
-                get_bigdata('scsb-calcos', self.env, self.detector, 'input',
-                            raw)
-        else:
-            all_raws = [filename]
+        all_raws = []
+        for file in filenames:
+            if file.endswith('_rawtag_a.fits') or file.endswith('_rawtag_b.fits'):
+                all_raws.append(file)
+            # List of filenames can include _rawtag, _asn and _spt files
+            dest = get_bigdata('scsb-calcos', self.env, self.detector, 'input',
+                               file)
+            # If file is an association table, download raw files specified in the table
+            if file.endswith('_asn.fits'):
+                asn_raws = raw_from_asn(file, '_rawtag_a.fits')
+                asn_raws += raw_from_asn(file, '_rawtag_b.fits')
+                for raw in asn_raws:  # Download RAWs in ASN.
+                    get_bigdata('scsb-calcos', self.env, self.detector, 'input',
+                                raw)
+                all_raws += asn_raws
 
         first_pass = ('JENKINS_URL' in os.environ and
                       'ssbjenkins' in os.environ['JENKINS_URL'])
