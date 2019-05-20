@@ -5,9 +5,6 @@ if (utils.scm_checkout()) return
 bc0 = new BuildConfig()
 bc0.nodetype = "python3.6"
 bc0.name = "egg"
-bc0.conda_channels = ['http://ssb.stsci.edu/astroconda']
-bc0.conda_packages = ['python=3.6',
-                      'numpy']
 bc0.build_cmds = ["python setup.py egg_info"]
 
 bc1 = utils.copy(bc0)
