@@ -1,4 +1,4 @@
-"""Tests for COS/FUV timetag."""
+"""Tests for COS/FUV dark."""
 
 #import pytest
 
@@ -9,36 +9,31 @@ from helpers import BaseCOS
 # TODO: Mark this as slow when there are faster tests added for CI tests
 #       so that this only runs in nightly tests.
 #@pytest.mark.slow
-class TestFUVTimetag(BaseCOS):
+class TestFUVADark(BaseCOS):
     detector = 'fuv'
 
-    def test_fuv_timetag_1(self):
+    def test_fuva_dark(self):
         """
-        FUV COS regression test #1
+        FUV COS regression test #2
         """
-        files_to_download = ['lckg01070_asn.fits', 'lckg01czq_spt.fits',
-                             'lckg01d4q_spt.fits', 'lckg01d9q_spt.fits',
-                             'lckg01dcq_spt.fits']
+        files_to_download = ['la7803fiq_rawtag_a.fits', 'la7803fiq_rawtag_b.fits',
+                             'la7803fiq_spt.fits']
 
         # Prepare input files.
         self.get_input_files(files_to_download)
 
+        input_file = 'la7803fiq_rawtag_a.fits'
         # Run CALCOS
-        input_file = 'lckg01070_asn.fits'
         calcos.calcos(input_file)
 
         # Compare results.
         # The first outroot is the output from whole ASN,
         # the rest are individual members.
-        outroots = ['lckg01070', 'lckg01czq', 'lckg01d4q', 'lckg01d9q',
-                    'lckg01dcq']
+        outroots = ['la7803fiq']
         outputs = []
-        for sfx in ('x1dsum', 'x1dsum1', 'x1dsum2', 'x1dsum3', 'x1dsum4'):
-            fname = '{}_{}.fits'.format(outroots[0], sfx)
-            outputs.append((fname, fname))
-        for outroot in outroots[1:]:
+        for outroot in outroots:
             for sfx in ('corrtag_a', 'corrtag_b', 'counts_a', 'counts_b',
-                        'flt_a', 'flt_b', 'lampflash', 'x1d'):
+                        'flt_a', 'flt_b'):
                 fname = '{}_{}.fits'.format(outroot, sfx)
                 outputs.append((fname, fname))
         self.compare_outputs(outputs, rtol=3e-7)
