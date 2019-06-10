@@ -792,7 +792,7 @@ def appendImset(output, imset, sci_array, err_array, dq_array,
         Header for DQ extension.
     """
 
-    fd = fits.open(output, mode="append")
+    fd = fits.open(output, mode="update")
 
     hdu = fits.ImageHDU(data=sci_array, header=sci_hdr, name="SCI")
     hdu.header["EXTVER"] = imset
