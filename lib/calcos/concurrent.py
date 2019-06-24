@@ -364,9 +364,15 @@ class ConcurrentWavecal(object):
 
         primary_hdu = fits.PrimaryHDU(header=self.phdr)
         self.ofd = fits.HDUList(primary_hdu)
-        hdu = fits.BinTableHDU.from_columns(cd, header=self.hdr, nrows=nrows)
+
+        #
+        # The WCS table keywords don't need to be propagated to the lampflash
+        # extension, so we can remove them before we create the hdu
+        newheader = self.hdr.copy()
+        self.deleteCoordinateKeywords(newheader)
+
+        hdu = fits.BinTableHDU.from_columns(cd, header=newheader, nrows=nrows)
         hdu.name = "LAMPFLASH"
-        self.deleteCoordinateKeywords(hdu)
         self.ofd.append(hdu)
 
         cosutil.updateFilename(self.ofd[0].header, self.outflash)
@@ -377,13 +383,13 @@ class ConcurrentWavecal(object):
         # We know this value, so assign it now.
         self.ofd[1].data.field("nelem")[:] = len(self.spectrum)
 
-    def deleteCoordinateKeywords(self, hdu):
+    def deleteCoordinateKeywords(self, header):
         """Delete keywords that are not relevant for extracted spectra.
 
         Parameters
         ----------
-        hdu: pyfits header/data unit object
-            HDU for table of extracted wavecal spectra (will be modified
+        header: FITS header object
+            Header for table of extracted wavecal spectra (will be modified
             in-place).
         """
 
@@ -392,14 +398,14 @@ class ConcurrentWavecal(object):
                 "TC2_2",  "TC2_3",  "TC3_2",  "TC3_3",
                 "TALEN2", "TALEN3"]
         for keyword in ikey:
-            if keyword in hdu.header:
-                del hdu.header[keyword]
+            if keyword in header:
+                del header[keyword]
 
         # Set the values of these keywords to zero.
         zkey = ["SHIFT1A", "SHIFT1B", "SHIFT1C"]
         for keyword in zkey:
-            if keyword in hdu.header:
-                hdu.header[keyword] = 0.
+            if keyword in header:
+                header[keyword] = 0.
 
     def doStat(self):
         """Compute mean and max of the GROSS column."""

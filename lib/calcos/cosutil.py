@@ -189,6 +189,9 @@ def createCorrtagHDU(nrows, detector, hdu):
     """
 
     col = []
+    #
+    # Copy over the TIME, RAWX and RAWY columns from the input if possible
+    # to preserve column attributes
     try:
         col.append(hdu.column["TIME"])
     except (AttributeError, KeyError):
@@ -216,9 +219,41 @@ def createCorrtagHDU(nrows, detector, hdu):
     # Rename or delete some image-specific keywords.
     header = imageHeaderToCorrtag(hdu.header)
 
-    outhdu = fits.BinTableHDU.from_columns(cd, header=header, nrows=nrows)
+    newheader = remove_WCS_keywords(header, cd)
+
+    outhdu = fits.BinTableHDU.from_columns(cd, header=newheader, nrows=nrows)
 
     return outhdu
+
+def remove_WCS_keywords(header, cd):
+    """Remove WCS-specific keywords from the header of a table
+    They should be column attributes
+
+    Parameters
+    ----------
+    header: FITS header object
+        Header that will be passed to BinTableHDU.from_columns
+
+    cd: FITS column descriptor object
+        Column descriptor that should contain the attributes referred to
+        by the header keywords
+    """
+    newheader = header.copy()
+    WCS_keywords = {'TCTYP': 'coord_type',
+                    'TCUNI': 'coord_unit',
+                    'TCRPX': 'coord_ref_point',
+                    'TCRVL': 'coord_ref_value',
+                    'TCDLT': 'coord_inc',
+                    'TRPOS': 'time_ref_pos'}
+    for keyword in header.keys():
+        if keyword[0:5] in WCS_keywords.keys():
+            index = int(keyword[5]) - 1
+            keyword_value = header[keyword]
+            column_value = cd[index].__getattribute__(WCS_keywords[keyword[0:5]])
+            if keyword_value != column_value:
+                cd[index].__setattr__(WCS_keywords[keyword[0:5]], keyword_value)
+            del newheader[keyword]
+    return newheader
 
 def copyExptimeKeywords(inhdr, outhdr):
     """Copy the exposure time keywords from one header to another.
@@ -2088,12 +2123,12 @@ def imageHeaderToCorrtag(imhdr):
 
     Parameters
     ----------
-    imhdr: pyfits Header object
+    imhdr: FITS Header object
         A header for a FITS IMAGE HDU.
 
     Returns
     -------
-    hdr: pyfits Header object
+    hdr: FITS Header object
         A copy of imhdr, with certain image-specific keywords either
         renamed or deleted.
     """
@@ -2105,6 +2140,7 @@ def imageHeaderToCorrtag(imhdr):
     ikey = ["CTYPE1", "CRVAL1", "CRPIX1", "CDELT1", "CUNIT1", "CD1_1", "CD1_2",
             "CTYPE2", "CRVAL2", "CRPIX2", "CDELT2", "CUNIT2", "CD2_1", "CD2_2"]
     delkey = ["BSCALE", "BZERO", "BUNIT", "DATAMIN", "DATAMAX"]
+
     # Rename image WCS keywords to the corresponding events table WCS keywords.
     for i in range(len(ikey)):
         if ikey[i] in hdr:
