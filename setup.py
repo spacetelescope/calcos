@@ -46,6 +46,7 @@ setup(
             'sphinx',
         ],
         'test': [
+            'ci_watson',
             'pytest',
             'pytest-cov',
             'codecov',
@@ -60,7 +61,7 @@ setup(
     },
     ext_modules=[
         Extension(
-            PACKAGENAME + '._ccos',
+            PACKAGENAME + '.ccos',
             sources=SOURCES,
             include_dirs=INCLUDES,
         ),

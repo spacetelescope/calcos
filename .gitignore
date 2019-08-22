@@ -1,10 +1,11 @@
 *~
 *.pyc
 *.pyo
+*.so
 build/
 dist/
 *.eggs
 *.egg-info/
 __pycache__/
 .cache/
-lib/calcos/version.py
+pip-wheel-metadata
