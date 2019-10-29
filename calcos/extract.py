@@ -2175,7 +2175,8 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
         tdstab = reffiles["tdstab"]
         t_obs = (ofd[1].header["expstart"] + ofd[1].header["expend"]) / 2.
         filter = {"opt_elem": info["opt_elem"],
-                  "aperture": info["aperture"]}
+                  "aperture": info["aperture"],
+                  "cenwave": info["cenwave"]}
         # First check for dummy rows in the TDS table.  If there is no
         # pedigree column, assume all rows are good (i.e. not dummy).
         dummy = False           # initial value
