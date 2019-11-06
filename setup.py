@@ -40,6 +40,7 @@ setup(
         'astropy>=1.1.1',
         'numpy>=1.10.1',
         'scipy>=0.14',
+        'stsci.tools>=3.5',
     ],
     extras_require={
         'docs': [
@@ -66,6 +67,11 @@ setup(
             include_dirs=INCLUDES,
         ),
     ],
+    entry_points={
+        'console_scripts': {
+            'calcos = calcos:main',
+        },
+    },
     author='Phil Hodge, Robert Jedrzejewski',
     author_email='help@stsci.edu',
     description='Calibration software for COS (Cosmic Origins Spectrograph)',
