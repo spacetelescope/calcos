@@ -8,7 +8,7 @@ import os
 #enable_deprecations_as_exceptions()
 
 # Require these pytest plugins to run.
-# pytest_plugins = ["pytest_ciwatson"]
+pytest_plugins = ["pytest_ciwatson"]
 
 
 # For easy inspection on what dependencies were used in test.
