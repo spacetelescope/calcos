@@ -1,4 +1,6 @@
 """Custom ``pytest`` configurations."""
+import pytest
+import os
 
 #from astropy.tests.helper import enable_deprecations_as_exceptions
 
@@ -6,7 +8,7 @@
 #enable_deprecations_as_exceptions()
 
 # Require these pytest plugins to run.
-pytest_plugins = ["pytest_ciwatson"]
+# pytest_plugins = ["pytest_ciwatson"]
 
 
 # For easy inspection on what dependencies were used in test.
@@ -33,3 +35,8 @@ def pytest_report_header(config):
             s += "{0}: {1}\n".format(module_name, version)
 
     return s
+
+
+@pytest.fixture(scope='session')
+def test_data():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
