@@ -519,8 +519,6 @@ def getTable(table, filter, extension=1,
         wild = None
         if isinstance(column, np.chararray):
             wild = (column == STRING_WILDCARD)
-        if column.dtype == np.dtype('>i4'):
-            wild = (column == INT_WILDCARD)
         if wild is not None:
             selected = np.logical_or(selected, wild)
 
