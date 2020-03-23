@@ -2258,7 +2258,12 @@ def getTdsFactors(tdstab, filter, t_obs):
     tds_info = cosutil.getTable(tdstab, filter, exactly_one=True)
 
     fd = fits.open(tdstab, mode="readonly")
-    ref_time = fd[1].header.get("ref_time", 0.)         # MJD
+    try:
+        ref_time = fd[1].header["ref_time"]         # MJD
+    except KeyError:
+        cosutil.printWarning("REF_TIME keyword missing from TDSTAB data extension header")
+        cosutil.printMsg("Setting to 0, will probably make fluxes negative")
+        ref_time = 0.0
     fd.close()
 
     nwl = tds_info.field("nwl")[0]
