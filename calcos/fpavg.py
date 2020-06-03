@@ -3,6 +3,7 @@ import copy
 import math
 import numpy as np
 import astropy.io.fits as fits
+from astropy.stats import poisson_conf_interval
 from . import cosutil
 from .calcosparam import *       # parameter definitions
 
@@ -80,6 +81,8 @@ def oneInputFile(input, output):
     flux = data.field("flux")
     error = data.field("error")
     gross = data.field("gross")
+    err_low = data.field("err_low")
+    err_up = data.field("err_up")
     net = data.field("net")
     background = data.field("background")
     dq_wgt = data.field("dq_wgt")
@@ -88,6 +91,8 @@ def oneInputFile(input, output):
         flux[row,:] = np.where(dq_wgt[row] <= 0., 0., flux[row])
         error[row,:] = np.where(dq_wgt[row] <= 0., 0., error[row])
         gross[row,:] = np.where(dq_wgt[row] <= 0., 0., gross[row])
+        err_low[row,:] = np.where(dq_wgt[row] <= 0., 0., err_low[row])
+        err_up[row,:] = np.where(dq_wgt[row] <= 0., 0., err_up[row])
         net[row,:] = np.where(dq_wgt[row] <= 0., 0., net[row])
         background[row,:] = np.where(dq_wgt[row] <= 0., 0., background[row])
 
@@ -582,6 +587,10 @@ class OutputX1D(object):
                    unit="erg /s /cm**2 /angstrom"))
         col.append(fits.Column(name="ERROR", format=rpt+"E",
                    unit="erg /s /cm**2 /angstrom"))
+        col.append(fits.Column(name="ERR_LOW", format=rpt+"E",
+                   unit="erg /s /cm**2 /angstrom"))
+        col.append(fits.Column(name="ERR_UP", format=rpt+"E",
+                   unit="erg /s /cm**2 /angstrom"))
         col.append(fits.Column(name="GROSS", format=rpt+"E",
                    unit="count /s"))
         col.append(fits.Column(name="GCOUNTS", format=rpt+"E",
@@ -656,6 +665,8 @@ class OutputX1D(object):
         ofd[1].data.field("flux")[:] = 0.
         ofd[1].data.field("error")[:] = 0.
         ofd[1].data.field("gross")[:] = 0.
+        ofd[1].data.field("err_low")[:] = 0.
+        ofd[1].data.field("err_up")[:] = 0.
         ofd[1].data.field("gcounts")[:] = 0.
         ofd[1].data.field("net")[:] = 0.
         ofd[1].data.field("background")[:] = 0.
@@ -762,6 +773,8 @@ class Spectrum(object):
         self.flux = ifd[1].data.field("flux")[row]
         self.error = ifd[1].data.field("error")[row]
         self.gross = ifd[1].data.field("gross")[row]
+        self.err_low = ifd[1].data.field("err_low")[row]
+        self.err_up = ifd[1].data.field("err_up")[row]
         self.gcounts = ifd[1].data.field("gcounts")[row]
         self.net = ifd[1].data.field("net")[row]
         self.background = ifd[1].data.field("background")[row]
@@ -1168,6 +1181,12 @@ class OutputSpectrum(object):
         data.field("gross")[:] /= sumweight
         data.field("net")[:] /= sumweight
         data.field("background")[:] /= sumweight
+        error_range = poisson_conf_interval(data.field("gcounts"), interval='frequentist-confidence').T
+        error_upper = error_range[:, 1] - data.field("gcounts")
+        error_lower = data.field("gcounts") - error_range[:, 0]
+        multiplier = data.field("flux") / data.field("net")
+        data.field("err_low")[:] = error_lower * multiplier / sumweight
+        data.field("err_up")[:] = error_upper * multiplier / sumweight
 
     def accumulateSums(self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.

@@ -3,6 +3,7 @@ import copy
 import os
 import numpy as np
 import astropy.io.fits as fits
+from astropy.stats import poisson_conf_interval
 from . import cosutil
 from . import ccos
 from . import dispersion
@@ -162,6 +163,10 @@ def extract1D(input, incounts=None, output=None,
     col.append(fits.Column(name="FLUX", format=rpt+"E",
                unit="erg /s /cm**2 /angstrom"))
     col.append(fits.Column(name="ERROR", format=rpt+"E",
+               unit="erg /s /cm**2 /angstrom"))
+    col.append(fits.Column(name="ERR_LOW", format=rpt+"E",
+               unit="erg /s /cm**2 /angstrom"))
+    col.append(fits.Column(name="ERR_UP", format=rpt+"E",
                unit="erg /s /cm**2 /angstrom"))
     col.append(fits.Column(name="GROSS", format=rpt+"E",
                unit="count /s"))
@@ -615,7 +620,8 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                                local_find_targ)
         else:
             if info["xtrctalg"] == 'BOXCAR':
-                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
+                (N_i, ERR_i, ERR_LOW_i, ERR_UP_i, GC_i, GCOUNTS_i, BK_i,
+                 DQ_i, DQ_WGT_i, DQ_ALL_i,
                  LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
                  ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
                  EE_LOWER_INNER_i, EE_UPPER_INNER_i, EE_UPPER_OUTER_i
@@ -630,7 +636,8 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                                            user_xdisp_locn, user_xdisp_size,
                                            local_find_targ)
             elif info["xtrctalg"] == 'TWOZONE':
-                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
+                (N_i, ERR_i, ERR_LOW_i, ERR_UP_i, GC_i, GCOUNTS_i, BK_i, DQ_i,
+                 DQ_WGT_i, DQ_ALL_i,
                  LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
                  ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
                  EE_LOWER_INNER_i, EE_UPPER_INNER_i, EE_UPPER_OUTER_i
@@ -648,7 +655,8 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
             else:
                 cosutil.printMsg("Unknown extraction method, defaulting to", \
                                      " BOXCAR")
-                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
+                (N_i, ERR_i, ERR_LOW, i, ERR_UP_I, GC_i, GCOUNTS_i, BK_i, DQ_i,
+                 DQ_WGT_i, DQ_ALL_i,
                  LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
                  ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
                  EE_LOWER_INNER_i, EE_UPPER_INNER_i, EE_UPPER_OUTER_i
@@ -669,6 +677,8 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         outdata.field("WAVELENGTH")[row][:] = wavelength.copy()
         outdata.field("FLUX")[row][:] = 0.
         outdata.field("ERROR")[row][:] = ERR_i.copy()
+        outdata.field("ERR_LOW")[row][:] = ERR_LOW_i.copy()
+        outdata.field("ERR_UP")[row][:] = ERR_UP_i.copy()
         outdata.field("GROSS")[row][:] = GC_i.copy()
         outdata.field("GCOUNTS")[row][:] = GCOUNTS_i.copy()
         outdata.field("NET")[row][:] = N_i.copy()
@@ -1128,18 +1138,28 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
         del temp_bk
     else:
         BK_i = np.zeros(axis_length, dtype=np.float32)
-
+    # The error in the counts is the sum in quadrature of 3 terms
     N_i = eps_i * (GC_i - BK_i)
 
     if snr_ff > 0.:
         term1_i = (N_i * exptime / (extr_height * snr_ff))**2
     else:
         term1_i = 0.
-    term2_i = eps_i**2 * exptime * \
-                (GC_i + BK_i * (bkg_norm / float(bkg_smooth)))
+    term2_i = eps_i**2 * GC_i * exptime
+    temp_val = BK_i * exptime * (bkg_norm / float(bkg_smooth))
+    term3_i = eps_i * eps_i * temp_val
+
+    equivalent_counts = term1_i + term2_i + term3_i
+
+    err_counts_i = np.sqrt(equivalent_counts)
+    error_bounds = poisson_conf_interval(equivalent_counts, interval='frequentist-confidence').T
+    ERR_LOW_i = equivalent_counts - error_bounds[:, 0]
+    ERR_UP_i = error_bounds[:, 1] - equivalent_counts
+    # ERR_i is the error in the count RATE
     if exptime > 0.:
-        # Use the Gehrels variance function.
-        ERR_i = cosutil.errGehrels(term1_i + term2_i) / exptime
+        ERR_i = err_counts_i / exptime
+        ERR_LOW_i /= exptime
+        ERR_UP_i /= exptime
     else:
         ERR_i = N_i * 0.
 
@@ -1165,7 +1185,8 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
     UPPER_INNER_VALUE_i = N_i*0.0 + 1.0
     UPPER_OUTER_VALUE_i = N_i*0.0 + 1.0
 
-    return (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
+    return (N_i, ERR_i, ERR_LOW_i, ERR_UP_i, GC_i, GCOUNTS_i,
+            BK_i, DQ_i, DQ_WGT_i,
             DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
             LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
             ENCLOSED_FRACTION_i, AV_E_BKG_i,
@@ -1550,19 +1571,29 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     else:
         term1_i = 0.0
     term2_i = np.zeros(ncols, dtype=np.float32)
+    term3_i = np.zeros(ncols, dtype=np.float32)
     goodcolumns = np.where(nrows_c_bkg_i > 0)
     term2_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
-        * (total_ccounts[goodcolumns] + \
-        av_c_bkg_i[goodcolumns] * (extr_height_i[goodcolumns])**2 \
-               / (nrows_c_bkg_i[goodcolumns] * bkg_smooth))
+        * total_ccounts[goodcolumns]
+    term3_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
+        * av_c_bkg_i[goodcolumns] * (extr_height_i[goodcolumns])**2 \
+               / (nrows_c_bkg_i[goodcolumns] * bkg_smooth)
     if exptime > 0.0:
         # Use the Gehrels variance function
-        ERR_i = cosutil.errGehrels(term1_i + term2_i) / exptime
+        equivalent_gcounts = term1_i + term2_i + term3_i
+        error_range = poisson_conf_interval(equivalent_gcounts, interval='frequentist-confidence').T
+        error_lower_bound = error_range[:, 0]
+        error_upper_bound = error_range[:, 1]
+        ERR_LOW_i = (equivalent_gcounts - error_lower_bound) / exptime
+        ERR_UP_i = (error_upper_bound - equivalent_gcounts) / exptime
+        ERR_i = cosutil.errGehrels(term1_i + term2_i + term3_i) / exptime
     else:
+        ERR_LOW_i = N_i * 0.0
+        ERR_UP_i = N_i * 0.0
         ERR_i = N_i * 0.0
     SUMMED_BACKGROUND_i = AV_E_BKG_i * extr_height_i
     GC_i = total_ccounts
-    GCOUNTS_i = GC_i * exptime
+    GCOUNTS_i = term1_i + term2_i + term3_i
     key = "SP_ERR_" + segment[-1]
     try:
         cent_err = hdr[key]
@@ -1593,12 +1624,14 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
                              xd_nominal, centroid, cent_err, offset,
                              b_bkg1, b_bkg2,
                              bkg_height1, bkg_height2)
-    return (N_i, ERR_i, GC_i, GCOUNTS_i, SUMMED_BACKGROUND_i, DQ_i, DQ_WGT_i,
+    return (N_i, ERR_i, ERR_LOW_i, ERR_UP_i, GC_i, GCOUNTS_i,
+            SUMMED_BACKGROUND_i, DQ_i, DQ_WGT_i,
             DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
             LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
             ENCLOSED_FRACTION_i, AV_E_BKG_i,
             LOWER_OUTER_VALUE_i, LOWER_INNER_VALUE_i,
-            UPPER_INNER_VALUE_i, UPPER_OUTER_VALUE_i)
+            UPPER_INNER_VALUE_i, UPPER_OUTER_VALUE_i
+            )
 
 def getProfileCentroid(phdr, segment):
     key = "SP_LOC_" + segment[-1]
@@ -2139,6 +2172,8 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
     net = outdata.field("NET")
     flux = outdata.field("FLUX")
     error = outdata.field("ERROR")
+    err_low = outdata.field("ERR_LOW")
+    err_up = outdata.field("ERR_UP")
 
     fluxtab = reffiles["fluxtab"]
 
@@ -2165,6 +2200,8 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
         factor = np.where(factor <= 0., 1., factor)
         flux[row][:] = net[row] / factor
         error[row][:] = error[row] / factor
+        err_low[row][:] = err_low[row] / factor
+        err_up[row][:] = err_up[row] / factor
     ofd[0].header["fluxcorr"] = "COMPLETE"
 
     # Compute an array of time-dependent correction factors (a potentially
@@ -2216,6 +2253,8 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
                 ccos.interp1d(wl_tds, factor_tds, wavelength[row], factor)
                 flux[row][:] /= factor
                 error[row][:] /= factor
+                err_low[row][:] /= factor
+                err_up[row][:] /= factor
                 if extrapolate and not printed:
                     cosutil.printWarning("TDS correction was extrapolated.")
                     printed = True
