@@ -81,20 +81,34 @@ def oneInputFile(input, output):
     flux = data.field("flux")
     error = data.field("error")
     gross = data.field("gross")
-    err_low = data.field("err_low")
-    err_up = data.field("err_up")
+    err_frequentist_low = data.field("err_frequentist_low")
+    err_frequentist_up = data.field("err_frequentist_up")
     net = data.field("net")
     background = data.field("background")
     dq_wgt = data.field("dq_wgt")
+    gcounts = data.field("gcounts")
+    error = data.field("error")
+    err_gehrels_low = data.field("err_gehrels_low")
+    err_gehrels_up = data.field("err_gehrels_up")
+    term1 = data.field("term1")
+    term2 = data.field("term2")
+    term3 = data.field("term3")
 
     for row in range(len(data)):
         flux[row,:] = np.where(dq_wgt[row] <= 0., 0., flux[row])
         error[row,:] = np.where(dq_wgt[row] <= 0., 0., error[row])
         gross[row,:] = np.where(dq_wgt[row] <= 0., 0., gross[row])
-        err_low[row,:] = np.where(dq_wgt[row] <= 0., 0., err_low[row])
-        err_up[row,:] = np.where(dq_wgt[row] <= 0., 0., err_up[row])
+        err_frequentist_low[row,:] = np.where(dq_wgt[row] <= 0., 0., err_frequentist_low[row])
+        err_frequentist_up[row,:] = np.where(dq_wgt[row] <= 0., 0., err_frequentist_up[row])
         net[row,:] = np.where(dq_wgt[row] <= 0., 0., net[row])
         background[row,:] = np.where(dq_wgt[row] <= 0., 0., background[row])
+        gcounts[row,:] = np.where(dq_wgt[row] <= 0., 0., gcounts[row])
+        error[row,:] = np.where(dq_wgt[row] <= 0., 0., error[row])
+        err_gehrels_low[row,:] = np.where(dq_wgt[row] <= 0., 0., err_gehrels_low[row])
+        err_gehrels_up[row,:] = np.where(dq_wgt[row] <= 0., 0., err_gehrels_up[row])
+        term1[row,:] = np.where(dq_wgt[row] <= 0., 0., term1[row])
+        term2[row,:] = np.where(dq_wgt[row] <= 0., 0., term2[row])
+        term3[row,:] = np.where(dq_wgt[row] <= 0., 0., term3[row])
 
     cosutil.updateFilename(fd[0].header, output)
     if cosutil.isProduct(output):
@@ -587,13 +601,23 @@ class OutputX1D(object):
                    unit="erg /s /cm**2 /angstrom"))
         col.append(fits.Column(name="ERROR", format=rpt+"E",
                    unit="erg /s /cm**2 /angstrom"))
-        col.append(fits.Column(name="ERR_LOW", format=rpt+"E",
-                   unit="erg /s /cm**2 /angstrom"))
-        col.append(fits.Column(name="ERR_UP", format=rpt+"E",
-                   unit="erg /s /cm**2 /angstrom"))
+        col.append(fits.Column(name="ERR_FREQUENTIST_LOW", format=rpt+"E",
+                   unit="count /s"))
+        col.append(fits.Column(name="ERR_FREQUENTIST_UP", format=rpt+"E",
+                   unit="count /s"))
+        col.append(fits.Column(name="ERR_GEHRELS_LOW", format=rpt+"E",
+                   unit="count /s"))
+        col.append(fits.Column(name="ERR_GEHRELS_UP", format=rpt+"E",
+                   unit="count /s"))
         col.append(fits.Column(name="GROSS", format=rpt+"E",
                    unit="count /s"))
         col.append(fits.Column(name="GCOUNTS", format=rpt+"E",
+                   unit="count"))
+        col.append(fits.Column(name="TERM1", format=rpt+"E",
+                   unit="count"))
+        col.append(fits.Column(name="TERM2", format=rpt+"E",
+                   unit="count"))
+        col.append(fits.Column(name="TERM3", format=rpt+"E",
                    unit="count"))
         col.append(fits.Column(name="NET", format=rpt+"E",
                    unit="count /s"))
@@ -665,8 +689,13 @@ class OutputX1D(object):
         ofd[1].data.field("flux")[:] = 0.
         ofd[1].data.field("error")[:] = 0.
         ofd[1].data.field("gross")[:] = 0.
-        ofd[1].data.field("err_low")[:] = 0.
-        ofd[1].data.field("err_up")[:] = 0.
+        ofd[1].data.field("err_frequentist_low")[:] = 0.
+        ofd[1].data.field("err_frequentist_up")[:] = 0.
+        ofd[1].data.field("err_gehrels_low")[:] = 0.
+        ofd[1].data.field("err_gehrels_up")[:] = 0.
+        ofd[1].data.field("term1")[:] = 0.
+        ofd[1].data.field("term2")[:] = 0.
+        ofd[1].data.field("term3")[:] = 0.
         ofd[1].data.field("gcounts")[:] = 0.
         ofd[1].data.field("net")[:] = 0.
         ofd[1].data.field("background")[:] = 0.
@@ -773,8 +802,13 @@ class Spectrum(object):
         self.flux = ifd[1].data.field("flux")[row]
         self.error = ifd[1].data.field("error")[row]
         self.gross = ifd[1].data.field("gross")[row]
-        self.err_low = ifd[1].data.field("err_low")[row]
-        self.err_up = ifd[1].data.field("err_up")[row]
+        self.err_frequentist_low = ifd[1].data.field("err_frequentist_low")[row]
+        self.err_frequentist_up = ifd[1].data.field("err_frequentist_up")[row]
+        self.err_gehrels_low = ifd[1].data.field("err_gehrels_low")[row]
+        self.err_gehrels_up = ifd[1].data.field("err_gehrels_up")[row]
+        self.term1 = ifd[1].data.field("term1")[row]
+        self.term2 = ifd[1].data.field("term2")[row]
+        self.term3 = ifd[1].data.field("term3")[row]
         self.gcounts = ifd[1].data.field("gcounts")[row]
         self.net = ifd[1].data.field("net")[row]
         self.background = ifd[1].data.field("background")[row]
@@ -1181,12 +1215,14 @@ class OutputSpectrum(object):
         data.field("gross")[:] /= sumweight
         data.field("net")[:] /= sumweight
         data.field("background")[:] /= sumweight
-        error_range = poisson_conf_interval(data.field("gcounts"), interval='frequentist-confidence').T
-        error_upper = error_range[:, 1] - data.field("gcounts")
-        error_lower = data.field("gcounts") - error_range[:, 0]
+        gcounts = data.field("gcounts")[:]
+        error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(gcounts)
+        err_gehrels_lower, err_gehrels_upper = cosutil.errGehrels(gcounts)
         multiplier = data.field("flux") / data.field("net")
-        data.field("err_low")[:] = error_lower * multiplier / sumweight
-        data.field("err_up")[:] = error_upper * multiplier / sumweight
+        data.field("err_frequentist_low")[:] = error_frequentist_lower * multiplier / sumweight
+        data.field("err_frequentist_up")[:] = error_frequentist_upper * multiplier / sumweight
+        data.field("err_gehrels_low")[:] = err_gehrels_lower * multiplier / sumweight
+        data.field("err_gehrels_up")[:] = err_gehrels_upper * multiplier / sumweight
 
     def accumulateSums(self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.
@@ -1240,6 +1276,9 @@ class OutputSpectrum(object):
         flux = data.field("flux")
         error = data.field("error")
         gross = data.field("gross")
+        term1 = data.field("term1")
+        term2 = data.field("term2")
+        term3 = data.field("term3")
         gcounts = data.field("gcounts")
         net = data.field("net")
         background = data.field("background")
@@ -1274,5 +1313,11 @@ class OutputSpectrum(object):
         dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i+1] * q)
         gcounts[min_k:max_k] += (sp.gcounts[i]   * p * sp.dq_wgt[i] +
                                  sp.gcounts[i+1] * q * sp.dq_wgt[i+1])
+        term1[min_k:max_k] += (sp.term1[i]   * p * sp.dq_wgt[i] +
+                                 sp.term1[i+1] * q * sp.dq_wgt[i+1])
+        term2[min_k:max_k] += (sp.term2[i]   * p * sp.dq_wgt[i] +
+                                 sp.term2[i+1] * q * sp.dq_wgt[i+1])
+        term3[min_k:max_k] += (sp.term3[i]   * p * sp.dq_wgt[i] +
+                                 sp.term3[i+1] * q * sp.dq_wgt[i+1])
         error[min_k:max_k] += (sp.error[i]   * p * weight1 +
                                sp.error[i+1] * q * weight2)**2

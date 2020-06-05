@@ -11,6 +11,7 @@ import copy
 import numpy as np
 import numpy.linalg as LA
 import astropy.io.fits as fits
+from astropy.stats import poisson_conf_interval
 from . import ccos
 from .calcosparam import *       # parameter definitions
 
@@ -3733,7 +3734,7 @@ def centerOfQuartic(x, coeff):
 
     return x_min
 
-def errGehrels(a):
+def errGehrels(counts):
     """Compute error estimate.
 
     The error estimate is computed using the Gehrels approximation for the
@@ -3741,16 +3742,42 @@ def errGehrels(a):
 
     Parameters
     ----------
-    a: array_like or float
+    counts: array_like or float
         Number of counts (not necessarily integer values).
 
     Returns
     -------
-    array_like or float
-        The error estimate for a counts.
+    tuple of 2 array_like or float
+        (The lower error estimate for counts,
+         the upper error estimate for counts)
+    """
+    icounts = (counts + .5).astype(np.int)
+    upper = (1. + np.sqrt(icounts + 0.75))
+    lower = np.where(icounts > 0., Gehrels_lower(icounts), 0.)
+    return (lower.astype(np.float32), upper.astype(np.float32))
+
+def Gehrels_lower(counts):
+    return counts - counts * (1.0 - 1.0 / (9.0 * counts) - 1.0 / (3.0 * np.sqrt(counts)))**3
+
+def errFrequentist(counts):
+    """Compute errors using the 'frequentist-confidence' option of astropy's poisson_conf_interval
+
+    Parameters
+    ----------
+    counts: array-like or float
+        Number of counts (not necessarily integer values).
+
+    Returns
+    -------
+    tuple of 2 array-like or float
+        (The lower error estimate for counts,
+         the upper error estimate for counts)
     """
 
-    return (1. + np.sqrt(a + 0.75))
+    confidence_limits = poisson_conf_interval(counts, interval='frequentist-confidence').T
+    lower = counts - confidence_limits[:, 0]
+    upper = confidence_limits[:, 1] - counts
+    return (lower, upper)
 
 def precess(t, target):
     """Precess target to the time of observation.
