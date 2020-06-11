@@ -102,7 +102,6 @@ def oneInputFile(input, output):
         err_frequentist_up[row,:] = np.where(dq_wgt[row] <= 0., 0., err_frequentist_up[row])
         net[row,:] = np.where(dq_wgt[row] <= 0., 0., net[row])
         background[row,:] = np.where(dq_wgt[row] <= 0., 0., background[row])
-        gcounts[row,:] = np.where(dq_wgt[row] <= 0., 0., gcounts[row])
         error[row,:] = np.where(dq_wgt[row] <= 0., 0., error[row])
         err_gehrels_low[row,:] = np.where(dq_wgt[row] <= 0., 0., err_gehrels_low[row])
         err_gehrels_up[row,:] = np.where(dq_wgt[row] <= 0., 0., err_gehrels_up[row])
