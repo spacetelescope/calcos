@@ -1169,7 +1169,7 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
 
     equivalent_counts_i = term1_i + term2_i + term3_i
 
-    ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i = cosutil.error_frequentist(equivalent_counts_i)
+    ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i = cosutil.errFrequentist(equivalent_counts_i)
     ERR_GEHRELS_LOW_i, ERR_GEHRELS_UP_i = cosutil.errGehrels(equivalent_counts_i)
     err_counts_i = np.sqrt(equivalent_counts_i)
     # ERR_i is the error in the count RATE
