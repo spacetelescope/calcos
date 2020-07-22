@@ -3774,10 +3774,10 @@ def errFrequentist(counts):
          the upper error estimate for counts)
     """
 
-    confidence_limits = poisson_conf_interval(counts, interval='frequentist-confidence').T
-    lower = counts - confidence_limits[:, 0]
-    upper = confidence_limits[:, 1] - counts
-    return (lower, upper)
+    lower, upper = poisson_conf_interval(counts, interval='frequentist-confidence')
+    err_lower = counts - lower
+    err_upper = upper - counts
+    return (err_lower.astype(np.float32), err_upper.astype(np.float32))
 
 def precess(t, target):
     """Precess target to the time of observation.

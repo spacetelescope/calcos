@@ -3896,7 +3896,7 @@ def writeImages(x, y, epsilon, dq,
     ccos.binevents(x, y, C_counts, x_offset, dq, SERIOUS_DQ_FLAGS)
 
     # Use the Gehrels variance function.
-    errC_rate, dummy = cosutil.errGehrels(C_counts) 
+    errC_rate, dummy = cosutil.errFrequentist(C_counts) 
     errC_rate /= exptime
 
     if outcounts is not None:

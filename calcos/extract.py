@@ -164,15 +164,11 @@ def extract1D(input, incounts=None, output=None,
                unit="erg /s /cm**2 /angstrom"))
     col.append(fits.Column(name="ERROR", format=rpt+"E",
                unit="erg /s /cm**2 /angstrom"))
-    col.append(fits.Column(name="ERR_FREQUENTIST_LOW", format=rpt+"E",
+    col.append(fits.Column(name="ERROR_LOWER", format=rpt+"E",
                unit="erg /s /cm**2 /angstrom"))
-    col.append(fits.Column(name="ERR_FREQUENTIST_UP", format=rpt+"E",
-               unit="erg /s /cm**2 /angstrom"))
-    col.append(fits.Column(name="ERR_GEHRELS_UP", format=rpt+"E"))
-    col.append(fits.Column(name="ERR_GEHRELS_LOW", format=rpt+"E"))
-    col.append(fits.Column(name="TERM1", format=rpt+"E"))
-    col.append(fits.Column(name="TERM2", format=rpt+"E"))
-    col.append(fits.Column(name="TERM3", format=rpt+"E"))
+    col.append(fits.Column(name="VARIANCE_FLAT", format=rpt+"E"))
+    col.append(fits.Column(name="VARIANCE_COUNTS", format=rpt+"E"))
+    col.append(fits.Column(name="VARIANCE_BKG", format=rpt+"E"))
     col.append(fits.Column(name="GROSS", format=rpt+"E",
                unit="count /s"))
     col.append(fits.Column(name="GCOUNTS", format=rpt+"E",
@@ -611,8 +607,7 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         if is_corrtag:
             key = "shift1" + segment[-1]
             shift1 = ofd[1].header.get(key, 0.)
-            (N_i, ERR_i, ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i, ERR_GEHRELS_LOW_i,
-                 ERR_GEHRELS_UP_i, term1_i, term2_i, term3_i,
+            (N_i, ERROR_i, ERROR_LOWER_i, VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
                  GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i, DQ_ALL_i,
                  LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
                  ENCLOSED_FRACTION_i, BACKGROUND_PER_ROW_i, EE_LOWER_OUTER_i,
@@ -627,8 +622,7 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                                local_find_targ)
         else:
             if info["xtrctalg"] == 'BOXCAR':
-                (N_i, ERR_i, ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i, ERR_GEHRELS_LOW_i,
-                 ERR_GEHRELS_UP_i, term1_i, term2_i, term3_i,
+                (N_i, ERROR_i, ERROR_LOWER_i, VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
                  GC_i, GCOUNTS_i, BK_i,
                  DQ_i, DQ_WGT_i, DQ_ALL_i,
                  LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
@@ -645,8 +639,7 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
                                            user_xdisp_locn, user_xdisp_size,
                                            local_find_targ)
             elif info["xtrctalg"] == 'TWOZONE':
-                (N_i, ERR_i, ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i, ERR_GEHRELS_LOW_i,
-                 ERR_GEHRELS_UP_i, term1_i, term2_i, term3_i,
+                (N_i, ERROR_i, ERROR_LOWER_i, VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
                  GC_i, GCOUNTS_i, BK_i, DQ_i,
                  DQ_WGT_i, DQ_ALL_i,
                  LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
@@ -666,8 +659,7 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
             else:
                 cosutil.printMsg("Unknown extraction method, defaulting to", \
                                      " BOXCAR")
-                (N_i, ERR_i, ERR_FREQUENTIST_LOW, i, ERR_FREQUENTIST_UP_I, ERR_GEHRELS_LOW_i,
-                 ERR_GEHRELS_UP_i, term1_i, term2_i, term3_i,
+                (N_i, ERROR_i, ERROR_LOWER_i, VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
                  GC_i, GCOUNTS_i, BK_i, DQ_i,
                  DQ_WGT_i, DQ_ALL_i,
                  LOWER_OUTER_i, UPPER_OUTER_i, LOWER_INNER_i, UPPER_INNER_i,
@@ -689,16 +681,13 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
         outdata.field("EXPTIME")[row] = exptime
         outdata.field("WAVELENGTH")[row][:] = wavelength.copy()
         outdata.field("FLUX")[row][:] = 0.
-        outdata.field("ERROR")[row][:] = ERR_i.copy()
-        outdata.field("ERR_FREQUENTIST_LOW")[row][:] = ERR_FREQUENTIST_LOW_i.copy()
-        outdata.field("ERR_FREQUENTIST_UP")[row][:] = ERR_FREQUENTIST_UP_i.copy()
-        outdata.field("ERR_GEHRELS_LOW")[row][:] = ERR_GEHRELS_LOW_i.copy()
-        outdata.field("ERR_GEHRELS_UP")[row][:] = ERR_GEHRELS_UP_i.copy()
-        outdata.field("TERM1")[row][:] = term1_i.copy()
-        outdata.field("TERM2")[row][:] = term2_i.copy()
-        outdata.field("TERM3")[row][:] = term3_i.copy()
+        outdata.field("ERROR")[row][:] = ERROR_i.copy()
+        outdata.field("ERROR_LOWER")[row][:] = ERROR_LOWER_i.copy()
+        outdata.field("VARIANCE_FLAT")[row][:] = VARIANCE_FLAT_i.copy()
+        outdata.field("VARIANCE_BKG")[row][:] = VARIANCE_BKG_i.copy()
         outdata.field("GROSS")[row][:] = GC_i.copy()
         outdata.field("GCOUNTS")[row][:] = GCOUNTS_i.copy()
+        outdata.field("VARIANCE_COUNTS")[row][:] = VARIANCE_COUNTS_i.copy()
         outdata.field("NET")[row][:] = N_i.copy()
         # outdata.field("NET_ERROR")[row][:] = ERR_i.copy()     xxx
         outdata.field("BACKGROUND")[row][:] = BK_i.copy()
@@ -1160,31 +1149,24 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
     N_i = eps_i * (GC_i - BK_i)
 
     if snr_ff > 0.:
-        term1_i = (N_i * exptime / (extr_height * snr_ff))**2
+        VARIANCE_FLAT_i = (N_i * exptime / (extr_height * snr_ff))**2
     else:
-        term1_i = N_i * 0.
-    term2_i = eps_i**2 * GC_i * exptime
+        VARIANCE_FLAT_i = N_i * 0.
+    VARIANCE_COUNTS_i = eps_i**2 * GC_i * exptime
     temp_val = BK_i * exptime * (bkg_norm / float(bkg_smooth))
-    term3_i = eps_i * eps_i * temp_val
+    VARIANCE_BKG_i = eps_i * eps_i * temp_val
 
-    equivalent_counts_i = term1_i + term2_i + term3_i
-
-    ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i = cosutil.errFrequentist(equivalent_counts_i)
-    ERR_GEHRELS_LOW_i, ERR_GEHRELS_UP_i = cosutil.errGehrels(equivalent_counts_i)
-    err_counts_i = np.sqrt(equivalent_counts_i)
+    variance_i = VARIANCE_FLAT_i + VARIANCE_COUNTS_i + VARIANCE_BKG_i
+    # Use the frequentist option of the astropy Poisson confidence interval function
+    # to calculate errors
+    ERROR_LOWER_i, ERROR_i = cosutil.errFrequentist(variance_i)
     # ERR_i is the error in the count RATE
     if exptime > 0.:
-        ERR_i = err_counts_i / exptime
-        ERR_FREQUENTIST_LOW_i /= exptime
-        ERR_FREQUENTIST_UP_i /= exptime
-        ERR_GEHRELS_LOW_i /= exptime
-        ERR_GEHRELS_UP_i /= exptime
+        ERROR_LOWER_i /= exptime
+        ERROR_i /= exptime
     else:
-        ERR_i = N_i * 0.
-        ERR_FREQUENTIST_LOW_i = N_i * 0.
-        ERR_FREQUENTIST_UP_i = N_i * 0.
-        ERR_GEHRELS_LOW_i = N_i * 0.
-        ERR_GEHRELS_UP_i = N_i * 0.
+        ERROR_LOWER_i = N_i * 0.
+        ERROR_i = N_i * 0.
 
     updateExtractionKeywords(ofd_header, segment,
                              slope, extr_height,
@@ -1208,9 +1190,8 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
     UPPER_INNER_VALUE_i = N_i*0.0 + 1.0
     UPPER_OUTER_VALUE_i = N_i*0.0 + 1.0
 
-    return (N_i, ERR_i, ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i, ERR_GEHRELS_LOW_i,
-            ERR_GEHRELS_UP_i, term1_i, term2_i, term3_i, GC_i, GCOUNTS_i,
-            BK_i, DQ_i, DQ_WGT_i,
+    return (N_i, ERROR_i, ERROR_LOWER_i, VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
+            GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
             DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
             LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
             ENCLOSED_FRACTION_i, AV_E_BKG_i,
@@ -1591,37 +1572,30 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
 #
 # Now calculate the error
     if snr_ff > 0.0:
-        term1_i = (N_i * exptime / (extr_height_i * snr_ff))**2
+        VARIANCE_FLAT_i = (N_i * exptime / (extr_height_i * snr_ff))**2
     else:
-        term1_i = N_i * 0.0
-    term2_i = np.zeros(ncols, dtype=np.float32)
-    term3_i = np.zeros(ncols, dtype=np.float32)
+        VARIANCE_FLAT_i = N_i * 0.0
+    VARIANCE_COUNTS_i = np.zeros(ncols, dtype=np.float32)
+    VARIANCE_BKG_i = np.zeros(ncols, dtype=np.float32)
     goodcolumns = np.where(nrows_c_bkg_i > 0)
-    term2_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
+    VARIANCE_COUNTS_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
         * total_ccounts[goodcolumns]
-    term3_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
+    VARIANCE_BKG_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
         * av_c_bkg_i[goodcolumns] * (extr_height_i[goodcolumns])**2 \
                / (nrows_c_bkg_i[goodcolumns] * bkg_smooth)
     if exptime > 0.0:
-        # Use the Gehrels variance function
-        equivalent_counts_i = term1_i + term2_i + term3_i
-        ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i = cosutil.errFrequentist(equivalent_counts_i)
-        ERR_GEHRELS_LOW_i, ERR_GEHRELS_UP_i = cosutil.errGehrels(equivalent_counts_i)
-        ERR_i = np.sqrt(equivalent_counts_i)
-        ERR_FREQUENTIST_LOW_i /= exptime
-        ERR_FREQUENTIST_UP_i /= exptime
-        ERR_GEHRELS_LOW_i /= exptime
-        ERR_GEHRELS_UP_i /= exptime
-        ERR_i /= exptime
+        # Use the frequentist option of the astropy Poisson confidence interval function
+        # to calculate errors
+        VARIANCE_i = VARIANCE_FLAT_i + VARIANCE_COUNTS_i + VARIANCE_BKG_i
+        ERROR_LOWER_i, ERROR_i = cosutil.errFrequentist(VARIANCE_i)
+        ERROR_LOWER_i /= exptime
+        ERROR_i /= exptime
     else:
-        ERR_FREQUENTIST_LOW_i = N_i * 0.0
-        ERR_FREQUENTIST_UP_i = N_i * 0.0
-        ERR_i = N_i * 0.0
-        ERR_GEHRELS_LOW_i = N_i * 0.0
-        ERR_GEHRELS_UP_i = N_i * 0.0
+        ERROR_LOWER_i = N_i * 0.0
+        ERROR_i = N_i * 0.0
     SUMMED_BACKGROUND_i = AV_E_BKG_i * extr_height_i
     GC_i = total_ccounts
-    GCOUNTS_i = term1_i + term2_i + term3_i
+    GCOUNTS_i = GC_i * exptime
     key = "SP_ERR_" + segment[-1]
     try:
         cent_err = hdr[key]
@@ -1652,9 +1626,8 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
                              xd_nominal, centroid, cent_err, offset,
                              b_bkg1, b_bkg2,
                              bkg_height1, bkg_height2)
-    return (N_i, ERR_i, ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i, ERR_GEHRELS_LOW_i,
-            ERR_GEHRELS_UP_i, term1_i, term2_i, term3_i, GC_i, GCOUNTS_i,
-            SUMMED_BACKGROUND_i, DQ_i, DQ_WGT_i,
+    return (N_i, ERROR_i, ERROR_LOWER_i, VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
+            GC_i, GCOUNTS_i, SUMMED_BACKGROUND_i, DQ_i, DQ_WGT_i,
             DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
             LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
             ENCLOSED_FRACTION_i, AV_E_BKG_i,
@@ -2132,29 +2105,22 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
     N_i = eps_i * (GC_i - BK_i)
 
     if snr_ff > 0.:
-        term1_i = (N_i * exptime / (extr_height * snr_ff))**2
+        VARIANCE_FLAT_i = (N_i * exptime / (extr_height * snr_ff))**2
     else:
-        term1_i = N_i * 0.
-    term2_i = eps_i**2 * exptime * GC_i
-    term3_i = eps_i**2 * exptime * BK_i * (bkg_norm / float(bkg_smooth))
+        VARIANCE_FLAT_i = N_i * 0.
+    VARIANCE_COUNTS_i = eps_i**2 * exptime * GC_i
+    VARIANCE_BKG_i = eps_i**2 * exptime * BK_i * (bkg_norm / float(bkg_smooth))
     if exptime > 0.:
-        equivalent_counts_i = term1_i + term2_i + term3_i
-        equivalent_counts_i = np.where(equivalent_counts_i > 0, equivalent_counts_i, 0.)
-        # Use the Gehrels variance function.
-        ERR_GEHRELS_LOW_i, ERR_GEHRELS_UP_i = cosutil.errGehrels(equivalent_counts_i)
-        ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i = cosutil.errFrequentist(equivalent_counts_i)
-        ERR_i = np.sqrt(equivalent_counts_i)
-        ERR_GEHRELS_LOW_i /= exptime
-        ERR_GEHRELS_UP_i /= exptime
-        ERR_FREQUENTIST_LOW_i /= exptime
-        ERR_FREQUENTIST_UP_i /= exptime
-        ERR_i /= exptime
+        VARIANCE_i = VARIANCE_FLAT_i + VARIANCE_COUNTS_i + VARIANCE_BKG_i
+        VARIANCE_i = np.where(VARIANCE_i > 0, VARIANCE_i, 0.)
+        # Use the frequentist option of astropy Poisson Confidence Interval function
+        # to calculate errors
+        ERROR_LOWER_i, ERROR_i = cosutil.errFrequentist(VARIANCE_i)
+        ERROR_LOWER_i /= exptime
+        ERROR_i /= exptime
     else:
-        ERR_i = N_i * 0.
-        ERR_FREQUENTIST_LOW_i = N_i * 0.
-        ERR_FREQUENTIST_UP_i = N_i * 0.
-        ERR_GEHRELS_LOW_i = N_i * 0.
-        ERR_GEHRELS_UP_i = N_i * 0.
+        ERROR_LOWER_i = N_i * 0.
+        ERROR__i = N_i * 0.
     if ofd_header is not None:
         xd_offset = -999.               # not implemented yet
         updateExtractionKeywords(ofd_header, segment,
@@ -2173,8 +2139,9 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
     UPPER_INNER_VALUE_i = N_i*0.0 + 1.0
     UPPER_OUTER_VALUE_i = N_i*0.0 + 1.0
 
-    return (N_i, ERR_i, ERR_FREQUENTIST_LOW_i, ERR_FREQUENTIST_UP_i, ERR_GEHRELS_LOW_i,
-            ERR_GEHRELS_UP_i, term1_i, term2_i, term3_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
+    return (N_i, ERROR_i, ERROR_LOWER_i, 
+            VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
+            GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
             DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
             LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
             ENCLOSED_FRACTION_i, AV_E_BKG_i,
@@ -2213,10 +2180,7 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
     net = outdata.field("NET")
     flux = outdata.field("FLUX")
     error = outdata.field("ERROR")
-    err_frequentist_low = outdata.field("ERR_FREQUENTIST_LOW")
-    err_frequentist_up = outdata.field("ERR_FREQUENTIST_UP")
-    err_gehrels_low = outdata.field("ERR_GEHRELS_LOW")
-    err_gehrels_up = outdata.field("ERR_GEHRELS_UP")
+    error_lower = outdata.field("ERROR_LOWER")
     fluxtab = reffiles["fluxtab"]
 
     # segment will be added to filter in the loop
@@ -2242,11 +2206,7 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
         factor = np.where(factor <= 0., 1., factor)
         flux[row][:] = net[row] / factor
         error[row][:] = error[row] / factor
-        err_frequentist_low[row][:] = err_frequentist_low[row] / factor
-        err_frequentist_up[row][:] = err_frequentist_up[row] / factor
-        err_gehrels_low[row][:] = err_gehrels_low[row] / factor
-        err_gehrels_up[row][:] = err_gehrels_up[row] / factor
-
+        error_lower[row][:] = error_lower[row] / factor
     ofd[0].header["fluxcorr"] = "COMPLETE"
 
     # Compute an array of time-dependent correction factors (a potentially
@@ -2298,10 +2258,7 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
                 ccos.interp1d(wl_tds, factor_tds, wavelength[row], factor)
                 flux[row][:] /= factor
                 error[row][:] /= factor
-                err_frequentist_low[row][:] /= factor
-                err_frequentist_up[row][:] /= factor
-                err_gehrels_low[row][:] /= factor
-                err_gehrels_up[row][:] /= factor
+                error_lower[row][:] /= factor
                 if extrapolate and not printed:
                     cosutil.printWarning("TDS correction was extrapolated.")
                     printed = True
