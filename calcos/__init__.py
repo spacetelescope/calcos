@@ -7,7 +7,11 @@ except DistributionNotFound:
     # package is not installed
     __version__ = 'UNKNOWN'
 
-from .calcos import *
+# Hack fix for RTD
+try:
+    from .calcos import *
+except ImportError:
+    pass
 
 from stsci.tools import teal
 
