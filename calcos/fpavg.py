@@ -1201,6 +1201,7 @@ class OutputSpectrum(object):
         variance = data.field("variance_flat") + data.field("variance_counts") + data.field("variance_bkg")
         error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(variance)
         multiplier = data.field("flux") / data.field("net")
+        multiplier = np.where(data.field("net") == 0., 0, multiplier)
         data.field("error_lower")[:] = error_frequentist_lower * multiplier / sumweight
         data.field("error")[:] = error_frequentist_upper * multiplier / sumweight
 
