@@ -1165,6 +1165,7 @@ class OutputSpectrum(object):
 
         # Allocate space for the sum of weights.
         sumweight = np.zeros(nelem, dtype=np.float64)
+        sumrawweight = np.zeros(nelem, dtype=np.float64)
 
         # Assign wavelengths for the current row.
         data.field("wavelength")[row,:] = output_wl_range[0] + \
@@ -1172,11 +1173,11 @@ class OutputSpectrum(object):
 
         for sp in self.inspec:
             if self.segment == sp.segment:
-                self.accumulateSums(sp, data[row], sumweight)
+                self.accumulateSums(sp, data[row], sumweight, sumrawweight)
 
-        self.normalizeSums(data[row], sumweight)
+        self.normalizeSums(data[row], sumweight, sumrawweight)
 
-    def normalizeSums(self, data, sumweight):
+    def normalizeSums(self, data, sumweight, sumrawweight):
         """Divide the sums by the sum of the weights.
 
         Parameters
@@ -1189,6 +1190,7 @@ class OutputSpectrum(object):
         """
 
         sumweight = np.where(sumweight == 0., 1., sumweight)
+        sumrawweight = np.where(sumrawweight == 0., 1., sumrawweight)
 
         nelem = len(sumweight)
 
@@ -1199,13 +1201,14 @@ class OutputSpectrum(object):
         data.field("background")[:] /= sumweight
         gcounts = data.field("gcounts")[:]
         variance = data.field("variance_flat") + data.field("variance_counts") + data.field("variance_bkg")
+        variance = variance / sumrawweight
         error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(variance)
-        multiplier = data.field("flux") / data.field("net")
+        multiplier = data.field("flux") / data.field("net") / data.field("exptime")
         multiplier = np.where(data.field("net") == 0., 0, multiplier)
-        data.field("error_lower")[:] = error_frequentist_lower * multiplier / sumweight
-        data.field("error")[:] = error_frequentist_upper * multiplier / sumweight
+        data.field("error_lower")[:] = error_frequentist_lower * multiplier
+        data.field("error")[:] = error_frequentist_upper * multiplier
 
-    def accumulateSums(self, sp, data, sumweight):
+    def accumulateSums(self, sp, data, sumweight, sumrawweight):
         """Add input data to output, weighting by exposure time.
 
         The values in data and sumweight will be modified in-place.
@@ -1277,6 +1280,8 @@ class OutputSpectrum(object):
         data.setfield("exptime", data.field("exptime") + sp.exptime)
 
         sumweight[min_k:max_k] += (p * weight1 + q * weight2)
+
+        sumrawweight[min_k:max_k] += (p * sp.dq_wgt[i] + q * sp.dq_wgt[i+1])
 
         flux[min_k:max_k] += (sp.flux[i]   * p * weight1 +
                               sp.flux[i+1] * q * weight2)
