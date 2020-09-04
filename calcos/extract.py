@@ -1566,18 +1566,20 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
             DQ_ALL_i[column] = DQ_PIXEL_OUT_OF_BOUNDS
             DQ_WGT_i[column] = 0.0
     N_i = total_ecounts
+    goodcolumns = np.where(nrows_c_bkg_i > 0)
+    DQ_WGT_i = np.where(nrows_c_bkg_i > 0, DQ_WGT_i, 0.0)
     flat_correction = total_ecounts / np.where(total_ccounts <= 0.0, 1.0,
                                                total_ccounts)
     flat_correction = np.where(flat_correction == 0.0, 1.0, flat_correction)
 #
 # Now calculate the error
+    VARIANCE_FLAT_i = np.zeros(ncols, dtype=np.float32)
     if snr_ff > 0.0:
-        VARIANCE_FLAT_i = (N_i * exptime / (extr_height_i * snr_ff))**2
+        VARIANCE_FLAT_i[goodcolumns] = (N_i[goodcolumns] * exptime / (extr_height_i[goodcolumns] * snr_ff))**2
     else:
         VARIANCE_FLAT_i = N_i * 0.0
     VARIANCE_COUNTS_i = np.zeros(ncols, dtype=np.float32)
     VARIANCE_BKG_i = np.zeros(ncols, dtype=np.float32)
-    goodcolumns = np.where(nrows_c_bkg_i > 0)
     VARIANCE_COUNTS_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
         * total_ccounts[goodcolumns]
     VARIANCE_BKG_i[goodcolumns] = (flat_correction[goodcolumns])**2 * exptime \
@@ -2120,7 +2122,7 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
         ERROR_i /= exptime
     else:
         ERROR_LOWER_i = N_i * 0.
-        ERROR__i = N_i * 0.
+        ERROR_i = N_i * 0.
     if ofd_header is not None:
         xd_offset = -999.               # not implemented yet
         updateExtractionKeywords(ofd_header, segment,
