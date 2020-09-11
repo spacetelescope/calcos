@@ -6,17 +6,4 @@
 Welcome to calcos's documentation!
 ==================================
 
-Contents:
-
-.. toctree::
-   :maxdepth: 2
-
-   calcos
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
+Please see https://hst-docs.stsci.edu/cosdhb/chapter-3-cos-calibration .
