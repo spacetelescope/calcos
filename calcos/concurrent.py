@@ -602,7 +602,8 @@ class ConcurrentWavecal(object):
                 snr_ff = 0.             # ignore error array
                 axis = 1                # dispersion is along X axis
                 dummy_exptime = 1.
-                (N_i, ERR_i, GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
+                (N_i, ERR_i, ERR_LOW_i, VARIANCE_FLAT_i, VARIANCE_COUNTS_i, VARIANCE_BKG_i,
+            GC_i, GCOUNTS_i, BK_i, DQ_i, DQ_WGT_i,
             DQ_ALL_i, LOWER_OUTER_INDEX_i, UPPER_OUTER_INDEX_i,
             LOWER_INNER_INDEX_i, UPPER_INNER_INDEX_i,
             ENCLOSED_FRACTION_i, AV_E_BKG_i,
