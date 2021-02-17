@@ -3,7 +3,7 @@ if (utils.scm_checkout()) return
 
 // Define each build configuration, copying and overriding values as necessary.
 bc0 = new BuildConfig()
-bc0.nodetype = "python3.7"
+bc0.nodetype = "python3.6"
 bc0.name = "egg"
 bc0.build_cmds = ["pip install numpy",
                   "python setup.py egg_info"]
