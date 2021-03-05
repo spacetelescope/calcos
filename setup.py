@@ -5,8 +5,6 @@ from fnmatch import fnmatch
 from setuptools import setup, find_packages, Extension
 from numpy import get_include as numpy_includes
 
-print('test')
-
 def c_sources(parent):
     sources = []
     for root, _, files in os.walk(parent):
