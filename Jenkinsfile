@@ -22,13 +22,13 @@ bc1.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --
 bc1.failedUnstableThresh = 1
 bc1.failedFailureThresh = 6
 
-// Run with astropy dev and Python 3.7
+// Run with astropy dev and Python 3.8
 bc2 = utils.copy(bc1)
 bc2.name = "dev"
-bc2.conda_packages[0] = "python=3.7"
+bc2.conda_packages[0] = "python=3.8"
 bc2.build_cmds = ["pip install -e .[test]",
                   "pip install git+https://github.com/astropy/astropy.git#egg=astropy --upgrade --no-deps"]
 
 // Iterate over configurations that define the (distibuted) build matrix.
 // Spawn a host of the given nodetype for each combination and run in parallel.
-utils.run([bc0, bc1])
+utils.run([bc0, bc1, bc2])
