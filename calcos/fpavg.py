@@ -1189,22 +1189,18 @@ class OutputSpectrum(object):
         """
 
         sumweight = np.where(sumweight == 0., 1., sumweight)
-
-        nelem = len(sumweight)
-
         data.field("flux")[:] /= sumweight
-        data.field("error")[:] = np.sqrt(data.field("error")) / sumweight
         data.field("gross")[:] /= sumweight
-        data.field("net")[:] /= sumweight
         data.field("background")[:] /= sumweight
-        gcounts = data.field("gcounts")[:]
         variance = data.field("variance_flat") + data.field("variance_counts") + data.field("variance_bkg")
         variance = np.where(variance < 0.5, 0.5, variance)
         error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(variance)
-        fractional_error_upper = error_frequentist_upper / variance
-        fractional_error_lower = error_frequentist_lower / variance
-        data.field("error_lower")[:] = np.abs(data.field("flux") * fractional_error_lower)
-        data.field("error")[:] = np.abs(data.field("flux") * fractional_error_upper)
+        conversion = data.field("flux") / data.field("net")
+#        fractional_error_upper = error_frequentist_upper / variance
+#        fractional_error_lower = error_frequentist_lower / variance
+        data.setfield("error_lower", error_frequentist_lower * conversion)
+        data.setfield("error", error_frequentist_upper * conversion)
+        data.field("net")[:] /= sumweight
 
     def accumulateSums(self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.
@@ -1254,8 +1250,6 @@ class OutputSpectrum(object):
         q = ipixel[min_k:max_k] - ix
         p = 1. - q
         i = ix.astype(np.int32)
-        pqfactor = np.sqrt((p*sp.dq_wgt[i])**2 + (q*sp.dq_wgt[i+1])**2)
-        pqfactor = np.where(pqfactor == 0.0, 0.0, 1./pqfactor)
         flux = data.field("flux")
         error = data.field("error")
         gross = data.field("gross")
@@ -1296,9 +1290,9 @@ class OutputSpectrum(object):
         dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i+1] * q)
         gcounts[min_k:max_k] += (sp.gcounts[i]   * p * sp.dq_wgt[i] +
                                  sp.gcounts[i+1] * q * sp.dq_wgt[i+1])
-        variance_flat[min_k:max_k] += ((sp.variance_flat[i] * p * sp.dq_wgt[i] +
-                                 sp.variance_flat[i+1] * q * sp.dq_wgt[i+1]) * pqfactor)
-        variance_counts[min_k:max_k] += ((sp.variance_counts[i] * p* sp.dq_wgt[i] +
-                                 sp.variance_counts[i+1] * q * sp.dq_wgt[i+1]) * pqfactor)
-        variance_bkg[min_k:max_k] += ((sp.variance_bkg[i] * p * sp.dq_wgt[i] +
-                                 sp.variance_bkg[i+1] * q * sp.dq_wgt[i+1]) * pqfactor)
+        variance_flat[min_k:max_k] += (sp.variance_flat[i] * p * sp.dq_wgt[i] +
+                                 sp.variance_flat[i+1] * q * sp.dq_wgt[i+1])
+        variance_counts[min_k:max_k] += (sp.variance_counts[i] * p* sp.dq_wgt[i] +
+                                 sp.variance_counts[i+1] * q * sp.dq_wgt[i+1])
+        variance_bkg[min_k:max_k] += (sp.variance_bkg[i] * p * sp.dq_wgt[i] +
+                                 sp.variance_bkg[i+1] * q * sp.dq_wgt[i+1])
