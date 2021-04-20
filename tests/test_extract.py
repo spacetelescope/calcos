@@ -28,15 +28,43 @@ def generate_fits_file(file):
     pha = fits.Column(name='PHA', format='1B', array=np.random.rand(10, 1))
     col_defs = fits.ColDefs([time, rawx, rawy, xcorr, ycorr, xdopp, xfull, yfull, wavelength, epsilon, dq, pha])
     hdu = fits.BinTableHDU.from_columns(col_defs)
+    hdu.name = "EVENTS"
     hdu.header.set('TIME', '04/09/21')
-    """
-    hdu_list = fits.HDUList([prim_hdu, sci_hdu])
-    hdu_list.writeto(updated_disp_name, overwrite=False)
-    """
+
     prim_hdu = fits.PrimaryHDU()
 
-    hdu_list = fits.HDUList([prim_hdu, hdu])
-    # print(prim_hdu.header)
+    # define cols for gti header
+    """name = 'START'; format = '1D'; unit = 'seconds'
+    name = 'STOP'; format = '1D'; unit = 'seconds'"""
+    start = fits.Column('START', format='1D', unit='seconds', array=np.random.rand(10, 1))
+    stop = fits.Column('STOP', format='1D', unit='seconds', array=np.random.rand(10, 1))
+    col_defs = fits.ColDefs([start,stop])
+    gti_hdu = fits.BinTableHDU.from_columns(col_defs)
+    gti_hdu.name = "GTI"
+
+    # define cols for timeline header
+    time = fits.Column('TIME', format='1E', unit='s', disp='F8.3', array=np.random.rand(10, 1))
+    longitude = fits.Column('LONGITUDE', format='1E', unit='degree', disp='F10.6', coord_type='RA---TAN',
+                            coord_unit='angstrom', coord_ref_point=1.0, coord_ref_value=-999.0,
+                            array=np.random.rand(10, 1))
+    latitude = fits.Column('LATITUDE', format='1E', unit='degree', disp='F10.6', coord_type='ANGLE', coord_unit='deg',
+                           coord_ref_point=1.0, coord_ref_value=-999.0, array=np.random.rand(10, 1))
+    sun_alt = fits.Column('SUN_ALT', format='1E', unit='degree', disp='F6.2', array=np.random.rand(10, 1))
+    sun_zd = fits.Column('SUN_ZD', format='1E', unit='degree', disp='F6.2', array=np.random.rand(10, 1))
+    target_alt = fits.Column('TARGET_ALT', format='1E', unit='degree', disp='F6.2', array=np.random.rand(10, 1))
+    radial_vel = fits.Column('RADIAL_VEL', format='1E', unit='km /s', disp='F7.5', array=np.random.rand(10, 1))
+    shift1 = fits.Column('SHIFT1', format='1E', unit='pixel', disp='F7.3', array=np.random.rand(10, 1))
+    ly_alpha = fits.Column('LY_ALPHA', format='1E', unit='count /s', disp='G15.6', array=np.random.rand(10, 1))
+    oi_1305 = fits.Column('OI_1304', format='1E', unit='count /s', disp='G15.6', array=np.random.rand(10, 1))
+    oi_1356 = fits.Column('OI_1356', format='1E', unit='count /s', disp='G15.6', array=np.random.rand(10, 1))
+    darkrate = fits.Column('DARKRATE', format='1E', unit='count /s /pixel', disp='G15.6', array=np.random.rand(10, 1))
+    col_defs = fits.ColDefs(
+        [time, longitude, latitude, sun_alt, sun_zd, target_alt, radial_vel, shift1, ly_alpha, oi_1305, oi_1356,
+         darkrate])
+    time_hdu = fits.BinTableHDU.from_columns(col_defs)
+    time_hdu.name = "TIMELINE"
+    # create an hdu list
+    hdu_list = fits.HDUList([prim_hdu, hdu, gti_hdu, time_hdu])
     # write the hdu to a fits file
     if os.path.exists(file):
         os.remove(file)
@@ -111,6 +139,9 @@ def test_next_power_of_two():
 
     # Verify
     assert next_power == extract.next_power_of_two(7)
+
+
+# todo *****************************
 
 
 def test_add_column_comment():
