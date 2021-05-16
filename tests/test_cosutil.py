@@ -92,7 +92,7 @@ def test_write_output_events():
     # Setup
     in_file = "Output/outputEvent.fits"
     out_file = "Output/outputEvents.fits"
-    ofd = test_extract.generate_fits_file(in_file)
+    # ofd = test_extract.generate_fits_file(in_file)
     actual_lines = 10
     lines = cosutil.writeOutputEvents(in_file, out_file)
     # assert False
@@ -163,11 +163,11 @@ def test_gehrels_lower():
     assert actual == test_value
 
 
-# todo: handle typeError
+# todo: handle ValueError
 def test_cmp_part_exception():
     # test for exception
     with pytest.raises(ValueError) as t_err:
-        cosutil.cmpPart(5, 'k')
+        cosutil.cmpPart(5, "k")
 
 
 def test_cmp_part():
@@ -192,3 +192,34 @@ def test_split_int_letter():
     cosutil.splitIntLetter(test)
     # Verify
     assert truth == test
+
+
+def test_create_corrtag_hdu():
+    # Setup
+    hdu = test_extract.generate_fits_file("corrtag.fits")
+    inhdr = fits.getheader("corrtag.fits", 1)
+    num_of_rows = 8
+    # Test
+    outhdu = cosutil.createCorrtagHDU(num_of_rows, hdu[1])
+    # assert len(hdu[1].data) > len(outhdu.data)
+    assert len(outhdu.data) == num_of_rows
+    assert outhdu != all(hdu[1].data[0:8])
+
+
+def test_remove_wcs_keywords():
+    # Setup
+    hdu = test_extract.generate_fits_file("removeWCS.fits")
+    inhdr = fits.getheader("corrtag.fits", 1)
+    cd = hdu[1].data.columns
+    WCS_keywords = ['TCTYP*',
+                    'TCUNI*',
+                    'TCRPX*',
+                    'TCRVL*',
+                    'TCDLT*',
+                    ]
+    # Test
+    newheader = cosutil.remove_WCS_keywords(inhdr, cd)
+    # Verify
+    for keys in WCS_keywords:
+        assert keys not in newheader
+        assert len(inhdr[keys]) > 0
