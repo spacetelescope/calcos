@@ -254,3 +254,12 @@ def test_dummy_gti():
     # Verify
     assert dummy_hdu.data[0][0] == 0.0
     assert dummy_hdu.data[0][1] == test_exptime_value
+
+
+def test_return_gti():
+    # Setup
+    hdu = test_extract.generate_fits_file("gti_file.fits")
+    # Test
+    gti = cosutil.returnGTI("gti_file.fits")
+    # Verify
+    np.testing.assert_array_equal(list(hdu[2].data), gti)
