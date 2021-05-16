@@ -197,13 +197,11 @@ def test_split_int_letter():
 def test_create_corrtag_hdu():
     # Setup
     hdu = test_extract.generate_fits_file("corrtag.fits")
-    inhdr = fits.getheader("corrtag.fits", 1)
-    num_of_rows = 8
+    num_of_rows = 10
     # Test
-    outhdu = cosutil.createCorrtagHDU(num_of_rows, hdu[1])
-    # assert len(hdu[1].data) > len(outhdu.data)
-    assert len(outhdu.data) == num_of_rows
-    assert outhdu != all(hdu[1].data[0:8])
+    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, hdu[1])
+    assert len(out_bin_table.data) == num_of_rows
+    assert out_bin_table != all(hdu[1].data)
 
 
 def test_remove_wcs_keywords():
@@ -223,3 +221,36 @@ def test_remove_wcs_keywords():
     for keys in WCS_keywords:
         assert keys not in newheader
         assert len(inhdr[keys]) > 0
+
+
+def test_copy_exptime_keywords():
+    # Setup
+    # create two files
+    hdu = test_extract.generate_fits_file("original.fits")
+    test_extract.generate_fits_file("copy.fits")
+    # get header of the files
+    inhdr = fits.getheader("original.fits", 1)
+    outhdr = fits.getheader("corrtag.fits", 1)
+    print(inhdr.get("expstart", -999.))
+    hdu.close()
+    # set values to the exposure time
+    with open("original.fits", "ab+"):
+        fits.setval("original.fits", "expstart*", value=-999, ext=1)
+        print(fits.getval("original.fits", "expstart*"))
+        print(repr(inhdr))
+    # fits.setval("original.fits", "expend", value=-999, ext=1)
+    # fits.setval("original.fits", "exptime", value=-999, ext=1)
+    # fits.setval("original.fits", "rawtime", value=-999, ext=1)
+
+    # Test
+    # Verify
+
+
+def test_dummy_gti():
+    # Setup
+    test_exptime_value = 1.423
+    # Test
+    dummy_hdu = cosutil.dummyGTI(test_exptime_value)
+    # Verify
+    assert dummy_hdu.data[0][0] == 0.0
+    assert dummy_hdu.data[0][1] == test_exptime_value
