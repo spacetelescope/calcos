@@ -152,7 +152,6 @@ def test_is_product():
     assert not cosutil.isProduct(raw_file)
 
 
-# todo: check if counts can be 0.
 def test_gehrels_lower():
     # Setup
     counts = 4.0
@@ -163,10 +162,37 @@ def test_gehrels_lower():
     assert actual == test_value
 
 
-# todo: handle ValueError
+def test_err_gehrels():
+    # Setup
+    # values to be tested on
+    zeros = np.zeros(5)
+    ones = np.ones(5)
+    random_values = np.array([2.2400559, 0.85776844, 5.31731382, 8.98167105, 7.88191824]).astype(np.float32)
+    # Actual results expected
+    true_lower1 = np.random.uniform(low=0.0, high=0.0, size=(5,))
+    true_upper1 = np.array([1.8660254, 1.8660254, 1.8660254, 1.8660254, 1.8660254]).astype(np.float32)
+
+    true_lower2 = np.array([0.8285322, 0.8285322, 0.8285322, 0.8285322, 0.8285322]).astype(np.float32)
+    true_upper2 = np.array([2.3228757, 2.3228757, 2.3228757, 2.3228757, 2.3228757]).astype(np.float32)
+
+    true_lower3 = np.array([1.2879757, 0.8285322, 2.1544096, 2.9387457, 2.7635214]).astype(np.float32)
+    true_upper3 = np.array([2.6583123, 2.3228757, 3.3979158, 4.122499, 3.95804]).astype(np.float32)
+    # Test
+    lower1, upper1 = cosutil.errGehrels(zeros)  # should produce a warning
+    lower2, upper2 = cosutil.errGehrels(ones)
+    lower3, upper3 = cosutil.errGehrels(random_values)
+    # Verify
+    np.testing.assert_array_equal(true_lower1, lower1)
+    np.testing.assert_array_equal(true_upper1, upper1)
+    np.testing.assert_array_equal(true_lower2, lower2)
+    np.testing.assert_array_equal(true_upper2, upper2)
+    np.testing.assert_array_equal(true_lower3, lower3)
+    np.testing.assert_array_equal(true_upper3, upper3)
+
+
 def test_cmp_part_exception():
     # test for exception
-    with pytest.raises(ValueError) as t_err:
+    with pytest.raises(TypeError) as t_err:
         cosutil.cmpPart(5, "k")
 
 
