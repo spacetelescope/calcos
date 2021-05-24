@@ -338,10 +338,21 @@ def test_fit_quartic():
     polynom = cosutil.fitQuartic(x, y)
     # Expected
     fitted_polynomial = ([-2.00000000e+00, 2.00000000e+00, 8.46875656e-12, -1.74897134e-12,
-                                   1.23333442e-13],
+                          1.23333442e-13],
                          [4.97529008e-11, 1.33375950e-10, 3.65406961e-11, 1.56942681e-12,
-                                   7.95573614e-15])
-    test_polynomial = cosutil.fitQuartic(x,y)
+                          7.95573614e-15])
+    test_polynomial = cosutil.fitQuartic(x, y)
+    # Verify
     np.testing.assert_almost_equal(fitted_polynomial, test_polynomial)
 
 
+def test_center_of_quadratic():
+    # Setup
+    coeff = np.array([2, 4, 1])
+    var = np.array([0, 2, 4])
+    # Expected
+    actual_center = (-2.0, 4.06201920231798)
+    # Test
+    center = cosutil.centerOfQuadratic(coeff, var)
+    # Verify
+    assert actual_center == center
