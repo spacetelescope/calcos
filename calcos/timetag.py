@@ -268,6 +268,11 @@ def timetagBasicCalibration(input, inpha, outtag,
                 (wavecal_info, wavecorr) = noWavecal(input,
                                 cl_args["shift_file"],
                                 info, switches, reffiles)
+            # LP6 FUV data has no tagflash, so wavecal is done using wavecal
+            # exposures before and after each science exposure.  Long exposures
+            # with a significant difference in shifts between bracketing wavecals
+            # need a 'virtual' wavecal inserted at 600s to model the non-linear
+            # behaviour of shift vs time
             (tl_time, shift1_vs_time) = \
             updateFromWavecal(events, wavecal_info, wavecorr,
                               cl_args["shift_file"],
@@ -4338,6 +4343,7 @@ def noWavecal(input, shift_file, info, switches, reffiles):
         wavecorr = "SKIPPED"
 
     return (wavecal_info, wavecorr)
+
 
 def updateFromWavecal(events, wavecal_info, wavecorr,
                       shift_file,

@@ -1979,6 +1979,7 @@ class Observation(object):
         self.info = {}                  # detector, opt_elem, etc.
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
+        self.AddVirtualWavecal = None   # Do we add virtual wavecal (LP6 and later FUV only)
 
         indir = os.path.dirname(input)
         input_directory = expandDirectory(indir)
@@ -2845,6 +2846,9 @@ class Calibration(object):
                obs.exp_type == EXP_CALIBRATION or \
                obs.exp_type == EXP_ACQ_IMAGE:
                 obs.openTrailer()
+                # Check for whether this exposure meets the criteria for adding a virtual wavecal
+                # If so, set the obs.AddVirtualWavecal attribute to True
+                self.CheckforAddVirtualWavecal(obs)
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
@@ -2900,6 +2904,161 @@ class Calibration(object):
                         " not be updated" % spwcstab)
 
         return status
+
+    def CheckforAddVirtualWavecal(self, obs):
+        """A virtual wavecal entry needs to be inserted if these conditions are met
+
+        Parameters:
+        -----------
+
+        Returns:
+        --------
+
+        boolean
+            True if virtual wavecal is to be inserted
+        """
+        info = obs.info
+        reffiles = obs.reffiles
+        
+        if info['detector'] == 'NUV':
+            obs.AddVirtualWavecal = False
+            return
+
+        if info["life_adj"] < 6:
+            obs.AddVirtualWavecal = False
+            return
+
+        # If the other segment exists in this association and has the AddVirtualWavecal flag set,
+        # set it for this obs
+        othersegmentobs = self.getothersegmentobs(obs)
+        if othersegmentobs is not None:
+            if othersegmentobs.AddVirtualWavecal:
+                obs.AddVirtualWavecal = True
+                return
+
+        # Read info from wavecal parameters table.
+        wcp_info = cosutil.getTable(reffiles["wcptab"],
+                                    filter={"opt_elem": info["opt_elem"]},
+                                    exactly_one=True)
+        wcp_info = wcp_info[0]
+
+        time = events['time']
+        events_duration = time[-1] - time[0]
+        mintime = self.getMinTime(wcp_info)
+        if events_duration < mintime:
+            obs.AddVirtualWavecal = False
+            return
+
+        numwavecals = self.getNumWavecals(info, wavecal_info, wcp_info)
+        if numwavecals != 2:
+            obs.AddVirtualWavecal = False
+            return
+
+        minDeltaShift = self.getMinDeltaShift(wcp_info)
+        DeltaShift = self.calculateDeltaShift(events, info, wavecal_info, wcp_info)
+        if DeltaShift < minDeltaShift:
+            obs.AddVirtualWavecal = False
+            return
+
+        # If we get this far, then add virtual wavecal
+        obs.AddVirtualWavecal = True
+        # If we set it for this segment, we need to set it for the other
+        # segment, if there is one
+        if othersegmentobs is not None:
+            othersegmentobs.AddVirtualWavecal = True
+            return
+
+    def getOtherSegmentObs(self, obs):
+        othersegmentobs = None
+        info = obs.info
+        if info["segment"] == 'FUVA':
+            othersegmentletter = 'b'
+        elif info["segment"] == 'FUVB':
+            othersegmentletter = 'a'
+        rootname = obs.filenames["rootname"]
+        othersegmentending = f"_{othersegmentletter}.fits"
+        for otherobs in self.assoc.obs:
+            for filename in obs.filenames:
+                if filename.beginswith(rootname) and filename.endswith(othersegmentending):
+                    othersegmentobs = otherobs
+                    break
+        return othersegmentobs
+
+    def getMinTime(self, wcp_info):
+        """Get the minimum exposure time that a science exposure must have
+        to be eligible for a virtual wavecal
+
+        """
+        try:
+            return wcp_info['min_exptime']
+        except KeyError:
+            return 900.0
+
+    def getMinDeltaShift(self, wcp_info):
+        """Get the minimum difference between the shifts at the beginning and
+        end of the science exposure
+
+        """
+        try:
+            return wcp_info['min_shift_diff']
+        except KeyError:
+            return 0.5
+        
+    def getNumWavecals(self, info, wavecal_info, wcp_info):
+        """Get the number of wavecals for this science exposure.  If there are 2, make
+        sure one is before the exposure start and the other is after the exposure end
+
+        Parameters:
+        -----------
+
+        events: FITS Recarray
+            The table of events.  Must have a 'TIME' entry
+
+        info: Dict
+            Dictionary of COS exposure information for the science exposure
+
+        wavecal_info: List
+            List of dictionaries, one for each wavecal in the association
+
+        Returns:
+        --------
+
+        int: number of wavecal exposures for this science exposure
+
+        """
+        tmid = 0.5 * (info["expstart"] + info["expend"])
+        
+        shift_info = wavecal.ReturnWavecalShift(wavecal_info,
+                                                wcp_info, info["cenwave"],
+                                                info["fpoffset"], tmid)
+        if shift_info is not None:
+            shift_dict, slope_dict, wavecalfiles = shift_info
+        else:
+            return 0
+        
+        # wavecalfiles is a string containing the name(s) of wavecal files
+        # used to calculate the shift and slope dicts.  If more than 1, they
+        # are separated by a space
+        numfiles = len(wavecalfiles.strip().split(' '))
+        return numfiles
+
+    def calculateDeltaShift(self, events, info, wavecal_info, wcp_info):
+        """Calculate the predicted shift from the first event to the last event
+        using the slope value of the matching wavecal_info entries
+        
+        """
+        tmid = 0.5 * (info["expstart"] + info["expend"])
+        shift_info = wavecal.ReturnWavecalShift(wavecal_info, wcp_info,
+                                                info["cenwave"], info["fpoffset"],
+                                                tmid)
+        shift_dict, slope_dict, wavecalfiles = shift_info
+        
+        segmentletter = info["segment"][-1].lower()
+        key = 'shift1' + segmentletter
+        slope = slope_dict[key]
+        duration = events['time'][-1] - events['time'][0]
+        DeltaShift = duration * slope
+        return DeltaShift
 
     def extractSpectrum(self, filenames):
         """Extract a 1-D spectrum from corrtag table or from 2-D images.
