@@ -289,3 +289,59 @@ def test_return_gti():
     gti = cosutil.returnGTI("gti_file.fits")
     # Verify
     np.testing.assert_array_equal(list(hdu[2].data), gti)
+
+
+def test_err_frequentist():
+    # Setup
+    zeros = np.zeros(5)
+    ones = np.ones(5)
+    random_values = np.array([2.2400559, 0.85776844, 5.31731382, 8.98167105, 7.88191824]).astype(np.float32)
+
+    # Actual values expected
+    true_lower1 = np.zeros(5).astype(np.float32)
+    true_upper1 = np.array([1.8410217, 1.8410217, 1.8410217, 1.8410217, 1.8410217]).astype(np.float32)
+
+    true_lower2 = np.array([0.82724625, 0.82724625, 0.82724625, 0.82724625, 0.82724625]).astype(np.float32)
+    true_upper2 = np.array([2.2995265, 2.2995265, 2.2995265, 2.2995265, 2.2995265]).astype(np.float32)
+
+    true_lower3 = np.array([1.3812032, 0.74085414, 2.2319276, 2.940346, 2.7469769]).astype(np.float32)
+    true_upper3 = np.array([2.7093022, 2.2441676, 3.4480913, 4.1072574, 3.9250364]).astype(np.float32)
+    # Test
+    lower1, upper1 = cosutil.errFrequentist(zeros)
+    lower2, upper2 = cosutil.errFrequentist(ones)
+    lower3, upper3 = cosutil.errFrequentist(random_values)
+
+    # Verify
+    np.testing.assert_array_equal(true_lower1, lower1)
+    np.testing.assert_array_equal(true_upper1, upper1)
+    np.testing.assert_array_equal(true_lower2, lower2)
+    np.testing.assert_array_equal(true_upper2, upper2)
+    np.testing.assert_array_equal(true_lower3, lower3)
+    np.testing.assert_array_equal(true_upper3, upper3)
+
+
+def test_precess():
+    # Setup
+    time = 55545.270617  # MJD
+    target = np.array([3.4, 6.5, 2.5])
+    actual_coordinates = [3.3814054391781228, 6.508305447528035, 2.5036088867020565]
+    # Test
+    test_coordinates = cosutil.precess(time, target)
+    # Verify
+    np.testing.assert_array_equal(actual_coordinates, test_coordinates)
+
+
+def test_fit_quartic():
+    # Setup
+    x = np.array([1, 2, 3, 4, 5, 6])
+    y = np.array([2, 4, 6, 8, 10, 12])
+    polynom = cosutil.fitQuartic(x, y)
+    # Expected
+    fitted_polynomial = ([-2.00000000e+00, 2.00000000e+00, 8.46875656e-12, -1.74897134e-12,
+                                   1.23333442e-13],
+                         [4.97529008e-11, 1.33375950e-10, 3.65406961e-11, 1.56942681e-12,
+                                   7.95573614e-15])
+    test_polynomial = cosutil.fitQuartic(x,y)
+    np.testing.assert_almost_equal(fitted_polynomial, test_polynomial)
+
+
