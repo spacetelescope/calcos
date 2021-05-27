@@ -374,29 +374,26 @@ def test_copy_exptime_keywords():
     # create two files
     test_extract.generate_fits_file("original.fits")
     test_extract.generate_fits_file("copy.fits")
+    files = ["original.fits","copy.fits"]
+    headers = ["expstart","expend","exptime","rawtime"]
     # set values to the exposure time
-    with open("original.fits", "ab+"):
-        fits.setval("original.fits", "expstart", value=-999, ext=1)
-        # print(fits.getval("original.fits", "expstart", ext=1))
-        fits.setval("original.fits", "expend", value=-999, ext=1)
-        fits.setval("original.fits", "exptime", value=-999, ext=1)
-        fits.setval("original.fits", "rawtime", value=-999, ext=1)
-    # set values in the copy to 0 to check if the function is actually changing the values.
-    with open("copy.fits", "ab+"):
-        fits.setval("copy.fits", "expstart", value=0, ext=1)
-        fits.setval("copy.fits", "expend", value=0, ext=1)
-        fits.setval("copy.fits", "exptime", value=0, ext=1)
-        fits.setval("copy.fits", "rawtime", value=0, ext=1)
+    for file in files:
+        with open(file, "ab+"):
+            for header in headers:
+                if file == files[0]:
+                    fits.setval(file, header, value=-999, ext=1)
+            # set values in the copy to 0 to check if the function is actually changing the values.
+                else:
+                    fits.setval(file, header, value=0, ext=1)
     # get header of the files
     inhdr = fits.getheader("original.fits", 1)
     outhdr = fits.getheader("copy.fits", 1)
     # Test
     cosutil.copyExptimeKeywords(inhdr, outhdr)
     # Verify
-    assert inhdr["expstart"] == outhdr["expstart"]
-    assert inhdr["expend"] == outhdr["expend"]
-    assert inhdr["exptime"] == outhdr["exptime"]
-    assert inhdr["rawtime"] == outhdr["rawtime"]
+    for header in headers:
+        assert inhdr[header] == outhdr[header]
+
 
 
 def test_copy_voltage_keywords():
@@ -448,3 +445,10 @@ def test_copy_voltage_keywords():
     # Verify 2
     for header in nuv_headers:
         assert in_NUV_hdr[header] == out_NUV_hdr[header]
+
+
+def test_copy_sub_keywords():
+    # Setup
+    # Test
+    # Verify
+    assert False
