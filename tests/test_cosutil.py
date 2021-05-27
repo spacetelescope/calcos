@@ -397,3 +397,54 @@ def test_copy_exptime_keywords():
     assert inhdr["expend"] == outhdr["expend"]
     assert inhdr["exptime"] == outhdr["exptime"]
     assert inhdr["rawtime"] == outhdr["rawtime"]
+
+
+def test_copy_voltage_keywords():
+    # Setup
+    # create two files each for FUV and NUV
+    test_extract.generate_fits_file("originalFUV.fits")
+    test_extract.generate_fits_file("originalNUV.fits")
+    test_extract.generate_fits_file("copyFUV.fits")
+    test_extract.generate_fits_file("copyNUV.fits")
+    original = ["originalFUV.fits", "originalNUV.fits"]
+    copy = ["copyFUV.fits", "copyNUV.fits"]
+    detectors = ["FUV", "NUV"]
+    fuv_headers = ["dethvla", "dethvlb", "dethvca", "dethvcb", "dethvna", "dethvnb"]
+    nuv_headers = ["dethvl", "dethvc"]
+    # set the values to the headers
+    index = 0
+    for fileName in original:
+        detector = detectors[index]
+        with open(fileName, "ab+"):
+            if detector == "FUV":
+                for header in fuv_headers:
+                    fits.setval(fileName, header, value=-999., ext=1)
+            else:
+                for header in nuv_headers:
+                    fits.setval(fileName, header, value=-999, ext=1)
+        index += 1
+    index = 0
+    for fileName in copy:
+        detector = detectors[index]
+        with open(fileName, "ab+"):
+            if detector == "FUV":
+                for header in fuv_headers:
+                    fits.setval(fileName, header, value=0., ext=1)
+            else:
+                for header in nuv_headers:
+                    fits.setval(fileName, header, value=0., ext=1)
+        index += 1
+    in_FUV_hdr = fits.getheader("originalFUV.fits", 1)
+    in_NUV_hdr = fits.getheader("originalNUV.fits", 1)
+    out_FUV_hdr = fits.getheader("copyFUV.fits", 1)
+    out_NUV_hdr = fits.getheader("copyNUV.fits", 1)
+    # Test 1
+    cosutil.copyVoltageKeywords(in_FUV_hdr, out_FUV_hdr, detectors[0])
+    # Verify 1
+    for header in fuv_headers:
+        assert in_FUV_hdr[header] == out_FUV_hdr[header]
+    # Test 2
+    cosutil.copyVoltageKeywords(in_NUV_hdr, out_NUV_hdr, detectors[1])
+    # Verify 2
+    for header in nuv_headers:
+        assert in_NUV_hdr[header] == out_NUV_hdr[header]
