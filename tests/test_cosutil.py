@@ -374,15 +374,15 @@ def test_copy_exptime_keywords():
     # create two files
     test_extract.generate_fits_file("original.fits")
     test_extract.generate_fits_file("copy.fits")
-    files = ["original.fits","copy.fits"]
-    headers = ["expstart","expend","exptime","rawtime"]
+    files = ["original.fits", "copy.fits"]
+    headers = ["expstart", "expend", "exptime", "rawtime"]
     # set values to the exposure time
     for file in files:
         with open(file, "ab+"):
             for header in headers:
                 if file == files[0]:
                     fits.setval(file, header, value=-999, ext=1)
-            # set values in the copy to 0 to check if the function is actually changing the values.
+                # set values in the copy to 0 to check if the function is actually changing the values.
                 else:
                     fits.setval(file, header, value=0, ext=1)
     # get header of the files
@@ -393,7 +393,6 @@ def test_copy_exptime_keywords():
     # Verify
     for header in headers:
         assert inhdr[header] == outhdr[header]
-
 
 
 def test_copy_voltage_keywords():
@@ -449,6 +448,31 @@ def test_copy_voltage_keywords():
 
 def test_copy_sub_keywords():
     # Setup
+    test_extract.generate_fits_file("subKeywords.fits")
+    test_extract.generate_fits_file("copySubKeywords.fits")
+    files = ["subKeywords.fits", "copySubKeywords.fits"]
+    headers = ["corner%1dx", "corner%1dy", "size%1dx", "size%1dy"]
+
+    for file in files:
+        with open(file, "ab+"):
+            for header in headers:
+                for i in range(8):
+                    if file == files[0]:
+                        fits.setval(file, header % i, value=-1, ext=1)
+                    else:  # set the value of the copy to 0 to test for change.
+                        fits.setval(file, header % i, value=0, ext=1)
+    with open(files[0], "ab+"):
+        fits.setval(files[0], "nsubarry", value=0, ext=1)
+    with open(files[1], "ab+"):
+        fits.setval(files[1], "nsubarry", value=-1, ext=1)
+    inhdr = fits.getheader(files[0], 1)
+    outhdr = fits.getheader(files[1], 1)
     # Test
+    cosutil.copySubKeywords(inhdr, outhdr, False)
     # Verify
-    assert False
+    for header in headers:
+        for i in range(8):
+            assert inhdr[header % i] == outhdr[header % i]
+    cosutil.copySubKeywords(inhdr, outhdr, True)
+    # check if nsubarry has been set to 0
+    assert inhdr["nsubarry"] == outhdr["nsubarry"]
