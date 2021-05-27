@@ -249,29 +249,6 @@ def test_remove_wcs_keywords():
         assert len(inhdr[keys]) > 0
 
 
-def test_copy_exptime_keywords():
-    # Setup
-    # create two files
-    hdu = test_extract.generate_fits_file("original.fits")
-    test_extract.generate_fits_file("copy.fits")
-    # get header of the files
-    inhdr = fits.getheader("original.fits", 1)
-    outhdr = fits.getheader("corrtag.fits", 1)
-    print(inhdr.get("expstart", -999.))
-    hdu.close()
-    # set values to the exposure time
-    with open("original.fits", "ab+"):
-        fits.setval("original.fits", "expstart*", value=-999, ext=1)
-        print(fits.getval("original.fits", "expstart*"))
-        print(repr(inhdr))
-    # fits.setval("original.fits", "expend", value=-999, ext=1)
-    # fits.setval("original.fits", "exptime", value=-999, ext=1)
-    # fits.setval("original.fits", "rawtime", value=-999, ext=1)
-
-    # Test
-    # Verify
-
-
 def test_dummy_gti():
     # Setup
     test_exptime_value = 1.423
@@ -348,6 +325,7 @@ def test_fit_quartic():
 
 def test_center_of_quadratic():
     # Setup
+    # todo add more cases
     coeff = np.array([2, 4, 1])
     var = np.array([0, 2, 4])
     # Expected
@@ -356,3 +334,66 @@ def test_center_of_quadratic():
     center = cosutil.centerOfQuadratic(coeff, var)
     # Verify
     assert actual_center == center
+
+
+def test_fit_quadratic():
+    # Setup
+    x = np.array([1, 2, 4])
+    y = np.array([0, 7, 15])
+    # Expected
+    expected_quadratic = (np.array([-9., 10., -1.]), np.array([0., 0., 0.]))
+    # Test
+    fitted_quadratic = cosutil.fitQuadratic(x, y)
+    # Verify
+    # todo: arrays have the same value but fail to assert.
+    np.testing.assert_array_almost_equal(expected_quadratic[0], fitted_quadratic[0])
+    np.testing.assert_array_almost_equal(expected_quadratic[1], fitted_quadratic[1])
+
+
+def test_change_segment():
+    # Setup
+    filename1 = "testfits_a.fits"
+    filename2 = "testfits_b.fits"
+    filename3 = "testfits.fits"
+    # Expected
+    fname1 = "testfits_b.fits"
+    fname2 = "testfits_a.fits"
+    fname3 = "testfits.fits"
+    # Test
+    test_name1 = cosutil.changeSegment(filename1, "FUV", "FUVB")
+    test_name2 = cosutil.changeSegment(filename2, "FUV", "FUVA")
+    test_name3 = cosutil.changeSegment(filename3, "NUV", "")
+    # Verify
+    assert fname1 == test_name1
+    assert fname2 == test_name2
+    assert fname3 == test_name3
+
+
+def test_copy_exptime_keywords():
+    # Setup
+    # create two files
+    test_extract.generate_fits_file("original.fits")
+    test_extract.generate_fits_file("copy.fits")
+    # set values to the exposure time
+    with open("original.fits", "ab+"):
+        fits.setval("original.fits", "expstart", value=-999, ext=1)
+        # print(fits.getval("original.fits", "expstart", ext=1))
+        fits.setval("original.fits", "expend", value=-999, ext=1)
+        fits.setval("original.fits", "exptime", value=-999, ext=1)
+        fits.setval("original.fits", "rawtime", value=-999, ext=1)
+    # set values in the copy to 0 to check if the function is actually changing the values.
+    with open("copy.fits", "ab+"):
+        fits.setval("copy.fits", "expstart", value=0, ext=1)
+        fits.setval("copy.fits", "expend", value=0, ext=1)
+        fits.setval("copy.fits", "exptime", value=0, ext=1)
+        fits.setval("copy.fits", "rawtime", value=0, ext=1)
+    # get header of the files
+    inhdr = fits.getheader("original.fits", 1)
+    outhdr = fits.getheader("copy.fits", 1)
+    # Test
+    cosutil.copyExptimeKeywords(inhdr, outhdr)
+    # Verify
+    assert inhdr["expstart"] == outhdr["expstart"]
+    assert inhdr["expend"] == outhdr["expend"]
+    assert inhdr["exptime"] == outhdr["exptime"]
+    assert inhdr["rawtime"] == outhdr["rawtime"]
