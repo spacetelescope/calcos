@@ -606,3 +606,27 @@ def test_print_intro():
     message = message + " -- " + time
     # Verify
     assert captured_msg == message
+
+
+def test_print_filenames():
+    # Setup
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg
+    verbosity = 4
+    names = [("Input", "abc_raw.fits"), ("Output", "abc_flt.fits")]
+    stimfile = "stim.txt"
+    livetimefile = "live.txt"
+    expected_msg = ""
+    for (lable, filename) in names:
+        expected_msg += "%-10s%s\n" % (lable, filename)
+    expected_msg += "stim locations log file   " + stimfile+"\n"
+    expected_msg += "livetime factors log file " + livetimefile + "\n"
+    # Test
+    cosutil.setVerbosity(verbosity)
+    cosutil.printFilenames(names, shift_file=None, stimfile=stimfile, livetimefile=livetimefile)
+    sys.stdout = sys.__stdout__
+    # Verify
+    assert expected_msg == captured_msg.getvalue()
+
+
+test_print_filenames()
