@@ -752,3 +752,18 @@ def test_guess_aper_from_locn():
     assert expected_aper1 == test_postitions1
     assert expected_aper2 == test_postitions2
     assert test_postitions3 is None
+
+
+def test_segment_specific_keyword():
+    # Setup
+    root = "keyword_root_"
+    seg = "FUVA"
+    seg2 = "NUV"
+    # Test
+    key = cosutil.segmentSpecificKeyword(root, seg)
+    key2 = cosutil.segmentSpecificKeyword(root, seg2)
+    # Verify
+    root2 = root
+    root += "a"
+    assert key == root
+    assert key2 == root2
