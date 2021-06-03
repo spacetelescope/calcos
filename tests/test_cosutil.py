@@ -1,3 +1,7 @@
+import os
+import sys
+import io
+
 import numpy as np
 import pytest
 from astropy.io import fits
@@ -476,3 +480,104 @@ def test_copy_sub_keywords():
     cosutil.copySubKeywords(inhdr, outhdr, True)
     # check if nsubarry has been set to 0
     assert inhdr["nsubarry"] == outhdr["nsubarry"]
+
+
+def test_modify_asn_mtyp():
+    # Setup
+    str1 = "EXP-TESTVALUE"
+    str2 = "EXP_SECONDVALUE"
+    str3 = "VALUE_WITHOUT_PREFIX"
+    # Expected vals
+    string1 = "PROD-TESTVALUE"
+    string2 = "PROD_SECONDVALUE"
+    string3 = str3
+    # Test
+    val1 = cosutil.modifyAsnMtyp(str1)
+    val2 = cosutil.modifyAsnMtyp(str2)
+    val3 = cosutil.modifyAsnMtyp(str3)
+    # Verify
+    assert string1 == val1
+    assert string2 == val2
+    assert string3 == val3
+
+
+def test_rename_file():
+    # Setup
+    original_filename1 = "raw-file.fits"
+    original_filename2 = "product0_file_a.fits"
+
+    new_filename1 = "renamed_raw_file.fits"
+    new_filename2 = "renamed0_file_a.fits"
+    # Create the files
+    test_extract.generate_fits_file(original_filename1)
+    test_extract.generate_fits_file(original_filename2)
+    # Test
+    cosutil.renameFile(original_filename1, new_filename1)
+    cosutil.renameFile(original_filename2, new_filename2)
+    # Verify
+    assert os.path.exists(new_filename1)
+    assert os.path.exists(new_filename2)
+
+
+def test_del_corrtag_wcs():
+    # Setup
+    test_extract.generate_fits_file("del_corrtagWCS.fits")
+    thdr = fits.getheader("del_corrtagWCS.fits", 3)
+    tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
+            "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
+    # Test
+    thdr = cosutil.delCorrtagWCS(thdr)
+    # Verify
+    for key in tkey:
+        assert key not in thdr
+
+
+def test_set_verbosity():
+    # Setup
+    verbosity = 5
+    # Test
+    cosutil.setVerbosity(verbosity)
+    test_value = cosutil.verbosity
+    # Verify
+    assert verbosity == test_value
+
+
+def test_check_verbosity():
+    # Setup
+    verbosity = 4
+    # Test
+    cosutil.setVerbosity(3)
+    test1 = cosutil.verbosity
+    check_verbosity = cosutil.checkVerbosity(verbosity)  # should be False
+    cosutil.setVerbosity(verbosity)
+    check2 = cosutil.checkVerbosity(verbosity)  # should be True
+    # Verify
+    assert not check_verbosity
+    assert check2
+
+
+def test_set_write_to_trailer():
+    # Setup
+    flag = True
+    # Test
+    cosutil.setWriteToTrailer(flag)  # should change to True
+    flag_value = cosutil.write_to_trailer
+    cosutil.setWriteToTrailer()  # should change to False
+    # Verify
+    assert flag_value
+    assert not cosutil.write_to_trailer
+
+
+def test_print_msg():
+    # Setup
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg  # redirect stdout
+    verbosity_level = 4
+    test_message = "message from pytest"
+    # Test
+    cosutil.setVerbosity(verbosity_level)
+    cosutil.printMsg(test_message, verbosity_level)
+    sys.stdout = sys.__stdout__  # reset the redirect
+    # Verify
+    print(captured_msg.getvalue()[:-1])
+    assert test_message == captured_msg.getvalue()[:-1]  # to remove the newline at the end
