@@ -708,4 +708,21 @@ def test_print_ref():
     assert message == captured_msg.getvalue()
 
 
-test_print_ref()
+def test_print_switch():
+    # Setup
+    switches = {"statflag": "PERFORM", "flatcorr": "PERFORM", "geocorr": "COMPLETE", "randcorr": "SKIPPED"}
+    keys = ["STATFLAG", "FLATCORR", "GEOCORR", "RANDCORR"]
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg
+    msg1 = "STATFLAG  T\n"
+    msg2 = "FLATCORR  PERFORM\n"
+    msg3 = "%-9s OMIT (already complete)" % keys[2].upper() + "\n"
+    msg4 = "%-9s OMIT (skipped)" % keys[3].upper()+"\n"
+    actual_msg = msg1+msg2+msg3+msg4
+    # Test
+    for key in keys:
+        cosutil.printSwitch(key,switches)
+        captured_msg.flush()
+    sys.stdout = sys.__stdout__
+    # Verify
+    assert actual_msg == captured_msg.getvalue()
