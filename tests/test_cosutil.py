@@ -717,12 +717,38 @@ def test_print_switch():
     msg1 = "STATFLAG  T\n"
     msg2 = "FLATCORR  PERFORM\n"
     msg3 = "%-9s OMIT (already complete)" % keys[2].upper() + "\n"
-    msg4 = "%-9s OMIT (skipped)" % keys[3].upper()+"\n"
-    actual_msg = msg1+msg2+msg3+msg4
+    msg4 = "%-9s OMIT (skipped)" % keys[3].upper() + "\n"
+    actual_msg = msg1 + msg2 + msg3 + msg4
     # Test
     for key in keys:
-        cosutil.printSwitch(key,switches)
+        cosutil.printSwitch(key, switches)
         captured_msg.flush()
     sys.stdout = sys.__stdout__
     # Verify
     assert actual_msg == captured_msg.getvalue()
+
+
+def test_guess_aper_from_locn():
+    # Setup
+    lps = [1, 2, 3]
+    aper_pos1 = [120.2, -151.34, 2.34]  # lp 1
+    expected_aper1 = ["PSA", "BOA", None]
+    aper_pos2 = [63.2, -214.89, 10.67]  # lp 2
+    expected_aper2 = ['PSA', 'BOA', None]
+    # Test
+    test_postitions1 = []
+    test_postitions2 = []
+    test_postitions3 = []
+    for lp in lps:
+        if lp == 1:
+            for pos in aper_pos1:
+                test_postitions1.append(cosutil.guessAperFromLocn(lp, pos))
+        elif lp == 2:
+            for pos in aper_pos2:
+                test_postitions2.append(cosutil.guessAperFromLocn(lp, pos))
+        else:
+            test_postitions3 = None
+    # Verify
+    assert expected_aper1 == test_postitions1
+    assert expected_aper2 == test_postitions2
+    assert test_postitions3 is None
