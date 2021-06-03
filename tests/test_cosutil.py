@@ -629,22 +629,22 @@ def test_print_filenames():
     assert expected_msg == captured_msg.getvalue()
 
 
-# def test_print_mode():
-#     # Setup
-#     hdu_list = test_extract.generate_fits_file("printMode_test.fits")
-#     hdr = hdu_list[1]
-#     info = hdr
-#     captured_mgs = io.StringIO()
-#     sys.stdout = captured_mgs
-#     # Test
-#     cosutil.printMode(info)
-#     sys.stdout = sys.__stdout__
-#     print(captured_mgs.getvalue())
-#     # Verify
-#     # assert False
-#
-#
-# # test_print_mode()
+def test_print_mode():
+    # Setup
+    hdu_list = test_extract.generate_fits_file("printMode_test.fits")
+    hdr = hdu_list[1]
+    info = hdr
+    captured_mgs = io.StringIO()
+    sys.stdout = captured_mgs
+    # Test
+    cosutil.printMode(info)
+    sys.stdout = sys.__stdout__
+    print(captured_mgs.getvalue())
+    # Verify
+    # assert False
+
+
+# test_print_mode()
 
 
 def test_print_warning():
@@ -689,3 +689,23 @@ def test_print_continuation():
     sys.stdout = sys.__stdout__
     message = "    " + message + "\n"
     assert message == captured_msg.getvalue()
+
+
+def test_print_ref():
+    # Setup
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg
+    verbosity = 4
+    keyw = "flatfile".upper()
+    reffiles = {"flatfile": "abc_flat.fits", "flatfile_hdr": "lref$abc_flat.fits"}
+    message = "%-8s= %s" % (keyw, reffiles[keyw.lower() + "_hdr"]) + "\n"
+    cosutil.setVerbosity(verbosity)
+    # Test
+    cosutil.printRef(keyw, reffiles)
+    sys.stdout = sys.__stdout__
+    print(message)
+    # Verify
+    assert message == captured_msg.getvalue()
+
+
+test_print_ref()
