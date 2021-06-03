@@ -1,6 +1,7 @@
+import io
 import os
 import sys
-import io
+import time
 
 import numpy as np
 import pytest
@@ -581,3 +582,27 @@ def test_print_msg():
     # Verify
     print(captured_msg.getvalue()[:-1])
     assert test_message == captured_msg.getvalue()[:-1]  # to remove the newline at the end
+
+
+def test_return_time():
+    t = time.strftime("%d-%b-%Y %H:%M:%S %Z", time.localtime(time.time()))
+    get_time = cosutil.returnTime()
+    assert t == get_time
+
+
+def test_print_intro():
+    # Setup
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg
+    verbosity = 4
+    message = "Pytest message"
+    # Test
+    cosutil.setVerbosity(verbosity)
+    cosutil.printIntro(message)
+    sys.stdout = sys.__stdout__
+    # remove the newlines at the beginning and end
+    captured_msg = captured_msg.getvalue()[1:-1]
+    time = cosutil.returnTime()
+    message = message + " -- " + time
+    # Verify
+    assert captured_msg == message
