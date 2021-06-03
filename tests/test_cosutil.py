@@ -619,7 +619,7 @@ def test_print_filenames():
     expected_msg = ""
     for (lable, filename) in names:
         expected_msg += "%-10s%s\n" % (lable, filename)
-    expected_msg += "stim locations log file   " + stimfile+"\n"
+    expected_msg += "stim locations log file   " + stimfile + "\n"
     expected_msg += "livetime factors log file " + livetimefile + "\n"
     # Test
     cosutil.setVerbosity(verbosity)
@@ -629,4 +629,63 @@ def test_print_filenames():
     assert expected_msg == captured_msg.getvalue()
 
 
-test_print_filenames()
+# def test_print_mode():
+#     # Setup
+#     hdu_list = test_extract.generate_fits_file("printMode_test.fits")
+#     hdr = hdu_list[1]
+#     info = hdr
+#     captured_mgs = io.StringIO()
+#     sys.stdout = captured_mgs
+#     # Test
+#     cosutil.printMode(info)
+#     sys.stdout = sys.__stdout__
+#     print(captured_mgs.getvalue())
+#     # Verify
+#     # assert False
+#
+#
+# # test_print_mode()
+
+
+def test_print_warning():
+    # Setup
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg
+    verbosity = 4
+    message = "warning message from pytest"
+    # Test
+    cosutil.setVerbosity(verbosity)
+    cosutil.printWarning(message, verbosity)
+    sys.stdout = sys.__stdout__
+    message = "Warning:  " + message + "\n"
+    # Verify
+    assert message == captured_msg.getvalue()
+
+
+def test_print_error():
+    # Setup
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg
+    verbosity = 4
+    message = "error message from pytest"
+    # Test
+    cosutil.setVerbosity(verbosity)
+    cosutil.printError(message)
+    sys.stdout = sys.__stdout__
+    message = "ERROR:  " + message + "\n"
+    # Verify
+    assert message == captured_msg.getvalue()
+
+
+def test_print_continuation():
+    # Setup
+    captured_msg = io.StringIO()
+    sys.stdout = captured_msg
+    verbosity = 4
+    message = "continued message from pytest"
+    # Test
+    cosutil.setVerbosity(verbosity)
+    cosutil.printContinuation(message, level=verbosity)
+    sys.stdout = sys.__stdout__
+    message = "    " + message + "\n"
+    assert message == captured_msg.getvalue()
