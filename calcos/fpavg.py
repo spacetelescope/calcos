@@ -1196,6 +1196,12 @@ class OutputSpectrum(object):
         variance = np.where(variance < 0.5, 0.5, variance)
         error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(variance)
         conversion = data.field("flux") / data.field("net")
+#       Clean out NaNs from where flux and net are zero
+        good = np.where(~np.isnan(conversion))
+        bad = np.where(np.isnan(conversion))
+        wavelength = data.field("wavelength")
+        interpolated_values = np.interp(wavelength[bad], wavelength[good], conversion[good])
+        conversion[bad] = interpolated_values
 #        fractional_error_upper = error_frequentist_upper / variance
 #        fractional_error_lower = error_frequentist_lower / variance
         data.setfield("error_lower", error_frequentist_lower * conversion)
