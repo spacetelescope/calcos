@@ -633,13 +633,13 @@ def test_print_mode():
     # Setup
     hdu_list = test_extract.generate_fits_file("printMode_test.fits")
     hdr = hdu_list[1]
-    info = hdr
     captured_mgs = io.StringIO()
     sys.stdout = captured_mgs
     # Test
-    cosutil.printMode(info)
+    cosutil.printMode(hdr)
     sys.stdout = sys.__stdout__
     print(captured_mgs.getvalue())
+    # todo can't find keys
     # Verify
     # assert False
 
@@ -767,3 +767,120 @@ def test_segment_specific_keyword():
     root += "a"
     assert key == root
     assert key2 == root2
+
+
+def test_expand_file_name():
+    # Setup
+    file1 = "$lref/thisIsATestFile1.fits"
+    file2 = "lref$thisIsATestFile2.fits"
+
+    abs_path1 = "/grp/hst/cdbs/lref//thisIsATestFile1.fits"
+    abs_path2 = "/grp/hst/cdbs/lref/thisIsATestFile2.fits"
+    # Test
+    path1 = cosutil.expandFileName(file1)
+    path2 = cosutil.expandFileName(file2)
+    # Verify
+    assert abs_path1 == path1
+    assert abs_path2 == path2
+
+
+def test_find_ref_file():
+    # Setup
+    # Missing
+    ref1 = {"keyword": "FLATFILE", "filename": "test_flt.fits", "calcos_ver": "3.0",
+            "min_ver": "2.2", "filetype": "FLAT FIELD REFERENCE IMAGE"}
+    # Bad version
+    ref2 = {"keyword": "FLATFILE", "filename": "test.fits", "calcos_ver": "2.21",
+            "min_ver": "3.3", "filetype": "FLAT FIELD REFERENCE IMAGE"}
+    missing1 = {}
+    missing2 = {}
+    wrong_f1 = {}
+    wrong_f2 = {}
+    bad_ver1 = {}
+    bad_ver2 = {}
+    # Actual values
+    actual_missing = {"FLATFILE": "test_flt.fits"}
+    actual_bad_ver = {"FLATFILE": ("test.fits", "  the reference file must be at least version 3.3")}
+    # Test
+    cosutil.findRefFile(ref1, missing1, wrong_f1, bad_ver1)
+    cosutil.findRefFile(ref2, missing2, wrong_f2, bad_ver2)
+    # Verify
+    assert actual_missing == missing1
+    assert actual_bad_ver == bad_ver2
+
+
+def test_cmp_version():
+    # Setup
+    min_ver = ["1", "1", "1.1", "1.1", "1.1", "1.2", "1.0", "2.7", "2.0", "2.9", "2.12d", "2.13d", "2.13"]
+    vcalcos = ["1", "1.1", "1", "1.1", "1.2", "1.1", "1.7", "2.8", "2.13.1", "2.9", "2.13b", "2.13b", "2.13b"]
+    calcos_ver = ["1.1", "1", "1", "1.2", "1.1", "1.1", "2.3", "2.8a", "2.13", "2.13.1", "2.12a", "2.13a", "2.13c"]
+
+    expected_cmp = [0, 1, -1, 0, 1, -1, 0, 0, 1, 0, 1, -1, 0]
+    # Test
+    test_cmp = []
+    for i in range(len(expected_cmp)):
+        test_cmp.append(cosutil.cmpVersion(min_ver[i], vcalcos[i], calcos_ver[i]))
+    # Verify
+    assert expected_cmp == test_cmp
+
+
+def test_get_pedigree():
+    # Setup
+    capture_msg = io.StringIO()
+    sys.stdout = capture_msg
+    switch = "perform"
+    refkey = "statflag"
+    filename = "test_flt.file"
+    test_extract.generate_fits_file(filename)
+    err_msg = "Warning:  STATFLAG test_flt.file is a dummy file\n" \
+              "    so PERFORM will not be done.\n"
+    # Test
+    pedgr1 = cosutil.getPedigree(switch, refkey, filename)
+    fits.setval(filename, "pedigree", value="DUMMY", ext=0)
+    pedgr2 = cosutil.getPedigree(switch, refkey, filename)
+    sys.stdout = sys.__stdout__
+    print(capture_msg.getvalue())
+
+    # Verify
+    assert pedgr1 == "OK"
+    assert pedgr2 == "DUMMY"
+    assert err_msg == capture_msg.getvalue()
+
+
+def test_get_aperture_keyword():
+    # Setup
+    hdu = test_extract.generate_fits_file("aperture_test.fits")
+    hdr = fits.getheader("aperture_test.fits")
+    # Test
+    rtn_value = cosutil.getApertureKeyword(hdr)
+    # Verify
+    print(rtn_value)
+    # todo rtn_value is ('N/A', '')
+    assert True
+
+
+def test_write_version_to_trailer():
+    capture_msg = io.StringIO()
+    sys.stdout = capture_msg
+    test_extract.generate_fits_file("dummy_file.fits")
+    file = open("dummy_file.fits", 'a')
+    cosutil.fd_trl = file
+    cosutil.CALCOS_VERSION = '3.1.0'
+    cosutil.writeVersionToTrailer()
+    sys.stdout = sys.__stdout__
+    print(capture_msg.getvalue())
+    assert True
+
+
+def test_get_switch():
+    # Setup
+    test_extract.generate_fits_file("switch.fits")
+    phdr = fits.getheader("switch.fits", ext=0)
+    keyword = "statflag"
+    # Test
+    switch = cosutil.getSwitch(phdr, keyword)
+    phdr.set('STATFLAG', False, 'Calculate statistics')
+    switch2 = cosutil.getSwitch(phdr, keyword)
+    # Verify
+    assert switch == 'PERFORM'
+    assert switch2 == 'OMIT'

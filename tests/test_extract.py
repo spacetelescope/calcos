@@ -7,7 +7,7 @@ def generate_fits_file(file):
     """
     Opens a corrtag file for testing.
     @param file: the file path.
-    @return: the table (BinTableHDU).
+    @return: the HDU_List
     """
     # define columns with some random values (dummy corrtag file)
     time = fits.Column(name='TIME', format='1E', unit='s', array=np.random.rand(10, 1))
@@ -32,6 +32,7 @@ def generate_fits_file(file):
     hdu.header.set('TIME', '04/09/21')
 
     prim_hdu = fits.PrimaryHDU()
+    prim_hdu.header.set('STATFLAG', True, 'Calculate statistics')
 
     # define cols for gti header
     """name = 'START'; format = '1D'; unit = 'seconds'
