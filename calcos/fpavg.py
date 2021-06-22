@@ -1188,19 +1188,22 @@ class OutputSpectrum(object):
             Sum of weights
         """
 
+        verylowweight = np.where(data.field("dq_wgt") < 0.1)
         sumweight = np.where(sumweight == 0., 1., sumweight)
+        nonzeroweight = np.where(data.field("dq_wgt") != 0.)
+        zeroweight = np.where(data.field("dq_wgt") == 0.)
         data.field("flux")[:] /= sumweight
         data.field("gross")[:] /= sumweight
         data.field("background")[:] /= sumweight
+#        netrate = data.field("net") / data.field("exptime")
+#        data.field("net")[:][nonzeroweight] /= data.field("dq_wgt")[:][nonzeroweight]
+        conversion = data.field("flux") / data.field("net")
         variance = data.field("variance_flat") + data.field("variance_counts") + data.field("variance_bkg")
-        zeroweight = np.where(data.field("dq_wgt") == 0)
-        nonzeroweight = np.where(data.field("dq_wgt") != 0)
-#        variance[nonzeroweight] = variance[nonzeroweight] / data.field("dq_wgt")[nonzeroweight]
+        variance[nonzeroweight] = variance[nonzeroweight] / data.field("dq_wgt")[nonzeroweight]
         variance = np.where(variance < 0.5, 0.5, variance)
         error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(variance)
         error_frequentist_lower[zeroweight] = 0.0
         error_frequentist_upper[zeroweight] = 0.0
-        conversion = data.field("flux") / data.field("net")
 #       Clean out NaNs from where flux and net are zero
         good = np.where(~np.isnan(conversion))
         bad = np.where(np.isnan(conversion))
@@ -1212,6 +1215,17 @@ class OutputSpectrum(object):
         data.setfield("error_lower", error_frequentist_lower * conversion)
         data.setfield("error", error_frequentist_upper * conversion)
         data.field("net")[:] /= sumweight
+        data.field("flux")[:][verylowweight] = 0.
+        data.field("gross")[:][verylowweight] = 0.
+        data.field("gcounts")[:][verylowweight] = 0.
+        data.field("background")[:][verylowweight] = 0.
+        data.field("variance_flat")[:][verylowweight] = 0.
+        data.field("variance_counts")[:][verylowweight] = 0.
+        data.field("variance_bkg")[:][verylowweight] = 0.
+        data.field("net")[:][verylowweight] = 0.
+        data.field("error_lower")[:][verylowweight] = 0.
+        data.field("error")[:][verylowweight] = 0.
+        data.field("dq_wgt")[:][verylowweight] = 0.
 
     def accumulateSums(self, sp, data, sumweight):
         """Add input data to output, weighting by exposure time.
@@ -1261,6 +1275,8 @@ class OutputSpectrum(object):
         q = ipixel[min_k:max_k] - ix
         p = 1. - q
         i = ix.astype(np.int32)
+        pqfactor = np.sqrt((p*sp.dq_wgt[i])**2 + (q*sp.dq_wgt[i+1])**2)
+        pqfactor = np.where(pqfactor == 0.0, 0.0, 1./pqfactor)
         flux = data.field("flux")
         error = data.field("error")
         gross = data.field("gross")
@@ -1301,9 +1317,9 @@ class OutputSpectrum(object):
         dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i+1] * q)
         gcounts[min_k:max_k] += (sp.gcounts[i]   * p * sp.dq_wgt[i] +
                                  sp.gcounts[i+1] * q * sp.dq_wgt[i+1])
-        variance_flat[min_k:max_k] += (sp.variance_flat[i] * sp.dq_wgt[i] +
-                                 sp.variance_flat[i+1] * sp.dq_wgt[i+1])
-        variance_counts[min_k:max_k] += (sp.variance_counts[i] * sp.dq_wgt[i] +
-                                 sp.variance_counts[i+1] * sp.dq_wgt[i+1])
-        variance_bkg[min_k:max_k] += (sp.variance_bkg[i] * sp.dq_wgt[i] +
-                                 sp.variance_bkg[i+1] * sp.dq_wgt[i+1])
+        variance_flat[min_k:max_k] += (sp.variance_flat[i] * p * sp.dq_wgt[i] +
+                                 sp.variance_flat[i+1] * q * sp.dq_wgt[i+1])
+        variance_counts[min_k:max_k] += (sp.variance_counts[i] * p * sp.dq_wgt[i] +
+                                 sp.variance_counts[i+1] * q * sp.dq_wgt[i+1])
+        variance_bkg[min_k:max_k] += (sp.variance_bkg[i] * p * sp.dq_wgt[i] +
+                                 sp.variance_bkg[i+1] * q * sp.dq_wgt[i+1])
