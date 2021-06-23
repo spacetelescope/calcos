@@ -1181,7 +1181,7 @@ class OutputSpectrum(object):
 
         Parameters
         ----------
-        data: pyfits record array
+        data: fits record array
             The current row of the output file
 
         sumweight: float
@@ -1195,23 +1195,19 @@ class OutputSpectrum(object):
         data.field("flux")[:] /= sumweight
         data.field("gross")[:] /= sumweight
         data.field("background")[:] /= sumweight
-#        netrate = data.field("net") / data.field("exptime")
-#        data.field("net")[:][nonzeroweight] /= data.field("dq_wgt")[:][nonzeroweight]
-        conversion = data.field("flux") / data.field("net")
         variance = data.field("variance_flat") + data.field("variance_counts") + data.field("variance_bkg")
         variance[nonzeroweight] = variance[nonzeroweight] / data.field("dq_wgt")[nonzeroweight]
         variance = np.where(variance < 0.5, 0.5, variance)
         error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(variance)
         error_frequentist_lower[zeroweight] = 0.0
         error_frequentist_upper[zeroweight] = 0.0
+        conversion = data.field("flux") / data.field("net")
 #       Clean out NaNs from where flux and net are zero
         good = np.where(~np.isnan(conversion))
         bad = np.where(np.isnan(conversion))
         wavelength = data.field("wavelength")
         interpolated_values = np.interp(wavelength[bad], wavelength[good], conversion[good])
         conversion[bad] = interpolated_values
-#        fractional_error_upper = error_frequentist_upper / variance
-#        fractional_error_lower = error_frequentist_lower / variance
         data.setfield("error_lower", error_frequentist_lower * conversion)
         data.setfield("error", error_frequentist_upper * conversion)
         data.field("net")[:] /= sumweight
@@ -1275,8 +1271,6 @@ class OutputSpectrum(object):
         q = ipixel[min_k:max_k] - ix
         p = 1. - q
         i = ix.astype(np.int32)
-        pqfactor = np.sqrt((p*sp.dq_wgt[i])**2 + (q*sp.dq_wgt[i+1])**2)
-        pqfactor = np.where(pqfactor == 0.0, 0.0, 1./pqfactor)
         flux = data.field("flux")
         error = data.field("error")
         gross = data.field("gross")
