@@ -548,7 +548,6 @@ def test_check_verbosity():
     verbosity = 4
     # Test
     cosutil.setVerbosity(3)
-    test1 = cosutil.verbosity
     check_verbosity = cosutil.checkVerbosity(verbosity)  # should be False
     cosutil.setVerbosity(verbosity)
     check2 = cosutil.checkVerbosity(verbosity)  # should be True
@@ -580,7 +579,6 @@ def test_print_msg():
     cosutil.printMsg(test_message, verbosity_level)
     sys.stdout = sys.__stdout__  # reset the redirect
     # Verify
-    print(captured_msg.getvalue()[:-1])
     assert test_message == captured_msg.getvalue()[:-1]  # to remove the newline at the end
 
 
@@ -703,7 +701,6 @@ def test_print_ref():
     # Test
     cosutil.printRef(keyw, reffiles)
     sys.stdout = sys.__stdout__
-    print(message)
     # Verify
     assert message == captured_msg.getvalue()
 
@@ -758,10 +755,10 @@ def test_segment_specific_keyword():
     # Setup
     root = "keyword_root_"
     seg = "FUVA"
-    seg2 = "NUV"
+    seg2 = "NUVB"
     # Test
-    key = cosutil.segmentSpecificKeyword(root, seg)
-    key2 = cosutil.segmentSpecificKeyword(root, seg2)
+    key = cosutil.segmentSpecificKeyword(root, seg)  # keyword_root_a
+    key2 = cosutil.segmentSpecificKeyword(root, seg2)  # keyword_root_
     # Verify
     root2 = root
     root += "a"
@@ -786,27 +783,39 @@ def test_expand_file_name():
 
 def test_find_ref_file():
     # Setup
+    test_extract.generate_fits_file("wrong_file.fits")
+    test_extract.generate_fits_file("test.fits")
+    fits.setval("wrong_file.fits", 'FILETYPE', value='FLAT FIELD REFERENCE IMAGE')
     # Missing
     ref1 = {"keyword": "FLATFILE", "filename": "test_flt.fits", "calcos_ver": "3.0",
             "min_ver": "2.2", "filetype": "FLAT FIELD REFERENCE IMAGE"}
     # Bad version
     ref2 = {"keyword": "FLATFILE", "filename": "test.fits", "calcos_ver": "2.21",
             "min_ver": "3.3", "filetype": "FLAT FIELD REFERENCE IMAGE"}
+    # Wrong file
+    ref3 = {"keyword": "FLATFILE", "filename": "wrong_file.fits", "calcos_ver": "3.0",
+            "min_ver": "2.3", "filetype": "IMAGE"}
     missing1 = {}
     missing2 = {}
+    missing3 = {}
     wrong_f1 = {}
     wrong_f2 = {}
+    wrong_f3 = {}
     bad_ver1 = {}
     bad_ver2 = {}
+    bad_ver3 = {}
     # Actual values
     actual_missing = {"FLATFILE": "test_flt.fits"}
     actual_bad_ver = {"FLATFILE": ("test.fits", "  the reference file must be at least version 3.3")}
+    actual_wrong_ver = {'FLATFILE': ('wrong_file.fits', 'IMAGE')}
     # Test
     cosutil.findRefFile(ref1, missing1, wrong_f1, bad_ver1)
     cosutil.findRefFile(ref2, missing2, wrong_f2, bad_ver2)
+    cosutil.findRefFile(ref3, missing3, wrong_f3, bad_ver3)
     # Verify
     assert actual_missing == missing1
     assert actual_bad_ver == bad_ver2
+    assert actual_wrong_ver == wrong_f3
 
 
 def test_cmp_version():
@@ -816,12 +825,11 @@ def test_cmp_version():
     calcos_ver = ["1.1", "1", "1", "1.2", "1.1", "1.1", "2.3", "2.8a", "2.13", "2.13.1", "2.12a", "2.13a", "2.13c"]
 
     expected_cmp = [0, 1, -1, 0, 1, -1, 0, 0, 1, 0, 1, -1, 0]
-    # Test
+    # Test and Verify
     test_cmp = []
     for i in range(len(expected_cmp)):
         test_cmp.append(cosutil.cmpVersion(min_ver[i], vcalcos[i], calcos_ver[i]))
-    # Verify
-    assert expected_cmp == test_cmp
+        assert expected_cmp[i] == test_cmp[i]
 
 
 def test_get_pedigree():
@@ -849,8 +857,8 @@ def test_get_pedigree():
 
 def test_get_aperture_keyword():
     # Setup
-    hdu = test_extract.generate_fits_file("aperture_test.fits")
-    hdr = fits.getheader("aperture_test.fits")
+    test_extract.generate_fits_file("aperture_test.fits")
+    hdr = fits.getheader("aperture_test.fits", ext=1) + fits.getheader("aperture_test.fits", ext=0)
     # Test
     rtn_value = cosutil.getApertureKeyword(hdr)
     # Verify
@@ -863,15 +871,18 @@ def test_write_version_to_trailer():
     capture_msg = io.StringIO()
     sys.stdout = capture_msg
     test_extract.generate_fits_file("dummy_file.fits")
-    file = open("dummy_file.fits", 'a')
-    cosutil.fd_trl = file
+    ascii_file = open("ascii.txt")
+    cosutil.fd_trl = ascii_file
     cosutil.CALCOS_VERSION = '3.1.0'
     cosutil.writeVersionToTrailer()
     sys.stdout = sys.__stdout__
-    print(capture_msg.getvalue())
+    print(cosutil.fd_trl)
+
+    # print(capture_msg.getvalue())
     assert True
 
 
+# test_write_version_to_trailer()
 def test_get_switch():
     # Setup
     test_extract.generate_fits_file("switch.fits")
@@ -881,6 +892,59 @@ def test_get_switch():
     switch = cosutil.getSwitch(phdr, keyword)
     phdr.set('STATFLAG', False, 'Calculate statistics')
     switch2 = cosutil.getSwitch(phdr, keyword)
+    switch3 = cosutil.getSwitch(phdr, "none")
     # Verify
     assert switch == 'PERFORM'
     assert switch2 == 'OMIT'
+    assert switch3 == 'N/A'
+
+
+def test_temp_pulse_height_range():
+    test_extract.generate_fits_file("pulseHeightRef.fits")
+    true_pha_value = 4
+    fits.setval("pulseHeightRef.fits", "pharange", value=true_pha_value, ext=0)
+    phdr = fits.getheader("pulseHeightRef.fits", ext=0)
+    pha_value = cosutil.tempPulseHeightRange('pulseHeightRef.fits')
+    assert true_pha_value == pha_value
+
+
+def test_get_pulse_height_range():
+    fits.setval("pulseHeightRef.fits", "phalowr", value=7, ext=0)
+    fits.setval("pulseHeightRef.fits", "phauppr", value=10, ext=0)
+    hdu = fits.getheader("pulseHeightRef.fits", ext=0)
+    seg = ['FUVA', 'FUVB']
+    for s in seg:
+        test_str = cosutil.getPulseHeightRange(hdu, s)
+        assert test_str is None
+
+
+def test_time_at_midpoint():
+    # Setup
+    test_extract.generate_fits_file("test_timeAtMidpoint.fits")
+    hdr = fits.getheader("test_timeAtMidpoint.fits", ext=1)
+    info = {'expstart': hdr['TCRPX7'], 'expend': hdr['TCRVL7']}
+    average = 4776.314586556611
+    # Test
+    test_average = cosutil.timeAtMidpoint(info)
+    # Verify
+    assert average == test_average
+
+
+def test_timeline_times():
+    # Setup
+    first_time = np.array([2.5], dtype=np.float32)
+    last_time = np.array([3.8], dtype=np.float32)
+    actual_values = [2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5]
+    # Test
+    tl_time = cosutil.timelineTimes(2.5, 10.8)
+    # Verify
+    for i in range(len(actual_values)):
+        assert actual_values[i] == tl_time[i]
+
+
+def test_combine_stat():
+    stat_info = [{'ngoodpix': 5.8, "sci_goodmax": 2.7, "sci_goodmean": 4.3, "err_goodmax": 1,
+                  "err_googmean": 1}, {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
+                                       "err_googmean": 1}]
+    print(cosutil.combineStat(stat_info))
+    assert True
