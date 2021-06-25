@@ -858,13 +858,52 @@ def test_get_pedigree():
 def test_get_aperture_keyword():
     # Setup
     test_extract.generate_fits_file("aperture_test.fits")
-    hdr = fits.getheader("aperture_test.fits", ext=1) + fits.getheader("aperture_test.fits", ext=0)
+    # condition 1
+    fits.setval("aperture_test.fits", "aperture", value="PSA-FUV", ext=0)
+    fits.setval("aperture_test.fits", "propaper", value="PSA-FUV", ext=0)
+    hdr1 = fits.getheader("aperture_test.fits", ext=0)
+    # condition 2
+    fits.setval("aperture_test.fits", "aperture", value="RelMvReq", ext=0)
+    fits.setval("aperture_test.fits", "propaper", value="WCA", ext=0)
+    hdr2 = fits.getheader("aperture_test.fits", ext=0)
+    # condition 3
+    fits.setval("aperture_test.fits", "propaper",value="NA",ext=0)
+    fits.setval("aperture_test.fits", "shutter", value="closed", ext=0)
+    fits.setval("aperture_test.fits", "lampused", value="P", ext=0)
+    hdr3 = fits.getheader("aperture_test.fits", ext=0)
+    # condition 4
+    fits.setval("aperture_test.fits", "lampused", value="D", ext=0)
+    hdr4 = fits.getheader("aperture_test.fits", ext=0)
+    # condition 5
+    fits.setval("aperture_test.fits", "lampused", value="A", ext=0)
+    hdr5 = fits.getheader("aperture_test.fits", ext=0)
+    # condition 6
+    fits.setval("aperture_test.fits", "shutter", value="open", ext=0)
+    fits.setval("aperture_test.fits", "life_adj", value=2, ext=0)
+    fits.setval("aperture_test.fits", "aperypos", value=4.56, ext=0)
+    hdr6 = fits.getheader("aperture_test.fits", ext=0)
+
+    # Expected values
+    rtn1 = ('PSA', 'APERTURE changed from PSA-FUV to PSA')
+    rtn2 = ('WCA', 'APERTURE changed from RelMvReq to WCA (copied from PROPAPER)')
+    rtn3 = ('WCA', 'Guessing correct APERTURE ... was RelMvReq, now set to WCA')
+    rtn4 = ('FCA', 'Guessing correct APERTURE ... was RelMvReq, now set to FCA')
+    rtn5 = ('PSA', 'Guessing correct APERTURE ... was RelMvReq, now set to PSA')
+    rtn6 = (None, 'Guessing correct APERTURE ... was RelMvReq, now set to PSA')
     # Test
-    rtn_value = cosutil.getApertureKeyword(hdr)
+    rtn_value1 = cosutil.getApertureKeyword(hdr1)
+    rtn_value2 = cosutil.getApertureKeyword(hdr2)
+    rtn_value3 = cosutil.getApertureKeyword(hdr3)
+    rtn_value4 = cosutil.getApertureKeyword(hdr4)
+    rtn_value5 = cosutil.getApertureKeyword(hdr5)
+    rtn_value6 = cosutil.getApertureKeyword(hdr6)
     # Verify
-    print(rtn_value)
-    # todo rtn_value is ('N/A', '')
-    assert True
+    assert rtn1 == rtn_value1
+    assert rtn2 == rtn_value2
+    assert rtn3 == rtn_value3
+    assert rtn4 == rtn_value4
+    assert rtn5 == rtn_value5
+    assert rtn6 == rtn_value6
 
 
 def test_write_version_to_trailer():
