@@ -36,6 +36,4 @@ jobs:
     - name: Test with pytest
       run: |
         # run all the unit tests.
-        git checkout pytest
-        cd tests
-        pytest test_cosutil
+        pytest tests/test_cosutil
