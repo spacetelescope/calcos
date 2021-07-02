@@ -36,4 +36,5 @@ jobs:
     - name: Test with pytest
       run: |
         # run all the unit tests.
+        pwd
         pytest ../tests/test_cosutil
