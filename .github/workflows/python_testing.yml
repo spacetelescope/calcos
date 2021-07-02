@@ -36,7 +36,4 @@ jobs:
     - name: Test with pytest
       run: |
         # run all the unit tests.
-        pwd
-        cd ../test
-        ls
-        pytest test_cosutil
+        pytest
