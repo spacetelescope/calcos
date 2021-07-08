@@ -1196,7 +1196,6 @@ class OutputSpectrum(object):
         data.field("gross")[:] /= sumweight
         data.field("background")[:] /= sumweight
         variance = data.field("variance_flat") + data.field("variance_counts") + data.field("variance_bkg")
-#        variance[nonzeroweight] = variance[nonzeroweight] / data.field("dq_wgt")[nonzeroweight]
         variance = np.where(variance < 0.5, 0.5, variance)
         error_frequentist_lower, error_frequentist_upper = cosutil.errFrequentist(variance)
         error_frequentist_lower[zeroweight] = 0.0
