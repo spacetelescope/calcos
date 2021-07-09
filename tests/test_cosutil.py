@@ -8,14 +8,14 @@ import pytest
 from astropy.io import fits
 
 from calcos import cosutil, MissingRowError
-from tests import test_extract
+from test_extract import generate_fits_file
 
 
 def test_find_column():
     # Setup
     # create a test fits file
     name = "Output/findCol.fts"
-    ofd = test_extract.generate_fits_file(name)
+    ofd = generate_fits_file(name)
 
     target_col = 'TIME'
     # Test
@@ -28,7 +28,7 @@ def test_get_table():
     # Setup
     # create a test fits file
     name = "Output/getTable.fts"
-    ofd = test_extract.generate_fits_file(name)
+    ofd = generate_fits_file(name)
     truth = [tuple(ofd[1].data[3])]
     time = ofd[1].data[3][0]
     # rawx = ofd[1].data[3][1]
@@ -41,7 +41,7 @@ def test_get_table():
 def test_get_table_exceptions():
     # Raise MissingRowError
     name = "Output/getTable.fts"
-    ofd = test_extract.generate_fits_file(name)
+    ofd = generate_fits_file(name)
     # truth = [tuple(ofd[1].data[3])]
     time = np.ones(5)  # non-existent values
     with pytest.raises(MissingRowError):
@@ -52,7 +52,7 @@ def test_get_col_copy():
     # Setup
     # create a test fits file
     name = "Output/getTable.fits"
-    ofd = test_extract.generate_fits_file(name)
+    ofd = generate_fits_file(name)
     col_name = 'XCORR'
     portion_of_array = ofd[1].data[:]
     truth_values = ofd[1].data.field(col_name)
@@ -69,7 +69,7 @@ def test_get_col_copy_exception():
     # raise RuntimeError error
     with pytest.raises(RuntimeError):
         name = "Output/getTable.fits"
-        ofd = test_extract.generate_fits_file(name)
+        ofd = generate_fits_file(name)
         col_name = 'XCORR'
         portion_of_array = ofd[1].data[:]
         cosutil.getColCopy(filename="Output/getTable.fits", column=col_name, data=portion_of_array)
@@ -80,7 +80,7 @@ def test_get_headers():
     # Setup
     # create a test fits file
     name = "Output/getHeaders.fits"
-    ofd = test_extract.generate_fits_file(name)
+    ofd = generate_fits_file(name)
     true_hdr = ofd[0].header
 
     # Test
@@ -118,7 +118,7 @@ def test_concat_arrays():
 def test_update_filename():
     # Setup
     filename = "update_filename"
-    test_extract.generate_fits_file("Output/update_filename.fits")
+    generate_fits_file("Output/update_filename.fits")
     before_update_hdr = fits.open("Output/update_filename.fits", mode="update")
     # Test
     cosutil.updateFilename(before_update_hdr[0].header, filename)
@@ -132,7 +132,7 @@ def test_update_filename():
 def test_copy_file():
     # Setup
     infile = "Output/input.fits"
-    test_extract.generate_fits_file(infile)
+    generate_fits_file(infile)
     outfile = "Output/output.fits"
     # Test
     cosutil.copyFile(infile, outfile)
@@ -148,8 +148,8 @@ def test_is_product():
     # Setup
     product_file = "Output/my0_product_a.fits"
     raw_file = "Output/my_raw.fits"
-    test_extract.generate_fits_file(product_file)
-    test_extract.generate_fits_file(raw_file)
+    generate_fits_file(product_file)
+    generate_fits_file(raw_file)
     # Test
 
     # Verify
@@ -227,7 +227,7 @@ def test_split_int_letter():
 
 def test_create_corrtag_hdu():
     # Setup
-    hdu = test_extract.generate_fits_file("corrtag.fits")
+    hdu = generate_fits_file("corrtag.fits")
     num_of_rows = 10
     # Test
     out_bin_table = cosutil.createCorrtagHDU(num_of_rows, hdu[1])
@@ -237,7 +237,7 @@ def test_create_corrtag_hdu():
 
 def test_remove_wcs_keywords():
     # Setup
-    hdu = test_extract.generate_fits_file("removeWCS.fits")
+    hdu = generate_fits_file("removeWCS.fits")
     inhdr = fits.getheader("corrtag.fits", 1)
     cd = hdu[1].data.columns
     WCS_keywords = ['TCTYP*',
@@ -266,7 +266,7 @@ def test_dummy_gti():
 
 def test_return_gti():
     # Setup
-    hdu = test_extract.generate_fits_file("gti_file.fits")
+    hdu = generate_fits_file("gti_file.fits")
     # Test
     gti = cosutil.returnGTI("gti_file.fits")
     # Verify
@@ -377,8 +377,8 @@ def test_change_segment():
 def test_copy_exptime_keywords():
     # Setup
     # create two files
-    test_extract.generate_fits_file("original.fits")
-    test_extract.generate_fits_file("copy.fits")
+    generate_fits_file("original.fits")
+    generate_fits_file("copy.fits")
     files = ["original.fits", "copy.fits"]
     headers = ["expstart", "expend", "exptime", "rawtime"]
     # set values to the exposure time
@@ -403,10 +403,10 @@ def test_copy_exptime_keywords():
 def test_copy_voltage_keywords():
     # Setup
     # create two files each for FUV and NUV
-    test_extract.generate_fits_file("originalFUV.fits")
-    test_extract.generate_fits_file("originalNUV.fits")
-    test_extract.generate_fits_file("copyFUV.fits")
-    test_extract.generate_fits_file("copyNUV.fits")
+    generate_fits_file("originalFUV.fits")
+    generate_fits_file("originalNUV.fits")
+    generate_fits_file("copyFUV.fits")
+    generate_fits_file("copyNUV.fits")
     original = ["originalFUV.fits", "originalNUV.fits"]
     copy = ["copyFUV.fits", "copyNUV.fits"]
     detectors = ["FUV", "NUV"]
@@ -453,8 +453,8 @@ def test_copy_voltage_keywords():
 
 def test_copy_sub_keywords():
     # Setup
-    test_extract.generate_fits_file("subKeywords.fits")
-    test_extract.generate_fits_file("copySubKeywords.fits")
+    generate_fits_file("subKeywords.fits")
+    generate_fits_file("copySubKeywords.fits")
     files = ["subKeywords.fits", "copySubKeywords.fits"]
     headers = ["corner%1dx", "corner%1dy", "size%1dx", "size%1dy"]
 
@@ -510,8 +510,8 @@ def test_rename_file():
     new_filename1 = "renamed_raw_file.fits"
     new_filename2 = "renamed0_file_a.fits"
     # Create the files
-    test_extract.generate_fits_file(original_filename1)
-    test_extract.generate_fits_file(original_filename2)
+    generate_fits_file(original_filename1)
+    generate_fits_file(original_filename2)
     # Test
     cosutil.renameFile(original_filename1, new_filename1)
     cosutil.renameFile(original_filename2, new_filename2)
@@ -522,7 +522,7 @@ def test_rename_file():
 
 def test_del_corrtag_wcs():
     # Setup
-    test_extract.generate_fits_file("del_corrtagWCS.fits")
+    generate_fits_file("del_corrtagWCS.fits")
     thdr = fits.getheader("del_corrtagWCS.fits", 3)
     tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
             "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
@@ -629,7 +629,7 @@ def test_print_filenames():
 
 def test_print_mode():
     # Setup
-    hdu_list = test_extract.generate_fits_file("printMode_test.fits")
+    hdu_list = generate_fits_file("printMode_test.fits")
     hdr = hdu_list[1]
     captured_mgs = io.StringIO()
     sys.stdout = captured_mgs
@@ -783,8 +783,8 @@ def test_expand_file_name():
 
 def test_find_ref_file():
     # Setup
-    test_extract.generate_fits_file("wrong_file.fits")
-    test_extract.generate_fits_file("test.fits")
+    generate_fits_file("wrong_file.fits")
+    generate_fits_file("test.fits")
     fits.setval("wrong_file.fits", 'FILETYPE', value='FLAT FIELD REFERENCE IMAGE')
     # Missing
     ref1 = {"keyword": "FLATFILE", "filename": "test_flt.fits", "calcos_ver": "3.0",
@@ -839,7 +839,7 @@ def test_get_pedigree():
     switch = "perform"
     refkey = "statflag"
     filename = "test_flt.file"
-    test_extract.generate_fits_file(filename)
+    generate_fits_file(filename)
     err_msg = "Warning:  STATFLAG test_flt.file is a dummy file\n" \
               "    so PERFORM will not be done.\n"
     # Test
@@ -857,7 +857,7 @@ def test_get_pedigree():
 
 def test_get_aperture_keyword():
     # Setup
-    test_extract.generate_fits_file("aperture_test.fits")
+    generate_fits_file("aperture_test.fits")
     # condition 1
     fits.setval("aperture_test.fits", "aperture", value="PSA-FUV", ext=0)
     fits.setval("aperture_test.fits", "propaper", value="PSA-FUV", ext=0)
@@ -867,7 +867,7 @@ def test_get_aperture_keyword():
     fits.setval("aperture_test.fits", "propaper", value="WCA", ext=0)
     hdr2 = fits.getheader("aperture_test.fits", ext=0)
     # condition 3
-    fits.setval("aperture_test.fits", "propaper",value="NA",ext=0)
+    fits.setval("aperture_test.fits", "propaper", value="NA", ext=0)
     fits.setval("aperture_test.fits", "shutter", value="closed", ext=0)
     fits.setval("aperture_test.fits", "lampused", value="P", ext=0)
     hdr3 = fits.getheader("aperture_test.fits", ext=0)
@@ -909,7 +909,7 @@ def test_get_aperture_keyword():
 def test_write_version_to_trailer():
     capture_msg = io.StringIO()
     sys.stdout = capture_msg
-    test_extract.generate_fits_file("dummy_file.fits")
+    generate_fits_file("dummy_file.fits")
     ascii_file = open("ascii.txt", mode="w")
     cosutil.fd_trl = ascii_file
     cosutil.CALCOS_VERSION = '3.1.0'
@@ -921,7 +921,7 @@ def test_write_version_to_trailer():
 
 def test_get_switch():
     # Setup
-    test_extract.generate_fits_file("switch.fits")
+    generate_fits_file("switch.fits")
     phdr = fits.getheader("switch.fits", ext=0)
     keyword = "statflag"
     # Test
@@ -936,27 +936,28 @@ def test_get_switch():
 
 
 def test_temp_pulse_height_range():
-    test_extract.generate_fits_file("pulseHeightRef.fits")
+    generate_fits_file("pulseHeightRef.fits")
     true_pha_value = 4
     fits.setval("pulseHeightRef.fits", "pharange", value=true_pha_value, ext=0)
-    phdr = fits.getheader("pulseHeightRef.fits", ext=0)
+    fits.getheader("pulseHeightRef.fits", ext=0)
     pha_value = cosutil.tempPulseHeightRange('pulseHeightRef.fits')
     assert true_pha_value == pha_value
 
 
 def test_get_pulse_height_range():
-    fits.setval("pulseHeightRef.fits", "phalowr", value=7, ext=0)
-    fits.setval("pulseHeightRef.fits", "phauppr", value=10, ext=0)
+    fits.setval("pulseHeightRef.fits", "phalowrA", value=7, ext=0)
+    fits.setval("pulseHeightRef.fits", "phaupprA", value=10, ext=0)
     hdu = fits.getheader("pulseHeightRef.fits", ext=0)
     seg = ['FUVA', 'FUVB']
-    for s in seg:
+    actual = [' 7_10', None]
+    for s,a in zip(seg,actual):
         test_str = cosutil.getPulseHeightRange(hdu, s)
-        assert test_str is None
+        assert a == test_str
 
 
 def test_time_at_midpoint():
     # Setup
-    test_extract.generate_fits_file("test_timeAtMidpoint.fits")
+    generate_fits_file("test_timeAtMidpoint.fits")
     hdr = fits.getheader("test_timeAtMidpoint.fits", ext=1)
     info = {'expstart': hdr['TCRPX7'], 'expend': hdr['TCRVL7']}
     average = 4776.314586556611
@@ -980,11 +981,42 @@ def test_timeline_times():
 
 def test_combine_stat():
     stat_info = [{'ngoodpix': 5.8, "sci_goodmax": 2.7, "sci_goodmean": 4.3, "err_goodmax": 1,
-                  "err_googmean": 1}]
+                  "err_goodmean": 2}, {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
+                                           "err_goodmean": 1}]
     # , {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
     #                                        "err_googmean": 1}
     print(cosutil.combineStat(stat_info))
-    # todo fails when stat_info has more than one dictionaries.
+    
+    # {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2, 'err_goodmean': 1.3493975903614457}
     assert True
 
+
 test_combine_stat()
+
+
+def test_override_keywords():
+    # Setup
+    generate_fits_file("overridekeywords.fits")
+    info = {"cal_ver": 3.1, "opt_elem": 2, "cenwave": 0.34, "fpoffset": 3.43, "obstype": "FUV",
+            "exptype": "N/A", "aperture": "PSA", "x_offset": 1.2, "dispaxis": 2.5}
+    switches = {"statflag": "PERFORM", "flatcorr": "PERFORM", "geocorr": "COMPLETE", "randcorr": "SKIPPED"}
+    reffiles = {"flatfile": "abc_flat.fits", "flatfile_hdr": "lref$abc_flat.fits"}
+    fits.setval("overridekeywords.fits", "flatfile_hdr", value="NA", ext=0)
+    fits.setval("overridekeywords.fits", "dispaxis", value=2.9, ext=1)
+    fits.setval("overridekeywords.fits", "x_offset", value=1.9, ext=1)
+    phdr = fits.getheader("overridekeywords.fits", ext=0)
+    hdr = fits.getheader("overridekeywords.fits", ext=1)
+    # Actual Values
+    val1 = True
+    val2 = switches.values()
+    val3 = phdr.values()
+    val4 = reffiles["flatfile_hdr"]
+    # Test
+    cosutil.overrideKeywords(phdr, hdr, info, switches, reffiles)
+    phdr = fits.getheader("overridekeywords.fits", ext=0)
+    # Verify
+    assert val1 == phdr["statflag"]
+    assert val4 == phdr["flatfile_hdr"]
+
+
+# test_override_keywords()
