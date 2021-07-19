@@ -61,5 +61,5 @@ jobs:
       run: |
         mkdir Output
         # run all the unit tests.
-        pytest test_extract.py
+        pytest test_cosutil.py
       working-directory: ${{env.working-directory}}
