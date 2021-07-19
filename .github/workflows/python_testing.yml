@@ -13,6 +13,8 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
+    env:
+      working-directory: ./tests
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +51,7 @@ jobs:
         pip install stsci.tools
         python setup.py install
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      working-directory: ${{env.working-directory}}
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -60,3 +63,4 @@ jobs:
         mkdir Output
         # run all the unit tests.
         pytest test_extract.py
+      working-directory: ${{env.working-directory}}
