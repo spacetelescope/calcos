@@ -59,4 +59,4 @@ jobs:
       run: |
         mkdir Output
         # run all the unit tests.
-        pytest
+        pytest test_extract
