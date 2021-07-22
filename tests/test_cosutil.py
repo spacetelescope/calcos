@@ -95,7 +95,7 @@ def test_get_headers():
 
 def test_write_output_events():
     # Setup
-    in_file = "Output/outputEvent.fits"
+    in_file = "Output/outputEvents.fits"
     out_file = "Output/outputEvents.fits"
     # ofd = test_extract.generate_fits_file(in_file)
     actual_lines = 10
