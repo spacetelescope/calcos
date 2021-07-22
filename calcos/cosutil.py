@@ -3752,7 +3752,7 @@ def errGehrels(counts):
         (The lower error estimate for counts,
          the upper error estimate for counts)
     """
-    icounts = (counts + .5).astype(np.int)
+    icounts = (counts + .5).astype(int)
     upper = (1. + np.sqrt(icounts + 0.75))
     lower = np.where(icounts > 0., Gehrels_lower(icounts), 0.)
     return (lower.astype(np.float32), upper.astype(np.float32))
