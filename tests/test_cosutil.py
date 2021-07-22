@@ -97,10 +97,9 @@ def test_write_output_events():
     # Setup
     in_file = "outputEvents.fits"
     out_file = "outputEvents.fits"
-    # ofd = test_extract.generate_fits_file(in_file)
+    generate_fits_file(in_file)
     actual_lines = 10
     lines = cosutil.writeOutputEvents(in_file, out_file)
-    # assert False
     assert actual_lines == lines
 
 
