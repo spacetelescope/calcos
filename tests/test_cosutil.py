@@ -95,8 +95,8 @@ def test_get_headers():
 
 def test_write_output_events():
     # Setup
-    in_file = "Output/outputEvents.fits"
-    out_file = "Output/outputEvents.fits"
+    in_file = "outputEvents.fits"
+    out_file = "outputEvents.fits"
     # ofd = test_extract.generate_fits_file(in_file)
     actual_lines = 10
     lines = cosutil.writeOutputEvents(in_file, out_file)
@@ -231,7 +231,7 @@ def test_create_corrtag_hdu():
     num_of_rows = 10
     # Test
     # detector parameter is not needed consider removing it
-    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, hdu=hdu[1])
+    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, "FUV", hdu[1])
     assert len(out_bin_table.data) == num_of_rows
     assert out_bin_table != all(hdu[1].data)
 
