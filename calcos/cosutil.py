@@ -3668,6 +3668,7 @@ def fitQuartic(x, y):
     try:
         coeff = LA.solve(m, v)
         m_inv = LA.inv(m)
+        succeeded = True
     except LA.LinAlgError:
         succeeded = False
 
