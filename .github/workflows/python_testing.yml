@@ -13,6 +13,8 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
+    env:
+      working-directory: ./tests
     strategy:
       fail-fast: false
       matrix:
@@ -59,4 +61,5 @@ jobs:
       run: |
         mkdir Output
         # run all the unit tests.
-        pytest test_extract.py
+        pytest test_cosutil.py -v
+      working-directory: ${{env.working-directory}}
