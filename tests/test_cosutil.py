@@ -230,7 +230,8 @@ def test_create_corrtag_hdu():
     hdu = generate_fits_file("corrtag.fits")
     num_of_rows = 10
     # Test
-    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, hdu[1])
+    # detector parameter is not needed
+    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, hdu=hdu[1])
     assert len(out_bin_table.data) == num_of_rows
     assert out_bin_table != all(hdu[1].data)
 
@@ -317,7 +318,6 @@ def test_fit_quartic():
     # Setup
     x = np.array([1, 2, 3, 4, 5, 6])
     y = np.array([2, 4, 6, 8, 10, 12])
-    polynom = cosutil.fitQuartic(x, y)
     # Expected
     fitted_polynomial = ([-2.00000000e+00, 2.00000000e+00, 8.46875656e-12, -1.74897134e-12,
                           1.23333442e-13],
@@ -627,6 +627,7 @@ def test_print_filenames():
     assert expected_msg == captured_msg.getvalue()
 
 
+'''
 def test_print_mode():
     # Setup
     hdu_list = generate_fits_file("printMode_test.fits")
@@ -640,9 +641,7 @@ def test_print_mode():
     # todo can't find keys
     # Verify
     # assert False
-
-
-# test_print_mode()
+'''
 
 
 def test_print_warning():
@@ -950,7 +949,7 @@ def test_get_pulse_height_range():
     hdu = fits.getheader("pulseHeightRef.fits", ext=0)
     seg = ['FUVA', 'FUVB']
     actual = [' 7_10', None]
-    for s,a in zip(seg,actual):
+    for s, a in zip(seg, actual):
         test_str = cosutil.getPulseHeightRange(hdu, s)
         assert a == test_str
 
@@ -982,11 +981,11 @@ def test_timeline_times():
 def test_combine_stat():
     stat_info = [{'ngoodpix': 5.8, "sci_goodmax": 2.7, "sci_goodmean": 4.3, "err_goodmax": 1,
                   "err_goodmean": 2}, {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
-                                           "err_goodmean": 1}]
+                                       "err_goodmean": 1}]
     # , {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
     #                                        "err_googmean": 1}
     print(cosutil.combineStat(stat_info))
-    
+
     # {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2, 'err_goodmean': 1.3493975903614457}
     assert True
 
@@ -1017,6 +1016,5 @@ def test_override_keywords():
     # Verify
     assert val1 == phdr["statflag"]
     assert val4 == phdr["flatfile_hdr"]
-
 
 # test_override_keywords()
