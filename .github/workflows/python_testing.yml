@@ -8,6 +8,8 @@ on:
     branches: [ pytest ]
   pull_request:
     branches: [ pytest ]
+  schedule:
+    - cron: '0 0 * * *'  # every day at midnight
 
 jobs:
   build:
