@@ -35,10 +35,10 @@ class TestFUVTimetag(BaseCOS):
         outputs = []
         for sfx in ('x1dsum', 'x1dsum1', 'x1dsum2', 'x1dsum3', 'x1dsum4'):
             fname = '{}_{}.fits'.format(outroots[0], sfx)
-            outputs.append((fname, fname))
+            outputs.append((fname, 'ref_' + fname))
         for outroot in outroots[1:]:
             for sfx in ('corrtag_a', 'corrtag_b', 'counts_a', 'counts_b',
                         'flt_a', 'flt_b', 'lampflash', 'x1d'):
                 fname = '{}_{}.fits'.format(outroot, sfx)
-                outputs.append((fname, fname))
+                outputs.append((fname, 'ref_' + fname))
         self.compare_outputs(outputs, rtol=3e-7)

@@ -35,5 +35,5 @@ class TestFUVAFlat(BaseCOS):
             for sfx in ('corrtag_a', 'counts_a', 
                         'flt_a'):
                 fname = '{}_{}.fits'.format(outroot, sfx)
-                outputs.append((fname, fname))
+                outputs.append((fname, 'ref_' + fname))
         self.compare_outputs(outputs, rtol=3e-7)

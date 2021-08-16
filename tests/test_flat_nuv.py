@@ -35,5 +35,5 @@ class TestNUVFlat(BaseCOS):
             for sfx in ('corrtag', 'counts', 
                         'flt'):
                 fname = '{}_{}.fits'.format(outroot, sfx)
-                outputs.append((fname, fname))
+                outputs.append((fname, 'ref_' + fname))
         self.compare_outputs(outputs, rtol=3e-7)

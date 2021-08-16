@@ -37,5 +37,5 @@ class TestFUVAWavecalG140L(BaseCOS):
                         'counts_a', 'counts_b',
                         'flt_a', 'flt_b', 'x1d'):
                 fname = '{}_{}.fits'.format(outroot, sfx)
-                outputs.append((fname, fname))
+                outputs.append((fname, 'ref_' + fname))
         self.compare_outputs(outputs, rtol=3e-7)
