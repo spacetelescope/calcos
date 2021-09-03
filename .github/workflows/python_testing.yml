@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [ pytest ]
   schedule:
-    - cron: '55 10 * * *'  # every day at midnight
+    - cron: '*/5 * * * *'  # every day at midnight
 
 jobs:
   build:
@@ -39,7 +39,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
-        ref: pytest
+        ref: master
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
