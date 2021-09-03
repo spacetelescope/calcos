@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [ pytest ]
   schedule:
-    - cron: '0 0 * * *'  # every day at midnight
+    - cron: '47 10 * * *'  # every day at midnight
 
 jobs:
   build:
@@ -42,6 +42,7 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+        ref: pytest
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
