@@ -2954,11 +2954,11 @@ class Calibration(object):
             obs.AddVirtualWavecal = False
             return
 
-        minDeltaShift = self.getMinDeltaShift(wcp_info)
-        DeltaShift = self.calculateDeltaShift(events, info, wavecal_info, wcp_info)
-        if DeltaShift < minDeltaShift:
-            obs.AddVirtualWavecal = False
-            return
+#        minDeltaShift = self.getMinDeltaShift(wcp_info)
+#        DeltaShift = self.calculateDeltaShift(events, info, wavecal_info, wcp_info)
+#        if DeltaShift < minDeltaShift:
+#            obs.AddVirtualWavecal = False
+#            return
 
         # If we get this far, then add virtual wavecal
         obs.AddVirtualWavecal = True
@@ -3005,8 +3005,7 @@ class Calibration(object):
             return 0.5
         
     def getNumWavecals(self, info, wavecal_info, wcp_info):
-        """Get the number of wavecals for this science exposure.  If there are 2, make
-        sure one is before the exposure start and the other is after the exposure end
+        """Get the number of wavecals for this science exposure.
 
         Parameters:
         -----------
