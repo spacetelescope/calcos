@@ -35,5 +35,6 @@ class TestFUVADark(BaseCOS):
             for sfx in ('corrtag_a', 'corrtag_b', 'counts_a', 'counts_b',
                         'flt_a', 'flt_b'):
                 fname = '{}_{}.fits'.format(outroot, sfx)
-                outputs.append((fname, fname))
+                comparison_name = 'ref_' + fname
+                outputs.append((fname, comparison_name))
         self.compare_outputs(outputs, rtol=3e-7)
