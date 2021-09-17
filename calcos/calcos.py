@@ -2849,6 +2849,8 @@ class Calibration(object):
                 # Check for whether this exposure meets the criteria for adding a virtual wavecal
                 # If so, set the obs.AddVirtualWavecal attribute to True
                 self.CheckforAddVirtualWavecal(obs)
+                if obs.AddVirtualWavecal:
+                    self.AddVirtualWavecal(obs)
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
@@ -2924,7 +2926,7 @@ class Calibration(object):
             obs.AddVirtualWavecal = False
             return
 
-        if info["life_adj"] < 6:
+        if info["life_adj"] != 6:
             obs.AddVirtualWavecal = False
             return
 
@@ -2949,7 +2951,7 @@ class Calibration(object):
             obs.AddVirtualWavecal = False
             return
 
-        numwavecals = self.getNumWavecals(info, wavecal_info, wcp_info)
+        numwavecals = self.getNumWavecals(info, self.wavecal_info, wcp_info)
         if numwavecals != 2:
             obs.AddVirtualWavecal = False
             return
@@ -3004,7 +3006,7 @@ class Calibration(object):
         except KeyError:
             return 0.5
         
-    def getNumWavecals(self, info, wavecal_info, wcp_info):
+    def getNumWavecals(self, info, wcp_info):
         """Get the number of wavecals for this science exposure.
 
         Parameters:
@@ -3016,9 +3018,6 @@ class Calibration(object):
         info: Dict
             Dictionary of COS exposure information for the science exposure
 
-        wavecal_info: List
-            List of dictionaries, one for each wavecal in the association
-
         Returns:
         --------
 
@@ -3027,7 +3026,7 @@ class Calibration(object):
         """
         tmid = 0.5 * (info["expstart"] + info["expend"])
         
-        shift_info = wavecal.ReturnWavecalShift(wavecal_info,
+        shift_info = wavecal.ReturnWavecalShift(self.wavecal_info,
                                                 wcp_info, info["cenwave"],
                                                 info["fpoffset"], tmid)
         if shift_info is not None:
@@ -3041,13 +3040,13 @@ class Calibration(object):
         numfiles = len(wavecalfiles.strip().split(' '))
         return numfiles
 
-    def calculateDeltaShift(self, events, info, wavecal_info, wcp_info):
+    def calculateDeltaShift(self, events, info, wcp_info):
         """Calculate the predicted shift from the first event to the last event
         using the slope value of the matching wavecal_info entries
         
         """
         tmid = 0.5 * (info["expstart"] + info["expend"])
-        shift_info = wavecal.ReturnWavecalShift(wavecal_info, wcp_info,
+        shift_info = wavecal.ReturnWavecalShift(self.wavecal_info, wcp_info,
                                                 info["cenwave"], info["fpoffset"],
                                                 tmid)
         shift_dict, slope_dict, wavecalfiles = shift_info
