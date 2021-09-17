@@ -16,8 +16,7 @@ bc.env_vars = ['TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory',
 bc.conda_channels = ['http://ssb.stsci.edu/astroconda']
 bc.conda_packages = ['python=3.7',
                      'requests',
-                     'numpy',
-                     'stsci.tools']
+                     'numpy']
 bc.build_cmds = ["pip install ci-watson",
                  "python setup.py install"]
 bc.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --bigdata --slow -v"]

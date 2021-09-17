@@ -39,7 +39,6 @@ setup(
         'astropy',
         'numpy',
         'scipy',
-        'stsci.tools',
     ],
     extras_require={
         'docs': [

@@ -14,8 +14,7 @@ bc1.name = "release"
 bc1.env_vars = ['TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory']
 // bc1.conda_packages = ['python=3.7',
 //                      'requests',
-//                      'numpy',
-//                      'stsci.tools']
+//                      'numpy']
 bc1.build_cmds = ["pip install numpy>=1.20"]
 bc1.build_cmds = ["pip install -e .[test]"]
 bc1.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --bigdata -v"]
