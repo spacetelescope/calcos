@@ -1,14 +1,16 @@
-from __future__ import absolute_import, division         # confidence high
-import copy
+from __future__ import absolute_import, division  # confidence high
+
 import math
-import numpy as np
+
 import astropy.io.fits as fits
-from astropy.stats import poisson_conf_interval
+import numpy as np
+
 from . import cosutil
-from .calcosparam import *       # parameter definitions
+from .calcosparam import *  # parameter definitions
 
 # Extract a slice of this height from the flat field in Spectrum.
 XD_WIDTH = 15
+
 
 def fpAvgSpec(input, output):
     """Average 1-D extracted FP-POS spectra.
@@ -59,6 +61,7 @@ def fpAvgSpec(input, output):
     else:
         outspec = OutputX1D(input, output)
 
+
 def oneInputFile(input, output):
     """Copy input to output, setting values to zero if dq_wgt is zero.
 
@@ -93,16 +96,16 @@ def oneInputFile(input, output):
     variance_bkg = data.field("variance_bkg")
 
     for row in range(len(data)):
-        flux[row,:] = np.where(dq_wgt[row] <= 0., 0., flux[row])
-        error[row,:] = np.where(dq_wgt[row] <= 0., 0., error[row])
-        gross[row,:] = np.where(dq_wgt[row] <= 0., 0., gross[row])
-        gcounts[row,:] = np.where(dq_wgt[row] <= 0., 0., gcounts[row])
-        error_lower[row,:] = np.where(dq_wgt[row] <= 0., 0., error_lower[row])
-        net[row,:] = np.where(dq_wgt[row] <= 0., 0., net[row])
-        background[row,:] = np.where(dq_wgt[row] <= 0., 0., background[row])
-        variance_flat[row,:] = np.where(dq_wgt[row] <= 0., 0., variance_flat[row])
-        variance_counts[row,:] = np.where(dq_wgt[row] <= 0., 0., variance_counts[row])
-        variance_bkg[row,:] = np.where(dq_wgt[row] <= 0., 0., variance_bkg[row])
+        flux[row, :] = np.where(dq_wgt[row] <= 0., 0., flux[row])
+        error[row, :] = np.where(dq_wgt[row] <= 0., 0., error[row])
+        gross[row, :] = np.where(dq_wgt[row] <= 0., 0., gross[row])
+        gcounts[row, :] = np.where(dq_wgt[row] <= 0., 0., gcounts[row])
+        error_lower[row, :] = np.where(dq_wgt[row] <= 0., 0., error_lower[row])
+        net[row, :] = np.where(dq_wgt[row] <= 0., 0., net[row])
+        background[row, :] = np.where(dq_wgt[row] <= 0., 0., background[row])
+        variance_flat[row, :] = np.where(dq_wgt[row] <= 0., 0., variance_flat[row])
+        variance_counts[row, :] = np.where(dq_wgt[row] <= 0., 0., variance_counts[row])
+        variance_bkg[row, :] = np.where(dq_wgt[row] <= 0., 0., variance_bkg[row])
 
     cosutil.updateFilename(fd[0].header, output)
     if cosutil.isProduct(output):
@@ -115,17 +118,18 @@ def oneInputFile(input, output):
                      ("MCENWAVE", "cenwave", fd[0].header["cenwave"])]
     for (new_kwd, old_kwd, value) in list_keywords:
         str_value = str(value)
-        fd[0].header.set(new_kwd, str_value, after=old_kwd)     # xxx temp
+        fd[0].header.set(new_kwd, str_value, after=old_kwd)  # xxx temp
         # xxx fd[0].header.insert(old_kwd, (new_kwd, str_value), after=True)
     del_these = ["segment", "wavecals", "fppos", "fpoffset"]
     for keyword in del_these:
         if keyword in fd[0].header:
-            del(fd[0].header[keyword])
+            del (fd[0].header[keyword])
     delSomeKeywords(fd[1].header)
     newfd = delExtraColumns(fd[1])
     fd[1] = newfd
     fd.writeto(output)
     fd.close()
+
 
 def delSomeKeywords(hdr):
     """Delete exposure-specific keywords.
@@ -142,7 +146,8 @@ def delSomeKeywords(hdr):
                 "shift2a", "shift2b", "shift2c",
                 "dpixel1a", "dpixel1b", "dpixel1c"]:
         if key in hdr:
-            del(hdr[key])
+            del (hdr[key])
+
 
 def delExtraColumns(hdu):
     """Delete extra columns in the output file.
@@ -164,7 +169,7 @@ def delExtraColumns(hdu):
     for column in columns:
         if column.name in columns_to_delete:
             number = 0
-            while(True):
+            while (True):
                 number = number + 1
                 tstring = 'TTYPE' + str(number)
                 try:
@@ -191,6 +196,7 @@ def delExtraColumns(hdu):
     newhdu = fits.BinTableHDU.from_columns(cd, header=hdu.header)
     return newhdu
 
+
 def makeStringList(inlist):
     """Construct a comma-separated string from elements of a list.
 
@@ -215,6 +221,7 @@ def makeStringList(inlist):
             outstr += ", %s" % str(inlist[i])
 
     return outstr
+
 
 def pixelsFromWl(input_wavelength, output_wavelength):
     """Find pixel numbers in input corresponding to wavelengths in output.
@@ -256,16 +263,16 @@ def pixelsFromWl(input_wavelength, output_wavelength):
 
     # disp will be the dispersion at each pixel of the input wavelengths.
     disp = input_wavelength.copy()
-    disp[1:nelem-1] = (input_wavelength[2:nelem] -
-                       input_wavelength[0:nelem-2]) / 2.
+    disp[1:nelem - 1] = (input_wavelength[2:nelem] -
+                         input_wavelength[0:nelem - 2]) / 2.
     disp[0] = input_wavelength[1] - input_wavelength[0]
-    disp[nelem-1] = input_wavelength[nelem-1] - input_wavelength[nelem-2]
+    disp[nelem - 1] = input_wavelength[nelem - 1] - input_wavelength[nelem - 2]
 
     # x0 is a first estimate of the pixel numbers.
     x0 = (output_wavelength - input_wavelength[0]) / avgdisp
     x0 = np.where(x0 < 0., 0., x0)
     ix0 = x0.astype(np.int32)
-    ix0 = np.where(ix0 > nelem-1, nelem-1, ix0)
+    ix0 = np.where(ix0 > nelem - 1, nelem - 1, ix0)
 
     # wavelengths in input at pixels ix0 are input_wavelength[ix0]
     diff = (output_wavelength - input_wavelength[ix0])
@@ -274,12 +281,13 @@ def pixelsFromWl(input_wavelength, output_wavelength):
     x1 = ix0 + diff / disp[ix0]
     x1 = np.where(x1 < 0., 0., x1)
     ix1 = x1.astype(np.int32)
-    ix1 = np.where(ix1 > nelem-1, nelem-1, ix1)
+    ix1 = np.where(ix1 > nelem - 1, nelem - 1, ix1)
 
     diff = (output_wavelength - input_wavelength[ix1])
     ipixel = ix1 + diff / disp[ix1]
 
     return ipixel
+
 
 class OutputX1D(object):
     """Average 1-D FP-POS spectra.
@@ -355,7 +363,7 @@ class OutputX1D(object):
         self.createOutput()
 
         # Fill in the data in the output table.
-        for segment in self.segments:           # for each output row ...
+        for segment in self.segments:  # for each output row ...
             osp = OutputSpectrum(self.ofd, self.inspec, self.keywords,
                                  segment, self.output_wl_range[segment],
                                  self.output_dispersion[segment])
@@ -364,7 +372,7 @@ class OutputX1D(object):
             asn_mtyp = cosutil.modifyAsnMtyp(asn_mtyp)
             if asn_mtyp != "missing":
                 self.ofd[1].header["asn_mtyp"] = asn_mtyp
-        self.updateArchiveSearch(self.ofd)      # minwave & maxwave
+        self.updateArchiveSearch(self.ofd)  # minwave & maxwave
         newhdu = delExtraColumns(self.ofd[1])
         self.ofd[1] = newhdu
         self.ofd.writeto(self.output)
@@ -383,13 +391,13 @@ class OutputX1D(object):
 
         # These are for averaging the global count rates.  The elements are
         # for NUV, FUVA and FUVB respectively.
-        sum_globrate = [0., 0., 0.]     # incremented for each row in each file
-        sum_exptime = [0., 0., 0.]      # exptime from the column
+        sum_globrate = [0., 0., 0.]  # incremented for each row in each file
+        sum_exptime = [0., 0., 0.]  # exptime from the column
         avg_globrate = [-1., -1., -1.]  # average values for NUV, FUVA, FUVB
         # This is for updating the exptime, exptimea, exptimeb keywords.
         sum_exptime_kwd = [0., 0., 0.]  # exptime from the header keywords
 
-        first = True            # true for first input file
+        first = True  # true for first input file
         for input in self.input:
             ifd = fits.open(input, mode="readonly")
             phdr = ifd[0].header
@@ -398,8 +406,8 @@ class OutputX1D(object):
             if first:
                 detector = phdr["detector"]
                 opt_elem = phdr["opt_elem"]
-                cenwave_list = [phdr["cenwave"]]    # may have multiple values
-                fppos_list = [phdr["fppos"]]        # may have multiple values
+                cenwave_list = [phdr["cenwave"]]  # may have multiple values
+                fppos_list = [phdr["fppos"]]  # may have multiple values
                 fpoffset_list = [phdr["fpoffset"]]  # may have multiple values
                 (aperture, message) = cosutil.getApertureKeyword(phdr)
                 statflag = phdr.get("statflag", False)
@@ -430,14 +438,14 @@ class OutputX1D(object):
                     self.inspec.append(sp)
                     if sp.segment == "FUVA":
                         sum_exptime_kwd[1] += hdr.get("exptimea",
-                                              default=hdr.get("exptime", 0.))
+                                                      default=hdr.get("exptime", 0.))
                         globrate = hdr.get("globrt_a", -1.)
                         if globrate >= 0.:
                             sum_globrate[1] += (globrate * sp.exptime)
                             sum_exptime[1] += sp.exptime
                     elif sp.segment == "FUVB":
                         sum_exptime_kwd[2] += hdr.get("exptimeb",
-                                              default=hdr.get("exptime", 0.))
+                                                      default=hdr.get("exptime", 0.))
                         globrate = hdr.get("globrt_b", -1.)
                         if globrate >= 0.:
                             sum_globrate[2] += (globrate * sp.exptime)
@@ -463,24 +471,24 @@ class OutputX1D(object):
         else:
             exptime = max(sum_exptime_kwd[1], sum_exptime_kwd[2])
         self.keywords = {
-             "detector": detector,
-             "opt_elem": opt_elem,
-             "cenwave":  cenwave_list,          # this is a list
-             "fppos":    fppos_list,            # this is a list
-             "fpoffset": fpoffset_list,         # this is a list
-             "aperture": aperture,
-             "exptime":  exptime,
-             "exptimea": sum_exptime_kwd[1],
-             "exptimeb": sum_exptime_kwd[2],
-             "expstart": expstart,
-             "expend":   expend,
-             "expstrtj": expstart + MJD_TO_JD,
-             "expendj":  expend + MJD_TO_JD,
-             "plantime": sum_plantime,
-             "globrate": avg_globrate[0],       # average for NUV spectra
-             "globrt_a": avg_globrate[1],       # average for FUVA spectra
-             "globrt_b": avg_globrate[2],       # average for FUVB spectra
-             "statflag": statflag}
+            "detector": detector,
+            "opt_elem": opt_elem,
+            "cenwave": cenwave_list,  # this is a list
+            "fppos": fppos_list,  # this is a list
+            "fpoffset": fpoffset_list,  # this is a list
+            "aperture": aperture,
+            "exptime": exptime,
+            "exptimea": sum_exptime_kwd[1],
+            "exptimeb": sum_exptime_kwd[2],
+            "expstart": expstart,
+            "expend": expend,
+            "expstrtj": expstart + MJD_TO_JD,
+            "expendj": expend + MJD_TO_JD,
+            "plantime": sum_plantime,
+            "globrate": avg_globrate[0],  # average for NUV spectra
+            "globrt_a": avg_globrate[1],  # average for FUVA spectra
+            "globrt_b": avg_globrate[2],  # average for FUVB spectra
+            "statflag": statflag}
 
     def compareX1d(self):
         """Check that the rows of two x1d tables contain comparable info.
@@ -533,14 +541,14 @@ class OutputX1D(object):
                     min_wl = min(min_wl, sp.wavelength[0])
                     max_wl = max(max_wl, sp.wavelength[-1])
                     min_dispersion = min(min_dispersion,
-                        (sp.wavelength[-1] - sp.wavelength[0]) / (sp.nelem - 1))
+                                         (sp.wavelength[-1] - sp.wavelength[0]) / (sp.nelem - 1))
             self.output_wl_range[segment] = (min_wl, max_wl)
             self.output_dispersion[segment] = min_dispersion
 
         # Determine the number of elements we will need for the output
         # spectra.  The output array size should be at least as large as the
         # arrays in the input spectra (min_output_nelem)
-        output_nelem = min_output_nelem         # initial value
+        output_nelem = min_output_nelem  # initial value
         for segment in self.segments:
             (min_wl, max_wl) = self.output_wl_range[segment]
             dispersion = self.output_dispersion[segment]
@@ -568,18 +576,18 @@ class OutputX1D(object):
                          ("MCENWAVE", "cenwave", self.keywords["cenwave"])]
         for (new_kwd, old_kwd, list_value) in list_keywords:
             str_value = makeStringList(list_value)
-            primary_hdu.header.set(new_kwd, str_value, after=old_kwd)   # xxx
+            primary_hdu.header.set(new_kwd, str_value, after=old_kwd)  # xxx
             # xxx primary_hdu.header.insert(old_kwd, (new_kwd, str_value),
             # xxx                           after=True)
         del_these = ["segment", "wavecals", "fppos", "fpoffset"]
         for keyword in del_these:
             if keyword in primary_hdu.header:
-                del(primary_hdu.header[keyword])
+                del (primary_hdu.header[keyword])
         if len(self.keywords["cenwave"]) > 1:
-            del(primary_hdu.header["cenwave"])
+            del (primary_hdu.header["cenwave"])
         ofd = fits.HDUList(primary_hdu)
 
-        rpt = str(self.output_nelem)    # used for defining columns
+        rpt = str(self.output_nelem)  # used for defining columns
 
         # Define the columns explicitly, rather than using an input table
         # as a template and then modifying the lengths of arrays (see below),
@@ -587,41 +595,41 @@ class OutputX1D(object):
         col = []
         col.append(fits.Column(name="SEGMENT", format="4A"))
         col.append(fits.Column(name="EXPTIME", format="1D",
-                   disp="F8.3", unit="s"))
+                               disp="F8.3", unit="s"))
         col.append(fits.Column(name="NELEM", format="1J", disp="I6"))
-        col.append(fits.Column(name="WAVELENGTH", format=rpt+"D",
-                   unit="angstrom"))
-        col.append(fits.Column(name="FLUX", format=rpt+"E",
-                   unit="erg /s /cm**2 /angstrom"))
-        col.append(fits.Column(name="ERROR", format=rpt+"E",
-                   unit="erg /s /cm**2 /angstrom"))
-        col.append(fits.Column(name="ERROR_LOWER", format=rpt+"E",
-                   unit="count /s"))
-        col.append(fits.Column(name="GROSS", format=rpt+"E",
-                   unit="count /s"))
-        col.append(fits.Column(name="GCOUNTS", format=rpt+"E",
-                   unit="count"))
-        col.append(fits.Column(name="VARIANCE_FLAT", format=rpt+"E",
-                   unit="count"))
-        col.append(fits.Column(name="VARIANCE_COUNTS", format=rpt+"E",
-                   unit="count"))
-        col.append(fits.Column(name="VARIANCE_BKG", format=rpt+"E",
-                   unit="count"))
-        col.append(fits.Column(name="NET", format=rpt+"E",
-                   unit="count /s"))
-        col.append(fits.Column(name="BACKGROUND", format=rpt+"E",
-                   unit="count /s"))
-        col.append(fits.Column(name="DQ", format=rpt+"I"))
-        col.append(fits.Column(name="DQ_WGT", format=rpt+"E"))
+        col.append(fits.Column(name="WAVELENGTH", format=rpt + "D",
+                               unit="angstrom"))
+        col.append(fits.Column(name="FLUX", format=rpt + "E",
+                               unit="erg /s /cm**2 /angstrom"))
+        col.append(fits.Column(name="ERROR", format=rpt + "E",
+                               unit="erg /s /cm**2 /angstrom"))
+        col.append(fits.Column(name="ERROR_LOWER", format=rpt + "E",
+                               unit="count /s"))
+        col.append(fits.Column(name="GROSS", format=rpt + "E",
+                               unit="count /s"))
+        col.append(fits.Column(name="GCOUNTS", format=rpt + "E",
+                               unit="count"))
+        col.append(fits.Column(name="VARIANCE_FLAT", format=rpt + "E",
+                               unit="count"))
+        col.append(fits.Column(name="VARIANCE_COUNTS", format=rpt + "E",
+                               unit="count"))
+        col.append(fits.Column(name="VARIANCE_BKG", format=rpt + "E",
+                               unit="count"))
+        col.append(fits.Column(name="NET", format=rpt + "E",
+                               unit="count /s"))
+        col.append(fits.Column(name="BACKGROUND", format=rpt + "E",
+                               unit="count /s"))
+        col.append(fits.Column(name="DQ", format=rpt + "I"))
+        col.append(fits.Column(name="DQ_WGT", format=rpt + "E"))
         cd = fits.ColDefs(col)
 
         # Modify some of the output columns.
-        #cd = ifd[1].columns             # this is a ColDefs object
-        #col_names = cd.names
-        #col_formats = cd.formats
-        #ncols = len(col_names)
+        # cd = ifd[1].columns             # this is a ColDefs object
+        # col_names = cd.names
+        # col_formats = cd.formats
+        # ncols = len(col_names)
         # xxx x = ifd[1].data                 # xxx touch the data
-        #for i in range(ncols):
+        # for i in range(ncols):
         #    fmt = col_formats[i]
         #    if fmt[-1] in ["D", "E", "I", "J"] and fmt[0] in "123456789":
         #        x = ifd[1].data         # xxx touch the data
@@ -655,7 +663,7 @@ class OutputX1D(object):
         delSomeKeywords(hdu.header)
 
         ofd.append(hdu)
-        self.fpInitData(ofd)            # initialize data in output hdu
+        self.fpInitData(ofd)  # initialize data in output hdu
 
         ifd.close()
 
@@ -705,7 +713,7 @@ class OutputX1D(object):
 
         nelem = len(wavelength[0])
         # This initial value assumes wavelengths increase with pixel number.
-        minwave = wavelength[0][nelem-1]
+        minwave = wavelength[0][nelem - 1]
         maxwave = wavelength[0][0]
         for row in range(nrows):
             if dq_wgt[row].sum(dtype=np.float64) <= 0:
@@ -721,6 +729,7 @@ class OutputX1D(object):
         phdr["MAXWAVE"] = maxwave
         phdr["BANDWID"] = maxwave - minwave
         phdr["CENTRWV"] = (maxwave + minwave) / 2.
+
 
 class Spectrum(object):
     """One row of an input spectrum.
@@ -825,8 +834,8 @@ class Spectrum(object):
         if self.data_ff is not None:
             self.collapseFlatField(sp_loc, shift2, width=XD_WIDTH)
             (doppmag, doppzero, orbitper) = \
-                        self.getDopplerParam(doppcorr, obsmode,
-                                             detector, hdr)
+                self.getDopplerParam(doppcorr, obsmode,
+                                     detector, hdr)
             self.shiftFlatField(shift1, x_offset,
                                 doppcorr, doppmag, doppzero, orbitper,
                                 expstart, expend)
@@ -854,8 +863,8 @@ class Spectrum(object):
         reffiles["flatfile"] = cosutil.expandFileName(flatfile)
         fd = fits.open(reffiles["flatfile"])
         if detector == "FUV":
-            self.data_ff = fd[(segment,1)].data.copy()
-            hdr_ff = fd[(segment,1)].header
+            self.data_ff = fd[(segment, 1)].data.copy()
+            hdr_ff = fd[(segment, 1)].header
         else:
             self.data_ff = fd[1].data.copy()
             hdr_ff = fd[1].header
@@ -890,18 +899,18 @@ class Spectrum(object):
 
         lowlim = sp_loc - width // 2 + shift2 - self.origin_ff[0]
         lowlim = int(round(lowlim))
-        highlim = int(lowlim + width)        # upper limit of a slice
+        highlim = int(lowlim + width)  # upper limit of a slice
         if highlim < 0 or lowlim >= height_ff:
             cosutil.printWarning("Target is outside range of flat field")
             self.data_ff = self.data_ff.mean(axis=0, dtype=np.float64)
         else:
             lowlim = max(lowlim, 0)
             highlim = min(highlim, height_ff)
-            height = highlim - lowlim           # height of slice
+            height = highlim - lowlim  # height of slice
             if height > 0:
                 self.data_ff = \
-                self.data_ff[lowlim:highlim,:].mean(axis=0,
-                                                  dtype=np.float64)
+                    self.data_ff[lowlim:highlim, :].mean(axis=0,
+                                                         dtype=np.float64)
             else:
                 cosutil.printError("Height of flat field slice is %d" % height)
                 self.data_ff = self.data_ff.mean(axis=0, dtype=np.float64)
@@ -930,7 +939,7 @@ class Spectrum(object):
         """
 
         if doppcorr == "OMIT" or doppcorr == "SKIPPED":
-            doppmag  = 0.
+            doppmag = 0.
             doppzero = 0.
             orbitper = 5760.
         elif obsmode == "TIME-TAG":
@@ -951,8 +960,8 @@ class Spectrum(object):
             doppzero = hdr["doppzero"]
             orbitper = hdr["orbitper"]
 
-        else:               # ACCUM
-            doppmag  = hdr["dopmagt"]
+        else:  # ACCUM
+            doppmag = hdr["dopmagt"]
             doppzero = hdr["dopzerot"]
             orbitper = hdr["orbtpert"]
 
@@ -1017,12 +1026,12 @@ class Spectrum(object):
                                  " the flat will be truncated.")
             if offset1 < 0:
                 trim = -offset1
-                flat[:int(offset1+len_ff)] = self.data_ff[int(trim):]
-            else:               # offset1 + len_ff > nelem
+                flat[:int(offset1 + len_ff)] = self.data_ff[int(trim):]
+            else:  # offset1 + len_ff > nelem
                 trim = (offset1 + len_ff) - nelem
-                flat[int(offset1):int(offset1+len_ff-trim)] = self.data_ff[:int(len_ff-trim)]
+                flat[int(offset1):int(offset1 + len_ff - trim)] = self.data_ff[:int(len_ff - trim)]
         else:
-            flat[int(offset1):int(offset1+len_ff)] = self.data_ff
+            flat[int(offset1):int(offset1 + len_ff)] = self.data_ff
         self.data_ff = self.convolveFlat(flat, doppmag, doppzero, orbitper,
                                          expstart, expend)
 
@@ -1081,7 +1090,7 @@ class Spectrum(object):
 
         # t is the time in seconds since doppzero, in one-second increments.
         t = np.arange(rnd_exptime, dtype=np.float64) + \
-                   (expstart - doppzero) * SEC_PER_DAY
+            (expstart - doppzero) * SEC_PER_DAY
 
         # shift is in pixels (wavelengths increase toward larger pixel number).
         shift = -doppmag * np.sin(2. * np.pi * t / orbitper)
@@ -1090,7 +1099,7 @@ class Spectrum(object):
         i_npts = rnd_exptime
         i_npts = max(i_npts, 1)
         increment = 1. / float(i_npts)
-        for i in range(i_npts):                     # one-second increments
+        for i in range(i_npts):  # one-second increments
             ishift = int(round(shift[i])) + mag
             dopp[ishift] += increment
 
@@ -1098,13 +1107,14 @@ class Spectrum(object):
         nelem = len(flat)
         conv_flat = np.zeros(nelem, dtype=np.float64)
         conv_flat[0:mag] = 1.
-        conv_flat[nelem-mag:] = 1.
+        conv_flat[nelem - mag:] = 1.
         for k in range(lendopp):
             low = k
             high = k + nelem - 2 * mag
-            conv_flat[mag:nelem-mag] += (dopp[lendopp-1-k] * flat[low:high])
+            conv_flat[mag:nelem - mag] += (dopp[lendopp - 1 - k] * flat[low:high])
 
         return conv_flat
+
 
 class OutputSpectrum(object):
     """An output spectrum.
@@ -1144,7 +1154,7 @@ class OutputSpectrum(object):
     """
 
     def __init__(self, ofd, inspec, keywords, segment,
-                  output_wl_range, output_dispersion):
+                 output_wl_range, output_dispersion):
         """Constructor."""
 
         self.ofd = ofd
@@ -1167,8 +1177,8 @@ class OutputSpectrum(object):
         sumweight = np.zeros(nelem, dtype=np.float64)
 
         # Assign wavelengths for the current row.
-        data.field("wavelength")[row,:] = output_wl_range[0] + \
-                output_dispersion * np.arange(nelem, dtype=np.float64)
+        data.field("wavelength")[row, :] = output_wl_range[0] + \
+                                           output_dispersion * np.arange(nelem, dtype=np.float64)
 
         for sp in self.inspec:
             if self.segment == sp.segment:
@@ -1242,8 +1252,8 @@ class OutputSpectrum(object):
         # arrays, so we must find the minimum and maximum indices in the
         # output array that map (via wavelength) to points within the current
         # input array.
-        flag = np.where(np.logical_and (ipixel >= 0.,
-                                        ipixel <= input_nelem-1.))
+        flag = np.where(np.logical_and(ipixel >= 0.,
+                                       ipixel <= input_nelem - 1.))
         min_k = flag[0][0]
         max_k = flag[0][-1]
 
@@ -1254,8 +1264,8 @@ class OutputSpectrum(object):
         q = ipixel[min_k:max_k] - ix
         p = 1. - q
         i = ix.astype(np.int32)
-        pqfactor = np.sqrt((p*sp.dq_wgt[i])**2 + (q*sp.dq_wgt[i+1])**2)
-        pqfactor = np.where(pqfactor == 0.0, 0.0, 1./pqfactor)
+        pqfactor = np.sqrt((p * sp.dq_wgt[i]) ** 2 + (q * sp.dq_wgt[i + 1]) ** 2)
+        pqfactor = np.where(pqfactor == 0.0, 0.0, 1. / pqfactor)
         flux = data.field("flux")
         error = data.field("error")
         gross = data.field("gross")
@@ -1267,38 +1277,39 @@ class OutputSpectrum(object):
         background = data.field("background")
         dq = data.field("dq")
         dq_wgt = data.field("dq_wgt")
-        first = (data.field("exptime") == 0.)           # used for DQ
+        first = (data.field("exptime") == 0.)  # used for DQ
 
         weight1 = sp.dq_wgt[i] * sp.exptime
-        weight2 = sp.dq_wgt[i+1] * sp.exptime
+        weight2 = sp.dq_wgt[i + 1] * sp.exptime
         # Also weight by the flat field.
         if sp.data_ff is not None:
             weight1 *= sp.data_ff[i]
-            weight2 *= sp.data_ff[i+1]
+            weight2 *= sp.data_ff[i + 1]
 
         data.setfield("exptime", data.field("exptime") + sp.exptime)
 
         sumweight[min_k:max_k] += (p * weight1 + q * weight2)
 
-        flux[min_k:max_k] += (sp.flux[i]   * p * weight1 +
-                              sp.flux[i+1] * q * weight2)
-        gross[min_k:max_k] += (sp.gross[i]   * p * weight1 +
-                               sp.gross[i+1] * q * weight2)
-        net[min_k:max_k] += (sp.net[i]   * p * weight1 +
-                             sp.net[i+1] * q * weight2)
-        background[min_k:max_k] += (sp.background[i]   * p * weight1 +
-                                    sp.background[i+1] * q * weight2)
-        temp_dq = sp.dq[i] | sp.dq[i+1]
+        flux[min_k:max_k] += (sp.flux[i] * p * weight1 +
+                              sp.flux[i + 1] * q * weight2)
+        gross[min_k:max_k] += (sp.gross[i] * p * weight1 +
+                               sp.gross[i + 1] * q * weight2)
+        net[min_k:max_k] += (sp.net[i] * p * weight1 +
+                             sp.net[i + 1] * q * weight2)
+        background[min_k:max_k] += (sp.background[i] * p * weight1 +
+                                    sp.background[i + 1] * q * weight2)
+        temp_dq = sp.dq[i] | sp.dq[i + 1]
         if first:
             dq[min_k:max_k] = temp_dq.copy()
         else:
             dq[min_k:max_k] &= temp_dq
-        dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i+1] * q)
-        gcounts[min_k:max_k] += (sp.gcounts[i]   * p * sp.dq_wgt[i] +
-                                 sp.gcounts[i+1] * q * sp.dq_wgt[i+1])
+        dq_wgt[min_k:max_k] += (sp.dq_wgt[i] * p + sp.dq_wgt[i + 1] * q)
+        gcounts[min_k:max_k] += (sp.gcounts[i] * p * sp.dq_wgt[i] +
+                                 sp.gcounts[i + 1] * q * sp.dq_wgt[i + 1])
         variance_flat[min_k:max_k] += ((sp.variance_flat[i] * p * sp.dq_wgt[i] +
-                                 sp.variance_flat[i+1] * q * sp.dq_wgt[i+1]) * pqfactor)
-        variance_counts[min_k:max_k] += ((sp.variance_counts[i] * p* sp.dq_wgt[i] +
-                                 sp.variance_counts[i+1] * q * sp.dq_wgt[i+1]) * pqfactor)
+                                        sp.variance_flat[i + 1] * q * sp.dq_wgt[i + 1]) * pqfactor)
+        variance_counts[min_k:max_k] += ((sp.variance_counts[i] * p * sp.dq_wgt[i] +
+                                          sp.variance_counts[i + 1] * q * sp.dq_wgt[i + 1]) * pqfactor)
         variance_bkg[min_k:max_k] += ((sp.variance_bkg[i] * p * sp.dq_wgt[i] +
-                                 sp.variance_bkg[i+1] * q * sp.dq_wgt[i+1]) * pqfactor)
+                                       sp.variance_bkg[i + 1] * q * sp.dq_wgt[i + 1]) * pqfactor)
+        # return variance_flat, variance_counts, variance_bkg

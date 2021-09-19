@@ -7,6 +7,9 @@ from .calcosparam import *       # parameter definitions
 def avgImage(input, output):
     """Average 2-D image sets, assumed to be aligned.
 
+   @change the parameter input shouldn't be a string its has to be a list of
+            file names. (Michael A.)
+
     Parameters
     ----------
     input: str

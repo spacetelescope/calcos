@@ -1,12 +1,13 @@
 from __future__ import absolute_import, print_function
+
 from . import cosutil
 from . import dispersion
-from .calcosparam import *       # parameter definitions
+from .calcosparam import *  # parameter definitions
 
 # Half width (pixels) of airglow region to be excluded.
-AIRGLOW_LyA = 250.      # Lyman alpha
-AIRGLOW_FUV = 100.      # anything but Lyman alpha, but still FUV
-AIRGLOW_NUV = 30.       # any NUV airglow line
+AIRGLOW_LyA = 250.  # Lyman alpha
+AIRGLOW_FUV = 100.  # anything but Lyman alpha, but still FUV
+AIRGLOW_NUV = 30.  # any NUV airglow line
 
 # Wavelengths in Angstroms of airglow lines.
 # The values in the tuple are the wavelengths of the lines in the multiplet.
@@ -15,6 +16,7 @@ AIRGLOW_WAVELENGTHS = {"Lyman_alpha": (1215.67,),
                        "O_I_1304": (1302.168, 1304.858, 1306.029),
                        "O_I_1356": (1355.598, 1358.512),
                        "N_I_1134": (1134.165, 1134.415, 1134.980)}
+
 
 # ?                    "O_I_2973": (2973.154,)}
 
@@ -66,7 +68,7 @@ def findAirglowLimits(info, segment, disptab, airglow_line):
               "cenwave": info["cenwave"],
               "segment": segment,
               "aperture": info["aperture"]}
-    
+
     # currently not necessary:  filter["fpoffset"] = info["fpoffset"]
     disp_rel = dispersion.Dispersion(disptab, filter)
     if not disp_rel.isValid():
@@ -74,19 +76,20 @@ def findAirglowLimits(info, segment, disptab, airglow_line):
         cosutil.printContinuation(str(filter))
         disp_rel.close()
         return None
-    
+
     min_wl = min(wl_airglow)
     max_wl = max(wl_airglow)
     # First check whether the airglow line is off the detector.
     # NOTE that we assume that wavelength increases with x.
     wl_left_edge = disp_rel.evalDisp(-exclude)
+    wl_right_edge = disp_rel.evalDisp(axis_length - 1. + exclude)
     if max_wl < wl_left_edge:
         disp_rel.close()
-        return None
-    wl_right_edge = disp_rel.evalDisp(axis_length - 1. + exclude)
+        return None, None
     if min_wl > wl_right_edge:
+        print("reached here")
         disp_rel.close()
-        return None
+        return None, None
 
     # x_left and x_right are the pixel coordinates for the minimum
     # and maximum airglow wavelengths in the multiplet.
@@ -96,4 +99,4 @@ def findAirglowLimits(info, segment, disptab, airglow_line):
     x1 = x_right + exclude
     disp_rel.close()
 
-    return (x0, x1)
+    return x0, x1

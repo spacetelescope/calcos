@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-from __future__ import absolute_import, division, print_function # confidence high
+from __future__ import absolute_import, division, print_function  # confidence high
 import os
 import sys
 import string
@@ -9,7 +9,7 @@ import getopt
 import numpy as np
 import astropy.io.fits as fits
 
-from . import calcosparam                      # parameter definitions
+from . import calcosparam  # parameter definitions
 from . import cosutil
 from . import getinfo
 from . import extract
@@ -18,7 +18,8 @@ from . import timetag
 
 from .version import *
 
-first_message = True                    # initial values
+first_message = True  # initial values
+
 
 def main(args):
     """This is a driver to perform 1-D extraction for one file.
@@ -50,8 +51,8 @@ def main(args):
                 raise RuntimeError("Command-line options must precede "
                                    "the input file name(s).")
 
-    outdir = None               # output directory name
-    update_input = False        # update keywords in corrtag files?
+    outdir = None  # output directory name
+    update_input = False  # update keywords in corrtag files?
     find_target = {"flag": False, "cutoff": None}
     location = None
     extrsize = None
@@ -107,9 +108,10 @@ def main(args):
     extractSpec(pargs, outdir, update_input,
                 location, extrsize, find_target)
 
+
 def extractSpec(inlist=[], outdir=None, update_input=False,
                 location=None, extrsize=None,
-                find_target={"flag": False, "cutoff": None},
+                find_target=None,
                 verbosity=None):
     """Extract a 1-D spectrum from each set of flt and counts images.
 
@@ -164,6 +166,8 @@ def extractSpec(inlist=[], outdir=None, update_input=False,
         If not None, set verbosity to this level.
     """
 
+    if find_target is None:
+        find_target = {"flag": False, "cutoff": None}
     if verbosity is not None:
         if verbosity < 0 or verbosity > 2:
             raise RuntimeError("Verbosity %d is out of range (0, 1, or 2)" %
@@ -218,6 +222,7 @@ def extractSpec(inlist=[], outdir=None, update_input=False,
         # Copy keywords from the x1d file to input files.
         updateSomeKeywords(x1d, filenames, update_input)
 
+
 def checkMissing(filenames):
     """Check for missing input files.
 
@@ -248,6 +253,7 @@ def checkMissing(filenames):
                 cosutil.printContinuation(corrtag)
 
     return missing
+
 
 def checkExists(filenames):
     """Check for output files that already exist.
@@ -281,7 +287,7 @@ def checkExists(filenames):
         for i in range(len(x1d_ab_list)):
             if os.access(x1d_ab_list[i], os.R_OK):
                 already_exists.append(x1d_ab_list[i])
-        if x1d != x1d_ab_list[0]:               # FUV data?
+        if x1d != x1d_ab_list[0]:  # FUV data?
             if os.access(x1d, os.R_OK):
                 already_exists.append(x1d)
 
@@ -296,6 +302,7 @@ def checkExists(filenames):
         cosutil.printError("Output files will not be overwritten.")
 
     return already_exists
+
 
 def printFilenames(corrtag, flt, counts, x1d_ab):
     """Print the names of the files."""
@@ -316,6 +323,7 @@ def printFilenames(corrtag, flt, counts, x1d_ab):
     cosutil.printMsg("")
 
     first_message = False
+
 
 def makeFileNames(inlist, outdir=""):
     """Replace suffixes to make the names of all files that we will need.
@@ -362,10 +370,10 @@ def makeFileNames(inlist, outdir=""):
         i = x1d_ab.rfind("_x1d_a")
         if i < 0:
             i = x1d_ab.rfind("_x1d_b")
-        if i < 0:                       # NUV file name
+        if i < 0:  # NUV file name
             x1d = x1d_ab
-        else:                           # FUV file name
-            x1d = x1d_ab[:i+4] + x1d_ab[i+6:]   # root_x1d.fits
+        else:  # FUV file name
+            x1d = x1d_ab[:i + 4] + x1d_ab[i + 6:]  # root_x1d.fits
 
         if x1d in filenames:
             filenames[x1d]["corrtag"].append(corrtag)
@@ -387,6 +395,7 @@ def makeFileNames(inlist, outdir=""):
         filenames[x1d]["x1d_ab"].sort()
 
     return filenames
+
 
 def makeFltCounts(cal_ver, corrtag, flt, counts):
     """Create the flt and counts files.
@@ -442,8 +451,8 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
     reffiles = getinfo.getRefFileNames(phdr)
     timetag.setActiveArea(events, info, reffiles["brftab"])
     minmax_shift_dict = timetag.getWavecalOffsets(
-                events, info, switches["wavecorr"], reffiles["xtractab"],
-                reffiles["brftab"])
+        events, info, switches["wavecorr"], reffiles["xtractab"],
+        reffiles["brftab"])
     dq_array = timetag.doDqicorr(events, corrtag, info, switches, reffiles,
                                  phdr, headers[1], minmax_shift_dict)
 
@@ -451,7 +460,7 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
                         phdr, headers, dq_array, npix, x_offset, exptime,
                         counts, flt)
 
-    updated = False                     # initial value
+    updated = False  # initial value
     wcs = spwcs.SpWcsImage(flt, info, switches["helcorr"],
                            reffiles["spwcstab"], reffiles["xtractab"])
     flag = wcs.writeWCSKeywords()
@@ -473,6 +482,7 @@ def makeFltCounts(cal_ver, corrtag, flt, counts):
     fd.close()
 
     return is_wavecal
+
 
 def concatenateSegments(x1d_ab_list, x1d):
     """Concatenate the 1-D spectra for the two FUV segments into one file.
@@ -504,6 +514,7 @@ def concatenateSegments(x1d_ab_list, x1d):
     else:
         extract.concatenateFUVSegments(x1d_ab_list, x1d)
 
+
 def updateSomeKeywords(x1d, filenames, update_input=False):
     """Copy extraction location keywords from x1d.fits to other files.
 
@@ -529,6 +540,7 @@ def updateSomeKeywords(x1d, filenames, update_input=False):
         file_list.extend(filenames[x1d]["corrtag"])
 
     copyKeywords(x1d, file_list)
+
 
 def copyKeywords(x1d, file_list):
     """Copy extraction location keywords to other headers.
@@ -577,6 +589,7 @@ def copyKeywords(x1d, file_list):
 
     fd1.close()
 
+
 def prtOptions():
     """Print a list of command-line options and arguments."""
 
@@ -587,11 +600,12 @@ def prtOptions():
     print("  -o outdir (output directory name)")
     print("  --find yes (find Y location of spectrum)")
     print("  --find no (use Y location of spectrum "
-                     "from 1dx file and wavecal)")
+          "from 1dx file and wavecal)")
     print("  --find cutoff (find Y location if sigma <= cutoff)")
     print("  --location Y location(s) at which to extract spectra")
     print("  --extrsize height(s) of extraction region(s)")
     print("  one or more corrtag file names")
+
 
 def replaceSuffix(rawname, suffix, new_suffix):
     """Replace the suffix in a raw file name.
@@ -617,13 +631,13 @@ def replaceSuffix(rawname, suffix, new_suffix):
     lensuffix = len(suffix)
     i = rawname.rfind(suffix)
     if i >= 0:
-        newname = rawname[0:i] + new_suffix + rawname[i+lensuffix:]
+        newname = rawname[0:i] + new_suffix + rawname[i + lensuffix:]
     else:
         raise RuntimeError("File name " + rawname +
                            " was expected to have suffix " + suffix)
 
     return newname
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     main(sys.argv[1:])
