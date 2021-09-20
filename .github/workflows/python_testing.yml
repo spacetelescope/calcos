@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [ pytest ]
   schedule:
-    - cron: '0 0 * * *'  # every day at midnight
+    - cron: '*/5 * * * *'  # every day at midnight
 
 jobs:
   build:
@@ -50,7 +50,7 @@ jobs:
         pip install astropy
         pip install scipy
         pip install matplotlib
-        pip install stsci.tools
+        pip install stsci.tools==4.0.0
         python setup.py install
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
