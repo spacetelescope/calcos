@@ -4,9 +4,18 @@ from calcos import shiftfile
 def test_shift_file():  # Tests the initialized variables
     # Setup
     shift_file = "shift_file.txt"
+    with open(shift_file, "w") as file:
+        file.write("#dataset\tfpoffset\tflash #\tstripe\tshift1\tshift2\n")
+        for i in range(10):
+            if i % 3 == 0:
+                file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format("abc123def", "any", "1", "NUVA", "45.234435", "7"))
+            elif i % 5 == 0:
+                file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format("ghi456jkl", "any", "2", "NUVB", "34.543453", "7"))
+            else:
+                file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format("mno789pqr", "any", "1", "NUVC", "-34.543453", "7"))
 
     # Test
-    ob = shiftfile.ShiftFile(shift_file, 'lco721egq', 'any')
+    ob = shiftfile.ShiftFile(shift_file, 'abc123def', 'any')
     # Verify
     assert len(ob.user_shift_dict) > 0
 
