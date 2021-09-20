@@ -23,15 +23,21 @@ def test_shift_file():  # Tests the initialized variables
 def test_get_shifts():
     # Setup
     shift_file = "shift_file.txt"
-    ob = shiftfile.ShiftFile(shift_file, 'lco721egq', 'any')
-    keys = [(2, 'nuva'), ('any', 'nuvb'), (2, 'nuvc'), (1, 'any')]
-    expected_values = [((-41.85122681, 10.0), 1), ((-40.95245361, 10.0), 2),
-                       ((-41.67250061, 10.0), 1), ((-41.17250061, 10.0), 3)]
+    ob1 = shiftfile.ShiftFile(shift_file, 'ghi456jkl', 'any')
+    ob2 = shiftfile.ShiftFile(shift_file, 'abc123def', 'any')
+    keys = [('any', 'nuva'), ('any', 'nuvb'), (2, 'nuvc'), ('any', 'any')]
+    expected_values1 = [((None, None), 0), ((34.543453, 7.0), 1),
+                       ((None, None), 0), ((34.543453, 7.0), 1)]
+    expected_values2 = [((45.234435, 7.0), 1), ((None, None), 0),
+                        ((None, None), 0), ((45.234435, 7.0), 1)]
     # Test
-    test_values = []
+    test_values1 = []
+    test_values2 = []
     for key in keys:
-        test_values.append(shiftfile.ShiftFile.getShifts(ob, key))
+        test_values1.append(shiftfile.ShiftFile.getShifts(ob1, key))
+    for key in keys:
+        test_values2.append(shiftfile.ShiftFile.getShifts(ob2, key))
     # Verify
-    print(test_values)
-    for i in range(len(expected_values)):
-        assert expected_values[i] == test_values[i]
+    for i in range(len(expected_values1)):
+        assert expected_values1[i] == test_values1[i]
+        assert expected_values2[i] == test_values2[i]
