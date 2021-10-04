@@ -3,6 +3,7 @@ from calcos import shiftfile
 
 def test_shift_file():  # Tests the initialized variables
     # Setup
+    # todo add fuv
     shift_file = "shift_file.txt"
     with open(shift_file, "w") as file:
         file.write("#dataset\tfpoffset\tflash #\tstripe\tshift1\tshift2\n")

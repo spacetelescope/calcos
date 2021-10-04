@@ -7,6 +7,7 @@ from calcos import average
 
 def test_avg_image():
     # Setup
+    # todo change the values of the files
     infile = ["lc8803010_fltsum.fits", "lc8803i6q_counts.fits"]
     outfile = "test_output.fits"
     if os.path.exists(outfile):
