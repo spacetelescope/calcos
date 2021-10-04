@@ -29,4 +29,4 @@ bc2.build_cmds = ["pip install -e '.[test]'",
 
 // Iterate over configurations that define the (distibuted) build matrix.
 // Spawn a host of the given nodetype for each combination and run in parallel.
-utils.run([bc0, bc1, bc2])
+utils.run([bc0, bc1])
