@@ -1,6 +1,6 @@
 """Tests for COS/FUV timetag."""
 
-#import pytest
+import pytest
 
 import calcos
 from helpers import BaseCOS

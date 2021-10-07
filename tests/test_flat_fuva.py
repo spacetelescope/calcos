@@ -1,6 +1,6 @@
 """Tests for COS/FUV flat."""
 
-#import pytest
+import pytest
 
 import calcos
 from helpers import BaseCOS

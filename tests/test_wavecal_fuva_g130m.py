@@ -1,6 +1,6 @@
 """Tests for COS/FUVA wavecal, G130M."""
 
-#import pytest
+import pytest
 
 import calcos
 from helpers import BaseCOS
