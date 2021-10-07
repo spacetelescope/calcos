@@ -8,7 +8,7 @@ from helpers import BaseCOS
 
 # TODO: Mark this as slow when there are faster tests added for CI tests
 #       so that this only runs in nightly tests.
-#@pytest.mark.slow
+@pytest.mark.slow
 class TestRelMvRecFlat(BaseCOS):
     detector = 'fuv'
 
