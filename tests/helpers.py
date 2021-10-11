@@ -57,8 +57,11 @@ def calref_from_image(input_image):
         # Not all images have the CORR step and it is not always on.
         if (step not in hdr) or (hdr[step].strip().upper() != 'PERFORM'):
             continue
-
         ref_files += ref_from_image(input_image, corr_lookup[step])
+    # Special case for STATFLAG=T, which requires XTRACTAB, but MissingRefFiles()
+    # doesn't know
+    if hdr['STATFLAG']:
+        ref_files += ref_from_image(input_image, ['XTRACTAB'])
 
     return list(set(ref_files))  # Remove duplicates
 
