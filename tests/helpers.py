@@ -122,7 +122,7 @@ class BaseCOS:
         """
         all_raws = []
         for file in filenames:
-            if file.endswith('_rawtag_a.fits') or file.endswith('_rawtag_b.fits'):
+            if 'rawtag' in file:
                 all_raws.append(file)
             # List of filenames can include _rawtag, _asn and _spt files
             dest = get_bigdata('scsb-calcos', self.env, self.detector, 'input',
@@ -138,16 +138,16 @@ class BaseCOS:
 
         first_pass = ('JENKINS_URL' in os.environ and
                       'ssbjenkins' in os.environ['JENKINS_URL'])
-
         for raw in all_raws:
             ref_files = calref_from_image(raw)
-
             for ref_file in ref_files:
+                print("Getting reference file {}".format(ref_file))
                 # Special reference files that live with inputs.
                 if ('$' not in ref_file and
                         os.path.basename(ref_file) == ref_file):
                     get_bigdata('scsb-calcos', self.env, self.detector,
                                 'input', ref_file)
+                    print('{} downloaded successfully')
                     continue
 
                 # Jenkins cannot see Central Storage on push event,
