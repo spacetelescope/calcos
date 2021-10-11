@@ -1,6 +1,6 @@
 """Tests for COS/NUV dark."""
 
-#import pytest
+import pytest
 
 import calcos
 from helpers import BaseCOS
