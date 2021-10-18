@@ -57,8 +57,11 @@ def calref_from_image(input_image):
         # Not all images have the CORR step and it is not always on.
         if (step not in hdr) or (hdr[step].strip().upper() != 'PERFORM'):
             continue
-
         ref_files += ref_from_image(input_image, corr_lookup[step])
+    # Special case for STATFLAG=T, which requires XTRACTAB, but MissingRefFiles()
+    # doesn't know
+    if hdr['STATFLAG']:
+        ref_files += ref_from_image(input_image, ['XTRACTAB'])
 
     return list(set(ref_files))  # Remove duplicates
 
@@ -122,7 +125,7 @@ class BaseCOS:
         """
         all_raws = []
         for file in filenames:
-            if file.endswith('_rawtag_a.fits') or file.endswith('_rawtag_b.fits'):
+            if 'rawtag' in file:
                 all_raws.append(file)
             # List of filenames can include _rawtag, _asn and _spt files
             dest = get_bigdata('scsb-calcos', self.env, self.detector, 'input',
@@ -138,16 +141,16 @@ class BaseCOS:
 
         first_pass = ('JENKINS_URL' in os.environ and
                       'ssbjenkins' in os.environ['JENKINS_URL'])
-
         for raw in all_raws:
             ref_files = calref_from_image(raw)
-
             for ref_file in ref_files:
+                print("Getting reference file {}".format(ref_file))
                 # Special reference files that live with inputs.
                 if ('$' not in ref_file and
                         os.path.basename(ref_file) == ref_file):
                     get_bigdata('scsb-calcos', self.env, self.detector,
                                 'input', ref_file)
+                    print('{} downloaded successfully')
                     continue
 
                 # Jenkins cannot see Central Storage on push event,
@@ -161,7 +164,7 @@ class BaseCOS:
                         os.environ[var] = ref_path  # hacky hack hack
 
                 # Download reference files, if needed only.
-                download_crds(ref_file, timeout=self.timeout)
+                download_crds(ref_file, timeout=self.timeout, verbose=True)
 
     def compare_outputs(self, outputs, atol=0, rtol=1e-7, raise_error=True,
                         ignore_keywords_overwrite=None):
