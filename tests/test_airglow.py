@@ -15,12 +15,13 @@ def test_find_airglow_limits():
                          (None, None), (None, None), (842.3693742688937, 1124.1659525618788)]]
     # Test
     test_pxl = [[], []]
-    # todo only works for FUV
+    # only works for FUV
     for i in range(2):
         for j in range(len(airglow_lines)):
-            (x, y) = airglow.findAirglowLimits(inf, seg[i], disptab, airglow_lines[j])
-            test_pxl[i].append((x, y))
+            limits = airglow.findAirglowLimits(inf, seg[i], disptab, airglow_lines[j])
+            if limits is not None:
+                x, y = limits
+                test_pxl[i].append((x, y))
     # Verify
     for i in range(len(actual_pxl)):
         assert actual_pxl[i] == test_pxl[i]
-

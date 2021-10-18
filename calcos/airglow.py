@@ -83,13 +83,9 @@ def findAirglowLimits(info, segment, disptab, airglow_line):
     # NOTE that we assume that wavelength increases with x.
     wl_left_edge = disp_rel.evalDisp(-exclude)
     wl_right_edge = disp_rel.evalDisp(axis_length - 1. + exclude)
-    if max_wl < wl_left_edge:
+    if (max_wl < wl_left_edge) or (min_wl > wl_right_edge):
         disp_rel.close()
-        return None, None
-    if min_wl > wl_right_edge:
-        print("reached here")
-        disp_rel.close()
-        return None, None
+        return None
 
     # x_left and x_right are the pixel coordinates for the minimum
     # and maximum airglow wavelengths in the multiplet.
