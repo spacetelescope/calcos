@@ -15,7 +15,9 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
-    env:
+    env: 
+      TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
+      lref: /grp/hst/cdbs/lref/
       working-directory: ./tests
     strategy:
       fail-fast: false
@@ -63,5 +65,5 @@ jobs:
       run: |
         mkdir Output
         # run all the unit tests.
-        pytest test_shiftfile.py -v
+        pytest test_airglow.py -v 
       working-directory: ${{env.working-directory}}
