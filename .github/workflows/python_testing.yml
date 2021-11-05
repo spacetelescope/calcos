@@ -65,5 +65,5 @@ jobs:
       run: |
         mkdir Output
         # run all the unit tests.
-        pytest test_airglow.py -v 
+        pytest test_airglow.py test_average.py -v 
       working-directory: ${{env.working-directory}}
