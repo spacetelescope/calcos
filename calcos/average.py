@@ -58,7 +58,6 @@ def avgImage(input, output):
     expstart = sci_extn.header["expstart"]
     expend = sci_extn.header["expend"]
     ifd.close()
-    sci_data = None
     for i in range(nimages):
         ifd = fits.open(input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
