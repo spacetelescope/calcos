@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 from astropy.io import fits
 
 from calcos import average
@@ -7,8 +8,7 @@ from calcos import average
 
 def test_avg_image():
     # Setup
-    # todo change the values of the files
-    infile = ["lc8803010_fltsum.fits", "lc8803i6q_counts.fits"]
+    infile = ["test_count1.fits", "test_count2.fits"]
     outfile = "test_output.fits"
     if os.path.exists(outfile):
         os.remove(outfile)  # avoid file exists error
@@ -20,6 +20,6 @@ def test_avg_image():
     #     print(i," ",inhdr1[i]," ",inhdr2[i]," ",out_hdr[i])
     # Verify
     assert os.path.exists(outfile)
-    for i in range(len(out_hdr)):
-        if i != 6:
-            assert inhdr1[i] == out_hdr[i] == inhdr2[i]
+    for (i, j, k) in zip(inhdr1[1].header, inhdr2[1].header, out_hdr[1].header):
+        assert i == j == k
+    np.testing.assert_array_equal((inhdr1[1].data + inhdr1[1].data) / 2, out_hdr[1].data)
