@@ -12,7 +12,7 @@ def avgImage(input, output):
 
     Parameters
     ----------
-    input: str
+    input: list
         Name of the input file.
 
     output: str
@@ -58,7 +58,7 @@ def avgImage(input, output):
     expstart = sci_extn.header["expstart"]
     expend = sci_extn.header["expend"]
     ifd.close()
-
+    sci_data = None
     for i in range(nimages):
         ifd = fits.open(input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
@@ -111,6 +111,7 @@ def avgImage(input, output):
     # Average the ERR extensions in quadrature.
 
     got_data = 0
+    err_data = 0  # to avoid reference before assignment error.
     for i in range(nimages):
         ifd = fits.open(input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
