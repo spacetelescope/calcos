@@ -31,7 +31,6 @@ def test_get_table():
     ofd = generate_fits_file(name)
     truth = [tuple(ofd[1].data[3])]
     time = ofd[1].data[3][0]
-    # rawx = ofd[1].data[3][1]
     # Test
     dt = list(cosutil.getTable(name, {'TIME': time}, exactly_one=True))
     # Verify
@@ -88,9 +87,6 @@ def test_get_headers():
 
     # Verify
     np.testing.assert_array_equal(true_hdr, test_hdr[0])
-    # print(true_hdr[0])
-    # print("#" * 100)
-    # print(test_hdr[1][0])
 
 
 def test_write_output_events():
@@ -150,6 +146,10 @@ def test_is_product():
     generate_fits_file(product_file)
     generate_fits_file(raw_file)
     # Test
+
+    # NOTE:
+    # no test to be done here since we're checking the file if its a product or not
+    # the return of the function isProduct() is a boolean hence, assert it directly.
 
     # Verify
     assert cosutil.isProduct(product_file)
@@ -230,9 +230,9 @@ def test_create_corrtag_hdu():
     num_of_rows = 10
     # Test
     # detector parameter is not needed consider removing it
-    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, "FUV", hdu[1])
+    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, "FUV")
     assert len(out_bin_table.data) == num_of_rows
-    assert out_bin_table != all(hdu[1].data)
+    assert out_bin_table[1].data != all(hdu[1].data)
 
 
 def test_remove_wcs_keywords():
@@ -987,8 +987,6 @@ def test_combine_stat():
 
     # {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2, 'err_goodmean': 1.3493975903614457}
     assert True
-
-
 test_combine_stat()
 
 
@@ -1014,4 +1012,3 @@ def test_override_keywords():
     phdr = fits.getheader("overridekeywords.fits", ext=0)
     # Verify
     assert val1 == phdr["statflag"]
-    # assert val4 == phdr["flatfile_hdr"]
