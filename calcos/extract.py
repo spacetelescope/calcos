@@ -18,7 +18,7 @@ from .calcosparam import *  # parameter definitions
 def extract1D(input, incounts=None, output=None,
               update_input=True,
               location=None, extrsize=None,
-              find_target=None):
+              find_target={"flag": False, "cutoff": None}):
     """Extract 1-D spectrum from 2-D image.
 
     Parameters
@@ -61,8 +61,6 @@ def extract1D(input, incounts=None, output=None,
         False if location is not None, or if the input is a wavecal.
     """
 
-    if find_target is None:
-        find_target = {"flag": False, "cutoff": None}
     cosutil.printIntro("Spectral Extraction")
     names = [("Input", input), ("Incounts", incounts), ("Output", output)]
     cosutil.printFilenames(names)
@@ -275,12 +273,9 @@ def remove_unwanted_columns(ofd):
     @param ofd: the file with the columns
     @return: the file with the unwanted columns removed.
     """
-    # unwanted_columns = ['EE_LOWER_OUTER', 'EE_LOWER_INNER',
-    #                     'EE_UPPER_INNER', 'EE_UPPER_OUTER']
-    '''
-     @todo: These values are only for testing purposes.
-    '''
-    unwanted_columns = ['XFULL', 'YFULL']
+    unwanted_columns = ['EE_LOWER_OUTER', 'EE_LOWER_INNER',
+                        'EE_UPPER_INNER', 'EE_UPPER_OUTER']
+
     newcols = []
     table = ofd[1].data
     columns = table.columns
@@ -302,7 +297,7 @@ def remove_unwanted_columns(ofd):
 def add_column_comment(ofd, column_name, comment):
     #
     # columns don't have comments, per se, but you can add a comment to the
-    # corresponding TYPE keyword
+    # corresponding TTYPEn keyword
     number = 1
     while (True):
         try:
@@ -1664,11 +1659,15 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
 
 
 def getProfileCentroid(phdr, segment):
-    """
-    Getter for centroid
-    @param phdr: pyfits Header object
-    @param segment: str FUVA or FUVB
-    @return: centroid
+    """Getter for centroid
+
+    Parameters
+    ----------
+    phdr: list
+        primary header object.
+
+    segment: str
+        FUVA or FUVB
     """
     key = "SP_LOC_" + segment[-1]
     return phdr[key]
