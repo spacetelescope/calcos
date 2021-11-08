@@ -9,8 +9,15 @@ from calcos import average
 def create_count_file(file=None):
     """
     creates a temp count file for testing avg_image.
-    :param file: the filename string
-    :return: file name string
+
+    Parameters
+    ----------
+    file: str
+        the filename string
+
+    Returns
+    -------
+    filename string
     """
     if file is None:
         file = 'test_count.fits'
@@ -203,6 +210,16 @@ def create_count_file(file=None):
 
 
 def test_avg_image():
+    """
+    tests avg_image() in average.py
+    explanation of the test
+    - create temporary count files to be used as inputs
+    - expected values in the output file are the average of the input values
+    - loop though the values to check if the math holds.
+    Returns
+    -------
+    pass if expected == actual fail otherwise.
+    """
     # Setup
     infile = ["test_count1.fits", "test_count2.fits"]
     outfile = "test_output.fits"
