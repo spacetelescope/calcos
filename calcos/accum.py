@@ -1,19 +1,16 @@
-from __future__ import absolute_import, division         # confidence high
-import copy
-import math
-import shutil
-import time
-import types
-import numpy as np
-from numpy import random
-import astropy.io.fits as fits
+from __future__ import absolute_import, division  # confidence high
 
-from . import cosutil
+import shutil
+
+import astropy.io.fits as fits
+import numpy as np
+
 from . import ccos
+from . import cosutil
 from . import phot
-from . import timetag                  # actually for more generic functions
-from . import wavecal
-from .calcosparam import *       # parameter definitions
+from . import timetag  # actually for more generic functions
+from .calcosparam import *  # parameter definitions
+
 
 def accumBasicCalibration(input, inpha, outtag,
                           outflt, outcounts, outcsum,

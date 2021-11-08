@@ -1,6 +1,7 @@
 # input files are x1d, flt, corrtag, and counts
 
 from calcos.x1d import *
+import numpy as np
 
 
 def generate_fits_file(file):
@@ -142,9 +143,6 @@ def test_next_power_of_two():
     assert next_power == extract.next_power_of_two(7)
 
 
-# todo *****************************
-
-
 def test_add_column_comment():
     # Setup
     ofd = generate_fits_file("Output/myFitsFile.fits")
@@ -152,8 +150,6 @@ def test_add_column_comment():
 
     # Exercise
     test_table = extract.add_column_comment(ofd, 'TIME', comment)
-    # todo: get the column comment that was added.
 
     # Verify
-    # todo: assert
     assert comment == test_table[1].header.comments['TTYPE1']

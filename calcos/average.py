@@ -1,8 +1,11 @@
-from __future__ import absolute_import, division         # confidence high
-import numpy as np
+from __future__ import absolute_import, division  # confidence high
+
 import astropy.io.fits as fits
+import numpy as np
+
 from . import cosutil
-from .calcosparam import *       # parameter definitions
+from .calcosparam import *  # parameter definitions
+
 
 def avgImage(input, output):
     """Average 2-D image sets, assumed to be aligned.
@@ -111,7 +114,6 @@ def avgImage(input, output):
     # Average the ERR extensions in quadrature.
 
     got_data = 0
-    err_data = 0  # to avoid reference before assignment error.
     for i in range(nimages):
         ifd = fits.open(input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]
