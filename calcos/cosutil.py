@@ -66,8 +66,6 @@ def writeOutputEvents(infile, outfile):
         return nrows
 
     detector = ifd[0].header.get("detector", "FUV")
-    # todo (masfaw): tagflash variable is never used remove it
-    tagflash = (ifd[0].header.get("tagflash", default="NONE") != "NONE")
 
     # Create the output events HDU.
     hdu = createCorrtagHDU(nrows, detector, events_extn)
