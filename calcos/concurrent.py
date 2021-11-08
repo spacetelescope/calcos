@@ -1982,7 +1982,7 @@ class NUVImagingWavecal(ConcurrentWavecal):
             if self.user_shifts is not None:  # override shifts?
                 # note that flash number is one indexed
                 ((user_shift1, user_shift2), nfound) = \
-                    self.user_shifts.getShifts((n + 1, segment))
+                    self.user_shifts.getShifts((n+1, segment))
                 if user_shift1 is not None:
                     shift1[segment] = user_shift1
                     user_specified = True
