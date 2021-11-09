@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [ pytest ]
   schedule:
-    - cron: '*/5 * * * *'  # every day at midnight
+    - cron: '00 00 * * *'  # every day at midnight
 
 jobs:
   build:
