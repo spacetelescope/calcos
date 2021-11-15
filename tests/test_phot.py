@@ -4,6 +4,7 @@ from calcos import phot
 
 
 def test_do_phot():
+    pass
     # Setup
     obsmode = ["cos,nuv,mirrora,psa", "cos,nuv,mirrora,boa", "cos,nuv,mirrorb,psa", "cos,nuv,mirrorb,boa"]
     hdr = fits.open("51c1638pi_imp.fits")  # fits extension header (that will be updated)
@@ -17,6 +18,7 @@ def test_do_phot():
 
 
 def test_read_im_pht_tab():
+    pass
     # Setup
     imphttab = ""  # this value is never used in this function however.
     obsmode = ["cos,nuv,mirrora,psa", "cos,nuv,mirrora,boa", "cos,nuv,mirrorb,psa", "cos,nuv,mirrorb,boa"]

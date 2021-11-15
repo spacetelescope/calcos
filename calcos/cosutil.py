@@ -66,8 +66,6 @@ def writeOutputEvents(infile, outfile):
         return nrows
 
     detector = ifd[0].header.get("detector", "FUV")
-    # todo (masfaw): tagflash variable is never used remove it
-    tagflash = (ifd[0].header.get("tagflash", default="NONE") != "NONE")
 
     # Create the output events HDU.
     hdu = createCorrtagHDU(nrows, detector, events_extn)
@@ -360,7 +358,9 @@ def dummyGTI(exptime):
         Header/data unit for a GTI table covering the entire exposure.
     """
 
-    col = [fits.Column(name="START", format="1D", unit="s"), fits.Column(name="STOP", format="1D", unit="s")]
+    col = []
+    col.append(fits.Column(name="START", format="1D", unit="s"))
+    col.append(fits.Column(name="STOP", format="1D", unit="s"))
     cd = fits.ColDefs(col)
     hdu = fits.BinTableHDU.from_columns(cd, nrows=1)
     hdu.header["extname"] = "GTI"
@@ -822,7 +822,9 @@ def isLampOn(xi, eta, dq, info, xtractab, shift2=0.):
         else:
             len_spectrum = NUV_EXTENDED_X
 
-    filter = {"opt_elem": info["opt_elem"], "cenwave": info["cenwave"], "aperture": "WCA", "segment": segment_list[0]}
+    filter = {"opt_elem": info["opt_elem"],
+              "cenwave": info["cenwave"],
+              "aperture": "WCA"}
 
     # Get the background counts.  For NUV the background regions are in
     # nearly the same place for all stripes, so take the background region
@@ -1337,11 +1339,11 @@ def getDQArrays(info, reffiles, gti):
     """
 
     # These defaults indicate there is no gain sag table (e.g. for NUV).
-    lx = [];
-    ly = [];
-    dx = [];
-    dy = [];
-    dq = [];
+    lx = []
+    ly = []
+    dx = []
+    dy = []
+    dq = []
     extn = None;
     message = ""
 
@@ -3745,11 +3747,11 @@ def fitQuartic(x, y):
                   [sum_x3, sum_x4, sum_x5, sum_x6, sum_x7],
                   [sum_x4, sum_x5, sum_x6, sum_x7, sum_x8]])
     v = np.array([sum_y, sum_yx, sum_yx2, sum_yx3, sum_yx4])
-    succeeded = True
+    succeeded = False
     try:
         coeff = LA.solve(m, v)
         m_inv = LA.inv(m)
-        succeeded = True
+        pass
     except LA.LinAlgError:
         succeeded = False
 
@@ -3835,7 +3837,7 @@ def errGehrels(counts):
         (The lower error estimate for counts,
          the upper error estimate for counts)
     """
-    icounts = (counts + .5).astype(int)
+    icounts = (counts + .5).astype(np.int)
     upper = (1. + np.sqrt(icounts + 0.75))
     lower = np.where(icounts > 0., Gehrels_lower(icounts), 0.)
     return lower.astype(np.float32), upper.astype(np.float32)

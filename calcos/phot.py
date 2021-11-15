@@ -34,7 +34,7 @@ def doPhot(obsmode, hdr):
     hdr["PHTOZPT"] = photzpt
 
 
-def readImPhtTab(obsmode):
+def readImPhtTab(imphttab, obsmode):
     """Read the photometry parameters for imaging data from the imphttab.
 
     This version has hardcoded values, since the imphttab hasn't been

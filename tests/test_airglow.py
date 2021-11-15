@@ -9,9 +9,14 @@ from calcos import airglow
 
 def create_disptab_file(file=None):
     """
-    creates a temporary disptab file only for testing.
-    @param file: name of the temp file to be created.
-    @return: file string.
+    Parameters
+    ----------
+    file: str
+        name of the temp file to be created.
+
+    Returns
+    -------
+        name of the temp file created.
     """
     if file is None:
         file = 'temp_disptab.fits'
@@ -112,6 +117,21 @@ def create_disptab_file(file=None):
 
 
 def test_find_airglow_limits():
+    """
+    unit test for find_airglow_limits()
+    test ran
+    - By providing certain values as dict to be used as filter for finding the dispersion
+    - testing for both FUV segments
+    - creating a temporary disptab ref file.
+    - testing for 5 airglow lines
+    - calculating the expected pixel numbers by following the math involved in the actual file
+        and referring to the values in the ref file we can get the values upto a descent decimal points.
+
+    Returns
+    -------
+    pass if expected == actual or fail if not.
+
+    """
     # Setup
     inf = {"obstype": "SPECTROSCOPIC", "cenwave": 1055, "aperture": "PSA", "detector": "FUV",
            "opt_elem": "G130M", "segment": "FUVA"}
@@ -123,12 +143,12 @@ def test_find_airglow_limits():
     # Test
     test_pxl = [[], []]
     # only works for FUV
-    for i in range(2):
-        for j in range(len(airglow_lines)):
-            limits = airglow.findAirglowLimits(inf, seg[i], disptab, airglow_lines[j])
+    for segment in seg:
+        for line in airglow_lines:
+            limits = airglow.findAirglowLimits(inf, segment, disptab, line)
             if limits is not None:
                 x, y = limits
-                test_pxl[i].append((x, y))
+                test_pxl.append((x, y))
     # Verify
     for i in range(len(actual_pxl)):
         assert actual_pxl[i] == test_pxl[i]

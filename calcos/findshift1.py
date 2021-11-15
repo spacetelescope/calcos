@@ -1,8 +1,11 @@
-from __future__ import absolute_import, division         # confidence high
+from __future__ import absolute_import, division  # confidence high
+
 import copy
+
 import numpy as np
-from .calcosparam import *
+
 from . import cosutil
+from .calcosparam import *
 
 # If there aren't at least this many counts in a wavecal spectrum, flag
 # it as not found.

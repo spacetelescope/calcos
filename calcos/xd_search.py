@@ -1,10 +1,11 @@
-from __future__ import absolute_import, division         # confidence unknown
+from __future__ import absolute_import, division  # confidence unknown
+
 import numpy as np
-from scipy import signal
 from scipy import ndimage
-from . import cosutil
-from .calcosparam import *       # parameter definitions
+from scipy import signal
+
 from . import ccos
+from . import cosutil
 
 MASK_X = 189            # width of region to mask for each geocoronal line
 SEARCH_Y = 91           # height of search region

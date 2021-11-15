@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [ pytest ]
   schedule:
-    - cron: '*/5 * * * *'  # every day at midnight
+    - cron: '00 00 * * *'  # every day at midnight
 
 jobs:
   build:
@@ -63,7 +63,6 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        mkdir Output
         # run all the unit tests.
-        pytest test_airglow.py -v 
+        # pytest test_airglow.py test_average.py -v 
       working-directory: ${{env.working-directory}}

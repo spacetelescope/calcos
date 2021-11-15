@@ -111,7 +111,7 @@ def main(args):
 
 def extractSpec(inlist=[], outdir=None, update_input=False,
                 location=None, extrsize=None,
-                find_target=None,
+                find_target={"flag": False, "cutoff": None},
                 verbosity=None):
     """Extract a 1-D spectrum from each set of flt and counts images.
 
@@ -166,8 +166,6 @@ def extractSpec(inlist=[], outdir=None, update_input=False,
         If not None, set verbosity to this level.
     """
 
-    if find_target is None:
-        find_target = {"flag": False, "cutoff": None}
     if verbosity is not None:
         if verbosity < 0 or verbosity > 2:
             raise RuntimeError("Verbosity %d is out of range (0, 1, or 2)" %

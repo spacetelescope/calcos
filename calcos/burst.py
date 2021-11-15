@@ -1,9 +1,13 @@
-from __future__ import absolute_import, division         # confidence high
+from __future__ import absolute_import, division  # confidence high
+
 import math
+
 import numpy as np
-from .calcosparam import *
-from . import cosutil
+
 from . import ccos
+from . import cosutil
+from .calcosparam import *
+
 LARGE_BURST = -20               # flag value in bkg_counts
 SMALL_BURST = -10               # flag value in bkg_counts
 

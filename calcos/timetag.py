@@ -1,22 +1,24 @@
-from __future__ import absolute_import, division         # confidence high
+from __future__ import absolute_import, division  # confidence high
+
 import math
 import os
 import time
+
+import astropy.io.fits as fits
 import numpy as np
 from numpy import random
-import astropy.io.fits as fits
 
-from . import cosutil
 from . import burst
 from . import ccos
 from . import concurrent
+from . import cosutil
 from . import dispersion
 from . import phot
 from . import shiftfile
 from . import timeline
-from . import wavecal
 from . import trace
-from .calcosparam import *       # parameter definitions
+from . import wavecal
+from .calcosparam import *  # parameter definitions
 
 # These are column names in the corrtag table.  The default values are
 # appropriate for FUV data.  These can be reset in setCorrColNames().
