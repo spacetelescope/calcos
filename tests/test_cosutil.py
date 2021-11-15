@@ -360,13 +360,12 @@ def test_fit_quadratic():
     x = np.array([1, 2, 4])
     y = np.array([0, 7, 15])
     # Expected
-    expected_quadratic = (np.array([-9., 10., -1.]), np.array([0., 0., 0.]))
+    expected_quadratic = (np.array([-9., 10., -1.], dtype=np.float64), np.array([0., 0., 0.], dtype=np.float64))
     # Test
     fitted_quadratic = cosutil.fitQuadratic(x, y)
     # Verify
-    # todo: arrays have the same value but fail to assert.
-    np.testing.assert_array_almost_equal(expected_quadratic[0], fitted_quadratic[0])
-    np.testing.assert_array_almost_equal(expected_quadratic[1], fitted_quadratic[1])
+    np.testing.assert_array_equal(expected_quadratic[0], fitted_quadratic[0])
+    np.testing.assert_array_equal(expected_quadratic[1], fitted_quadratic[1])
 
 
 def test_change_segment():
@@ -980,7 +979,8 @@ def test_combine_stat():
     stat_info = [{'ngoodpix': 5.8, "sci_goodmax": 2.7, "sci_goodmean": 4.3, "err_goodmax": 1,
                   "err_goodmean": 2}, {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
                                        "err_goodmean": 1}]
-    actual = {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2, 'err_goodmean': 1.3493975903614457}
+    actual = {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2,
+              'err_goodmean': 1.3493975903614457}
     # Test
     test = cosutil.combineStat(stat_info)
     # Verify
