@@ -333,6 +333,8 @@ def test_center_of_quadratic():
     coeff1 = np.array([2, 4, 1])
     coeff2 = np.array([3, 5, 7])
     coeff3 = np.array([2.3, 4.6, 1.3])
+    coeff4 = np.zeros(shape=3)
+
     var1 = np.array([0, 2, 4])
     var2 = np.array([1, 2, 5])
     var3 = np.array([5, 3, 9])
@@ -340,14 +342,17 @@ def test_center_of_quadratic():
     actual_center1 = (-2.0, 4.06201920231798)
     actual_center2 = (-0.35714285714285715, 0.15237943390885794)
     actual_center3 = (-1.769230769230769, 4.1368310795286165)
+    actual_center4 = (None, 0.)
     # Test
     center1 = cosutil.centerOfQuadratic(coeff1, var1)
     center2 = cosutil.centerOfQuadratic(coeff2, var2)
     center3 = cosutil.centerOfQuadratic(coeff3, var3)
+    center4 = cosutil.centerOfQuadratic(coeff4, var3)
     # Verify
     assert actual_center1 == center1
     assert actual_center2 == center2
     assert actual_center3 == center3
+    assert actual_center4 == center4
 
 
 def test_fit_quadratic():
@@ -971,15 +976,16 @@ def test_timeline_times():
 
 
 def test_combine_stat():
+    # Setup
     stat_info = [{'ngoodpix': 5.8, "sci_goodmax": 2.7, "sci_goodmean": 4.3, "err_goodmax": 1,
                   "err_goodmean": 2}, {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
                                        "err_goodmean": 1}]
-    # , {'ngoodpix': 10.8, "sci_goodmax": 4.7, "sci_goodmean": 8.3, "err_goodmax": 2,
-    #                                        "err_googmean": 1}
-    print(cosutil.combineStat(stat_info))
-
-    # {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2, 'err_goodmean': 1.3493975903614457}
-    assert True
+    actual = {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2, 'err_goodmean': 1.3493975903614457}
+    # Test
+    test = cosutil.combineStat(stat_info)
+    # Verify
+    for key in actual.keys():
+        assert actual[key] == test[key]
 
 
 def test_override_keywords():
