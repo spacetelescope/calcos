@@ -64,5 +64,5 @@ jobs:
     - name: Test with pytest
       run: |
         # run all the unit tests.
-        # pytest test_airglow.py test_average.py -v 
+        pytest test_airglow.py test_average.py -v 
       working-directory: ${{env.working-directory}}
