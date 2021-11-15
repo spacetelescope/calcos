@@ -8,7 +8,7 @@ import pytest
 from astropy.io import fits
 
 from calcos import cosutil, MissingRowError
-from test_extract import generate_fits_file
+from generate_tempfiles import generate_fits_file
 
 
 def test_find_column():
@@ -330,14 +330,24 @@ def test_fit_quartic():
 def test_center_of_quadratic():
     # Setup
     # todo add more cases
-    coeff = np.array([2, 4, 1])
-    var = np.array([0, 2, 4])
+    coeff1 = np.array([2, 4, 1])
+    coeff2 = np.array([3, 5, 7])
+    coeff3 = np.array([2.3, 4.6, 1.3])
+    var1 = np.array([0, 2, 4])
+    var2 = np.array([1, 2, 5])
+    var3 = np.array([5, 3, 9])
     # Expected
-    actual_center = (-2.0, 4.06201920231798)
+    actual_center1 = (-2.0, 4.06201920231798)
+    actual_center2 = (-0.35714285714285715, 0.15237943390885794)
+    actual_center3 = (-1.769230769230769, 4.1368310795286165)
     # Test
-    center = cosutil.centerOfQuadratic(coeff, var)
+    center1 = cosutil.centerOfQuadratic(coeff1, var1)
+    center2 = cosutil.centerOfQuadratic(coeff2, var2)
+    center3 = cosutil.centerOfQuadratic(coeff3, var3)
     # Verify
-    assert actual_center == center
+    assert actual_center1 == center1
+    assert actual_center2 == center2
+    assert actual_center3 == center3
 
 
 def test_fit_quadratic():
@@ -624,23 +634,6 @@ def test_print_filenames():
     sys.stdout = sys.__stdout__
     # Verify
     assert expected_msg == captured_msg.getvalue()
-
-
-'''
-def test_print_mode():
-    # Setup
-    hdu_list = generate_fits_file("printMode_test.fits")
-    hdr = hdu_list[1]
-    captured_mgs = io.StringIO()
-    sys.stdout = captured_mgs
-    # Test
-    cosutil.printMode(hdr)
-    sys.stdout = sys.__stdout__
-    print(captured_mgs.getvalue())
-    # todo can't find keys
-    # Verify
-    # assert False
-'''
 
 
 def test_print_warning():
@@ -987,7 +980,6 @@ def test_combine_stat():
 
     # {'ngoodpix': 16.6, 'sci_goodmax': 4.7, 'sci_goodmean': 6.902409638554217, 'err_goodmax': 2, 'err_goodmean': 1.3493975903614457}
     assert True
-test_combine_stat()
 
 
 def test_override_keywords():
