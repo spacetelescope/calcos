@@ -4,7 +4,7 @@ import numpy as np
 from astropy.io import fits
 
 from calcos import average
-from generate_tempfiles import create_count_file
+from tests.generate_tempfiles import create_count_file
 
 
 def test_avg_image():
