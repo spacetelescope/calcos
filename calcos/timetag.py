@@ -4562,7 +4562,7 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info):
         frac = wcp_info['FRACLONG']
         offset = wcp_info['OFFSET_LONG']
 
-    cosutil.printMsg("For exposure of {}s, frac={}, offset={}".format(exptime, frac, offset))
+    cosutil.printMsg("For exposure of {:.4f}s, frac={:.4f}, offset={:.4f}".format(exptime, frac, offset))
     # Get the wavecal files that bracket this exposure
     tmid = 0.5 * (info["expstart"] + info["expend"])
     shift_info = wavecal.returnWavecalShift(wavecal_info, wcp_info,
@@ -4591,11 +4591,11 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info):
     shift1_after = matching_wavecals[1]['shift_dict'][key]
     tafter = matching_wavecals[1]['time']
     seconds_after = (tafter - info['expstart']) * SEC_PER_DAY
-    cosutil.printMsg("Wavecal before exposure has {}={} at t={} ({}s)".format(key, shift1_before, tbefore, seconds_before))
-    cosutil.printMsg("Wavecal after exposure has {}={} at t={} ({}s)".format(key, shift1_after, tafter, seconds_after))
+    cosutil.printMsg("Wavecal before exposure has {}={:.4f} at t={:.4f} ({:.4f}s)".format(key, shift1_before, tbefore, seconds_before))
+    cosutil.printMsg("Wavecal after exposure has {}={:.4f} at t={:.4f} ({:.4f}s)".format(key, shift1_after, tafter, seconds_after))
     delta_shift = shift1_after - shift1_before
     split_shift = shift1_before + frac * delta_shift + offset
-    cosutil.printMsg('Split shift of {} added at t={}s'.format(split_shift, seconds_since_exposure_start))
+    cosutil.printMsg('Split shift of {:.4f} added at t={:.4f}s'.format(split_shift, seconds_since_exposure_start))
     early_slope = (split_shift - shift1_before) / (tsplit - tbefore)
     early_slope = early_slope / SEC_PER_DAY
     early_intercept = split_shift + (info['expstart'] - tsplit) * early_slope * SEC_PER_DAY
