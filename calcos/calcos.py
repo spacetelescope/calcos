@@ -2981,7 +2981,7 @@ class Calibration(object):
                 if obs.CheckforAddSplitWavecal(self.assoc, self.wavecal_info, debug=True):
                     obs.info['addsplitwavecal'] = True
                 else:
-                    cosutil.printMsg("No split wavecal added")
+                    obs.info['addsplitwavecal'] = False
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
