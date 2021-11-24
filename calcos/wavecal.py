@@ -379,7 +379,7 @@ def returnWavecalShift(wavecal_info, wcp_info, cenwave, fpoffset, time):
     wavecal_info: list of dictionaries
         List of wavecal information dictionaries.
 
-    wcp_info: pyfits record object
+    wcp_info: astropy.io.fits record object
         Data (one row) from the wavecal parameters table.
 
     cenwave: int

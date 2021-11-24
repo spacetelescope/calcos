@@ -1979,7 +1979,7 @@ class Observation(object):
         self.info = {}                  # detector, opt_elem, etc.
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
-        self.AddVirtualWavecal = None   # Do we add virtual wavecal (LP6 and later FUV only)
+        self.info['addsplitwavecal'] = False
 
         indir = os.path.dirname(input)
         input_directory = expandDirectory(indir)
@@ -2581,6 +2581,136 @@ class Observation(object):
             for msg in messages:
                 cosutil.printMsg(msg, VERBOSE)
 
+    def CheckforAddSplitWavecal(self, association, wavecal_info, debug=False):
+        """A split wavecal entry needs to be inserted if these conditions are met
+
+        Parameters:
+        -----------
+
+        Returns:
+        --------
+
+        boolean
+            True if split wavecal is to be inserted
+        """
+        info = self.info
+        reffiles = self.reffiles
+
+        if info['detector'] == 'NUV':
+            if debug:
+                cosutil.printMsg("Don't add split wavecal because observation is NUV")
+            return False
+
+        if 'EXP-SWAVE' not in association.asn_info['memtype']:
+            if debug:
+                cosutil.printMsg("Don't add split wavecal because association has no exp_swave members")
+            return False
+
+        # If the other segment exists in this association and has the MustAddSplitWavecal flag set,
+        # set it for this obs
+        othersegmentobs = self.getOtherSegmentObs(association)
+        if othersegmentobs is not None:
+            othersegmentinfo = othersegmentobs.info
+            if othersegmentinfo['addsplitwavecal']:
+                if debug:
+                    cosutil.printMsg("Add split wavecal because other segment is")
+                return True
+
+        # Read info from wavecal parameters table.
+        wcp_info = cosutil.getTable(reffiles["wcptab"],
+                                    filter={"opt_elem": info["opt_elem"]},
+                                    exactly_one=True)
+        wcp_info = wcp_info[0]
+
+        f1 = fits.open(self.input)
+        try:
+            events = f1[1].data
+            time = events['time']
+        except KeyError:
+            cosutil.printMsg("Cannot get events from data extension")
+            return False
+        f1.close()
+        events_duration = time[-1] - time[0]
+        mintime = self.getMinTime(wcp_info)
+        if events_duration < mintime:
+            if debug:
+                cosutil.printMsg("Don't add split wavecal because events duration < {}".format(mintime))
+            return False
+
+        numwavecals = self.getNumWavecals(wavecal_info, wcp_info)
+        if numwavecals != 2:
+            if debug:
+                cosutil.printMsg("Don't add split wavecal because #wavecals != 2")
+            return False
+
+        # If we get this far, then add split wavecal
+        # If we set it for this segment, we need to set it for the other
+        # segment, if there is one
+        if othersegmentobs is not None:
+            othersegmentinfo['addsplitwavecal'] = True
+        return True
+
+    def getOtherSegmentObs(self, association):
+        othersegmentobs = None
+        info = self.info
+        if info["segment"] == 'FUVA':
+            othersegmentletter = 'b'
+        elif info["segment"] == 'FUVB':
+            othersegmentletter = 'a'
+        rootname = self.filenames["root"]
+        othersegmentending = f"_{othersegmentletter}.fits"
+        for otherobs in association.obs:
+            for filename in self.filenames:
+                if filename.startswith(rootname) and filename.endswith(othersegmentending):
+                    othersegmentobs = otherobs
+                    break
+        return othersegmentobs
+
+    def getMinTime(self, wcp_info):
+        """Get the minimum exposure time that a science exposure must have
+        to be eligible for a split wavecal
+
+        """
+        try:
+            return wcp_info['min_exptime']
+        except KeyError:
+            return 900.0
+
+    def getNumWavecals(self, wavecal_info, wcp_info):
+        """Get the number of wavecals for this science exposure.
+
+        Parameters:
+        -----------
+
+        events: FITS Recarray
+            The table of events.  Must have a 'TIME' entry
+
+        info: Dict
+            Dictionary of COS exposure information for the science exposure
+
+        Returns:
+        --------
+
+        int: number of wavecal exposures for this science exposure
+
+        """
+        info = self.info
+        tmid = 0.5 * (info["expstart"] + info["expend"])
+
+        shift_info = wavecal.returnWavecalShift(wavecal_info,
+                                                wcp_info, info["cenwave"],
+                                                info["fpoffset"], tmid)
+        if shift_info is not None:
+            shift_dict, slope_dict, wavecalfiles = shift_info
+        else:
+            return 0
+
+        # wavecalfiles is a string containing the name(s) of wavecal files
+        # used to calculate the shift and slope dicts.  If more than 1, they
+        # are separated by a space
+        numfiles = len(wavecalfiles.strip().split(' '))
+        return numfiles
+
 class FUVTimetagObs(Observation):
 
     def __init__(self, input, outdir, memtype, shift_file, first=False):
@@ -2846,11 +2976,12 @@ class Calibration(object):
                obs.exp_type == EXP_CALIBRATION or \
                obs.exp_type == EXP_ACQ_IMAGE:
                 obs.openTrailer()
-                # Check for whether this exposure meets the criteria for adding a virtual wavecal
-                # If so, set the obs.AddVirtualWavecal attribute to True
-                self.CheckforAddVirtualWavecal(obs)
-                if obs.AddVirtualWavecal:
-                    self.AddVirtualWavecal(obs)
+                # Check for whether this exposure meets the criteria for adding a split wavecal
+                # If so, set the obs.MustAddSplitWavecal attribute to True
+                if obs.CheckforAddSplitWavecal(self.assoc, self.wavecal_info, debug=True):
+                    obs.info['addsplitwavecal'] = True
+                else:
+                    cosutil.printMsg("No split wavecal added")
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
@@ -2906,157 +3037,6 @@ class Calibration(object):
                         " not be updated" % spwcstab)
 
         return status
-
-    def CheckforAddVirtualWavecal(self, obs):
-        """A virtual wavecal entry needs to be inserted if these conditions are met
-
-        Parameters:
-        -----------
-
-        Returns:
-        --------
-
-        boolean
-            True if virtual wavecal is to be inserted
-        """
-        info = obs.info
-        reffiles = obs.reffiles
-        
-        if info['detector'] == 'NUV':
-            obs.AddVirtualWavecal = False
-            return
-
-        if info["life_adj"] != 6:
-            obs.AddVirtualWavecal = False
-            return
-
-        # If the other segment exists in this association and has the AddVirtualWavecal flag set,
-        # set it for this obs
-        othersegmentobs = self.getothersegmentobs(obs)
-        if othersegmentobs is not None:
-            if othersegmentobs.AddVirtualWavecal:
-                obs.AddVirtualWavecal = True
-                return
-
-        # Read info from wavecal parameters table.
-        wcp_info = cosutil.getTable(reffiles["wcptab"],
-                                    filter={"opt_elem": info["opt_elem"]},
-                                    exactly_one=True)
-        wcp_info = wcp_info[0]
-
-        time = events['time']
-        events_duration = time[-1] - time[0]
-        mintime = self.getMinTime(wcp_info)
-        if events_duration < mintime:
-            obs.AddVirtualWavecal = False
-            return
-
-        numwavecals = self.getNumWavecals(info, self.wavecal_info, wcp_info)
-        if numwavecals != 2:
-            obs.AddVirtualWavecal = False
-            return
-
-#        minDeltaShift = self.getMinDeltaShift(wcp_info)
-#        DeltaShift = self.calculateDeltaShift(events, info, wavecal_info, wcp_info)
-#        if DeltaShift < minDeltaShift:
-#            obs.AddVirtualWavecal = False
-#            return
-
-        # If we get this far, then add virtual wavecal
-        obs.AddVirtualWavecal = True
-        # If we set it for this segment, we need to set it for the other
-        # segment, if there is one
-        if othersegmentobs is not None:
-            othersegmentobs.AddVirtualWavecal = True
-            return
-
-    def getOtherSegmentObs(self, obs):
-        othersegmentobs = None
-        info = obs.info
-        if info["segment"] == 'FUVA':
-            othersegmentletter = 'b'
-        elif info["segment"] == 'FUVB':
-            othersegmentletter = 'a'
-        rootname = obs.filenames["rootname"]
-        othersegmentending = f"_{othersegmentletter}.fits"
-        for otherobs in self.assoc.obs:
-            for filename in obs.filenames:
-                if filename.beginswith(rootname) and filename.endswith(othersegmentending):
-                    othersegmentobs = otherobs
-                    break
-        return othersegmentobs
-
-    def getMinTime(self, wcp_info):
-        """Get the minimum exposure time that a science exposure must have
-        to be eligible for a virtual wavecal
-
-        """
-        try:
-            return wcp_info['min_exptime']
-        except KeyError:
-            return 900.0
-
-    def getMinDeltaShift(self, wcp_info):
-        """Get the minimum difference between the shifts at the beginning and
-        end of the science exposure
-
-        """
-        try:
-            return wcp_info['min_shift_diff']
-        except KeyError:
-            return 0.5
-        
-    def getNumWavecals(self, info, wcp_info):
-        """Get the number of wavecals for this science exposure.
-
-        Parameters:
-        -----------
-
-        events: FITS Recarray
-            The table of events.  Must have a 'TIME' entry
-
-        info: Dict
-            Dictionary of COS exposure information for the science exposure
-
-        Returns:
-        --------
-
-        int: number of wavecal exposures for this science exposure
-
-        """
-        tmid = 0.5 * (info["expstart"] + info["expend"])
-        
-        shift_info = wavecal.ReturnWavecalShift(self.wavecal_info,
-                                                wcp_info, info["cenwave"],
-                                                info["fpoffset"], tmid)
-        if shift_info is not None:
-            shift_dict, slope_dict, wavecalfiles = shift_info
-        else:
-            return 0
-        
-        # wavecalfiles is a string containing the name(s) of wavecal files
-        # used to calculate the shift and slope dicts.  If more than 1, they
-        # are separated by a space
-        numfiles = len(wavecalfiles.strip().split(' '))
-        return numfiles
-
-    def calculateDeltaShift(self, events, info, wcp_info):
-        """Calculate the predicted shift from the first event to the last event
-        using the slope value of the matching wavecal_info entries
-        
-        """
-        tmid = 0.5 * (info["expstart"] + info["expend"])
-        shift_info = wavecal.ReturnWavecalShift(self.wavecal_info, wcp_info,
-                                                info["cenwave"], info["fpoffset"],
-                                                tmid)
-        shift_dict, slope_dict, wavecalfiles = shift_info
-        
-        segmentletter = info["segment"][-1].lower()
-        key = 'shift1' + segmentletter
-        slope = slope_dict[key]
-        duration = events['time'][-1] - events['time'][0]
-        DeltaShift = duration * slope
-        return DeltaShift
 
     def extractSpectrum(self, filenames):
         """Extract a 1-D spectrum from corrtag table or from 2-D images.
