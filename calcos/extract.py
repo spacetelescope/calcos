@@ -1,18 +1,15 @@
 from __future__ import absolute_import, division  # confidence high
-
 import copy
 import os
-
-import astropy.io.fits as fits
 import numpy as np
-
-from . import ccos
+import astropy.io.fits as fits
+from astropy.stats import poisson_conf_interval
 from . import cosutil
+from . import ccos
 from . import dispersion
 from . import getinfo
 from . import xd_search
 from .calcosparam import *  # parameter definitions
-
 
 
 def extract1D(input, incounts=None, output=None,
@@ -268,14 +265,8 @@ def extract1D(input, incounts=None, output=None,
 
 
 def remove_unwanted_columns(ofd):
-    """
-    Removes unwanted columns from given fits file.
-    @param ofd: the file with the columns
-    @return: the file with the unwanted columns removed.
-    """
     unwanted_columns = ['EE_LOWER_OUTER', 'EE_LOWER_INNER',
                         'EE_UPPER_INNER', 'EE_UPPER_OUTER']
-
     newcols = []
     table = ofd[1].data
     columns = table.columns
@@ -820,7 +811,7 @@ def getColumns(ifd_e, detector):
     dq = data.field("dq")
     epsilon = data.field("epsilon")
 
-    return xi, eta, dq, epsilon
+    return (xi, eta, dq, epsilon)
 
 
 def getSnrFf(switches, reffiles, segment):
@@ -1282,7 +1273,7 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
                           user_xdisp_locn=None, user_xdisp_size=None,
                           find_target={"flag": False, "cutoff": None}):
     """Do the two-zone extraction
-    
+
      This does the actual extraction, returning the results as a tuple.
 
     An "_ij" suffix indicates a 2-D array; here they will all be sections
@@ -1305,7 +1296,7 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
       UPPER_OUTER_INDEX_i Zone boundaries in the data
       ENCLOSED_FRACTION_i   Actual fraction of flux within outer boundaries
       AV_E_BKG_i     Average background per pixel
-      LOWER_OUTER_VALUE_i   Fraction of flux enclosed at and above 
+      LOWER_OUTER_VALUE_i   Fraction of flux enclosed at and above
                             row lower_outer_index
       LOWER_INNER_VALUE_i   Fraction of flux enclosed at and above
                             row lower_inner_index
@@ -1659,16 +1650,6 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
 
 
 def getProfileCentroid(phdr, segment):
-    """Getter for centroid
-
-    Parameters
-    ----------
-    phdr: list
-        primary header object.
-
-    segment: str
-        FUVA or FUVB
-    """
     key = "SP_LOC_" + segment[-1]
     return phdr[key]
 

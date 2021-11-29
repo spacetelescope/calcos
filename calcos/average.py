@@ -1,21 +1,15 @@
-from __future__ import absolute_import, division  # confidence high
-
-import astropy.io.fits as fits
+from __future__ import absolute_import, division         # confidence high
 import numpy as np
-
+import astropy.io.fits as fits
 from . import cosutil
-from .calcosparam import *  # parameter definitions
-
+from .calcosparam import *       # parameter definitions
 
 def avgImage(input, output):
     """Average 2-D image sets, assumed to be aligned.
 
-   @change the parameter input shouldn't be a string its has to be a list of
-            file names. (Michael A.)
-
     Parameters
     ----------
-    input: list
+    input: str
         Name of the input file.
 
     output: str
@@ -61,6 +55,7 @@ def avgImage(input, output):
     expstart = sci_extn.header["expstart"]
     expend = sci_extn.header["expend"]
     ifd.close()
+
     for i in range(nimages):
         ifd = fits.open(input[i], mode="copyonwrite")
         sci_extn = ifd["SCI"]

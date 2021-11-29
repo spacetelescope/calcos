@@ -1,5 +1,4 @@
 from __future__ import absolute_import, print_function
-
 from . import cosutil
 from . import dispersion
 from .calcosparam import *  # parameter definitions
@@ -82,8 +81,11 @@ def findAirglowLimits(info, segment, disptab, airglow_line):
     # First check whether the airglow line is off the detector.
     # NOTE that we assume that wavelength increases with x.
     wl_left_edge = disp_rel.evalDisp(-exclude)
+    if max_wl < wl_left_edge:
+        disp_rel.close()
+        return None
     wl_right_edge = disp_rel.evalDisp(axis_length - 1. + exclude)
-    if (max_wl < wl_left_edge) or (min_wl > wl_right_edge):
+    if min_wl > wl_right_edge:
         disp_rel.close()
         return None
 
@@ -95,4 +97,4 @@ def findAirglowLimits(info, segment, disptab, airglow_line):
     x1 = x_right + exclude
     disp_rel.close()
 
-    return x0, x1
+    return (x0, x1)

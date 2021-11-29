@@ -1,19 +1,17 @@
 #! /usr/bin/env python
 
 from __future__ import absolute_import, division  # confidence high
-
-import copy
 import math
 import os
 import shutil
 import sys
 import time
-
-import astropy.io.fits as fits
+import types
+import copy
 import numpy as np
 import numpy.linalg as LA
+import astropy.io.fits as fits
 from astropy.stats import poisson_conf_interval
-
 from . import ccos
 from .calcosparam import *  # parameter definitions
 
@@ -66,6 +64,7 @@ def writeOutputEvents(infile, outfile):
         return nrows
 
     detector = ifd[0].header.get("detector", "FUV")
+    tagflash = (ifd[0].header.get("tagflash", default="NONE") != "NONE")
 
     # Create the output events HDU.
     hdu = createCorrtagHDU(nrows, detector, events_extn)
@@ -173,13 +172,16 @@ def isCorrtag(filename):
     return got_xfull
 
 
-def createCorrtagHDU(nrows, hdu):
+def createCorrtagHDU(nrows, detector, hdu):
     """Create the output events HDU.
 
     Parameters
     ----------
     nrows: int
         Number of rows to allocate (may be zero).
+
+    detector: {"FUV", "NUV"}
+        Detector name.
 
     hdu: fits HDU object
         Events extension hdu.
@@ -221,9 +223,9 @@ def createCorrtagHDU(nrows, hdu):
     # Rename or delete some image-specific keywords.
     header = imageHeaderToCorrtag(hdu.header)
 
-    new_header = remove_WCS_keywords(header, cd)
+    newheader = remove_WCS_keywords(header, cd)
 
-    outhdu = fits.BinTableHDU.from_columns(cd, header=new_header, nrows=nrows)
+    outhdu = fits.BinTableHDU.from_columns(cd, header=newheader, nrows=nrows)
 
     return outhdu
 
@@ -829,6 +831,7 @@ def isLampOn(xi, eta, dq, info, xtractab, shift2=0.):
     # Get the background counts.  For NUV the background regions are in
     # nearly the same place for all stripes, so take the background region
     # for just NUVB.
+    filter["segment"] = segment_list[0]  # if NUV, use NUVB
     xtract_info = getTable(xtractab, filter)
     if xtract_info is None:
         printWarning("(isLampOn) matching row not found in xtractab %s" \
@@ -1339,11 +1342,11 @@ def getDQArrays(info, reffiles, gti):
     """
 
     # These defaults indicate there is no gain sag table (e.g. for NUV).
-    lx = []
-    ly = []
-    dx = []
-    dy = []
-    dq = []
+    lx = [];
+    ly = [];
+    dx = [];
+    dy = [];
+    dq = [];
     extn = None;
     message = ""
 
@@ -2052,7 +2055,7 @@ def correctTraceAndAlignment(dq_array, info, traceprofile, shift1,
 
     alignment_correction:
         The offset that was added to the YFULL values  to correct the alignment
-        
+
     """
     nrows, ncols = dq_array.shape
     total_correction = None
@@ -2813,6 +2816,7 @@ def getPulseHeightRange(hdr, segment):
 
     if segment[:3] != "FUV":
         return None
+
     # These keywords were assigned when PHACORR was done.
     key_low = "PHALOWR" + segment[-1]
     low = hdr.get(key_low, -1)
@@ -2924,6 +2928,7 @@ def getSwitch(phdr, keyword):
         switch = NOT_APPLICABLE
 
     return switch
+
 
 def setVerbosity(verbosity_level):
     """Copy verbosity to a variable that is global for this file.
@@ -3747,11 +3752,10 @@ def fitQuartic(x, y):
                   [sum_x3, sum_x4, sum_x5, sum_x6, sum_x7],
                   [sum_x4, sum_x5, sum_x6, sum_x7, sum_x8]])
     v = np.array([sum_y, sum_yx, sum_yx2, sum_yx3, sum_yx4])
-    succeeded = False
+
     try:
         coeff = LA.solve(m, v)
         m_inv = LA.inv(m)
-        pass
     except LA.LinAlgError:
         succeeded = False
 
@@ -3840,7 +3844,7 @@ def errGehrels(counts):
     icounts = (counts + .5).astype(np.int)
     upper = (1. + np.sqrt(icounts + 0.75))
     lower = np.where(icounts > 0., Gehrels_lower(icounts), 0.)
-    return lower.astype(np.float32), upper.astype(np.float32)
+    return (lower.astype(np.float32), upper.astype(np.float32))
 
 
 def Gehrels_lower(counts):
@@ -4145,6 +4149,7 @@ def _test():
     from . import cosutil
     import doctest
     return doctest.testmod(cosutil)
+
 
 if __name__ == "__main__":
     _test()
