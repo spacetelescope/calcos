@@ -2846,7 +2846,7 @@ class Calibration(object):
                obs.exp_type == EXP_ACQ_IMAGE:
                 obs.openTrailer()
                 if not self.assoc.asn_info['exists'] and not obs.info['tagflash'] and \
-                   obs.info["obstype"] == "SPECTROSCOPIC":
+                   obs.switches["wavecorr"] == "PERFORM":
                     nowavecalwarning = "\nCAUTION: You are running CalCOS with a "
                     nowavecalwarning += "rawtag or corrtag file\nthat does not "
                     nowavecalwarning += "contain simultaneous lamp data instead "
