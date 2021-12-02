@@ -194,7 +194,7 @@ def timetagBasicCalibration(input, inpha, outtag,
     # The X and Y walk correction need to be independent, and applied to the
     # same xcorr/pha values
     if doWalkCorr(switches):
-        
+
         xcorrection = doXWalkcorr(events, info, switches, reffiles, phdr)
         ycorrection = doYWalkcorr(events, info, switches, reffiles, phdr)
         applyWalkCorrection(events, xcorrection, ycorrection)
@@ -2151,7 +2151,7 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
             reference_array = extension.data
             break
     delta = np.zeros(len(fastCoordinate))
-    delta = bilinear_interpolation(fastCoordinate, slowCoordinate, 
+    delta = bilinear_interpolation(fastCoordinate, slowCoordinate,
                            reference_array)
     return delta
 
@@ -2458,7 +2458,7 @@ def doDqicorr(events, input, info, switches, reffiles,
                                               minmax_doppler)
 
         phdr["dqicorr"] = "COMPLETE"
-                                        
+
         if extn is not None:
             if "gsagtab" in phdr:
                 # replace the comment, to give the extension number
@@ -2486,7 +2486,7 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
     for column in range(ncolumns):
     #
     # Calculate the extent of the WCA aperture
-        wcacenter = wca_0 + int(round(column*wcaslope)) 
+        wcacenter = wca_0 + int(round(column*wcaslope))
         wcastart = wcacenter - wcaheight // 2
         wcastop = wcacenter + wcaheight // 2
         tracevalue = int(round(traceprofile[column]))
@@ -2569,7 +2569,7 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
                                         DQ_PIXEL_OUT_OF_BOUNDS)
                 blur_dq[int(lower_y):int(upper_y)] = np.bitwise_or(blur_dq[int(lower_y):int(upper_y)],
                                                                    shifted_dq)
-        
+
     return blur_dq
 
 def arrayShift(array, yshift, xshift, default):
@@ -3738,7 +3738,7 @@ def writeNull(input, ofd, output, outcounts, outcsum,
 
 def createTraceMask(events, info, switches, xtractab, active_area):
     """Create a mask for events that will be corrected.  This is events within
-    the Active Area, but not including the events in the tagflash region""" 
+    the Active Area, but not including the events in the tagflash region"""
     #
     # Only create the tracemask if we are going to do either the trace
     # correction or the profile alignment correction
@@ -3896,7 +3896,7 @@ def writeImages(x, y, epsilon, dq,
     ccos.binevents(x, y, C_counts, x_offset, dq, SERIOUS_DQ_FLAGS)
 
     # Use the Frequentist variance function.
-    err_lower, err_upper = cosutil.errFrequentist(C_counts) 
+    err_lower, err_upper = cosutil.errFrequentist(C_counts)
     errC_rate = err_upper / exptime
 
     if outcounts is not None:
@@ -4441,11 +4441,26 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
     for segment in segment_list:
 
         key = "shift1" + segment[-1].lower()
+        goodshift1key = key
         if not (key in shift_dict and key in slope_dict):
-            cosutil.printError("There is no wavecal for segment %s." % segment)
-            return (tl_time, None)
-        shift1_zero = shift_dict[key]
-        shift1_slope = slope_dict[key]
+            cosutil.printWarning("There is no wavecal for segment %s." % segment)
+            if info['detector'] == "FUV":
+                othersegment = "FUVA"
+                if segment == "FUVA":
+                    othersegment = "FUVB"
+                otherkey = "shift1" + othersegment[-1].lower()
+                if not (otherkey in shift_dict and otherkey in slope_dict):
+                    cosutil.printError("No matching wavecal for segment {} either".format(othersegment))
+                    return (tl_time, None)
+                cosutil.printMsg("Using shift info for segment {}".format(othersegment))
+                shift1_zero = shift_dict[otherkey]
+                shift1_slope = slope_dict[otherkey]
+                goodshift1key = otherkey
+            else:
+                return (tl_time, None)
+        else:
+            shift1_zero = shift_dict[key]
+            shift1_slope = slope_dict[key]
         if info["detector"] == "FUV":
             xi_full[:] = np.where(active_area,
                            xi - ((time - t0) * shift1_slope + shift1_zero),
@@ -4467,8 +4482,13 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         segment = "NUVB"
 
     key = "shift2" + segment[-1].lower()
-    shift2_zero = shift_dict[key]
-    shift2_slope = slope_dict[key]
+    if (key in shift_dict and key in slope_dict):
+        shift2_zero = shift_dict[key]
+        shift2_slope = slope_dict[key]
+    else:
+        otherkey = "shift2" + othersegment[-1].lower()
+        shift2_zero = shift_dict[otherkey]
+        shift2_slope = slope_dict[otherkey]
     if info["detector"] == "FUV":
         eta_full[:] = np.where(active_area,
                         eta - ((time - t0) * shift2_slope + shift2_zero),
@@ -4479,8 +4499,13 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
 
     # stripe B for NUV
     key = "shift1" + segment[-1].lower()
-    shift1_zero = shift_dict[key]
-    shift1_slope = slope_dict[key]
+    if (key not in shift_dict and key not in slope_dict):
+        otherkey = "shift1" + othersegment[-1].lower()
+        shift1_zero = shift_dict[otherkey]
+        shift1_slope = slope_dict[otherkey]
+    else:
+        shift1_zero = shift_dict[key]
+        shift1_slope = slope_dict[key]
     avg_dy = shift2_slope * t_mid + shift2_zero
 
     # Create the array of shift1 at the times in tl_time.
