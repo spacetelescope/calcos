@@ -2633,9 +2633,7 @@ class Observation(object):
         events_duration = time[-1] - time[0]
         mintime = self.getMinTime(wcp_info)
         if mintime is None:
-            cosutil.printError("WCPTAB is missing the MIN_EXPTIME column")
-            cosutil.printContinuation("Please use an updated WCPTAB reference file")
-            raise RuntimeError()
+            self.checkwcpinfo()
         if events_duration < mintime:
             if debug:
                 cosutil.printMsg("Don't add split wavecal because events duration < {}".format(mintime))
@@ -2678,6 +2676,31 @@ class Observation(object):
         try:
             return wcp_info['min_exptime']
         except KeyError:
+            return None
+
+    def checkwcpinfo(self):
+        # Report on missing columns in the wcptab reference file and exit if
+        # missing columns are found
+        wcp_info = cosutil.getTable(self.reffiles["wcptab"],
+                                    filter={"opt_elem": self.info["opt_elem"]},
+                                    exactly_one=True)
+        wcp_info = wcp_info[0]
+
+        necessary_keys = ['TCROSSOVER', 'FRACSHORT', 'FRACLONG', 'OFFSET_SHORT',
+                          'OFFSET_LONG', 'MIN_EXPTIME']
+        bad_keys = []
+        for key in necessary_keys:
+            try:
+                temp = wcp_info[key]
+            except KeyError:
+                bad_keys.append(key)
+
+        if len(bad_keys) != 0:
+            cosutil.printError("The following columns were missing from the WCPTAB:")
+            for bad_key in bad_keys:
+                cosutil.printMsg(bad_key)
+            raise RuntimeError("Please use an updated WCPTAB reference file")
+        else:
             return None
 
     def getNumWavecals(self, wavecal_info, wcp_info):
@@ -2984,6 +3007,7 @@ class Calibration(object):
                 # If so, set the obs.MustAddSplitWavecal attribute to True
                 if obs.CheckforAddSplitWavecal(self.assoc, self.wavecal_info, debug=True):
                     obs.info['addsplitwavecal'] = True
+                    obs.checkwcpinfo()
                 else:
                     obs.info['addsplitwavecal'] = False
                 try:
