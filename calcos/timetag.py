@@ -4550,11 +4550,21 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
     return (tl_time, shift1_vs_time)
 
 def getSplitWavecalInfo(info, key, wavecal_info, wcp_info):
+    # First check that the needed columns are in the wcp_info record
+    necessary_keys = ['TCROSSOVER', 'FRACSHORT', 'FRACLONG', 'OFFSET_SHORT', 'OFFSET_LONG',
+                       'MIN_EXPTIME']
+    missing_keys = checkfornecessarykeys(necessary_keys, wcp_info)
+    if len(missing_keys) != 0:
+        cosutil.printError("The following columns were missing from the WCPTAB:")
+        for missing_key in missing_keys:
+            cosutil.printMsg(missing_key)
+        raise RuntimeError("Please use an updated WCPTAB reference file")
+
     cosutil.printMsg("Adding split wavecal")
     # The model that is used to calculate the split wavecal depends on
     # the exposure time
-    tcrossover = wcp_info['TCROSSOVER']
     exptime = info['exptime']
+    tcrossover = wcp_info['TCROSSOVER']
     if exptime < tcrossover:
         frac = wcp_info['FRACSHORT']
         offset = wcp_info['OFFSET_SHORT']
@@ -4603,6 +4613,15 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info):
     late_slope = late_slope / SEC_PER_DAY
     late_intercept = split_shift + (info['expstart'] - tsplit) * late_slope * SEC_PER_DAY
     return (seconds_since_exposure_start, early_slope, early_intercept, late_slope, late_intercept)
+
+def checkfornecessarykeys(necessary_keys, wcp_info):
+    bad_keys = []
+    for key in necessary_keys:
+        try:
+            temp = wcp_info[key]
+        except KeyError:
+            bad_keys.append(key)
+    return bad_keys
 
 def computeWavelengths(events, info, reffiles, helcorr="OMIT", hdr=None):
     """Compute wavelengths for a corrtag table.

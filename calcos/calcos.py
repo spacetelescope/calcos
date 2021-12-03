@@ -2632,6 +2632,10 @@ class Observation(object):
         f1.close()
         events_duration = time[-1] - time[0]
         mintime = self.getMinTime(wcp_info)
+        if mintime is None:
+            cosutil.printError("WCPTAB is missing the MIN_EXPTIME column")
+            cosutil.printContinuation("Please use an updated WCPTAB reference file")
+            raise RuntimeError()
         if events_duration < mintime:
             if debug:
                 cosutil.printMsg("Don't add split wavecal because events duration < {}".format(mintime))
@@ -2674,7 +2678,7 @@ class Observation(object):
         try:
             return wcp_info['min_exptime']
         except KeyError:
-            return 900.0
+            return None
 
     def getNumWavecals(self, wavecal_info, wcp_info):
         """Get the number of wavecals for this science exposure.
