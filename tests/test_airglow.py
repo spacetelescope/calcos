@@ -1,5 +1,5 @@
 from calcos import airglow
-from generate_tempfiles import create_disptab_file
+from tests.generate_tempfiles import create_disptab_file
 
 
 def test_find_airglow_limits():
@@ -25,7 +25,7 @@ def test_find_airglow_limits():
     disptab = create_disptab_file('49g17153l_disp.fits')
     airglow_lines = ["Lyman_alpha", "N_I_1200", "O_I_1304", "O_I_1356", "N_I_1134"]
     actual_pxl = [
-        [(15421.504705213156, 15738.02214190493), (8853.838672375898, 9135.702216258482)], []]
+        [], [], (15421.504705213156, 15738.02214190493), (8853.838672375898, 9135.702216258482)]
     # Test
     test_pxl = [[], []]
     # only works for FUV

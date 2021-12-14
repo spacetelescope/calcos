@@ -8,7 +8,7 @@ import pytest
 from astropy.io import fits
 
 from calcos import cosutil, MissingRowError
-from generate_tempfiles import generate_fits_file
+from tests.generate_tempfiles import generate_fits_file
 
 
 def test_find_column():
@@ -167,6 +167,15 @@ def test_gehrels_lower():
 
 
 def test_err_gehrels():
+    """
+    unit test for err_gehrels(counts)
+    test ran
+    - create 3 arrays, one should be random float values, the other two should be the lower (zero) and upper (one) error estimates
+    - following the math for calculating the upper limit by taking the sqrt of counts + 0.5 and then adding 1 to the result.
+    - similarly for the lower we add counts + 0.5 and then counts - counts * (1.0 - 1.0 / (9.0 * counts) - 1.0 / (3.0 * np.sqrt(counts))) ** 3
+      we will be able to get the lower array.
+    - finally assert the upper array and the lower array with the results obtained from err_gehrels().
+    """
     # Setup
     # values to be tested on
     zeros = np.zeros(5)
@@ -274,6 +283,12 @@ def test_return_gti():
 
 
 def test_err_frequentist():
+    """
+    unit test for err_frequentist(counts)
+    - create 3 arrays similar to the test in err_gehrels().
+    - find the poisson confidence interval for each array.
+    - assert the result with the expected err_lower and err_upper.
+    """
     # Setup
     zeros = np.zeros(5)
     ones = np.ones(5)
@@ -303,6 +318,13 @@ def test_err_frequentist():
 
 
 def test_precess():
+    """
+    unit test for precess(t, target)
+    - set a time in MJD
+    - create a unit vector toward the target
+    - calculate the expected coordinates
+    - assert expected with the actual.
+    """
     # Setup
     time = 55545.270617  # MJD
     target = np.array([3.4, 6.5, 2.5])
@@ -328,8 +350,15 @@ def test_fit_quartic():
 
 
 def test_center_of_quadratic():
+    """
+    unit test for center_of_quadratic(coeff, var)
+    - create a randomized coeff and var arrays
+    - follow the math to calculate x_min and x_min_sigma aka center of the quadratic
+    - x_min = -coeff[1] / (2 * coeff[2])
+    - x_min_sigma = 0.5 * math.sqrt(var1 / coeff[2] ** 2 + var2 * coeff[1] ** 2 / coeff[2] ** 4)
+    - assert the expected result with the functions return.
+    """
     # Setup
-    # todo add more cases
     coeff1 = np.array([2, 4, 1])
     coeff2 = np.array([3, 5, 7])
     coeff3 = np.array([2.3, 4.6, 1.3])
@@ -601,6 +630,17 @@ def test_return_time():
     assert t == get_time
 
 
+"""
+Unit tests that have the word "print" in their name using the same algorithm.
+- open an IO stream
+- initialize the message you want to print
+- call the function that is being tested and pass the message string to it.
+- redirect the output stream towards the function to catch the printed message
+- write the value to a variable
+- assert the captured message with the original message.
+"""
+
+
 def test_print_intro():
     # Setup
     captured_msg = io.StringIO()
@@ -721,6 +761,20 @@ def test_print_switch():
 
 
 def test_guess_aper_from_locn():
+    """
+    unit test for guessAperFromLocn()
+    - create lists for LPs and aperture positions (2 in this case).
+    - use the ranges provided to guess which aperture is being used
+        LP: 1
+        (116.0, 135) ---> PSA
+        (-163.0, -143.0) ---> BOA
+        LP: 2
+        (52.0, 72.0) ---> PSA
+        (-227.0, -207.0) ---> BOA
+        LP: 3 and above
+        aperture will be none
+    - assert expected positions with the actual position.
+    """
     # Setup
     lps = [1, 2, 3]
     aper_pos1 = [120.2, -151.34, 2.34]  # lp 1
