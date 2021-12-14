@@ -1,16 +1,13 @@
-from __future__ import absolute_import, division  # confidence unknown
-
+from __future__ import absolute_import, division         # confidence unknown
 import math
 import os
-
-import astropy.io.fits as fits
 import numpy as np
-
-from . import ccos
+import astropy.io.fits as fits
 from . import cosutil
 from . import dispersion
 from . import orbit
-from .calcosparam import *  # parameter definitions
+from . import ccos
+from .calcosparam import *       # parameter definitions
 
 DIST_SUN  = 149597870.691       # 1 AU in km
 RADIUS_EARTH = 6.367456e3       # geometric mean of equatorial and polar, km

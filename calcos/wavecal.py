@@ -1,19 +1,15 @@
-from __future__ import absolute_import, division  # confidence high
-
+from __future__ import absolute_import, division         # confidence high
 import math
 import os
-
-import astropy.io.fits as fits
 import numpy as np
-from scipy import ndimage
 from scipy import signal as scipysignal
-
+from scipy import ndimage
+import astropy.io.fits as fits
+from .calcosparam import *
 from . import ccos
 from . import cosutil
 from . import findshift1
 from . import shiftfile
-from .calcosparam import *
-
 
 # Each element of wavecal_info is a dictionary with the keys:
 # "time", "cenwave", "fpoffset", "shift_dict", "rootname", "filename".

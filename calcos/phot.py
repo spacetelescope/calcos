@@ -1,11 +1,8 @@
-from __future__ import absolute_import, division  # confidence high
+from __future__ import absolute_import, division         # confidence high
 
 from . import cosutil
 
-""" Removed the redundant imphtab parameter from both functions. (Michael A.)"""
-
-
-def doPhot(obsmode, hdr):
+def doPhot(imphttab, obsmode, hdr):
     """Update photometry parameter keywords for imaging data.
 
     PHOTFLAM, inverse sensitivity, ergs/s/cm2/Ang per count/s
@@ -15,7 +12,10 @@ def doPhot(obsmode, hdr):
     PHOTZPT = -21.10, ST magnitude system zero point
 
     Parameters
-    -------
+    ----------
+    imphttab: str
+        The name of the imaging photometric parameters table.
+
     obsmode: str
         Observation mode (e.g. "cos,nuv,mirrora,psa").
 
@@ -24,15 +24,13 @@ def doPhot(obsmode, hdr):
     """
 
     (photflam, photfnu, photbw, photplam, photzpt) = \
-        readImPhtTab(obsmode)
-    # import pdb
-    # pdb.set_trace()
-    hdr["PHOTFLAM"] = photflam
-    hdr["PHOTFNU"] = photfnu
-    hdr["PHTOBW"] = photbw
-    hdr["PHTOPLAM"] = photplam
-    hdr["PHTOZPT"] = photzpt
+                readImPhtTab(imphttab, obsmode)
 
+    hdr["photflam"] = photflam
+    hdr["photfnu"] = photfnu
+    hdr["photbw"] = photbw
+    hdr["photplam"] = photplam
+    hdr["photzpt"] = photzpt
 
 def readImPhtTab(imphttab, obsmode):
     """Read the photometry parameters for imaging data from the imphttab.
@@ -83,6 +81,8 @@ def readImPhtTab(imphttab, obsmode):
 
     Parameters
     ----------
+    imphttab: str
+        The name of the imaging photometry parameters table.
 
     obsmode: str
         Observation mode.
@@ -116,7 +116,7 @@ def readImPhtTab(imphttab, obsmode):
                         451.56,
                         2075.3,
                         -21.1]
-    }
+        }
 
     if obsmode.find(",") >= 0:
         words = obsmode.split(",")
@@ -127,7 +127,7 @@ def readImPhtTab(imphttab, obsmode):
         w.append(word.strip())
     words = w
 
-    key_list = ["dummy", "dummy"]
+    keylist = ["dummy", "dummy"]
     for word_orig in words:
         word = word_orig.lower()
         if word == "cos":
@@ -135,20 +135,20 @@ def readImPhtTab(imphttab, obsmode):
         elif word == "nuv":
             continue
         elif word == "mirrora" or word == "mirrorb":
-            key_list[0] = word
+            keylist[0] = word
         elif word == "psa" or word == "boa":
-            key_list[1] = word
+            keylist[1] = word
         else:
             cosutil.printWarning("Don't recognize obsmode component %s" %
                                  word_orig)
 
-    if key_list[1] == "dummy":
+    if keylist[1] == "dummy":
         cosutil.printWarning("No valid aperture found in obsmode %s;"
                              % obsmode)
         cosutil.printContinuation("assuming PSA instead.")
-        key_list[1] = "psa"
+        keylist[1] = "psa"
 
-    key = key_list[0] + "," + key_list[1]
+    key = keylist[0] + "," + keylist[1]
 
     if key in photdict:
         param = photdict[key]

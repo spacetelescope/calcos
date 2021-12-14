@@ -1,18 +1,16 @@
 #! /usr/bin/env python
 
-from __future__ import absolute_import, division, print_function  # confidence high
-
-import copy
+from __future__ import absolute_import, division, print_function # confidence high
+import sys
+import os
+import time
 import getopt
 import glob
-import os
-import sys
-import time
+import copy
 
+import numpy
 import astropy
 import astropy.io.fits as fits
-import numpy
-
 from . import accum
 from . import average
 from . import cosutil
@@ -22,8 +20,9 @@ from . import getinfo
 from . import shiftfile
 from . import spwcs
 from . import timetag
+from . import trace
 from . import wavecal
-from .calcosparam import *  # parameter definitions
+from .calcosparam import *       # parameter definitions
 
 # These values for Observation.exp_type are used in this file only.
 EXP_UNKNOWN     = 0

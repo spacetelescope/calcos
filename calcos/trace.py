@@ -5,16 +5,15 @@
 #
 
 from __future__ import division, absolute_import
-
+import astropy.io.fits as fits
+import numpy as np
 import math
 
-import numpy as np
-
 from . import airglow
+from .calcosparam import *
 from . import ccos
 from . import cosutil
 from . import dispersion
-from .calcosparam import *
 
 TRACE_OK = 1
 CENTROID_OK = 1

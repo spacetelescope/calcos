@@ -125,4 +125,4 @@ class ShiftFile(object):
                     shifts = self.user_shift_dict[sf_key]
                     nfound += 1
 
-        return shifts, nfound
+        return (shifts, nfound)

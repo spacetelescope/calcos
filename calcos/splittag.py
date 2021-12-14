@@ -1,14 +1,11 @@
-from __future__ import absolute_import, division  # confidence high
-
+from __future__ import absolute_import, division         # confidence high
 import glob
 import math
 import os
-
-import astropy.io.fits as fits
 import numpy as np
-
-from . import ccos
+import astropy.io.fits as fits
 from . import cosutil
+from . import ccos
 
 NOT_APPLICABLE = "N/A"
 SEC_PER_DAY = 86400.            # seconds in a day

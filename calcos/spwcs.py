@@ -1,11 +1,8 @@
 from __future__ import absolute_import
-
 import math
-
 import astropy.io.fits as fits
-
-from . import cosutil
 from .calcosparam import *
+from . import cosutil
 
 # These are the column numbers (one indexed) for the XFULL and YFULL
 # columns in a corrtag file.  See SpWcsCorrtag.__init__().
