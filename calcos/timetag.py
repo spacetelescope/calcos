@@ -94,7 +94,7 @@ def timetagBasicCalibration(input, inpha, outtag,
         0 is OK
         1 means there were no rows in the input table
     """
-
+    input_path = os.path.dirname(input)
     if info["obsmode"] == "TIME-TAG":
         cosutil.printIntro("TIME-TAG calibration")
         names = [("Input", input),
@@ -276,7 +276,7 @@ def timetagBasicCalibration(input, inpha, outtag,
             (tl_time, shift1_vs_time) = \
             updateFromWavecal(events, wavecal_info, wavecorr,
                               cl_args["shift_file"],
-                              info, switches, reffiles, phdr, headers[1])
+                              info, switches, reffiles, input_path, phdr, headers[1])
         # Compute wavelengths for the wavelength column (except for wavecals).
         if info["obstype"] == "SPECTROSCOPIC" and \
            info["exptype"].find("WAVE") == -1:
@@ -4347,7 +4347,7 @@ def noWavecal(input, shift_file, info, switches, reffiles):
 
 def updateFromWavecal(events, wavecal_info, wavecorr,
                       shift_file,
-                      info, switches, reffiles, phdr, hdr):
+                      info, switches, reffiles, input_path, phdr, hdr):
     """Update XFULL and YFULL based on auto, split or GO wavecal info.
 
     Parameters
@@ -4454,7 +4454,7 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         shift1_slope = slope_dict[key]
         if info["detector"] == "FUV":
             if info['addsplitwavecal']:
-                split_wavecal_info = getSplitWavecalInfo(info, key, wavecal_info, wcp_info)
+                split_wavecal_info = getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path)
                 transition_time, early_slope, early_intercept, late_slope, late_intercept = split_wavecal_info
                 early_times = np.where(time < transition_time)
                 late_times = np.where(time >= transition_time)
@@ -4549,7 +4549,42 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
 
     return (tl_time, shift1_vs_time)
 
-def getSplitWavecalInfo(info, key, wavecal_info, wcp_info):
+def getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
+    """Calculate the slopes and intercepts for the 2 line segments that
+    model the behaviour of the shift1 value as a function of time when
+    a virtual wavecal is added
+
+    Parameters:
+    -----------
+
+    info: dictionary
+        info dictionary for the observation
+
+    key: str
+        'shift1a' or 'shift1b'
+
+    wavecal_info: list of dictionaries
+        wavecal_info list from calcos.Calibration.allWavecals()
+
+    wcp_info: FITS_rec
+        Row of the wcptab matching this observation
+
+    input_path: str
+        Directory containing the input file; the wavecals will be
+        in the same directory
+
+    Returns:
+    --------
+
+    tuple containing 5 floats:
+
+    seconds_since_exposure_start,     # 600s from the start of the preceding wavecal
+    early_slope,                      # slope of relation for t < seconds_since_exposure_start
+    early_intercept,                  # intercept of relation for t < seconds_since_exposure_start
+    late_slope,                       # slope of relation for t > seconds_since_exposure_start
+    late_intercept                    # intercept of relation for t > seconds_since_exposure_start
+    """
+
     cosutil.printMsg("Adding split wavecal")
     # The model that is used to calculate the split wavecal depends on
     # the exposure time
@@ -4573,8 +4608,11 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info):
     # Calculate the time at which the split wavecal is to be added
     # Should be 600s after the start of the wavecal preceding this exposure
     preceding_wavecal = wavecalfiles.split(' ')[0]
-    fw = fits.open(preceding_wavecal)
+    # Need to get the directory the wavecal is in
+    full_wavecal_path = os.path.join(input_path, preceding_wavecal)
+    fw = fits.open(full_wavecal_path)
     start = fw[1].header['expstart']
+    fw.close()
     # Split wavecal is to go 600s after the start of the preceding wavecal
     tsplit = start + 600.0 / SEC_PER_DAY
     seconds_since_exposure_start = (tsplit - info['expstart']) * SEC_PER_DAY

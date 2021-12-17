@@ -2587,6 +2587,16 @@ class Observation(object):
         Parameters:
         -----------
 
+        association: calcos.Association object
+            The association containing the Observation
+
+        wavecal_info: List of dictionaries
+            The wavecal info obtained from running calcos.Calibration.allWavecals()
+
+        debug: boolean
+            Whether to print diagnostic info as to why a virtual wavecal is or is
+            not added
+        
         Returns:
         --------
 
