@@ -1,5 +1,5 @@
 from calcos import airglow
-from tests.generate_tempfiles import create_disptab_file
+from generate_tempfiles import create_disptab_file
 
 
 def test_find_airglow_limits():
