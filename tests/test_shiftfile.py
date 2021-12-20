@@ -30,7 +30,7 @@ def test_get_shifts():
     ob1 = shiftfile.ShiftFile(shift_file, 'ghi456jkl', 'any')
     ob2 = shiftfile.ShiftFile(shift_file, 'abc123def', 'any')
     keys = [('any', 'nuva'), ('any', 'nuvb'), (2, 'nuvc'), ('any', 'any'), ('any', 'fuva'), ('any', 'fuvb')]
-    expected_values1 = [((None, None), 0), ((19.543453, 5.0), 2), ((None, None), 0), ((34.543453, 7.0), 1), ((None, None), 0), ((None, None), 0)]
+    expected_values1 = [((None, None), 0), ((34.543453, 7.0), 1), ((None, None), 0), ((34.543453, 7.0), 1), ((None, None), 0), ((None, None), 0)]
     expected_values2 = [((45.234435, 7.0), 1), ((None, None), 0), ((None, None), 0), ((45.234435, 7.0), 1), ((None, None), 0), ((None, None), 0)]
     # Test
     test_values1 = []
