@@ -18,7 +18,7 @@ jobs:
     env: 
       TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
       lref: /grp/hst/cdbs/lref/
-      working-directory: ./tests
+      working-directory: ./
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +63,6 @@ jobs:
     - name: Test with pytest
       run: |
         # run all the unit tests.
-        python ../setup.py install
-        pytest test_cosutil.py -v 
+        python setup.py install
+        pytest tests/test_cosutil.py -v 
       working-directory: ${{env.working-directory}}
