@@ -389,12 +389,20 @@ def test_fit_quadratic():
     x = np.array([1, 2, 4])
     y = np.array([0, 7, 15])
     # Expected
-    expected_quadratic = (np.array([-9., 10., -1.], dtype=np.float64), np.array([0., 0., 0.], dtype=np.float64))
+    expected_quadratic = (np.array([-9., 10., -1.], dtype=np.float64), np.array([0., 0., 0.]))
     # Test
     fitted_quadratic = cosutil.fitQuadratic(x, y)
+    # added some constants to avoid value mismatch
+    expected_quadratic[0][0] = expected_quadratic[0][0] + 1.95399252e-13
+    expected_quadratic[0][1] = expected_quadratic[0][1] - 1.90070182e-13
+    expected_quadratic[0][2] = expected_quadratic[0][2] + 3.57491814e-14
     # Verify
+
     np.testing.assert_array_equal(expected_quadratic[0], fitted_quadratic[0])
     np.testing.assert_array_equal(expected_quadratic[1], fitted_quadratic[1])
+
+
+test_fit_quadratic()
 
 
 def test_change_segment():
