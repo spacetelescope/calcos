@@ -14,7 +14,7 @@ from generate_tempfiles import generate_fits_file
 def test_find_column():
     # Setup
     # create a test fits file
-    name = "Output/findCol.fts"
+    name = "findCol.fits"
     ofd = generate_fits_file(name)
 
     target_col = 'TIME'
@@ -27,7 +27,7 @@ def test_find_column():
 def test_get_table():
     # Setup
     # create a test fits file
-    name = "Output/getTable.fts"
+    name = "getTable.fits"
     ofd = generate_fits_file(name)
     truth = [tuple(ofd[1].data[3])]
     time = ofd[1].data[3][0]
@@ -39,7 +39,7 @@ def test_get_table():
 
 def test_get_table_exceptions():
     # Raise MissingRowError
-    name = "Output/getTable.fts"
+    name = "getTable.fits"
     generate_fits_file(name)
     # truth = [tuple(ofd[1].data[3])]
     t = np.ones(5)  # non-existent values
@@ -50,7 +50,7 @@ def test_get_table_exceptions():
 def test_get_col_copy():
     # Setup
     # create a test fits file
-    name = "Output/getTable.fits"
+    name = "getTable.fits"
     ofd = generate_fits_file(name)
     col_name = 'XCORR'
     portion_of_array = ofd[1].data[:]
@@ -67,7 +67,7 @@ def test_get_col_copy():
 def test_get_col_copy_exception():
     # raise RuntimeError error
     with pytest.raises(RuntimeError):
-        name = "Output/getTable.fits"
+        name = "getTable.fits"
         ofd = generate_fits_file(name)
         col_name = 'XCORR'
         portion_of_array = ofd[1].data[:]
@@ -78,7 +78,7 @@ def test_get_col_copy_exception():
 def test_get_headers():
     # Setup
     # create a test fits file
-    name = "Output/getHeaders.fits"
+    name = "getHeaders.fits"
     ofd = generate_fits_file(name)
     true_hdr = ofd[0].header
 
@@ -113,12 +113,12 @@ def test_concat_arrays():
 def test_update_filename():
     # Setup
     filename = "update_filename"
-    generate_fits_file("Output/update_filename.fits")
-    before_update_hdr = fits.open("Output/update_filename.fits", mode="update")
+    generate_fits_file("update_filename.fits")
+    before_update_hdr = fits.open("update_filename.fits", mode="update")
     # Test
     cosutil.updateFilename(before_update_hdr[0].header, filename)
     before_update_hdr.close()
-    after_update_hdr = fits.open("Output/update_filename.fits")
+    after_update_hdr = fits.open("update_filename.fits")
     # Verity
     assert filename == after_update_hdr[0].header["filename"]
     after_update_hdr.close()
@@ -126,9 +126,9 @@ def test_update_filename():
 
 def test_copy_file():
     # Setup
-    infile = "Output/input.fits"
+    infile = "input.fits"
     generate_fits_file(infile)
-    outfile = "Output/output.fits"
+    outfile = "output.fits"
     # Test
     cosutil.copyFile(infile, outfile)
     # Verify
@@ -141,8 +141,8 @@ def test_copy_file():
 
 def test_is_product():
     # Setup
-    product_file = "Output/my0_product_a.fits"
-    raw_file = "Output/my_raw.fits"
+    product_file = "my0_product_a.fits"
+    raw_file = "my_raw.fits"
     generate_fits_file(product_file)
     generate_fits_file(raw_file)
     # Test
