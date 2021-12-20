@@ -392,12 +392,11 @@ def test_fit_quadratic():
     expected_quadratic = (np.array([-9., 10., -1.], dtype=np.float64), np.array([0., 0., 0.]))
     # Test
     fitted_quadratic = cosutil.fitQuadratic(x, y)
-    # added some constants to avoid value mismatch
-    expected_quadratic[0][0] = expected_quadratic[0][0] + 1.95399252e-13
-    expected_quadratic[0][1] = expected_quadratic[0][1] - 1.90070182e-13
-    expected_quadratic[0][2] = expected_quadratic[0][2] + 3.57491814e-14
+    # round to 10 decimal places to avoid assertion error due to floating point error.
+    fitted_quadratic[0][0] = round(fitted_quadratic[0][0], 10)
+    fitted_quadratic[0][1] = round(fitted_quadratic[0][1], 10)
+    fitted_quadratic[0][2] = round(fitted_quadratic[0][2], 10)
     # Verify
-
     np.testing.assert_array_equal(expected_quadratic[0], fitted_quadratic[0])
     np.testing.assert_array_equal(expected_quadratic[1], fitted_quadratic[1])
 
