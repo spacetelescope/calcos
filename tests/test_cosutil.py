@@ -8,7 +8,7 @@ import pytest
 from astropy.io import fits
 
 from calcos import cosutil, MissingRowError
-from tests.generate_tempfiles import generate_fits_file
+from generate_tempfiles import generate_fits_file
 
 
 def test_find_column():
@@ -813,21 +813,6 @@ def test_segment_specific_keyword():
     root += "a"
     assert key == root
     assert key2 == root2
-
-
-# def test_expand_file_name():
-#     # Setup
-#     file1 = "$lref/thisIsATestFile1.fits"
-#     file2 = "lref$thisIsATestFile2.fits"
-#
-#     abs_path1 = "/grp/hst/cdbs/lref//thisIsATestFile1.fits"
-#     abs_path2 = "/grp/hst/cdbs/lref/thisIsATestFile2.fits"
-#     # Test
-#     path1 = cosutil.expandFileName(file1)
-#     path2 = cosutil.expandFileName(file2)
-#     # Verify
-#     assert abs_path1 == path1
-#     assert abs_path2 == path2
 
 
 def test_find_ref_file():
