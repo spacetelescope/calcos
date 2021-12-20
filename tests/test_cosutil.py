@@ -239,9 +239,9 @@ def test_create_corrtag_hdu():
     num_of_rows = 10
     # Test
     # detector parameter is not needed consider removing it
-    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, "FUV", hdu[1])
+    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, hdu=hdu[0])
     assert len(out_bin_table.data) == num_of_rows
-    assert out_bin_table[1].data != all(hdu[1].data)
+    assert all(out_bin_table.header) == all(hdu[0].header)
 
 
 def test_remove_wcs_keywords():
@@ -400,9 +400,6 @@ def test_fit_quadratic():
 
     np.testing.assert_array_equal(expected_quadratic[0], fitted_quadratic[0])
     np.testing.assert_array_equal(expected_quadratic[1], fitted_quadratic[1])
-
-
-test_fit_quadratic()
 
 
 def test_change_segment():
