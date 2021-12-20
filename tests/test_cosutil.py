@@ -239,7 +239,7 @@ def test_create_corrtag_hdu():
     num_of_rows = 10
     # Test
     # detector parameter is not needed consider removing it
-    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, "FUV")
+    out_bin_table = cosutil.createCorrtagHDU(num_of_rows, "FUV", hdu[1])
     assert len(out_bin_table.data) == num_of_rows
     assert out_bin_table[1].data != all(hdu[1].data)
 
