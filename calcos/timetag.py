@@ -270,7 +270,7 @@ def timetagBasicCalibration(input, inpha, outtag,
                                 info, switches, reffiles)
             # LP6 FUV data has no tagflash, so wavecal is done using wavecal
             # exposures before and after each science exposure.  Long exposures
-            # (>900s) need a split wavecal inserted 600s after the beginning of
+            # (>900s) need a simulated wavecal inserted 600s after the beginning of
             # the preceding waecal to model the non-linear
             # behaviour of shift vs time
             (tl_time, shift1_vs_time) = \
@@ -4348,7 +4348,7 @@ def noWavecal(input, shift_file, info, switches, reffiles):
 def updateFromWavecal(events, wavecal_info, wavecorr,
                       shift_file,
                       info, switches, reffiles, input_path, phdr, hdr):
-    """Update XFULL and YFULL based on auto, split or GO wavecal info.
+    """Update XFULL and YFULL based on auto, simulated or GO wavecal info.
 
     Parameters
     ----------
@@ -4453,9 +4453,9 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         shift1_zero = shift_dict[key]
         shift1_slope = slope_dict[key]
         if info["detector"] == "FUV":
-            if info['addsplitwavecal']:
-                split_wavecal_info = getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path)
-                transition_time, early_slope, early_intercept, late_slope, late_intercept = split_wavecal_info
+            if info['addsimulatedwavecal']:
+                simulated_wavecal_info = getSimulatedWavecalInfo(info, key, wavecal_info, wcp_info, input_path)
+                transition_time, early_slope, early_intercept, late_slope, late_intercept = simulated_wavecal_info
                 early_times = np.where(time < transition_time)
                 late_times = np.where(time >= transition_time)
                 shift1 = np.zeros(xi_full.shape)
@@ -4475,9 +4475,9 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
             xi_full[:] = np.where(wca_region_flags_dict[segment],
                            xi - ((time - t0) * shift1_slope + shift1_zero),
                            xi_full)
-        # Calculate the average shift for the split wavecal as the
+        # Calculate the average shift for the simulated wavecal as the
         # average shift of the events in the active Area
-        if info['addsplitwavecal']:
+        if info['addsimulatedwavecal']:
             avg_shift1 = np.mean(shift1[np.where(active_area)], dtype=np.float64)
         else:
             avg_shift1 = shift1_slope * t_mid + shift1_zero
@@ -4507,7 +4507,7 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
     avg_dy = shift2_slope * t_mid + shift2_zero
 
     # Create the array of shift1 at the times in tl_time.
-    if info['addsplitwavecal']:
+    if info['addsimulatedwavecal']:
         early_times = np.where(tl_time < transition_time)
         late_times = np.where(tl_time <= transition_time)
         shift1_vs_time = np.zeros(tl_time.shape, dtype=np.float32)
@@ -4549,7 +4549,7 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
 
     return (tl_time, shift1_vs_time)
 
-def getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
+def getSimulatedWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
     """Calculate the slopes and intercepts for the 2 line segments that
     model the behaviour of the shift1 value as a function of time when
     a virtual wavecal is added
@@ -4585,8 +4585,8 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
     late_intercept                    # intercept of relation for t > seconds_since_exposure_start
     """
 
-    cosutil.printMsg("Adding split wavecal")
-    # The model that is used to calculate the split wavecal depends on
+    cosutil.printMsg("Adding simulated wavecal")
+    # The model that is used to calculate the simulated wavecal depends on
     # the exposure time
     exptime = info['exptime']
     tcrossover = wcp_info['TCROSSOVER']
@@ -4605,7 +4605,7 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
                                             tmid)
     shift_dict, slope_dict, wavecalfiles = shift_info
 
-    # Calculate the time at which the split wavecal is to be added
+    # Calculate the time at which the simulated wavecal is to be added
     # Should be 600s after the start of the wavecal preceding this exposure
     preceding_wavecal = wavecalfiles.split(' ')[0]
     # Need to get the directory the wavecal is in
@@ -4613,9 +4613,9 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
     fw = fits.open(full_wavecal_path)
     start = fw[1].header['expstart']
     fw.close()
-    # Split wavecal is to go 600s after the start of the preceding wavecal
-    tsplit = start + 600.0 / SEC_PER_DAY
-    seconds_since_exposure_start = (tsplit - info['expstart']) * SEC_PER_DAY
+    # Simulated wavecal is to go 600s after the start of the preceding wavecal
+    tsimulated = start + 600.0 / SEC_PER_DAY
+    seconds_since_exposure_start = (tsimulated - info['expstart']) * SEC_PER_DAY
     matching_wavecals = wavecal.selectWavecalInfo(wavecal_info,
                                                   info['cenwave'],
                                                   info['fpoffset'])
@@ -4632,14 +4632,14 @@ def getSplitWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
     cosutil.printMsg("Wavecal before exposure has {}={:.4f} at t={:.4f} ({:.4f}s)".format(key, shift1_before, tbefore, seconds_before))
     cosutil.printMsg("Wavecal after exposure has {}={:.4f} at t={:.4f} ({:.4f}s)".format(key, shift1_after, tafter, seconds_after))
     delta_shift = shift1_after - shift1_before
-    split_shift = shift1_before + frac * delta_shift + offset
-    cosutil.printMsg('Split shift of {:.4f} added at t={:.4f}s'.format(split_shift, seconds_since_exposure_start))
-    early_slope = (split_shift - shift1_before) / (tsplit - tbefore)
+    simulated_shift = shift1_before + frac * delta_shift + offset
+    cosutil.printMsg('Simulated shift of {:.4f} added at t={:.4f}s'.format(simulated_shift, seconds_since_exposure_start))
+    early_slope = (simulated_shift - shift1_before) / (tsimulated - tbefore)
     early_slope = early_slope / SEC_PER_DAY
-    early_intercept = split_shift + (info['expstart'] - tsplit) * early_slope * SEC_PER_DAY
-    late_slope = (shift1_after - split_shift) / (tafter - tsplit)
+    early_intercept = simulated_shift + (info['expstart'] - tsimulated) * early_slope * SEC_PER_DAY
+    late_slope = (shift1_after - simulated_shift) / (tafter - tsimulated)
     late_slope = late_slope / SEC_PER_DAY
-    late_intercept = split_shift + (info['expstart'] - tsplit) * late_slope * SEC_PER_DAY
+    late_intercept = simulated_shift + (info['expstart'] - tsimulated) * late_slope * SEC_PER_DAY
     return (seconds_since_exposure_start, early_slope, early_intercept, late_slope, late_intercept)
 
 def computeWavelengths(events, info, reffiles, helcorr="OMIT", hdr=None):

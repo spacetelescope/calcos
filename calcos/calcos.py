@@ -1979,7 +1979,7 @@ class Observation(object):
         self.info = {}                  # detector, opt_elem, etc.
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
-        self.info['addsplitwavecal'] = False
+        self.info['addsimulatedwavecal'] = False
 
         indir = os.path.dirname(input)
         input_directory = expandDirectory(indir)
@@ -2581,8 +2581,8 @@ class Observation(object):
             for msg in messages:
                 cosutil.printMsg(msg, VERBOSE)
 
-    def CheckforAddSplitWavecal(self, association, wavecal_info, debug=False):
-        """A split wavecal entry needs to be inserted if these conditions are met
+    def CheckforAddSimulatedWavecal(self, association, wavecal_info, debug=False):
+        """A simulated wavecal entry needs to be inserted if these conditions are met
 
         Parameters:
         -----------
@@ -2596,34 +2596,34 @@ class Observation(object):
         debug: boolean
             Whether to print diagnostic info as to why a virtual wavecal is or is
             not added
-        
+
         Returns:
         --------
 
         boolean
-            True if split wavecal is to be inserted
+            True if simulated wavecal is to be inserted
         """
         info = self.info
         reffiles = self.reffiles
 
         if info['detector'] == 'NUV':
             if debug:
-                cosutil.printMsg("Don't add split wavecal because observation is NUV")
+                cosutil.printMsg("Don't add simulated wavecal because observation is NUV")
             return False
 
         if 'EXP-SWAVE' not in association.asn_info['memtype']:
             if debug:
-                cosutil.printMsg("Don't add split wavecal because association has no exp_swave members")
+                cosutil.printMsg("Don't add simulated wavecal because association has no exp_swave members")
             return False
 
-        # If the other segment exists in this association and has the MustAddSplitWavecal flag set,
+        # If the other segment exists in this association and has the addsimulatedwavecal flag set,
         # set it for this obs
         othersegmentobs = self.getOtherSegmentObs(association)
         if othersegmentobs is not None:
             othersegmentinfo = othersegmentobs.info
-            if othersegmentinfo['addsplitwavecal']:
+            if othersegmentinfo['addsimulatedwavecal']:
                 if debug:
-                    cosutil.printMsg("Add split wavecal because other segment is")
+                    cosutil.printMsg("Add simulated wavecal because other segment is")
                 return True
 
         # Read info from wavecal parameters table.
@@ -2646,20 +2646,20 @@ class Observation(object):
             self.checkwcpinfo()
         if events_duration < mintime:
             if debug:
-                cosutil.printMsg("Don't add split wavecal because events duration < {}".format(mintime))
+                cosutil.printMsg("Don't add simulated wavecal because events duration < {}".format(mintime))
             return False
 
         numwavecals = self.getNumWavecals(wavecal_info, wcp_info)
         if numwavecals != 2:
             if debug:
-                cosutil.printMsg("Don't add split wavecal because #wavecals != 2")
+                cosutil.printMsg("Don't add simulated wavecal because #wavecals != 2")
             return False
 
-        # If we get this far, then add split wavecal
+        # If we get this far, then add simulated wavecal
         # If we set it for this segment, we need to set it for the other
         # segment, if there is one
         if othersegmentobs is not None:
-            othersegmentinfo['addsplitwavecal'] = True
+            othersegmentinfo['addsimulatedwavecal'] = True
         return True
 
     def getOtherSegmentObs(self, association):
@@ -2680,7 +2680,7 @@ class Observation(object):
 
     def getMinTime(self, wcp_info):
         """Get the minimum exposure time that a science exposure must have
-        to be eligible for a split wavecal
+        to be eligible for a simulated wavecal
 
         """
         try:
@@ -3013,13 +3013,13 @@ class Calibration(object):
                obs.exp_type == EXP_CALIBRATION or \
                obs.exp_type == EXP_ACQ_IMAGE:
                 obs.openTrailer()
-                # Check for whether this exposure meets the criteria for adding a split wavecal
-                # If so, set the obs.MustAddSplitWavecal attribute to True
-                if obs.CheckforAddSplitWavecal(self.assoc, self.wavecal_info, debug=True):
-                    obs.info['addsplitwavecal'] = True
+                # Check for whether this exposure meets the criteria for adding a simulated wavecal
+                # If so, set the obs.info['addsimulatedwavecal'] entry to True
+                if obs.CheckforAddSimulatedWavecal(self.assoc, self.wavecal_info, debug=True):
+                    obs.info['addsimulatedwavecal'] = True
                     obs.checkwcpinfo()
                 else:
-                    obs.info['addsplitwavecal'] = False
+                    obs.info['addsimulatedwavecal'] = False
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
