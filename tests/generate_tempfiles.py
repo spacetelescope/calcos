@@ -34,6 +34,9 @@ def generate_fits_file(file):
 
     prim_hdu = fits.PrimaryHDU()
     prim_hdu.header.set('STATFLAG', True, 'Calculate statistics')
+    prim_hdu.header.set('DETECTOR', 'NUV', 'FUV OR NUV')
+    prim_hdu.header.set('OBSMODE', 'ACCUM', 'operating mode')
+    prim_hdu.header.set('EXPTYPE', 'NULL', 'Comment')
 
     # define cols for gti header
     """name = 'START'; format = '1D'; unit = 'seconds'
