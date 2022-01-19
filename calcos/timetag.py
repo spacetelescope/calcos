@@ -94,7 +94,7 @@ def timetagBasicCalibration(input, inpha, outtag,
         0 is OK
         1 means there were no rows in the input table
     """
-
+    input_path = os.path.dirname(input)
     if info["obsmode"] == "TIME-TAG":
         cosutil.printIntro("TIME-TAG calibration")
         names = [("Input", input),
@@ -121,7 +121,7 @@ def timetagBasicCalibration(input, inpha, outtag,
     else:
         nrows = len(ofd["EVENTS"].data)
 
-    # events_hdu is a complete fits HDU object (i.e., header plus data),
+    # events_hdu is a complete astropy.io.fits HDU object (i.e., header plus data),
     # while events (assigned below) is just the data, a recarray object.
     events_hdu = ofd["EVENTS"]
 
@@ -194,7 +194,7 @@ def timetagBasicCalibration(input, inpha, outtag,
     # The X and Y walk correction need to be independent, and applied to the
     # same xcorr/pha values
     if doWalkCorr(switches):
-        
+
         xcorrection = doXWalkcorr(events, info, switches, reffiles, phdr)
         ycorrection = doYWalkcorr(events, info, switches, reffiles, phdr)
         applyWalkCorrection(events, xcorrection, ycorrection)
@@ -268,10 +268,15 @@ def timetagBasicCalibration(input, inpha, outtag,
                 (wavecal_info, wavecorr) = noWavecal(input,
                                 cl_args["shift_file"],
                                 info, switches, reffiles)
+            # LP6 FUV data has no tagflash, so wavecal is done using wavecal
+            # exposures before and after each science exposure.  Long exposures
+            # (>900s) need a simulated wavecal inserted 600s after the beginning of
+            # the preceding waecal to model the non-linear
+            # behaviour of shift vs time
             (tl_time, shift1_vs_time) = \
             updateFromWavecal(events, wavecal_info, wavecorr,
                               cl_args["shift_file"],
-                              info, switches, reffiles, phdr, headers[1])
+                              info, switches, reffiles, input_path, phdr, headers[1])
         # Compute wavelengths for the wavelength column (except for wavecals).
         if info["obstype"] == "SPECTROSCOPIC" and \
            info["exptype"].find("WAVE") == -1:
@@ -370,7 +375,7 @@ def setActiveArea(events, info, brftab):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table
 
     info: dictionary
@@ -423,10 +428,10 @@ def mkHeaders(phdr, events_header, extver=1):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         primary header from input file
 
-    events_header: pyfits Header object
+    events_header: astropy.io.fits Header object
         EVENTS extension header from input file
 
     Returns
@@ -484,7 +489,7 @@ def updateHVKeywords(hdr, info, reffiles):
 
     Parameters
     ----------
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         Header for EVENTS extension.  Keywords "hvlevela" and "hvlevelb"
         will be updated with the commanded high voltage (raw) for segments
         FUVA and FUVB respectively.
@@ -547,10 +552,10 @@ def doPhotcorr(info, switches, imphttab, phdr, hdr):
     imphttab: str
         The name of the imaging photometric parameters table
 
-    phdr: pyfits Header Object
+    phdr: astropy.io.fits Header Object
         The primary header, photcorr keyword updated in-place
 
-    hdr: pyfits Header Object
+    hdr: astropy.io.fits Header Object
         The first extension header, updated in-place
     """
 
@@ -569,7 +574,7 @@ def updateGlobrate(info, hdr):
     info: dictionary
         Header keywords and values
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The input events extension header
     """
 
@@ -614,7 +619,7 @@ def doBurstcorr(events, info, switches, reffiles, phdr, burstfile):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -626,7 +631,7 @@ def doBurstcorr(events, info, switches, reffiles, phdr, burstfile):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
 
     burstfile: str, or None
@@ -658,7 +663,7 @@ def doBadtcorr(events, info, switches, reffiles, phdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table
 
     info: dictionary
@@ -670,7 +675,7 @@ def doBadtcorr(events, info, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header
 
     Returns
@@ -751,7 +756,7 @@ def countBadEvents(events, bursts, badt, info, hdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     bursts: list of two-element lists
@@ -765,7 +770,7 @@ def countBadEvents(events, bursts, badt, info, hdr):
     info: dictionary
         Keywords and values
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The events extension header (keywords will be updated).
     """
 
@@ -847,10 +852,10 @@ def recomputeExptime(input, bursts, badt, events, hdr, info):
         List of [bad_start, bad_stop] intervals from the badttab
         (converted to seconds since expstart).
 
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The events extension header (keywords will be updated).
 
     info: dictionary
@@ -946,7 +951,7 @@ def saveNewGTI(ofd, gti):
 
     Parameters
     ----------
-    ofd: pyfits HDUList object
+    ofd: astropy.io.fits HDUList object
         Output file header/data list.
 
     gti: list of two-element lists
@@ -999,7 +1004,7 @@ def doPhacorr(inpha, events, info, switches, reffiles, phdr, hdr):
     inpha: str
         Name of the input file containing the pulse height histogram.
 
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -1011,10 +1016,10 @@ def doPhacorr(inpha, events, info, switches, reffiles, phdr, hdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The input events extension header.
     """
 
@@ -1066,7 +1071,7 @@ def filterPHA(xcorr, ycorr, pha, dq, phafile, info, hdr):
     info: dictionary
         Header keywords and values.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The EVENTS extension header; keywords for number of rejected
         events will be assigned.
     """
@@ -1139,7 +1144,7 @@ def filterByPulseHeight(pha, dq, phatab, info, hdr):
     info: dictionary
         Header keywords and values.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The EVENTS extension header; keywords for screening limits and
         number of rejected events will be assigned.
     """
@@ -1215,7 +1220,7 @@ def checkPulseHeight(inpha, phatab, info, hdr):
     info: dictionary
         Header keywords and values.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         Header for events table extension (keywords for screening limits
         and number of rejected events will be assigned).
     """
@@ -1293,7 +1298,7 @@ def doRandcorr(events, info, switches, reffiles, phdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -1305,7 +1310,7 @@ def doRandcorr(events, info, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         Primary header.
     """
 
@@ -1337,7 +1342,7 @@ def initTempcorr(events, input, info, switches, reffiles, hdr, stimfile):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         the data unit containing the events table
 
     input: str
@@ -1352,7 +1357,7 @@ def initTempcorr(events, input, info, switches, reffiles, hdr, stimfile):
     reffiles: dictionary
         reference file names
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         the input events extension header
 
     stimfile: str
@@ -1784,7 +1789,7 @@ def stimKeywords(hdr, segment, avg_s1, avg_s2, rms_s1, rms_s2,
                  s1_ref, s2_ref):
     """Update keywords for the locations of the stims.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The input events extension header (updated).
 
     segment: {"FUVA", "FUVB"}
@@ -1893,7 +1898,7 @@ def doTempcorr(stim_param, events, info, switches, reffiles, phdr):
     stim_param: dictionary of lists
         The dictionary has keys i0, i1, x0, xslope, y0, yslope.
 
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -1905,7 +1910,7 @@ def doTempcorr(stim_param, events, info, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
     """
 
@@ -2151,7 +2156,7 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
             reference_array = extension.data
             break
     delta = np.zeros(len(fastCoordinate))
-    delta = bilinear_interpolation(fastCoordinate, slowCoordinate, 
+    delta = bilinear_interpolation(fastCoordinate, slowCoordinate,
                            reference_array)
     return delta
 
@@ -2222,7 +2227,7 @@ def doDqicorr(events, input, info, switches, reffiles,
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     input: str
@@ -2237,10 +2242,10 @@ def doDqicorr(events, input, info, switches, reffiles,
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The input events extension header.
 
     minmax_shift_dict: dictionary
@@ -2458,7 +2463,7 @@ def doDqicorr(events, input, info, switches, reffiles,
                                               minmax_doppler)
 
         phdr["dqicorr"] = "COMPLETE"
-                                        
+
         if extn is not None:
             if "gsagtab" in phdr:
                 # replace the comment, to give the extension number
@@ -2486,7 +2491,7 @@ def traceShiftDQ(dq_array, traceprofile, wca_row):
     for column in range(ncolumns):
     #
     # Calculate the extent of the WCA aperture
-        wcacenter = wca_0 + int(round(column*wcaslope)) 
+        wcacenter = wca_0 + int(round(column*wcaslope))
         wcastart = wcacenter - wcaheight // 2
         wcastop = wcacenter + wcaheight // 2
         tracevalue = int(round(traceprofile[column]))
@@ -2569,7 +2574,7 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
                                         DQ_PIXEL_OUT_OF_BOUNDS)
                 blur_dq[int(lower_y):int(upper_y)] = np.bitwise_or(blur_dq[int(lower_y):int(upper_y)],
                                                                    shifted_dq)
-        
+
     return blur_dq
 
 def arrayShift(array, yshift, xshift, default):
@@ -2655,7 +2660,7 @@ def doDoppcorr(events, info, switches, reffiles, phdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -2667,7 +2672,7 @@ def doDoppcorr(events, info, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
     """
 
@@ -2931,13 +2936,13 @@ def initHelcorr(events, info, hdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
         Dictionary of header keywords and values.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The events extension header.
     """
 
@@ -3069,7 +3074,7 @@ def doFlatcorr(events, info, switches, reffiles, phdr, hdr):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     info: dictionary
@@ -3081,10 +3086,10 @@ def doFlatcorr(events, info, switches, reffiles, phdr, hdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The events extension header.
     """
 
@@ -3190,7 +3195,7 @@ def doDeadcorr(events, input, info, switches, reffiles, phdr, hdr,
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     input: str
@@ -3205,10 +3210,10 @@ def doDeadcorr(events, input, info, switches, reffiles, phdr, hdr,
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The input extension header.
 
     livetimefile: str
@@ -3244,7 +3249,7 @@ def updateDeadtimeKeywords(hdr, segment,
 
     Parameters
     ----------
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The first extension header, updated in-place.
 
     segment: str
@@ -3299,7 +3304,7 @@ def deadtimeCorrection(events, deadtab, info,
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     deadtab: str
@@ -3492,7 +3497,7 @@ def deadtimeCorrectionAccum(events, deadtab, info,
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     deadtab: str
@@ -3694,7 +3699,7 @@ def writeNull(input, ofd, output, outcounts, outcsum,
     input: str
         Name of the input file.
 
-    ofd: pyfits HDUList object
+    ofd: astropy.io.fits HDUList object
         Output file header/data list.
 
     output: str
@@ -3713,10 +3718,10 @@ def writeNull(input, ofd, output, outcounts, outcsum,
     info: dictionary
         Header keywords and values.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         Primary header.
 
-    headers: list of pyfits Header objects
+    headers: list of astropy.io.fits Header objects
         Headers.
     """
 
@@ -3738,7 +3743,7 @@ def writeNull(input, ofd, output, outcounts, outcsum,
 
 def createTraceMask(events, info, switches, xtractab, active_area):
     """Create a mask for events that will be corrected.  This is events within
-    the Active Area, but not including the events in the tagflash region""" 
+    the Active Area, but not including the events in the tagflash region"""
     #
     # Only create the tracemask if we are going to do either the trace
     # correction or the profile alignment correction
@@ -3841,10 +3846,10 @@ def writeImages(x, y, epsilon, dq,
     dq: array like
         Data quality column.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
 
-    headers: list of pyfits Header objects
+    headers: list of astropy.io.fits Header objects
         The input headers.
 
     dq_array: array like
@@ -3896,7 +3901,7 @@ def writeImages(x, y, epsilon, dq,
     ccos.binevents(x, y, C_counts, x_offset, dq, SERIOUS_DQ_FLAGS)
 
     # Use the Frequentist variance function.
-    err_lower, err_upper = cosutil.errFrequentist(C_counts) 
+    err_lower, err_upper = cosutil.errFrequentist(C_counts)
     errC_rate = err_upper / exptime
 
     if outcounts is not None:
@@ -3931,10 +3936,10 @@ def makeImage(outimage, phdr, headers, sci_array, err_array, dq_array):
     output: str
         Name of the output file to be written.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The input primary header.
 
-    headers: list of pyfits Header objects
+    headers: list of astropy.io.fits Header objects
         The input headers.
 
     sci_array: array like
@@ -3963,10 +3968,10 @@ def makeImageHDU(fd, table_hdr, data_array, name="SCI"):
 
     Parameters
     ----------
-    fd: pyfits HDUList object
-        pyfits object for FITS file (new hdu will be appended).
+    fd: astropy.io.fits HDUList object
+        astropy.io.fits object for FITS file (new hdu will be appended).
 
-    table_hdr: pyfits Header object
+    table_hdr: astropy.io.fits Header object
         Header for the input table.
 
     data_array: array like
@@ -4008,7 +4013,7 @@ def writeCsum(outcsum, events,
     outcsum: str
         Name of output "calcos sum" file.
 
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     detector: {"FUV", "NUV"}
@@ -4018,10 +4023,10 @@ def writeCsum(outcsum, events,
         TIME-TAG or ACCUM, used for determining whether to write a third
         dimension with PHA for FUV data.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         Primary header from input file.
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         First extension (EVENTS) header from input file.
 
     raw_csum_coords: boolean
@@ -4040,7 +4045,7 @@ def writeCsum(outcsum, events,
 
     compression_parameters: str
         compressionType and quantizeLevel (separated by a comma) for the
-        call to fits.CompImageHDU; compressionType can be "rice", "gzip",
+        call to astropy.io.fits.CompImageHDU; compressionType can be "rice", "gzip",
         or "hcompress", and quantizeLevel can be e.g. -0.1, which means the
         floating point values will be scaled to integers with spacing that
         corresponds to 0.1 dn (see the doc string for fits.CompImageHDU
@@ -4177,7 +4182,7 @@ def flagOmit(phdr):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The primary header of the csum file, modified in-place to set some
         calibration switches to OMIT.
     """
@@ -4339,14 +4344,15 @@ def noWavecal(input, shift_file, info, switches, reffiles):
 
     return (wavecal_info, wavecorr)
 
+
 def updateFromWavecal(events, wavecal_info, wavecorr,
                       shift_file,
-                      info, switches, reffiles, phdr, hdr):
-    """Update XFULL and YFULL based on auto or GO wavecal info.
+                      info, switches, reffiles, input_path, phdr, hdr):
+    """Update XFULL and YFULL based on auto, simulated or GO wavecal info.
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
 
     wavecal_info: dictionary
@@ -4370,10 +4376,10 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: astropy.io.fits Header object
         The primary header (WAVECORR and WAVECALS can be updated).
 
-    hdr: pyfits Header object
+    hdr: astropy.io.fits Header object
         The events extension header (modified in-place).
 
     Returns
@@ -4447,9 +4453,21 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         shift1_zero = shift_dict[key]
         shift1_slope = slope_dict[key]
         if info["detector"] == "FUV":
-            xi_full[:] = np.where(active_area,
-                           xi - ((time - t0) * shift1_slope + shift1_zero),
-                           xi_full)
+            if info['addsimulatedwavecal']:
+                simulated_wavecal_info = getSimulatedWavecalInfo(info, key, wavecal_info, wcp_info, input_path)
+                transition_time, early_slope, early_intercept, late_slope, late_intercept = simulated_wavecal_info
+                early_times = np.where(time < transition_time)
+                late_times = np.where(time >= transition_time)
+                shift1 = np.zeros(xi_full.shape)
+                shift1[early_times] = ((time[early_times] - t0) * early_slope + early_intercept)
+                shift1[late_times] = ((time[late_times] - t0) * late_slope + late_intercept)
+                xi_full[early_times] = xi[early_times] - shift1[early_times]
+                xi_full[late_times] = xi[late_times] - shift1[late_times]
+                xi_full[:] = np.where(active_area, xi_full, xi)
+            else:
+                xi_full[:] = np.where(active_area,
+                               xi - ((time - t0) * shift1_slope + shift1_zero),
+                               xi_full)
         else:
             xi_full[:] = np.where(psa_region_flags_dict[segment],
                            xi - ((time - t0) * shift1_slope + shift1_zero),
@@ -4457,7 +4475,12 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
             xi_full[:] = np.where(wca_region_flags_dict[segment],
                            xi - ((time - t0) * shift1_slope + shift1_zero),
                            xi_full)
-        avg_shift1 = shift1_slope * t_mid + shift1_zero
+        # Calculate the average shift for the simulated wavecal as the
+        # average shift of the events in the active Area
+        if info['addsimulatedwavecal']:
+            avg_shift1 = np.mean(shift1[np.where(active_area)], dtype=np.float64)
+        else:
+            avg_shift1 = shift1_slope * t_mid + shift1_zero
         key = "SHIFT1" + segment[-1]
         hdr[key] = round(avg_shift1, 4)
 
@@ -4484,7 +4507,14 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
     avg_dy = shift2_slope * t_mid + shift2_zero
 
     # Create the array of shift1 at the times in tl_time.
-    shift1_vs_time = shift1_slope * tl_time + shift1_zero
+    if info['addsimulatedwavecal']:
+        early_times = np.where(tl_time < transition_time)
+        late_times = np.where(tl_time <= transition_time)
+        shift1_vs_time = np.zeros(tl_time.shape, dtype=np.float32)
+        shift1_vs_time[early_times] = early_slope * tl_time[early_times] + early_intercept
+        shift1_vs_time[late_times] = late_slope * tl_time[late_times] + late_intercept
+    else:
+        shift1_vs_time = shift1_slope * tl_time + shift1_zero
 
     # Set the SHIFT2[A-C] keywords to the average offset in the
     # cross-dispersion direction.
@@ -4519,12 +4549,105 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
 
     return (tl_time, shift1_vs_time)
 
+def getSimulatedWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
+    """Calculate the slopes and intercepts for the 2 line segments that
+    model the behaviour of the shift1 value as a function of time when
+    a virtual wavecal is added
+
+    Parameters:
+    -----------
+
+    info: dictionary
+        info dictionary for the observation
+
+    key: str
+        'shift1a' or 'shift1b'
+
+    wavecal_info: list of dictionaries
+        wavecal_info list from calcos.Calibration.allWavecals()
+
+    wcp_info: FITS_rec
+        Row of the wcptab matching this observation
+
+    input_path: str
+        Directory containing the input file; the wavecals will be
+        in the same directory
+
+    Returns:
+    --------
+
+    tuple containing 5 floats:
+
+    seconds_since_exposure_start,     # 600s from the start of the preceding wavecal
+    early_slope,                      # slope of relation for t < seconds_since_exposure_start
+    early_intercept,                  # intercept of relation for t < seconds_since_exposure_start
+    late_slope,                       # slope of relation for t > seconds_since_exposure_start
+    late_intercept                    # intercept of relation for t > seconds_since_exposure_start
+    """
+
+    cosutil.printMsg("Adding simulated wavecal")
+    # The model that is used to calculate the simulated wavecal depends on
+    # the exposure time
+    exptime = info['exptime']
+    tcrossover = wcp_info['TCROSSOVER']
+    if exptime < tcrossover:
+        frac = wcp_info['FRACSHORT']
+        offset = wcp_info['OFFSET_SHORT']
+    else:
+        frac = wcp_info['FRACLONG']
+        offset = wcp_info['OFFSET_LONG']
+
+    cosutil.printMsg("For exposure of {:.4f}s, frac={:.4f}, offset={:.4f}".format(exptime, frac, offset))
+    # Get the wavecal files that bracket this exposure
+    tmid = 0.5 * (info["expstart"] + info["expend"])
+    shift_info = wavecal.returnWavecalShift(wavecal_info, wcp_info,
+                                            info["cenwave"], info["fpoffset"],
+                                            tmid)
+    shift_dict, slope_dict, wavecalfiles = shift_info
+
+    # Calculate the time at which the simulated wavecal is to be added
+    # Should be 600s after the start of the wavecal preceding this exposure
+    preceding_wavecal = wavecalfiles.split(' ')[0]
+    # Need to get the directory the wavecal is in
+    full_wavecal_path = os.path.join(input_path, preceding_wavecal)
+    fw = fits.open(full_wavecal_path)
+    start = fw[1].header['expstart']
+    fw.close()
+    # Simulated wavecal is to go 600s after the start of the preceding wavecal
+    tsimulated = start + 600.0 / SEC_PER_DAY
+    seconds_since_exposure_start = (tsimulated - info['expstart']) * SEC_PER_DAY
+    matching_wavecals = wavecal.selectWavecalInfo(wavecal_info,
+                                                  info['cenwave'],
+                                                  info['fpoffset'])
+    nwavecals = len(matching_wavecals)
+    if nwavecals != 2:
+        cosutil.printMsg('Expected exactly 2 matching wavecals, got {}'.format(nwavecals))
+        return None
+    shift1_before = matching_wavecals[0]['shift_dict'][key]
+    tbefore = matching_wavecals[0]['time']
+    seconds_before = (tbefore - info['expstart']) * SEC_PER_DAY
+    shift1_after = matching_wavecals[1]['shift_dict'][key]
+    tafter = matching_wavecals[1]['time']
+    seconds_after = (tafter - info['expstart']) * SEC_PER_DAY
+    cosutil.printMsg("Wavecal before exposure has {}={:.4f} at t={:.4f} ({:.4f}s)".format(key, shift1_before, tbefore, seconds_before))
+    cosutil.printMsg("Wavecal after exposure has {}={:.4f} at t={:.4f} ({:.4f}s)".format(key, shift1_after, tafter, seconds_after))
+    delta_shift = shift1_after - shift1_before
+    simulated_shift = shift1_before + frac * delta_shift + offset
+    cosutil.printMsg('Simulated shift of {:.4f} added at t={:.4f}s'.format(simulated_shift, seconds_since_exposure_start))
+    early_slope = (simulated_shift - shift1_before) / (tsimulated - tbefore)
+    early_slope = early_slope / SEC_PER_DAY
+    early_intercept = simulated_shift + (info['expstart'] - tsimulated) * early_slope * SEC_PER_DAY
+    late_slope = (shift1_after - simulated_shift) / (tafter - tsimulated)
+    late_slope = late_slope / SEC_PER_DAY
+    late_intercept = simulated_shift + (info['expstart'] - tsimulated) * late_slope * SEC_PER_DAY
+    return (seconds_since_exposure_start, early_slope, early_intercept, late_slope, late_intercept)
+
 def computeWavelengths(events, info, reffiles, helcorr="OMIT", hdr=None):
     """Compute wavelengths for a corrtag table.
 
     Parameters
     ----------
-    events: pyfits record array, or None
+    events: astropy.io.fits record array, or None
         The data unit containing the events table.
 
     info: dictionary
@@ -4538,7 +4661,7 @@ def computeWavelengths(events, info, reffiles, helcorr="OMIT", hdr=None):
         for heliocentric velocity (helcorr in header will not be modified,
         however); the default value is appropriate for a wavecal.
 
-    hdr: pyfits Header object, or None
+    hdr: astropy.io.fits Header object, or None
         If not None, apply shift1[abc] and shift2[abc] to the pixel
         coordinates; this is needed for a wavecal exposure.
     """
@@ -4937,7 +5060,7 @@ def getWavecalOffsets(events, info, wavecorr, xtractab, brftab):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         the data unit containing the events table
 
     info: dictionary
@@ -5063,7 +5186,7 @@ def copyColumns(events):
 
     Parameters
     ----------
-    events: pyfits record array
+    events: astropy.io.fits record array
         The data unit containing the events table.
     """
 
