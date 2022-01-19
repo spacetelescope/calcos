@@ -4447,11 +4447,26 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
     for segment in segment_list:
 
         key = "shift1" + segment[-1].lower()
+        goodshift1key = key
         if not (key in shift_dict and key in slope_dict):
-            cosutil.printError("There is no wavecal for segment %s." % segment)
-            return (tl_time, None)
-        shift1_zero = shift_dict[key]
-        shift1_slope = slope_dict[key]
+            cosutil.printWarning("There is no wavecal for segment %s." % segment)
+            if info['detector'] == "FUV":
+                othersegment = "FUVA"
+                if segment == "FUVA":
+                    othersegment = "FUVB"
+                otherkey = "shift1" + othersegment[-1].lower()
+                if not (otherkey in shift_dict and otherkey in slope_dict):
+                    cosutil.printError("No matching wavecal for segment {} either".format(othersegment))
+                    return (tl_time, None)
+                cosutil.printMsg("Using shift info for segment {}".format(othersegment))
+                shift1_zero = shift_dict[otherkey]
+                shift1_slope = slope_dict[otherkey]
+                goodshift1key = otherkey
+            else:
+                return (tl_time, None)
+        else:
+            shift1_zero = shift_dict[key]
+            shift1_slope = slope_dict[key]
         if info["detector"] == "FUV":
             if info['addsimulatedwavecal']:
                 simulated_wavecal_info = getSimulatedWavecalInfo(info, key, wavecal_info, wcp_info, input_path)
@@ -4490,8 +4505,13 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         segment = "NUVB"
 
     key = "shift2" + segment[-1].lower()
-    shift2_zero = shift_dict[key]
-    shift2_slope = slope_dict[key]
+    if (key in shift_dict and key in slope_dict):
+        shift2_zero = shift_dict[key]
+        shift2_slope = slope_dict[key]
+    else:
+        otherkey = "shift2" + othersegment[-1].lower()
+        shift2_zero = shift_dict[otherkey]
+        shift2_slope = slope_dict[otherkey]
     if info["detector"] == "FUV":
         eta_full[:] = np.where(active_area,
                         eta - ((time - t0) * shift2_slope + shift2_zero),
@@ -4502,8 +4522,13 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
 
     # stripe B for NUV
     key = "shift1" + segment[-1].lower()
-    shift1_zero = shift_dict[key]
-    shift1_slope = slope_dict[key]
+    if (key not in shift_dict and key not in slope_dict):
+        otherkey = "shift1" + othersegment[-1].lower()
+        shift1_zero = shift_dict[otherkey]
+        shift1_slope = slope_dict[otherkey]
+    else:
+        shift1_zero = shift_dict[key]
+        shift1_slope = slope_dict[key]
     avg_dy = shift2_slope * t_mid + shift2_zero
 
     # Create the array of shift1 at the times in tl_time.
