@@ -3020,6 +3020,19 @@ class Calibration(object):
                     obs.checkwcpinfo()
                 else:
                     obs.info['addsimulatedwavecal'] = False
+                if not self.assoc.asn_info['exists'] and not obs.info['tagflash'] and \
+                   obs.switches["wavecorr"] == "PERFORM":
+                    nowavecalwarning = "\nCAUTION: You are running CalCOS with a "
+                    nowavecalwarning += "rawtag or corrtag file\nthat does not "
+                    nowavecalwarning += "contain simultaneous lamp data instead "
+                    nowavecalwarning += "of using\nan association (asn) file as "
+                    nowavecalwarning += "an input. No wavelength correction\nwill "
+                    nowavecalwarning += "be applied and your wavelength "
+                    nowavecalwarning += "calibration will be wrong.\nIf you wish "
+                    nowavecalwarning += "to create a custom asn file for use with "
+                    nowavecalwarning += "your data,\nplease refer to Chapter 3 of "
+                    nowavecalwarning += "the COS Data Handbook."
+                    cosutil.printMsg(nowavecalwarning)
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
