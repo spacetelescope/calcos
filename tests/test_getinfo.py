@@ -17,17 +17,102 @@ def test_initial_info():
     # Test
     test_inf = getinfo.initialInfo(temp_file)
     # Verify
-    assert inf["detector"] == test_inf["detector"]
-    assert inf["obsmode"] == test_inf["obsmode"]
-    assert inf["exptype"] == test_inf["exptype"]
+    for key in inf.keys():
+        assert inf[key] == test_inf[key]
 
 
 def test_get_general_info():
-    assert True
+    # Setup
+    temp_file = "general_info_temp.fits"
+    hdu = generate_tempfiles.generate_fits_file(temp_file)
+    inf = {"detector": "FUV",
+           "segment": "FUVA",
+           "obstype": "SPECTROSCOPIC",
+           "obsmode": "TIME-TAG",
+           "exptype": "EXTERNAL/SCI",
+           "opt_elem": "G130M",
+           "targname": "MRK-1044",
+           "lampused": "P1",
+           "lampplan": "P1",
+           "rootname": "lbgu17qnq",
+           "subarray": False,
+           "tagflash": False,
+           "cenwave": '1291',
+           "randseed": 1602803142,
+           "fppos": 3,
+           "fpoffset": 0,
+           "life_adj": 1,
+           "aperypos": 126.1,
+           "coscoord": "USER",
+           "ra_targ": 37.52302083333,
+           "dec_targ": -8.998136111111,
+           "xtrctalg": "BOXCAR",
+           "npix": (1024, 16384),
+           "x_offset": 0,
+           "v_helio": 0.0,
+           "aperture": "N/A",
+           "life_adj_offset": 0.0,
+           "tagflash_type": 1,
+           "countrate": 0.0,
+           "stimrate": 0.0,
+           "dispaxis": 0,
+           "sdqflags": 184,
+           "nsubarry": 0,
+           "numflash": 0,
+           "expstart": -1.0,
+           "expend": -1.0,
+           "doppon": False,
+           "doppont": False,
+           "doppmagv": -1.0,
+           "dopmagt": -1.0,
+           "doppzero": -1.0,
+           "dopzerot": -1.0,
+           "orbitper": -1.0,
+           "orbtpert": -1.0,
+           "ra_aper": 0.0,
+           "dec_aper": 0.0,
+           "pa_aper": 0.0,
+           "exptime": 0.0,
+           "hvlevel": "N/A",
+           "orig_exptime": 0.0}
+    # Test
+    test_inf = getinfo.getGeneralInfo(hdu[0].header, hdu[1].header)
+    # Verify
+    for key in test_inf.keys():
+        assert inf[key] == test_inf[key]
 
 
 def test_get_switch_values():
-    assert True
+    # Setup
+    temp_file = "ref_file_names_temp.fits"
+    hdu = generate_tempfiles.generate_fits_file(temp_file)
+    test_switches = getinfo.getSwitchValues(hdu[0].header)
+    switches = {"dqicorr": 'COMPLETE',
+                "randcorr": 'COMPLETE',
+                "tempcorr": 'COMPLETE',
+                "geocorr": 'COMPLETE',
+                "igeocorr": 'COMPLETE',
+                "dgeocorr": 'OMIT',
+                "xwlkcorr": 'COMPLETE',
+                "ywlkcorr": 'COMPLETE',
+                "trcecorr": 'OMIT',
+                "algncorr": 'OMIT',
+                "deadcorr": 'COMPLETE',
+                "flatcorr": 'COMPLETE',
+                "doppcorr": 'COMPLETE',
+                "helcorr": 'PERFORM',
+                "phacorr": 'COMPLETE',
+                "brstcorr": 'OMIT',
+                "badtcorr": 'OMIT',
+                "x1dcorr": 'PERFORM',
+                "wavecorr": 'COMPLETE',
+                "backcorr": 'PERFORM',
+                "fluxcorr": 'PERFORM',
+                "photcorr": 'NONE',
+                "tdscorr": 'PERFORM',
+                "statflag": 'PERFORM'}
+    for key in test_switches.keys():
+        assert switches[key] == test_switches[key]
 
 
 def test_get_ref_file_names():
