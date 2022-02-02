@@ -21,7 +21,6 @@ def test_initial_info():
     for key in inf.keys():
         assert inf[key] == test_inf[key]
 
-
 def test_get_general_info():
     # Setup
     temp_file_1 = "general_info_temp_1.fits" # FUV file
@@ -149,7 +148,6 @@ def test_get_general_info():
         assert inf_1[key] == test_inf_1[key]
         assert inf_2[key] == test_inf_2[key]
 
-
 def test_get_switch_values():
     # Setup
     temp_file = "ref_file_names_temp.fits"
@@ -244,7 +242,6 @@ def test_get_ref_file_names():
     for key in test_reffiles.keys():
         assert reffiles[key] == test_reffiles[key]
 
-
 def test_reset_switches():
     # Setup
     temp_file = "reset_switches_temp.fits"
@@ -272,9 +269,7 @@ def test_reset_switches():
     # Test
     getinfo.resetSwitches(copy_switches, copy_reffiles)
     # Verify
-    for key in copy_switches.keys():
-        print(key,":",copy_switches[key])
-    print("#"*100)
-    for key in copy_reffiles.keys():
-        print(key,":",copy_reffiles[key])
-    assert True
+    assert copy_switches['badtcorr'] == 'SKIPPED' # CHANGED BECAUSE ITS CORRESPONDING REF FILE IS MISSING
+    assert copy_switches['tdscorr'] == 'PERFORM' # NOT CHANGED BECAUSE ITS REF FILE EXISTS.
+    
+test_reset_switches()    
