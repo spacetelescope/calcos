@@ -1,5 +1,6 @@
 import generate_tempfiles
 from calcos import getinfo
+from astropy.io import fits
 
 
 def test_initial_info():
@@ -23,9 +24,24 @@ def test_initial_info():
 
 def test_get_general_info():
     # Setup
-    temp_file = "general_info_temp.fits"
-    hdu = generate_tempfiles.generate_fits_file(temp_file)
-    inf = {"detector": "FUV",
+    temp_file_1 = "general_info_temp_1.fits" # FUV file
+    temp_file_2 = "general_info_temp_2.fits" # NUV file
+    hdu_1 = generate_tempfiles.generate_fits_file(temp_file_1)
+    generate_tempfiles.generate_fits_file(temp_file_2)
+    # set headers for NUV fits file
+    fits.setval(temp_file_2, 'DETECTOR', value='NUV')
+    fits.setval(temp_file_2, 'SEGMENT', value='N/A')
+    fits.setval(temp_file_2, 'OPT_ELEM', value='G185M')
+    fits.setval(temp_file_2, 'TARGNAME', value='AG-DRA')
+    fits.setval(temp_file_2, 'SUBARRAY', value=True)
+    fits.setval(temp_file_2, 'TAGFLASH', value='AUTO')
+    fits.setval(temp_file_2, 'CENWAVE', value='1900')
+    fits.setval(temp_file_2, 'RANDSEED', value=1)
+    fits.setval(temp_file_2, 'RA_TARG', value=240.4208472109)
+    fits.setval(temp_file_2, 'DEC_TARG', value=66.80280186993)
+    hdu_2 = fits.open(temp_file_2)
+    
+    inf_1 = {"detector": "FUV",
            "segment": "FUVA",
            "obstype": "SPECTROSCOPIC",
            "obsmode": "TIME-TAG",
@@ -75,11 +91,63 @@ def test_get_general_info():
            "exptime": 0.0,
            "hvlevel": "N/A",
            "orig_exptime": 0.0}
+    inf_2 = {"detector": "NUV",
+           "segment": "N/A",
+           "obstype": "SPECTROSCOPIC",
+           "obsmode": "TIME-TAG",
+           "exptype": "EXTERNAL/SCI",
+           "opt_elem": "G185M",
+           "targname": "AG-DRA",
+           "lampused": "P1",
+           "lampplan": "P1",
+           "rootname": "lbgu17qnq",
+           "subarray": True,
+           "tagflash": False,
+           "cenwave": '1900',
+           "randseed": 1,
+           "fppos": 3,
+           "fpoffset": 0,
+           "life_adj": 1,
+           "aperypos": 126.1,
+           "coscoord": "USER",
+           "ra_targ": 240.4208472109,
+           "dec_targ": 66.80280186993,
+           "xtrctalg": "BOXCAR",
+           "npix": (1024, 1274),
+           "x_offset": 100,
+           "v_helio": 0.0,
+           "aperture": "N/A",
+           "life_adj_offset": 0.0,
+           "tagflash_type": 1,
+           "countrate": 0.0,
+           "stimrate": 0.0,
+           "dispaxis": 0,
+           "sdqflags": 184,
+           "nsubarry": 0,
+           "numflash": 0,
+           "expstart": -1.0,
+           "expend": -1.0,
+           "doppon": False,
+           "doppont": False,
+           "doppmagv": -1.0,
+           "dopmagt": -1.0,
+           "doppzero": -1.0,
+           "dopzerot": -1.0,
+           "orbitper": -1.0,
+           "orbtpert": -1.0,
+           "ra_aper": 0.0,
+           "dec_aper": 0.0,
+           "pa_aper": 0.0,
+           "exptime": 0.0,
+           "hvlevel": "N/A",
+           "orig_exptime": 0.0}
     # Test
-    test_inf = getinfo.getGeneralInfo(hdu[0].header, hdu[1].header)
+    test_inf_1 = getinfo.getGeneralInfo(hdu_1[0].header, hdu_1[1].header)
+    test_inf_2 = getinfo.getGeneralInfo(hdu_2[0].header, hdu_2[1].header)
     # Verify
-    for key in test_inf.keys():
-        assert inf[key] == test_inf[key]
+    for key in test_inf_1.keys():
+        assert inf_1[key] == test_inf_1[key]
+        assert inf_2[key] == test_inf_2[key]
 
 
 def test_get_switch_values():
@@ -113,7 +181,6 @@ def test_get_switch_values():
                 "statflag": 'PERFORM'}
     for key in test_switches.keys():
         assert switches[key] == test_switches[key]
-
 
 def test_get_ref_file_names():
     # Setup
@@ -182,7 +249,7 @@ def test_reset_switches():
     # Setup
     temp_file = "reset_switches_temp.fits"
     hdu = generate_tempfiles.generate_fits_file(temp_file)
-    switches = {"badtcorr": 'OMIT',
+    switches = {"badtcorr": 'PERFORM',
                 "xwlkcorr": 'COMPLETE',
                 "ywlkcorr": 'COMPLETE',
                 "trcecorr": 'OMIT',
@@ -211,6 +278,3 @@ def test_reset_switches():
     for key in copy_reffiles.keys():
         print(key,":",copy_reffiles[key])
     assert True
-
-
-# test_reset_switches()
