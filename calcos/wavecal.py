@@ -151,14 +151,14 @@ def findWavecalShift(input, shift_file, info, wcp_info):
                                           info["root"], info["fpoffset"])
 
     if detector == "FUV":
-        cosutil.printMsg("segment   shift err  [orig.]    FP   chi sq (n)",
+        cosutil.printMsg("segment   shift    err  [orig.]    FP   chi sq (n)",
                          VERBOSE)
-        cosutil.printMsg("-------  ------ ---- ------- ------  ----------",
+        cosutil.printMsg("-------  --------- ---- ------- ------  ----------",
                          VERBOSE)
     else:
-        cosutil.printMsg("stripe    shift err  [orig.]    FP   chi sq (n)",
+        cosutil.printMsg("stripe    shift    err  [orig.]    FP   chi sq (n)",
                          VERBOSE)
-        cosutil.printMsg("------   ------ ---- ------- ------  ----------",
+        cosutil.printMsg("------   --------- ---- ------- ------  ----------",
                          VERBOSE)
 
     # Print and save results.
@@ -195,7 +195,7 @@ def findWavecalShift(input, shift_file, info, wcp_info):
         sci_extn.header[key] = shift_segment
         shift_dict[key] = shift_segment
 
-        message = " %4s    %6.1f %4.2f [%5.1f] %6.1f  %6.1f (%d)" % \
+        message = " %4s    %9.4f %4.2f [%5.1f] %6.1f  %6.1f (%d)" % \
                 (segment[row], shift_segment, scatter, measured_shift1,
                  fp_pixel_shift_seg,
                  fs1.getChiSq(segment[row]), fs1.getNdf(segment[row]))
@@ -379,7 +379,7 @@ def returnWavecalShift(wavecal_info, wcp_info, cenwave, fpoffset, time):
     wavecal_info: list of dictionaries
         List of wavecal information dictionaries.
 
-    wcp_info: pyfits record object
+    wcp_info: astropy.io.fits record object
         Data (one row) from the wavecal parameters table.
 
     cenwave: int

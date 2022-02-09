@@ -1979,6 +1979,7 @@ class Observation(object):
         self.info = {}                  # detector, opt_elem, etc.
         self.switches = {}              # calibration switch values
         self.reffiles = {}              # reference file names
+        self.info['addsimulatedwavecal'] = False
 
         indir = os.path.dirname(input)
         input_directory = expandDirectory(indir)
@@ -2580,6 +2581,173 @@ class Observation(object):
             for msg in messages:
                 cosutil.printMsg(msg, VERBOSE)
 
+    def CheckforAddSimulatedWavecal(self, association, wavecal_info, debug=False):
+        """A simulated wavecal entry needs to be inserted if these conditions are met
+
+        Parameters:
+        -----------
+
+        association: calcos.Association object
+            The association containing the Observation
+
+        wavecal_info: List of dictionaries
+            The wavecal info obtained from running calcos.Calibration.allWavecals()
+
+        debug: boolean
+            Whether to print diagnostic info as to why a virtual wavecal is or is
+            not added
+
+        Returns:
+        --------
+
+        boolean
+            True if simulated wavecal is to be inserted
+        """
+        info = self.info
+        reffiles = self.reffiles
+
+        if info['detector'] == 'NUV':
+            if debug:
+                cosutil.printMsg("Don't add simulated wavecal because observation is NUV")
+            return False
+
+        if 'EXP-SWAVE' not in association.asn_info['memtype']:
+            if debug:
+                cosutil.printMsg("Don't add simulated wavecal because association has no exp_swave members")
+            return False
+
+        # If the other segment exists in this association and has the addsimulatedwavecal flag set,
+        # set it for this obs
+        othersegmentobs = self.getOtherSegmentObs(association)
+        if othersegmentobs is not None:
+            othersegmentinfo = othersegmentobs.info
+            if othersegmentinfo['addsimulatedwavecal']:
+                if debug:
+                    cosutil.printMsg("Add simulated wavecal because other segment is")
+                return True
+
+        # Read info from wavecal parameters table.
+        wcp_info = cosutil.getTable(reffiles["wcptab"],
+                                    filter={"opt_elem": info["opt_elem"]},
+                                    exactly_one=True)
+        wcp_info = wcp_info[0]
+
+        f1 = fits.open(self.input)
+        try:
+            events = f1[1].data
+            time = events['time']
+        except KeyError:
+            cosutil.printMsg("Cannot get events from data extension")
+            return False
+        f1.close()
+        events_duration = time[-1] - time[0]
+        mintime = self.getMinTime(wcp_info)
+        if mintime is None:
+            self.checkwcpinfo()
+        if events_duration < mintime:
+            if debug:
+                cosutil.printMsg("Don't add simulated wavecal because events duration < {}".format(mintime))
+            return False
+
+        numwavecals = self.getNumWavecals(wavecal_info, wcp_info)
+        if numwavecals != 2:
+            if debug:
+                cosutil.printMsg("Don't add simulated wavecal because #wavecals != 2")
+            return False
+
+        # If we get this far, then add simulated wavecal
+        # If we set it for this segment, we need to set it for the other
+        # segment, if there is one
+        if othersegmentobs is not None:
+            othersegmentinfo['addsimulatedwavecal'] = True
+        return True
+
+    def getOtherSegmentObs(self, association):
+        othersegmentobs = None
+        info = self.info
+        if info["segment"] == 'FUVA':
+            othersegmentletter = 'b'
+        elif info["segment"] == 'FUVB':
+            othersegmentletter = 'a'
+        rootname = self.filenames["root"]
+        othersegmentending = f"_{othersegmentletter}.fits"
+        for otherobs in association.obs:
+            for filename in self.filenames:
+                if filename.startswith(rootname) and filename.endswith(othersegmentending):
+                    othersegmentobs = otherobs
+                    break
+        return othersegmentobs
+
+    def getMinTime(self, wcp_info):
+        """Get the minimum exposure time that a science exposure must have
+        to be eligible for a simulated wavecal
+
+        """
+        try:
+            return wcp_info['min_exptime']
+        except KeyError:
+            return None
+
+    def checkwcpinfo(self):
+        # Report on missing columns in the wcptab reference file and exit if
+        # missing columns are found
+        wcp_info = cosutil.getTable(self.reffiles["wcptab"],
+                                    filter={"opt_elem": self.info["opt_elem"]},
+                                    exactly_one=True)
+        wcp_info = wcp_info[0]
+
+        necessary_keys = ['TCROSSOVER', 'FRACSHORT', 'FRACLONG', 'OFFSET_SHORT',
+                          'OFFSET_LONG', 'MIN_EXPTIME']
+        bad_keys = []
+        for key in necessary_keys:
+            try:
+                temp = wcp_info[key]
+            except KeyError:
+                bad_keys.append(key)
+
+        if len(bad_keys) != 0:
+            cosutil.printError("The following columns were missing from the WCPTAB:")
+            for bad_key in bad_keys:
+                cosutil.printMsg(bad_key)
+            raise RuntimeError("Please use an updated WCPTAB reference file")
+        else:
+            return None
+
+    def getNumWavecals(self, wavecal_info, wcp_info):
+        """Get the number of wavecals for this science exposure.
+
+        Parameters:
+        -----------
+
+        events: FITS Recarray
+            The table of events.  Must have a 'TIME' entry
+
+        info: Dict
+            Dictionary of COS exposure information for the science exposure
+
+        Returns:
+        --------
+
+        int: number of wavecal exposures for this science exposure
+
+        """
+        info = self.info
+        tmid = 0.5 * (info["expstart"] + info["expend"])
+
+        shift_info = wavecal.returnWavecalShift(wavecal_info,
+                                                wcp_info, info["cenwave"],
+                                                info["fpoffset"], tmid)
+        if shift_info is not None:
+            shift_dict, slope_dict, wavecalfiles = shift_info
+        else:
+            return 0
+
+        # wavecalfiles is a string containing the name(s) of wavecal files
+        # used to calculate the shift and slope dicts.  If more than 1, they
+        # are separated by a space
+        numfiles = len(wavecalfiles.strip().split(' '))
+        return numfiles
+
 class FUVTimetagObs(Observation):
 
     def __init__(self, input, outdir, memtype, shift_file, first=False):
@@ -2845,6 +3013,26 @@ class Calibration(object):
                obs.exp_type == EXP_CALIBRATION or \
                obs.exp_type == EXP_ACQ_IMAGE:
                 obs.openTrailer()
+                # Check for whether this exposure meets the criteria for adding a simulated wavecal
+                # If so, set the obs.info['addsimulatedwavecal'] entry to True
+                if obs.CheckforAddSimulatedWavecal(self.assoc, self.wavecal_info, debug=True):
+                    obs.info['addsimulatedwavecal'] = True
+                    obs.checkwcpinfo()
+                else:
+                    obs.info['addsimulatedwavecal'] = False
+                if not self.assoc.asn_info['exists'] and not obs.info['tagflash'] and \
+                   obs.switches["wavecorr"] == "PERFORM":
+                    nowavecalwarning = "\nCAUTION: You are running CalCOS with a "
+                    nowavecalwarning += "rawtag or corrtag file\nthat does not "
+                    nowavecalwarning += "contain simultaneous lamp data instead "
+                    nowavecalwarning += "of using\nan association (asn) file as "
+                    nowavecalwarning += "an input. No wavelength correction\nwill "
+                    nowavecalwarning += "be applied and your wavelength "
+                    nowavecalwarning += "calibration will be wrong.\nIf you wish "
+                    nowavecalwarning += "to create a custom asn file for use with "
+                    nowavecalwarning += "your data,\nplease refer to Chapter 3 of "
+                    nowavecalwarning += "the COS Data Handbook."
+                    cosutil.printMsg(nowavecalwarning)
                 try:
                     self.basicCal(obs.filenames,
                                   obs.info, obs.switches, obs.reffiles)
