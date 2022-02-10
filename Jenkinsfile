@@ -3,7 +3,7 @@ if (utils.scm_checkout()) return
 
 // Define each build configuration, copying and overriding values as necessary.
 bc0 = new BuildConfig()
-bc0.nodetype = "python3.7"
+bc0.nodetype = "python3.8"
 bc0.name = "egg"
 bc0.build_cmds = ["pip install numpy",
                   "python setup.py egg_info"]
@@ -12,7 +12,7 @@ bc1 = utils.copy(bc0)
 bc1.name = "release"
 // Would be nice if Jenkins can access /grp/hst/cdbs/xxxx directly.
 bc1.env_vars = ['TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory']
-// bc1.conda_packages = ['python=3.7',
+// bc1.conda_packages = ['python=3.8',
 //                      'requests',
 //                      'numpy',
 //                      'stsci.tools']
