@@ -2640,6 +2640,10 @@ class Observation(object):
             cosutil.printMsg("Cannot get events from data extension")
             return False
         f1.close()
+        if len(events) == 0:
+            if debug:
+                cosutil.printMsg("Don't add simulated wavecal as no events recorded")
+            return False
         events_duration = time[-1] - time[0]
         mintime = self.getMinTime(wcp_info)
         if mintime is None:
