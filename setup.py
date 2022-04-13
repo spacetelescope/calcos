@@ -36,7 +36,7 @@ setup(
     use_scm_version={'write_to': 'calcos/version.py'},
     setup_requires=['setuptools_scm'],
     install_requires=[
-        'astropy',
+        'astropy>=5.0.4',
         'numpy',
         'scipy',
         'stsci.tools',
