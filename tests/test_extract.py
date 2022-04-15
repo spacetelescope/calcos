@@ -77,3 +77,12 @@ def test_add_column_comment():
 
     # Verify
     assert comment == test_table[1].header.comments['TTYPE1']
+
+
+def test_clean_up():
+    for file in glob.glob("*.fits"):
+        os.remove(file)
+    for file in glob.glob("*.txt"):
+        os.remove(file)
+    assert glob.glob("*.fits") == []
+    assert glob.glob("*.txt") == []

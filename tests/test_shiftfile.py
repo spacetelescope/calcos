@@ -43,3 +43,12 @@ def test_get_shifts():
     for i in range(len(expected_values1)):
         assert expected_values1[i] == test_values1[i]
         assert expected_values2[i] == test_values2[i]
+
+
+def test_clean_up():
+    for file in glob.glob("*.fits"):
+        os.remove(file)
+    for file in glob.glob("*.txt"):
+        os.remove(file)
+    assert glob.glob("*.fits") == []
+    assert glob.glob("*.txt") == []

@@ -38,3 +38,12 @@ def test_find_airglow_limits():
     # Verify
     for i in range(len(actual_pxl)):
         assert actual_pxl[i] == test_pxl[i]
+
+
+def test_clean_up():
+    for file in glob.glob("*.fits"):
+        os.remove(file)
+    for file in glob.glob("*.txt"):
+        os.remove(file)
+    assert glob.glob("*.fits") == []
+    assert glob.glob("*.txt") == []
