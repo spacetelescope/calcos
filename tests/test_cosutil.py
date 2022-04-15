@@ -1,5 +1,6 @@
 import io
 import os
+import glob
 import sys
 import time
 
@@ -1053,3 +1054,10 @@ def test_override_keywords():
     phdr = fits.getheader("overridekeywords.fits", ext=0)
     # Verify
     assert val1 == phdr["statflag"]
+
+def test_clean_up():
+    for file in glob.glob("*.fits"):
+        os.remove(file)
+    for file in glob.glob("*.txt"):
+        os.remove(file)
+    assert True
