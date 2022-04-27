@@ -3664,7 +3664,7 @@ def fitQuartic(x, y):
                   [sum_x3, sum_x4, sum_x5,  sum_x6, sum_x7],
                   [sum_x4, sum_x5, sum_x6,  sum_x7, sum_x8]])
     v = np.array([sum_y, sum_yx, sum_yx2, sum_yx3, sum_yx4])
-
+    succeeded = True
     try:
         coeff = LA.solve(m, v)
         m_inv = LA.inv(m)

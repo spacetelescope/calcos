@@ -18,7 +18,7 @@ jobs:
     env: 
       TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
       lref: /grp/hst/cdbs/lref/
-      working-directory: ./tests
+      working-directory: ./
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +53,6 @@ jobs:
         pip install scipy
         pip install matplotlib
         pip install stsci.tools==4.0.0
-        pip install calcos
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
       run: |
@@ -64,5 +63,6 @@ jobs:
     - name: Test with pytest
       run: |
         # run all the unit tests.
-        pytest test_airglow.py test_average.py test_cosutil.py test_shiftfile.py test_extract.py -v 
+        python setup.py install
+        pytest tests/test_cosutil.py -v 
       working-directory: ${{env.working-directory}}
