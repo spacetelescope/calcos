@@ -1,7 +1,7 @@
 import generate_tempfiles
 from calcos import getinfo
 from astropy.io import fits
-
+import pytest, os
 
 def test_initial_info():
     """
