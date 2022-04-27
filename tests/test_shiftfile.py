@@ -1,5 +1,5 @@
 from calcos import shiftfile
-import pytest, os
+import pytest, os, glob
 
 def test_shift_file():  # Tests the initialized variables
     # Setup

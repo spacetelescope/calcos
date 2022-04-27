@@ -1,4 +1,5 @@
-import pytest, os
+import glob, os
+import pytest
 
 import numpy as np
 from astropy.io import fits
