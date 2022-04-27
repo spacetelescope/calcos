@@ -1,4 +1,5 @@
-import glob, os
+
+import os, glob
 import pytest
 
 import numpy as np
@@ -36,3 +37,14 @@ def test_avg_image():
     for (i, j, k) in zip(inhdr1[1].header, inhdr2[1].header, out_hdr[1].header):
         assert i == j == k
     np.testing.assert_array_equal((inhdr1[1].data + inhdr1[1].data) / 2, out_hdr[1].data)
+    
+# comment out the line below to turn on the clean up function,
+# for cleaning up file residues left by the unit tests on a local machine.
+@pytest.mark.skip(reason="Not neccessary for github actions")
+def test_clean_up():
+    for file in glob.glob("*.fits"):
+        os.remove(file)
+    for file in glob.glob("*.txt"):
+        os.remove(file)
+    assert glob.glob("*.fits") == []
+    assert glob.glob("*.txt") == []
