@@ -271,5 +271,3 @@ def test_reset_switches():
     # Verify
     assert copy_switches['badtcorr'] == 'SKIPPED' # CHANGED BECAUSE ITS CORRESPONDING REF FILE IS MISSING
     assert copy_switches['tdscorr'] == 'PERFORM' # NOT CHANGED BECAUSE ITS REF FILE EXISTS.
-    
-test_reset_switches()    
