@@ -1,6 +1,7 @@
 from calcos.x1d import *
 import numpy as np
 from generate_tempfiles import generate_fits_file
+import os, glob
 
 def test_get_columns():
     """
@@ -78,7 +79,9 @@ def test_add_column_comment():
     # Verify
     assert comment == test_table[1].header.comments['TTYPE1']
 
-
+# comment out the line below to turn on the clean up function,
+# for cleaning up file residues left by the unit tests on a local machine.
+@pytest.mark.skip(reason="Not neccessary for github actions")
 def test_clean_up():
     for file in glob.glob("*.fits"):
         os.remove(file)
