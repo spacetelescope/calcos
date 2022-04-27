@@ -4,7 +4,8 @@ import sys
 import generate_tempfiles
 import numpy as np
 from calcos import dispersion
-
+import pytest
+import os, glob
 
 def test_init():
     # setup

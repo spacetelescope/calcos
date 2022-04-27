@@ -1,6 +1,8 @@
 from calcos.x1d import *
 import numpy as np
 from generate_tempfiles import generate_fits_file
+import pytest
+import os, glob
 
 def test_get_columns():
     """
