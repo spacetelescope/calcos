@@ -1038,8 +1038,8 @@ def test_override_keywords():
     info = {"cal_ver": 3.1, "opt_elem": 2, "cenwave": 0.34, "fpoffset": 3.43, "obstype": "FUV",
             "exptype": "N/A", "aperture": "PSA", "x_offset": 1.2, "dispaxis": 2.5}
     switches = {"statflag": "PERFORM", "flatcorr": "PERFORM", "geocorr": "COMPLETE", "randcorr": "SKIPPED"}
-    reffiles = {"flatfile": "abc_flat.fits", "flt_hdr": "lref$abc_flat.fits"}
-    fits.setval("overridekeywords.fits", "flt_hdr", value="NA", ext=0)
+    reffiles = {"flatfile": "abc_flat.fits", "flatfile_hdr": "lref$abc_flat.fits"}
+    fits.setval("overridekeywords.fits", "flatfile_hdr", value="NA", ext=0)
     fits.setval("overridekeywords.fits", "dispaxis", value=2.9, ext=1)
     fits.setval("overridekeywords.fits", "x_offset", value=1.9, ext=1)
     phdr = fits.getheader("overridekeywords.fits", ext=0)
