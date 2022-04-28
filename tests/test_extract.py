@@ -89,3 +89,4 @@ def test_clean_up():
         os.remove(file)
     assert glob.glob("*.fits") == []
     assert glob.glob("*.txt") == []
+

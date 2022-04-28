@@ -3,6 +3,7 @@ import os, glob
 import pytest
 
 
+
 def test_shift_file():  # Tests the initialized variables
     # Setup
     shift_file = "shift_file.txt"
@@ -45,6 +46,7 @@ def test_get_shifts():
     for i in range(len(expected_values1)):
         assert expected_values1[i] == test_values1[i]
         assert expected_values2[i] == test_values2[i]
+
 # comment out the line below to turn on the clean up function,
 # for cleaning up file residues left by the unit tests on a local machine.
 @pytest.mark.skip(reason="Not neccessary for github actions")

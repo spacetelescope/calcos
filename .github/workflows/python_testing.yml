@@ -5,9 +5,7 @@ name: CalCOS Pytest
 
 on:
   push:
-    branches: [ pytest ]
   pull_request:
-    branches: [ pytest ]
   schedule:
     - cron: '00 00 * * *'  # every day at midnight
 
@@ -23,6 +21,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+
+          - name: Python 3.10
+            runs-on: ubuntu-latest
+            python-version: '3.10'
+            toxenv: py310
+
           - name: Python 3.9
             runs-on: ubuntu-latest
             python-version: 3.9
@@ -32,12 +36,6 @@ jobs:
             runs-on: ubuntu-latest
             python-version: 3.8
             toxenv: py38
-            
-          - name: Python 3.7
-            runs-on: ubuntu-latest
-            python-version: 3.7
-            toxenv: py37
-
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -51,7 +49,6 @@ jobs:
         pip install ci-watson
         pip install astropy
         pip install scipy
-        pip install matplotlib
         pip install stsci.tools==4.0.0
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
@@ -63,6 +60,6 @@ jobs:
     - name: Test with pytest
       run: |
         # run all the unit tests.
-        python setup.py install
-        pytest tests/test_cosutil.py -v 
+        pip install .['test','docs']
+        pytest test/ -v
       working-directory: ${{env.working-directory}}

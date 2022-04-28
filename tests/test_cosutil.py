@@ -1055,6 +1055,7 @@ def test_override_keywords():
     # Verify
     assert val1 == phdr["statflag"]
 
+
 def test_clean_up():
     for file in glob.glob("*.fits"):
         os.remove(file)
