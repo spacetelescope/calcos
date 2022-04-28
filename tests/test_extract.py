@@ -3,6 +3,7 @@ import numpy as np
 from generate_tempfiles import generate_fits_file
 
 import os, glob
+import pytest
 
 
 def test_get_columns():
