@@ -1,5 +1,6 @@
 from calcos import airglow
 from generate_tempfiles import create_disptab_file
+
 import os, glob
 import pytest
 
