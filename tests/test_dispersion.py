@@ -13,11 +13,11 @@ def test_init():
     # this function is only used by the functions in this script.
     tmp_file = "test_disptab_init.fits"
     generate_tempfiles.create_disptab_file(tmp_file)
-    t = "49g17153l_disp.fits"
+    # t = "49g17153l_disp.fits"
     filters = {'FPOFFSET': 0,
                'NELEM': 2
                }
-    disp_obj = dispersion.Dispersion(t, filters, True)
+    disp_obj = dispersion.Dispersion(tmp_file, filters, True)
 
     return disp_obj
 
