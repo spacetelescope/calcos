@@ -33,7 +33,7 @@ def test_info():
                    "number of coefficients = 2\n" \
                    "coeff = [1.04502424e+03 9.95559148e-03]\n" \
                    "delta = 0\n" \
-                   "number of matching rows = 78\n" \
+                   "number of matching rows = 51\n" \
                    "valid = True\n"
     # Test
     disp_obj.info()
@@ -56,7 +56,7 @@ def test_isValid():
 def test_getNRows():
     # Setup
     disp_obj = test_init()
-    expected_val = 78
+    expected_val = 51
     # Test
     num_of_rows = disp_obj.getNRows()
     # Verify
@@ -97,7 +97,7 @@ def test_evalDisp():
     # Setup
     disp_obj = test_init()
     pix_coord = [3.23, 4.55, 2.0, 1.8]
-    expected_sum = [1045.0563993131348, 1045.0695406938933, 1045.04415393561, 1045.0421628173133]
+    expected_sum = [1045.0563965604804, 1045.0695379412339, 1045.04415118296, 1045.042160064664 ]
     # Test
     result = disp_obj.evalDisp(pix_coord)
     # Verify
@@ -108,7 +108,7 @@ def test_evalDerivDisp():
     # Setup
     disp_obj = test_init()
     pix_coord = [3.23, 4.55, 2.0, 1.8]
-    actual_derivative = 0.009955591483556625
+    actual_derivative = 0.00995559148
     # Test
     result = disp_obj.evalDerivDisp(pix_coord)
     # Verify
@@ -119,7 +119,7 @@ def test_evalInvDisp():
     # Setup
     disp_obj = test_init()
     wavelegnth = [1200, 1366]
-    expected_pixels = [15566.705152910923, 32240.75212181053]
+    expected_pixels = [15566.705434964277, 32240.752409820652]
     # Test
     result = disp_obj.evalInvDisp(wavelegnth)
     # Verify
