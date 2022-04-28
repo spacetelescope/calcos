@@ -61,5 +61,5 @@ jobs:
       run: |
         # run all the unit tests.
         pip install .['test','docs']
-        pytest test/*.py -v
+        pytest tests/ -v
       working-directory: ${{env.working-directory}}
