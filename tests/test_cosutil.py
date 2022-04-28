@@ -1048,7 +1048,7 @@ def test_override_keywords():
     val1 = True
     val2 = switches.values()
     val3 = phdr.values()
-    val4 = reffiles["flt_hdr"]
+    val4 = reffiles["flatfile_hdr"]
     # Test
     cosutil.overrideKeywords(phdr, hdr, info, switches, reffiles)
     phdr = fits.getheader("overridekeywords.fits", ext=0)
