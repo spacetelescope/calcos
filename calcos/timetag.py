@@ -243,6 +243,8 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doFlatcorr(events, info, switches, reffiles, phdr, headers[1])
 
+    doHvdscorr(events, info, switches, reffiles, phdr, headers[1])
+
     phdr["wavecals"] = ""               # initial value
     if info["tagflash"]:
         cosutil.printSwitch("WAVECORR", switches)
@@ -3131,6 +3133,76 @@ def doFlatcorr(events, info, switches, reffiles, phdr, hdr):
         fd.close()
 
         phdr["flatcorr"] = "COMPLETE"
+
+def doHvdscorr(events, info, switches, reffiles, phdr, hdr):
+    """Apply High Voltage Sensitivity Dependence Correction.
+
+    Parameters
+    ----------
+    events : astropy.io.fits record array
+        The data unit containing the events table.
+
+    info : dictionary
+        Header keywords and values.
+
+    switches : dictionary
+        Calibration switches.
+
+    reffiles : dictionary
+        Reference file names.
+
+    phdr : astropy.io.fits Header object
+        The input primary header.
+
+    hdr : astropy.io.fits Header object
+        The events extension header.
+    """
+
+    cosutil.printSwitch("HVDSCORR", switches)
+
+    if switches["hvdscorr"] == "PERFORM":
+
+        cosutil.printRef("HVDSTAB", reffiles)
+
+        if info["detector"] == "FUV":
+            segment = info['segment']
+            slope, intercept, zeropoint = getHVDSParamsfromReffile(phdr, reffiles)
+            hvkeyword = 'hvlevel' + segment[-1]
+            hv = hdr[hvkeyword]
+            epsmultiplier = 1.0 / (intercept + slope*(hv - zeropoint))
+            epsilon = events.field("epsilon")
+            epsilon *= epsmultiplier
+            events['epsilon'][:] = epsilon
+
+        phdr["hvdscorr"] = "COMPLETE"
+
+def getHVDSParamsfromReffile(info, reffiles):
+    """Get straight line fit parameters from HVDSTAB reference file.
+
+    Parameters
+    ----------
+    info : dictionary
+        Header keywords and values.
+
+    reffiles : dictionary
+        Reference file names.
+
+    Returns
+    -------
+    (slope, intercept, zeropoint) : tuple of floats
+        Slope, intercept and zeropoint fit parameters from the reference file
+
+    """
+
+    segment = info['segment']
+    cenwave = info['cenwave']
+    filter = {"segment": segment, 'cenwave': cenwave}
+    hvdsrow = cosutil.getTable(reffiles["hvdstab"], filter, exactly_one=True,
+                               at_least_one=True)
+    slope = hvdsrow['slope']
+    intercept = hvdsrow['intercept']
+    zeropoint = hvdsrow['zeropoint']
+    return (slope, intercept, zeropoint)
 
 def convolveFlat(flat, dispaxis,
                  expstart, exptime, dopmagt, dopzerot, orbtpert):

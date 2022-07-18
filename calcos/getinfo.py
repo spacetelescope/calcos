@@ -265,7 +265,7 @@ def getSwitchValues(phdr):
                 "dgeocorr", "xwlkcorr", "ywlkcorr", "trcecorr", "algncorr",
                 "deadcorr", "flatcorr", "doppcorr", "helcorr", "phacorr",
                 "brstcorr", "badtcorr", "x1dcorr", "wavecorr", "backcorr",
-                "fluxcorr", "photcorr", "tdscorr", "statflag"]:
+                "fluxcorr", "photcorr", "tdscorr", "hvdscorr", "statflag"]:
         switches[key]  = cosutil.getSwitch(phdr, key)
 
     return switches
@@ -303,7 +303,7 @@ def getRefFileNames(phdr):
                 "phatab", "brsttab", "badttab", "tracetab",
                 "xtractab", "lamptab", "disptab", "fluxtab",
                 "imphttab", "phottab", "spwcstab", "wcptab",
-                "tdstab", "proftab"]:
+                "tdstab", "proftab", "hvdstab"]:
         reffiles[key+"_hdr"] = phdr.get(key, default=NOT_APPLICABLE)
         reffiles[key] = cosutil.expandFileName(reffiles[key+"_hdr"])
 
