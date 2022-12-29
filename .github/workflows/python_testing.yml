@@ -30,7 +30,7 @@ jobs:
       - run: pip install tox
       - run: tox -e ${{ matrix.toxenv }}
   test:
-    name: run tests (Python ${{ matrix.python }}, ${{ matrix.os }})
+    name: ${{ matrix.toxenv }} (Python ${{ matrix.python }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     env:
       TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
@@ -41,6 +41,10 @@ jobs:
         toxenv: [ test-xdist ]
         python: [ '3.8', '3.9', '3.10', '3.11' ]
         os: [ ubuntu-latest,macos-latest ]
+        include:
+          - toxenv: test-cov-xdist
+            os: ubuntu-latest
+            python: '3.11'
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -50,3 +54,9 @@ jobs:
           cache-dependency-path: 'tox.ini'
       - run: pip install tox
       - run: tox -e ${{ matrix.toxenv }}
+      - if: contains(matrix.toxenv, '-cov')
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unit
+          fail_ci_if_error: true
