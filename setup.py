@@ -39,14 +39,14 @@ setup(
         'astropy>=5.0.4',
         'numpy',
         'scipy',
-        'stsci.tools',
+        'stsci.tools>=4.0.0',
     ],
     extras_require={
         'docs': [
             'sphinx',
         ],
         'test': [
-            'ci_watson',
+            'ci-watson',
             'pytest',
             'pytest-cov',
             'codecov',
