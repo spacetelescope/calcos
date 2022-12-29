@@ -74,6 +74,8 @@ setup(
     author='Phil Hodge, Robert Jedrzejewski',
     author_email='help@stsci.edu',
     description='Calibration software for COS (Cosmic Origins Spectrograph)',
+    long_description='README.md',
+    long_description_content_type='text/x-rst',
     url='https://github.com/spacetelescope/calcos',
     license='BSD',
     classifiers=[
