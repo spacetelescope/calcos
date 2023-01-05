@@ -5,64 +5,57 @@ name: CalCOS Pytest
 
 on:
   push:
-    branches: [ pytest ]
+    branches:
+      - master
   pull_request:
-    branches: [ pytest ]
-  schedule:
-    - cron: '00 00 * * *'  # every day at midnight
+    branches:
+      - master
 
 jobs:
-  build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.runs-on }}
-    env: 
-      TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
-      lref: /grp/hst/cdbs/lref/
-      working-directory: ./
+  check:
+    name: ${{ matrix.toxenv }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: Python 3.10
-            runs-on: ubuntu-latest
-            python-version: '3.10'
-            toxenv: py310
-
-          - name: Python 3.9
-            runs-on: ubuntu-latest
-            python-version: 3.9
-            toxenv: py39
-            
-          - name: Python 3.8
-            runs-on: ubuntu-latest
-            python-version: 3.8
-            toxenv: py38
-            
+        toxenv: [ check-style, check-build ]
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 pytest
-        pip install ci-watson
-        pip install astropy
-        pip install scipy
-        pip install matplotlib
-        pip install stsci.tools==4.0.0
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        # run all the unit tests.
-        python setup.py install
-        pytest tests/test_cosutil.py -v 
-      working-directory: ${{env.working-directory}}
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'tox.ini'
+      - run: pip install tox
+      - run: tox -e ${{ matrix.toxenv }}
+  test:
+    name: ${{ matrix.toxenv }} (Python ${{ matrix.python }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    env:
+      TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
+      lref: /grp/hst/cdbs/lref/
+    strategy:
+      fail-fast: false
+      matrix:
+        toxenv: [ test-xdist ]
+        python: [ '3.8', '3.9', '3.10', '3.11' ]
+        os: [ ubuntu-latest,macos-latest ]
+        include:
+          - toxenv: test-cov-xdist
+            os: ubuntu-latest
+            python: '3.11'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+          cache: 'pip'
+          cache-dependency-path: 'tox.ini'
+      - run: pip install tox
+      - run: tox -e ${{ matrix.toxenv }}
+      - if: contains(matrix.toxenv, '-cov')
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unit
+          fail_ci_if_error: true
