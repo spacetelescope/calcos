@@ -27,7 +27,7 @@ bc2 = utils.copy(bc1)
 bc2.name = "dev"
 bc2.conda_packages[0] = "python=3.8"
 bc2.build_cmds = ["pip install -e .[test]",
-                  "pip install git+https://github.com/astropy/astropy.git#egg=astropy --upgrade --no-deps",
+                  "pip install astropy>=0.0.dev0 --upgrade --no-deps",
                   "pip install pyyaml"]
 
 // Iterate over configurations that define the (distibuted) build matrix.
