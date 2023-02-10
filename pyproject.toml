@@ -63,6 +63,9 @@ calcos = [
     "*.help",
 ]
 
+[tool.setuptools_scm]
+write_to = 'calcos/version.py'
+
 [tool.pytest.ini_options]
 minversion = "3.0"
 norecursedirs = [
