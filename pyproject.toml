@@ -17,7 +17,8 @@ classifiers = [
 dependencies = [
     "astropy>=5.0.4",
     "numpy",
-    "scipystsci.tools>=4.0.0",
+    "scipy",
+    "stsci.tools>=4.0.0",
 ]
 dynamic = [
     "version",
