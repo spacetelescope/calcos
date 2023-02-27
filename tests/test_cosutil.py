@@ -22,6 +22,8 @@ def test_find_column():
     col_exists = True
     # Verify
     assert col_exists == cosutil.findColumn(name, target_col)
+    # Cleanup
+    os.remove(name)
 
 
 def test_get_table():
@@ -35,6 +37,8 @@ def test_get_table():
     dt = list(cosutil.getTable(name, {'TIME': time}, exactly_one=True))
     # Verify
     np.testing.assert_array_equal(truth, dt)
+    # Cleanup
+    os.remove(name)
 
 
 def test_get_table_exceptions():
@@ -45,6 +49,8 @@ def test_get_table_exceptions():
     t = np.ones(5)  # non-existent values
     with pytest.raises(MissingRowError):
         cosutil.getTable(name, {'Time': t}, exactly_one=True)
+    # Cleanup
+    os.remove(name)
 
 
 def test_get_col_copy():
@@ -62,6 +68,8 @@ def test_get_col_copy():
     # Verify
     np.testing.assert_array_equal(truth_values, test1)
     np.testing.assert_array_equal(truth_values, test2)
+    # Cleanup
+    os.remove(name)
 
 
 def test_get_col_copy_exception():
@@ -73,6 +81,8 @@ def test_get_col_copy_exception():
         portion_of_array = ofd[1].data[:]
         cosutil.getColCopy(filename="Output/getTable.fits", column=col_name, data=portion_of_array)
         cosutil.getColCopy(filename=None, column=col_name, data=None)
+    # Cleanup
+    os.remove(name)
 
 
 def test_get_headers():
@@ -87,6 +97,8 @@ def test_get_headers():
 
     # Verify
     np.testing.assert_array_equal(true_hdr, test_hdr[0])
+    # Cleanup
+    os.remove(name)
 
 
 def test_write_output_events():
@@ -97,6 +109,9 @@ def test_write_output_events():
     actual_lines = 10
     lines = cosutil.writeOutputEvents(in_file, out_file)
     assert actual_lines == lines
+    # Cleanup
+    os.remove(in_file)
+    os.remove(out_file)
 
 
 def test_concat_arrays():
@@ -122,6 +137,8 @@ def test_update_filename():
     # Verity
     assert filename == after_update_hdr[0].header["filename"]
     after_update_hdr.close()
+    # Cleanup
+    os.remove("update_filename.fits")
 
 
 def test_copy_file():
@@ -137,6 +154,9 @@ def test_copy_file():
     np.testing.assert_array_equal(inf[1].data, out[1].data)
     np.testing.assert_array_equal(inf[2].data, out[2].data)
     np.testing.assert_array_equal(inf[3].data, out[3].data)
+    # Cleanup
+    os.remove("input.fits")
+    os.remove("output.fits")
 
 
 def test_is_product():
@@ -154,6 +174,9 @@ def test_is_product():
     # Verify
     assert cosutil.isProduct(product_file)
     assert not cosutil.isProduct(raw_file)
+    # Cleanup
+    os.remove(product_file)
+    os.remove(raw_file)
 
 
 def test_gehrels_lower():
@@ -242,12 +265,15 @@ def test_create_corrtag_hdu():
     out_bin_table = cosutil.createCorrtagHDU(num_of_rows, detector="FUV", hdu=hdu[0])
     assert len(out_bin_table.data) == num_of_rows
     assert all(out_bin_table.header) == all(hdu[0].header)
+    # Cleanup
+    os.remove("corrtag.fits")
 
 
 def test_remove_wcs_keywords():
     # Setup
     hdu = generate_fits_file("removeWCS.fits")
-    inhdr = fits.getheader("corrtag.fits", 1)
+    hdu2 = generate_fits_file("corrtag.fits")
+    inhdr = hdu2[1].header
     cd = hdu[1].data.columns
     WCS_keywords = ['TCTYP*',
                     'TCUNI*',
@@ -261,7 +287,9 @@ def test_remove_wcs_keywords():
     for keys in WCS_keywords:
         assert keys not in newheader
         assert len(inhdr[keys]) > 0
-
+    # Cleanup
+    os.remove("removeWCS.fits")
+    os.remove("corrtag.fits")
 
 def test_dummy_gti():
     # Setup
@@ -280,6 +308,8 @@ def test_return_gti():
     gti = cosutil.returnGTI("gti_file.fits")
     # Verify
     np.testing.assert_array_equal(list(hdu[2].data), gti)
+    # Cleanup
+    os.remove("gti_file.fits")
 
 
 def test_err_frequentist():
@@ -444,7 +474,9 @@ def test_copy_exptime_keywords():
     # Verify
     for header in headers:
         assert inhdr[header] == outhdr[header]
-
+    # Cleanup
+    for tempfile in files:
+        os.remove(tempfile)
 
 def test_copy_voltage_keywords():
     # Setup
@@ -495,7 +527,11 @@ def test_copy_voltage_keywords():
     # Verify 2
     for header in nuv_headers:
         assert in_NUV_hdr[header] == out_NUV_hdr[header]
-
+    # Cleanup
+    for tempfile in original:
+        os.remove(tempfile)
+    for tempfile in copy:
+        os.remove(tempfile)
 
 def test_copy_sub_keywords():
     # Setup
@@ -527,6 +563,9 @@ def test_copy_sub_keywords():
     cosutil.copySubKeywords(inhdr, outhdr, True)
     # check if nsubarry has been set to 0
     assert inhdr["nsubarry"] == outhdr["nsubarry"]
+    # Cleanup
+    for tempfile in files:
+        os.remove(tempfile)
 
 
 def test_modify_asn_mtyp():
@@ -564,6 +603,9 @@ def test_rename_file():
     # Verify
     assert os.path.exists(new_filename1)
     assert os.path.exists(new_filename2)
+    # Cleanup
+    os.remove(new_filename1)
+    os.remove(new_filename2)
 
 
 def test_del_corrtag_wcs():
@@ -577,6 +619,8 @@ def test_del_corrtag_wcs():
     # Verify
     for key in tkey:
         assert key not in thdr
+    # Cleanup
+    os.remove("del_corrtagWCS.fits")
 
 
 def test_set_verbosity():
@@ -854,6 +898,9 @@ def test_find_ref_file():
     assert actual_missing == missing1
     assert actual_bad_ver == bad_ver2
     assert actual_wrong_ver == wrong_f3
+    # Cleanup
+    os.remove("wrong_file.fits")
+    os.remove("test.fits")
 
 
 def test_cmp_version():
@@ -891,6 +938,8 @@ def test_get_pedigree():
     assert pedgr1 == "OK"
     assert pedgr2 == "DUMMY"
     assert err_msg == capture_msg.getvalue()
+    # Cleanup
+    os.remove(filename)
 
 
 def test_get_aperture_keyword():
@@ -942,6 +991,8 @@ def test_get_aperture_keyword():
     assert rtn4 == rtn_value4
     assert rtn5 == rtn_value5
     assert rtn6 == rtn_value6
+    # Cleanup
+    os.remove("aperture_test.fits")
 
 
 def test_write_version_to_trailer():
@@ -955,7 +1006,9 @@ def test_write_version_to_trailer():
     sys.stdout = sys.__stdout__
     assert ascii_file == cosutil.fd_trl
     assert capture_msg.getvalue() == ''
-
+    # Cleanup
+    os.remove("ascii.txt")
+    os.remove("dummy_file.fits")
 
 def test_get_switch():
     # Setup
@@ -971,6 +1024,8 @@ def test_get_switch():
     assert switch == 'PERFORM'
     assert switch2 == 'OMIT'
     assert switch3 == 'N/A'
+    # Cleanup
+    os.remove("switch.fits")
 
 
 def test_temp_pulse_height_range():
@@ -980,9 +1035,12 @@ def test_temp_pulse_height_range():
     fits.getheader("pulseHeightRef.fits", ext=0)
     pha_value = cosutil.tempPulseHeightRange('pulseHeightRef.fits')
     assert true_pha_value == pha_value
+    # Cleanup
+    os.remove("pulseHeightRef.fits")
 
 
 def test_get_pulse_height_range():
+    generate_fits_file("pulseHeightRef.fits")
     fits.setval("pulseHeightRef.fits", "phalowrA", value=7, ext=0)
     fits.setval("pulseHeightRef.fits", "phaupprA", value=10, ext=0)
     hdu = fits.getheader("pulseHeightRef.fits", ext=0)
@@ -991,6 +1049,8 @@ def test_get_pulse_height_range():
     for s, a in zip(seg, actual):
         test_str = cosutil.getPulseHeightRange(hdu, s)
         assert a == test_str
+    # Cleanup
+    os.remove("pulseHeightRef.fits")
 
 
 def test_time_at_midpoint():
@@ -1003,6 +1063,8 @@ def test_time_at_midpoint():
     test_average = cosutil.timeAtMidpoint(info)
     # Verify
     assert average == test_average
+    # Cleanup
+    os.remove("test_timeAtMidpoint.fits")
 
 
 def test_timeline_times():
@@ -1053,3 +1115,5 @@ def test_override_keywords():
     phdr = fits.getheader("overridekeywords.fits", ext=0)
     # Verify
     assert val1 == phdr["statflag"]
+    # Cleanup
+    os.remove("overridekeywords.fits")

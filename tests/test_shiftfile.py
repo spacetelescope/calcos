@@ -1,8 +1,9 @@
+import os
+
 from calcos import shiftfile
 
-
-def test_shift_file():  # Tests the initialized variables
-    # Setup
+def create_shift_file(filename):
+    # Create the shift file for use in tests
     shift_file = "shift_file.txt"
     with open(shift_file, "w") as file:
         file.write("#dataset\tfpoffset\tflash #\tstripe\tshift1\tshift2\n")
@@ -18,15 +19,23 @@ def test_shift_file():  # Tests the initialized variables
             else:
                 file.write("{}\t{}\t{}\t{}\t{}\t{}\n".format("mno789pqr", "any", "1", "NUVC", "-34.543453", "7"))
 
+    return
+
+def test_shift_file():
+    shift_file = "shift_file.txt"
+    create_shift_file(shift_file)
     # Test
     ob = shiftfile.ShiftFile(shift_file, 'abc123def', 'any')
     # Verify
     assert len(ob.user_shift_dict) > 0
+    # Cleanup
+    os.remove(shift_file)
 
 
 def test_get_shifts():
     # Setup
     shift_file = "shift_file.txt"
+    create_shift_file(shift_file)
     ob1 = shiftfile.ShiftFile(shift_file, 'ghi456jkl', 'any')
     ob2 = shiftfile.ShiftFile(shift_file, 'abc123def', 'any')
     keys = [('any', 'nuva'), ('any', 'nuvb'), (2, 'nuvc'), ('any', 'any'), ('any', 'fuva'), ('any', 'fuvb')]
@@ -43,3 +52,6 @@ def test_get_shifts():
     for i in range(len(expected_values1)):
         assert expected_values1[i] == test_values1[i]
         assert expected_values2[i] == test_values2[i]
+    # Cleanup
+    os.remove(shift_file)
+
