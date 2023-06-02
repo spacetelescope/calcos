@@ -596,7 +596,7 @@ class OutputX1D(object):
         col.append(fits.Column(name="ERROR", format=rpt+"E",
                    unit="erg /s /cm**2 /angstrom"))
         col.append(fits.Column(name="ERROR_LOWER", format=rpt+"E",
-                   unit="count /s"))
+                   unit="erg /s /cm**2 /angstrom"))
         col.append(fits.Column(name="GROSS", format=rpt+"E",
                    unit="count /s"))
         col.append(fits.Column(name="GCOUNTS", format=rpt+"E",
