@@ -2111,7 +2111,7 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
         cosutil.printSwitch("YWLKCORR", switches)
         if switches["ywlkcorr"] == "PERFORM":
             cosutil.printRef("YWLKFILE", reffiles)
-            ycorrection = walkCorrection(events.field('xcorr'),
+            ycorrection = walkCorrection(events.field('ycorr'),
                                          events.field('pha'),
                                          reffiles["ywlkfile"],
                                          info["segment"])
@@ -2128,13 +2128,13 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
 
     Parameters
     ----------
-    slowCoordinate: numpy ndarray
-        The array of coordinates that is used to look up the correction in the
-        slow direction of the reference array
-
     fastCoordinate: numpy ndarray
         The array of coordinates that is used to look up the correction in the
         fast direction of the reference array
+
+    slowCoordinate: numpy ndarray
+        The array of coordinates that is used to look up the correction in the
+        slow direction of the reference array
 
     reference_file: string
         Name of reference file
@@ -2158,6 +2158,7 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
     delta = np.zeros(len(fastCoordinate))
     delta = bilinear_interpolation(fastCoordinate, slowCoordinate,
                            reference_array)
+    fd.close()
     return delta
 
 def bilinear_interpolation(fastCoordinate, slowCoordinate,
