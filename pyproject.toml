@@ -34,6 +34,7 @@ calcos = "calcos:main"
 [project.optional-dependencies]
 docs = [
     "sphinx",
+    "stsci_rtd_theme",
 ]
 test = [
     "ci-watson",
