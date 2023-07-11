@@ -1,7 +1,0 @@
-# flake8 does not support pyproject.toml (https://github.com/PyCQA/flake8/issues/234)
-
-[flake8]
-# E265: block comment should start with '#'
-# F821 undefined name
-extend-ignore = E265,F821,F841
-extend-exclude = setup.py,__init__.py
