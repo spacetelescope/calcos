@@ -43,7 +43,7 @@ setup(
     ],
     extras_require={
         'docs': [
-            'sphinx',
+            'sphinx<7',
         ],
         'test': [
             'ci-watson',
