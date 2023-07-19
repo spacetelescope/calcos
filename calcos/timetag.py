@@ -4713,13 +4713,14 @@ def getSimulatedWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
     # Simulated wavecal is to go 600s after the start of the preceding wavecal
     tsimulated = start + 600.0 / SEC_PER_DAY
     seconds_since_exposure_start = (tsimulated - info['expstart']) * SEC_PER_DAY
-    matching_wavecals = wavecal.selectWavecalInfo(wavecal_info,
-                                                  info['cenwave'],
-                                                  info['fpoffset'])
+    matching_wavecals = getBracketingWavecals(wavecal_info,
+                                              info['cenwave'],
+                                              info['fpoffset'],
+                                              tmid)
     nwavecals = len(matching_wavecals)
     if nwavecals != 2:
-        cosutil.printMsg('Expected exactly 2 matching wavecals, got {}'.format(nwavecals))
-        return None
+        cosutil.printError('Expected exactly 2 matching wavecals, got {}'.format(nwavecals))
+        raise RuntimeError("Unable to find 2 bracketing wavecals in association")
     shift1_before = matching_wavecals[0]['shift_dict'][key]
     tbefore = matching_wavecals[0]['time']
     seconds_before = (tbefore - info['expstart']) * SEC_PER_DAY
@@ -4738,6 +4739,56 @@ def getSimulatedWavecalInfo(info, key, wavecal_info, wcp_info, input_path):
     late_slope = late_slope / SEC_PER_DAY
     late_intercept = simulated_shift + (info['expstart'] - tsimulated) * late_slope * SEC_PER_DAY
     return (seconds_since_exposure_start, early_slope, early_intercept, late_slope, late_intercept)
+
+def getBracketingWavecals(wavecal_info, cenwave, fpoffset, tmid):
+    """For simulated wavecals, return the two wavecals that bracket the
+    exposure in time.
+
+    Parameters
+    ----------
+
+    wavecal_info: List of dictionaries
+        The list of wavecal information dictionaries
+
+    cenwave: int
+        Central wavelength, used to select entries from wavecal_info
+
+    fpoffset: int
+        Used to find one or more elements of wavecal_info
+
+    tmid: float
+        Midpoint in time of the exposure
+
+    Returns
+    -------
+    list
+        List of dictionaries in wavecal_info that match cenwave and
+        fpoffset and bracket the exposure in time
+    """
+
+    subset_wavecal_info = []
+
+    for wc_dict in wavecal_info:
+        if wc_dict["cenwave"] == cenwave and wc_dict["fpoffset"] == fpoffset:
+            subset_wavecal_info.append(wc_dict)
+
+    if len(subset_wavecal_info) == 2:
+        # Only 2 wavecal records match
+        return subset_wavecal_info
+    else:
+        index_of_wavecal_before = 0
+        index_of_wavecal_after = 0
+        smallest_interval_before = -100.0
+        smallest_interval_after = 100.0
+        for index, wc_dict in enumerate(subset_wavecal_info):
+            daysafter = wc_dict["time"] - tmid
+            if daysafter > 0 and daysafter < smallest_interval_after:
+                index_of_wavecal_after = index
+                smallest_interval_after = daysafter
+            if daysafter < 0 and daysafter > smallest_interval_before:
+                index_of_wavecal_before = index
+                smallest_interval_before = daysafter
+        return [subset_wavecal_info[index_of_wavecal_before], subset_wavecal_info[index_of_wavecal_after]]
 
 def computeWavelengths(events, info, reffiles, helcorr="OMIT", hdr=None):
     """Compute wavelengths for a corrtag table.

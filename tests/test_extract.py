@@ -1,3 +1,5 @@
+import os
+
 from calcos.x1d import *
 import numpy as np
 from generate_tempfiles import generate_fits_file
@@ -29,6 +31,8 @@ def test_get_columns():
     np.testing.assert_array_equal(yfull, yf)
     np.testing.assert_array_equal(dq, dq2)
     np.testing.assert_array_equal(epsilon, epsilon2)
+    # Cleanup
+    os.remove("lbgu17qnq_corrtag_a.fits")
 
 
 def test_remove_unwanted_column():
@@ -52,6 +56,8 @@ def test_remove_unwanted_column():
     deleted_cols = deleted_cols[np.argsort(temp_cols)]
     # assert target_cols[0] == deleted_cols[0].name
     # assert target_cols[1] == deleted_cols[1].name
+    # Cleanup
+    os.remove('lbgu17qnq_lampflash.fits')
 
 
 def test_next_power_of_two():
@@ -77,3 +83,6 @@ def test_add_column_comment():
 
     # Verify
     assert comment == test_table[1].header.comments['TTYPE1']
+    # Cleanup
+    os.remove('myFitsFile.fits')
+

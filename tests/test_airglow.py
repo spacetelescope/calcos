@@ -1,5 +1,6 @@
 from calcos import airglow
 from generate_tempfiles import create_disptab_file
+import os
 
 
 def test_find_airglow_limits():
@@ -38,3 +39,6 @@ def test_find_airglow_limits():
     # Verify
     for i in range(len(actual_pxl)):
         assert actual_pxl[i] == test_pxl[i]
+
+    # Cleanup
+    os.remove(disptab)

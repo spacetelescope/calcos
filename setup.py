@@ -39,14 +39,14 @@ setup(
         'astropy>=5.0.4',
         'numpy',
         'scipy',
-        'stsci.tools',
+        'stsci.tools>=4.0.0',
     ],
     extras_require={
         'docs': [
-            'sphinx',
+            'sphinx<7',
         ],
         'test': [
-            'ci_watson',
+            'ci-watson',
             'pytest',
             'pytest-cov',
             'codecov',
@@ -74,6 +74,8 @@ setup(
     author='Phil Hodge, Robert Jedrzejewski',
     author_email='help@stsci.edu',
     description='Calibration software for COS (Cosmic Origins Spectrograph)',
+    long_description='README.md',
+    long_description_content_type='text/x-rst',
     url='https://github.com/spacetelescope/calcos',
     license='BSD',
     classifiers=[
