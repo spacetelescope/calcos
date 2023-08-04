@@ -46,7 +46,7 @@ def test_get_table_exceptions():
     name = "getTable.fits"
     generate_fits_file(name)
     # truth = [tuple(ofd[1].data[3])]
-    t = np.ones(5)  # non-existent values
+    t = 1.0  # non-existent value
     with pytest.raises(MissingRowError):
         cosutil.getTable(name, {'Time': t}, exactly_one=True)
     # Cleanup
