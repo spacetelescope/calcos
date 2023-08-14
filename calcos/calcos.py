@@ -1448,7 +1448,7 @@ class Association(object):
             "proftab": ["2.0", "2D SPECTRUM PROFILE TABLE"],
             "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"],
             "spottab": ["2.0", "TRANSIENT BAD PIXEL REFERENCE TABLE"],
-            "hvdstab": ["3.4", "HV SENSITIVTY TABLE TO CORRECT EPSILON BASED ON EXPOSURE HV"]
+            "hvdstab": ["3.4", "HV SENSITIVITY TABLE TO CORRECT EPSILON BASED ON EXPOSURE HV"]
         }
         # The contents of these dictionaries must agree with what
         # cosutil.findRefFile expects.

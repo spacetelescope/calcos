@@ -3169,7 +3169,7 @@ def doHvdscorr(events, info, switches, reffiles, phdr, hdr):
             slope, intercept, zeropoint = getHVDSParamsfromReffile(phdr, reffiles)
             hvkeyword = 'hvlevel' + segment[-1]
             hv = hdr[hvkeyword]
-            epsmultiplier = 1.0 / (intercept + slope*(hv - zeropoint))
+            epsmultiplier = intercept + slope*(hv - zeropoint)
             epsilon = events.field("epsilon")
             epsilon *= epsmultiplier
             events['epsilon'][:] = epsilon
