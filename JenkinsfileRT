@@ -13,12 +13,9 @@ bc.nodetype = "linux"
 bc.name = "release"
 bc.env_vars = ['TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory',
                'lref=/grp/hst/cdbs/lref/']
-bc.conda_channels = ['http://ssb.stsci.edu/astroconda']
-bc.conda_packages = ['python=3.8']
-//                     'requests',
-//                     'numpy',
-//                     'stsci.tools']
-bc.build_cmds = ["pip install ci-watson",
+bc.conda_channels = ['http://conda.anaconda.org/conda-forge/']
+bc.conda_packages = ['python=3.9']
+bc.build_cmds = ["pip install codecov pytest-cov ci-watson",
                  "pip install -e .[test]"]
 bc.test_cmds = ["pytest tests --basetemp=tests_output --junitxml results.xml --bigdata --slow -v"]
 bc.failedUnstableThresh = 1
@@ -27,12 +24,17 @@ bc.failedFailureThresh = 6
 // Astropy dev and Python 3.8 (astropy dev requires python >= 3.8)
 bc1 = utils.copy(bc)
 bc1.name = "dev"
-bc1.conda_packages[0] = "python=3.8"
-bc1.build_cmds = ["pip install -e .[test]",
-                  "pip install astropy>=0.0.dev0 --upgrade --no-deps",
-                  "pip install pyyaml"]
+bc1.conda_packages[0] = "python=3.10"
+bc1.build_cmds[1] = "pip install -r requirements-dev.txt --upgrade -e '.[test]'"
+//bc1.build_cmds = ["pip install -e .[test]",
+//                  "pip install astropy>=0.0.dev0 --upgrade --no-deps",
+//                  "pip install pyyaml"]
+
+bc2 = utils.copy(bc)
+bc2.name = '3.11'
+bc2.conda_packages = ['python=3.11']
 
 // Iterate over configurations that define the (distributed) build matrix.
 // Spawn a host of the given nodetype for each combination and run in parallel.
 // Also apply the job configuration defined in `jobconfig` above.
-utils.run([bc, bc1, jobconfig])
+utils.run([bc, bc1, bc2, jobconfig])
