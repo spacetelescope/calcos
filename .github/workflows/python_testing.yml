@@ -11,51 +11,31 @@ on:
     branches:
       - master
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
-    name: ${{ matrix.toxenv }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        toxenv: [ check-style, check-build ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'tox.ini'
-      - run: pip install tox
-      - run: tox -e ${{ matrix.toxenv }}
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@v1
+    with:
+      envs: |
+        - linux: check-style
+        - linux: check-build
   test:
-    name: ${{ matrix.toxenv }} (Python ${{ matrix.python }}, ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    env:
-      TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
-      lref: /grp/hst/cdbs/lref/
-    strategy:
-      fail-fast: false
-      matrix:
-        toxenv: [ test-xdist ]
-        python: [ '3.8', '3.9', '3.10', '3.11' ]
-        os: [ ubuntu-latest,macos-latest ]
-        include:
-          - toxenv: test-cov-xdist
-            os: ubuntu-latest
-            python: '3.11'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python }}
-          cache: 'pip'
-          cache-dependency-path: 'tox.ini'
-      - run: pip install tox
-      - run: tox -e ${{ matrix.toxenv }}
-      - if: contains(matrix.toxenv, '-cov')
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          flags: unit
-          fail_ci_if_error: true
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@v1
+    with:
+      setenv: |
+        TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
+        lref: /grp/hst/cdbs/lref/
+      envs: |
+        - linux: py39-xdist
+        - linux: py310-xdist
+        - linux: py311-xdist
+        - macos: py311-xdist
+        - linux: py3-cov-xdist
+          coverage: codecov
+          pytest-results-summary: true
+        - macos: py3-xdist
+          pytest-results-summary: true
+        - linux: py3-devdeps-xdist
