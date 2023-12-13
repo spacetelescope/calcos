@@ -2111,6 +2111,13 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
         cosutil.printSwitch("YWLKCORR", switches)
         if switches["ywlkcorr"] == "PERFORM":
             cosutil.printRef("YWLKFILE", reffiles)
+            correct_size = (32, 1024)
+            if YWalkReffile_hasWrongSize(reffiles["ywlkfile"], info["segment"], correct_size):
+                cosutil.printWarning("You are running CALCOS with a YWLKFILE that is of different")
+                cosutil.printContinuation("dimensions than expected by the YWLKCORR routine in this")
+                cosutil.printContinuation("build of CalCOS. Data may be calibrated with an incorrect")
+                cosutil.printContinuation("Y walk correction, potentially resulting in incorrect")
+                cosutil.printContinuation("spectral extraction.")
             ycorrection = walkCorrection(events.field('ycorr'),
                                          events.field('pha'),
                                          reffiles["ywlkfile"],
@@ -2119,6 +2126,19 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
             return ycorrection
         else:
             return None
+
+
+def YWalkReffile_hasWrongSize(ywalkfile, segment, correct_size):
+    fd = fits.open(ywalkfile)
+    for extension in fd[1:]:
+        if extension.header['SEGMENT'] == segment:
+            reference_array = extension.data
+            break
+    reference_data_shape = reference_array.shape
+    fd.close()
+    return reference_data_shape != correct_size
+    pass
+
 
 def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
     """Apply walk correction
