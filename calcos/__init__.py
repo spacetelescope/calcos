@@ -1,11 +1,6 @@
-from __future__ import division, print_function         # confidence high
+from importlib.metadata import version
 
-from pkg_resources import get_distribution, DistributionNotFound
-try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
-    # package is not installed
-    __version__ = 'UNKNOWN'
+__version__ = version(__name__)
 
 # Hack fix for RTD
 try:
