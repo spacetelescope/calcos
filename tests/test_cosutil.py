@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 from astropy.io import fits
 
-from calcos import cosutil, MissingRowError
+from calcos import cosutil
+from calcos.calcosparam import MissingRowError
 from generate_tempfiles import generate_fits_file
 
 
