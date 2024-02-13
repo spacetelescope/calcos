@@ -38,4 +38,3 @@ jobs:
           pytest-results-summary: true
         - macos: py3-xdist
           pytest-results-summary: true
-        - linux: py3-devdeps-xdist

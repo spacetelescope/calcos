@@ -389,7 +389,7 @@ def setActiveArea(events, info, brftab):
 
     xi  = events.field(xcorr)
     eta = events.field(ycorr)
-    active_area = np.ones(len(xi), dtype=np.bool8)
+    active_area = np.ones(len(xi), dtype=np.bool_)
 
     # A value of 1 (True) in active_area means the corresponding event
     # is within the active area.
@@ -401,7 +401,7 @@ def setActiveArea(events, info, brftab):
         active_area = np.where(eta > b_high, False, active_area)
         active_area = np.where(eta < b_low,  False, active_area)
         # Make sure the data type is still boolean.
-        active_area = active_area.astype(np.bool8)
+        active_area = active_area.astype(np.bool_)
 
 def mkHeaders(phdr, events_header, extver=1):
     """Create a list of four headers for creating the flt and counts files.
@@ -3879,7 +3879,8 @@ def writeImages(x, y, epsilon, dq,
     # E_rate = E_counts / t
     # reciprocal_flat_field = E_counts / C_counts
     # the corresponding error arrays are:
-    # errC_rate = errGehrels(C_counts) / t
+    # err_lower, err_upper from cosutil.errFrequentist(C_counts)
+    # errC_rate = err_upper / t
     # errE_rate = errC_rate * reciprocal_flat_field
 
     if outcounts is not None:
