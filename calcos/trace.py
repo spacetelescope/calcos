@@ -149,15 +149,17 @@ def doProfileAlignment(events, input, info, switches, reffiles, phdr, hdr,
     startcenter = xtract_info.field('B_SPEC')[0] + slope*(ncols / 2)
     #
     # Calculate the centroid in the science data
+    backcorr = phdr["BACKCORR"]
     status, centroid, goodcolumns, regions = getScienceCentroid(rebinned_data,
                                                                 dq_array,
                                                                 xtract_info,
                                                                 dqexclude,
-                                                                centroid)
+                                                                centroid,
+                                                                backcorr)
     #
     # Calculate the error on the centroid using the counts data which
     # will be calculated from the event list
-    error = getCentroidError(events, info, goodcolumns, regions)
+    error = getCentroidError(events, info, goodcolumns, regions, backcorr)
     if error is not None:
         cosutil.printMsg("Error on centroid = %f" % (error))
     else:
@@ -356,7 +358,7 @@ def getGoodColumns(dq_array, dqexclude_target, dqexclude_background, regions):
     return goodcolumns
 
 def getScienceCentroid(rebinned_data, dq_array, xtract_info,
-                       dqexclude, centroid):
+                       dqexclude, centroid, backcorr):
     n_iterations = 5
     nrows, ncols = rebinned_data.shape
     center = None
@@ -406,7 +408,10 @@ def getScienceCentroid(rebinned_data, dq_array, xtract_info,
         # Now calculate the background.  Use the XTRACTAB reference file
         # to determine the background regions but center them on the 'center'
         # parameter
-        background = getBackground(rebinned_data, goodcolumns, regions)
+        if backcorr is "OMIT":
+            background = 0
+        else:
+            background = getBackground(rebinned_data, goodcolumns, regions)
         cosutil.printMsg("Adopted background in science data = %f" %
                          (background))
         rowstart = regions['specstart']
@@ -468,6 +473,7 @@ def getBackground(data_array, goodcolumns, regions):
                                                          dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
     nbkg2 = bg2stop - bg2start + 1
     bkg = (nbkg1*bkg1 + nbkg2*bkg2)/float(nbkg1 + nbkg2)
+    bkg = 0
     return bkg
 
 def getCentroid(data_array, goodcolumns, rowstart, rowstop, background=None):
@@ -484,7 +490,7 @@ def getCentroid(data_array, goodcolumns, rowstart, rowstop, background=None):
     else:
         return None
 
-def getCentroidError(events, info, goodcolumns, regions):
+def getCentroidError(events, info, goodcolumns, regions, backcorr):
     #
     # Calculate the error on the centroid.
     # Use counts data, not flatfielded data.
@@ -502,7 +508,10 @@ def getCentroidError(events, info, goodcolumns, regions):
     counts_ij = rebinCounts(events, info)
     #
     # Now need to calculate the background
-    background = getBackground(counts_ij, goodcolumns, regions)
+    if backcorr is "OMIT":
+        background = 0
+    else:
+        background = getBackground(counts_ij, goodcolumns, regions)
     #
     # Calculate centroid
     rowstart = regions['specstart']
