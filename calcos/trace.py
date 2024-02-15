@@ -473,7 +473,6 @@ def getBackground(data_array, goodcolumns, regions):
                                                          dtype=np.float64)[goodcolumns].mean(dtype=np.float64)
     nbkg2 = bg2stop - bg2start + 1
     bkg = (nbkg1*bkg1 + nbkg2*bkg2)/float(nbkg1 + nbkg2)
-    bkg = 0
     return bkg
 
 def getCentroid(data_array, goodcolumns, rowstart, rowstop, background=None):
