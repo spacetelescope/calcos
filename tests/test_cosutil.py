@@ -180,51 +180,6 @@ def test_is_product():
     os.remove(raw_file)
 
 
-def test_gehrels_lower():
-    # Setup
-    counts = 4.0
-    actual = 1.9090363511659807
-    # Test
-    test_value = cosutil.Gehrels_lower(counts)
-    # Verify
-    assert actual == test_value
-
-
-def test_err_gehrels():
-    """
-    unit test for err_gehrels(counts)
-    test ran
-    - create 3 arrays, one should be random float values, the other two should be the lower (zero) and upper (one) error estimates
-    - following the math for calculating the upper limit by taking the sqrt of counts + 0.5 and then adding 1 to the result.
-    - similarly for the lower we add counts + 0.5 and then counts - counts * (1.0 - 1.0 / (9.0 * counts) - 1.0 / (3.0 * np.sqrt(counts))) ** 3
-      we will be able to get the lower array.
-    - finally assert the upper array and the lower array with the results obtained from err_gehrels().
-    """
-    # Setup
-    # values to be tested on
-    zeros = np.zeros(5)
-    ones = np.ones(5)
-    random_values = np.array([2.2400559, 0.85776844, 5.31731382, 8.98167105, 7.88191824]).astype(np.float32)
-    # Actual results expected
-    true_lower1 = np.random.uniform(low=0.0, high=0.0, size=(5,))
-    true_upper1 = np.array([1.8660254, 1.8660254, 1.8660254, 1.8660254, 1.8660254]).astype(np.float32)
-
-    true_lower2 = np.array([0.8285322, 0.8285322, 0.8285322, 0.8285322, 0.8285322]).astype(np.float32)
-    true_upper2 = np.array([2.3228757, 2.3228757, 2.3228757, 2.3228757, 2.3228757]).astype(np.float32)
-
-    true_lower3 = np.array([1.2879757, 0.8285322, 2.1544096, 2.9387457, 2.7635214]).astype(np.float32)
-    true_upper3 = np.array([2.6583123, 2.3228757, 3.3979158, 4.122499, 3.95804]).astype(np.float32)
-    # Test
-    lower1, upper1 = cosutil.errGehrels(zeros)  # should produce a warning
-    lower2, upper2 = cosutil.errGehrels(ones)
-    lower3, upper3 = cosutil.errGehrels(random_values)
-    # Verify
-    np.testing.assert_array_equal(true_lower1, lower1)
-    np.testing.assert_array_equal(true_upper1, upper1)
-    np.testing.assert_array_equal(true_lower2, lower2)
-    np.testing.assert_array_equal(true_upper2, upper2)
-    np.testing.assert_array_equal(true_lower3, lower3)
-    np.testing.assert_array_equal(true_upper3, upper3)
 
 
 def test_cmp_part_exception():
@@ -316,7 +271,7 @@ def test_return_gti():
 def test_err_frequentist():
     """
     unit test for err_frequentist(counts)
-    - create 3 arrays similar to the test in err_gehrels().
+    - create 3 arrays.
     - find the poisson confidence interval for each array.
     - assert the result with the expected err_lower and err_upper.
     """

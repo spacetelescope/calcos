@@ -75,8 +75,6 @@ def calref_from_image(input_image):
 @pytest.mark.bigdata
 @pytest.mark.usefixtures('_jail', 'envopt')
 class BaseCOS:
-    # Timeout in seconds for file downloads.
-    timeout = 30
 
     instrument = 'cos'
     ignore_keywords = ['DATE', 'CAL_VER']
@@ -164,7 +162,7 @@ class BaseCOS:
                         os.environ[var] = ref_path  # hacky hack hack
 
                 # Download reference files, if needed only.
-                download_crds(ref_file, timeout=self.timeout, verbose=True)
+                download_crds(ref_file, verbose=True)
 
     def compare_outputs(self, outputs, atol=0, rtol=1e-7, raise_error=True,
                         ignore_keywords_overwrite=None):

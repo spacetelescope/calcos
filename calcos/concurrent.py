@@ -864,7 +864,7 @@ class ConcurrentWavecal(object):
         for segment in self.segment_list:
 
             # Restrict the correction to the applicable regions.
-            shift_flags = np.zeros(i1 - i0, dtype=np.bool8)
+            shift_flags = np.zeros(i1 - i0, dtype=np.bool_)
             locn_list = self.regions[segment]
             for region in locn_list:
                 if region[0] is None:
@@ -1323,7 +1323,7 @@ class ConcurrentWavecal(object):
             self.ofd[1].header[key] = sum_ndf
 
             # use self.regions for dpixel1[abc]
-            shift_flags = np.zeros(len(self.eta), dtype=np.bool8)
+            shift_flags = np.zeros(len(self.eta), dtype=np.bool_)
             locn_list = self.regions[segment]
             # if NUV, take the region for the PSA (lower pixel numbers)
             region = locn_list[0]
@@ -1699,7 +1699,7 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
 
         # Restrict the correction to the applicable region.  Note that the
         # limits of the region (the active area) are not adjusted by shift2.
-        shift_flags = np.zeros(i1 - i0, dtype=np.bool8)
+        shift_flags = np.zeros(i1 - i0, dtype=np.bool_)
         region = self.regions[self.segment_list[0]][0]
         shift_flags |= np.logical_and(self.eta[i0:i1] >= region[0],
                                       self.eta[i0:i1] <= region[1])
@@ -1953,13 +1953,13 @@ class NUVImagingWavecal(ConcurrentWavecal):
 
             # Now find the mean values of xi and of eta, but restrict
             # the range to the median plus or minus DX or DY.
-            select = np.zeros(len(self.xi), dtype=np.bool8)
+            select = np.zeros(len(self.xi), dtype=np.bool_)
             select[i0:i1] = 1
             select = np.where(self.xi < x_median-DX, False, select)
             select = np.where(self.xi > x_median+DX, False, select)
             select = np.where(self.eta < y_median-DY, False, select)
             select = np.where(self.eta > y_median+DY, False, select)
-            select = select.astype(np.bool8)
+            select = select.astype(np.bool_)
 
             x = self.xi[select].mean(dtype=np.float64)
             y = self.eta[select].mean(dtype=np.float64)

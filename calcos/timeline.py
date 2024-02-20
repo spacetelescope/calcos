@@ -125,7 +125,7 @@ def createTimeline(input, fd, info, reffiles,
                                  (key.upper(), x0, x1+1, y0, y1+1), VERBOSE)
             # A value of 1 (True) in region_flags means the corresponding
             # event is within the area that includes the airglow line.
-            region_flags = np.ones(len(xfull), dtype=np.bool8)
+            region_flags = np.ones(len(xfull), dtype=np.bool_)
             region_flags = np.where(xfull > x1, False, region_flags)
             region_flags = np.where(xfull < x0,  False, region_flags)
             if isinstance(y0, (list, tuple)):
@@ -139,7 +139,7 @@ def createTimeline(input, fd, info, reffiles,
                 region_flags = np.where(yfull > y1, False, region_flags)
                 region_flags = np.where(yfull < y0,  False, region_flags)
                 npixels = 1.
-            region_flags = region_flags.astype(np.bool8)
+            region_flags = region_flags.astype(np.bool_)
             # scratch array for counts per second within each time bin
             temp = np.zeros(len(tl_time), dtype=np.float32)
             if time[-1] - time[0] < 1.:         # e.g. ACCUM data

@@ -37,7 +37,7 @@ setup(
     setup_requires=['setuptools_scm'],
     install_requires=[
         'astropy>=5.0.4',
-        'numpy',
+        'numpy<2.0',
         'scipy',
         'stsci.tools>=4.0.0',
     ],

@@ -3734,31 +3734,6 @@ def centerOfQuartic(x, coeff):
 
     return x_min
 
-def errGehrels(counts):
-    """Compute error estimate.
-
-    The error estimate is computed using the Gehrels approximation for the
-    upper confidence limit.
-
-    Parameters
-    ----------
-    counts: array_like or float
-        Number of counts (not necessarily integer values).
-
-    Returns
-    -------
-    tuple of 2 array_like or float
-        (The lower error estimate for counts,
-         the upper error estimate for counts)
-    """
-    icounts = (counts + .5).astype(int)
-    upper = (1. + np.sqrt(icounts + 0.75))
-    lower = np.where(icounts > 0., Gehrels_lower(icounts), 0.)
-    return (lower.astype(np.float32), upper.astype(np.float32))
-
-def Gehrels_lower(counts):
-    return counts - counts * (1.0 - 1.0 / (9.0 * counts) - 1.0 / (3.0 * np.sqrt(counts)))**3
-
 def errFrequentist(counts):
     """Compute errors using the 'frequentist-confidence' option of astropy's poisson_conf_interval
 
