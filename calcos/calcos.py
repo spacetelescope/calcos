@@ -1269,7 +1269,8 @@ class Association(object):
         if self.cl_args["raw_csum_coords"]:
             leave_unchanged = []        # reset all switches to OMIT
         else:
-            leave_unchanged = ["tempcorr", "geocorr", "dgeocorr", "igeocorr", "randcorr"]
+            leave_unchanged = ["tempcorr", "geocorr", "dgeocorr", "igeocorr",
+                               "xwlkcorr", "ywlkcorr", "randcorr"]
 
         for obs in self.obs:
             for key in obs.switches:

@@ -2111,7 +2111,14 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
         cosutil.printSwitch("YWLKCORR", switches)
         if switches["ywlkcorr"] == "PERFORM":
             cosutil.printRef("YWLKFILE", reffiles)
-            ycorrection = walkCorrection(events.field('xcorr'),
+            correct_size = (32, 1024)
+            if YWalkReffile_hasWrongSize(reffiles["ywlkfile"], info["segment"], correct_size):
+                cosutil.printWarning("You are running CALCOS with a YWLKFILE that is of different")
+                cosutil.printContinuation("dimensions than expected by the YWLKCORR routine in this")
+                cosutil.printContinuation("build of CalCOS. Data may be calibrated with an incorrect")
+                cosutil.printContinuation("Y walk correction, potentially resulting in incorrect")
+                cosutil.printContinuation("spectral extraction.")
+            ycorrection = walkCorrection(events.field('ycorr'),
                                          events.field('pha'),
                                          reffiles["ywlkfile"],
                                          info["segment"])
@@ -2119,6 +2126,19 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
             return ycorrection
         else:
             return None
+
+
+def YWalkReffile_hasWrongSize(ywalkfile, segment, correct_size):
+    fd = fits.open(ywalkfile)
+    for extension in fd[1:]:
+        if extension.header['SEGMENT'] == segment:
+            reference_array = extension.data
+            break
+    reference_data_shape = reference_array.shape
+    fd.close()
+    return reference_data_shape != correct_size
+    pass
+
 
 def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
     """Apply walk correction
@@ -2128,13 +2148,13 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
 
     Parameters
     ----------
-    slowCoordinate: numpy ndarray
-        The array of coordinates that is used to look up the correction in the
-        slow direction of the reference array
-
     fastCoordinate: numpy ndarray
         The array of coordinates that is used to look up the correction in the
         fast direction of the reference array
+
+    slowCoordinate: numpy ndarray
+        The array of coordinates that is used to look up the correction in the
+        slow direction of the reference array
 
     reference_file: string
         Name of reference file
@@ -2158,6 +2178,7 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
     delta = np.zeros(len(fastCoordinate))
     delta = bilinear_interpolation(fastCoordinate, slowCoordinate,
                            reference_array)
+    fd.close()
     return delta
 
 def bilinear_interpolation(fastCoordinate, slowCoordinate,
