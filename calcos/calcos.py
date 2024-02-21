@@ -1419,7 +1419,6 @@ class Association(object):
         missing = {}            # reference file is not accessible
         wrong_filetype = {}     # wrong FILETYPE
         bad_version = {}        # inconsistent version strings
-
         # temp is a temporary dictionary with just min_ver and filetype,
         # for readability; these and other values will be copied to ref,
         # which is used for the argument to findRefFile.
@@ -1449,7 +1448,8 @@ class Association(object):
             "tracetab": ["2.0", "1D SPECTRAL TRACE TABLE"],
             "proftab": ["2.0", "2D SPECTRUM PROFILE TABLE"],
             "twozxtab": ["2.0", "TWO-ZONE SPECTRAL EXTRACTION PARAMETERS TABLE"],
-            "spottab": ["2.0", "TRANSIENT BAD PIXEL REFERENCE TABLE"]
+            "spottab": ["2.0", "TRANSIENT BAD PIXEL REFERENCE TABLE"],
+            "hvdstab": ["3.4", "HV SENSITIVITY TABLE TO CORRECT EPSILON BASED ON EXPOSURE HV"]
         }
         # The contents of these dictionaries must agree with what
         # cosutil.findRefFile expects.
@@ -1468,6 +1468,10 @@ class Association(object):
 
         if switches["flatcorr"] == "PERFORM":
             cosutil.findRefFile(ref["flatfile"],
+                                missing, wrong_filetype, bad_version)
+
+        if switches["hvdscorr"] == "PERFORM":
+            cosutil.findRefFile(ref["hvdstab"],
                                 missing, wrong_filetype, bad_version)
 
         if switches["brstcorr"] == "PERFORM":
@@ -1635,7 +1639,7 @@ class Association(object):
             self.global_switches["any"] = "PERFORM"
         for key in ["badtcorr", "brstcorr", "deadcorr", "doppcorr",
                     "dqicorr",  "flatcorr", "geocorr",
-                    "dgeocorr", "helcorr",
+                    "dgeocorr", "helcorr", "hvdscorr"
                     "phacorr",  "randcorr", "tempcorr", "x1dcorr",
                     "wavecorr", "trcecorr", "algncorr"]:
             if switches[key] == "PERFORM":
