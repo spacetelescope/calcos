@@ -1270,7 +1270,7 @@ class Association(object):
             leave_unchanged = []        # reset all switches to OMIT
         else:
             leave_unchanged = ["tempcorr", "geocorr", "dgeocorr", "igeocorr",
-                               "xwlkcorr", "ywlkcorr", "randcorr"]
+                               "deadcorr", "xwlkcorr", "ywlkcorr", "randcorr"]
 
         for obs in self.obs:
             for key in obs.switches:
