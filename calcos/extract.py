@@ -1486,7 +1486,23 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
                                                   xtract_info, centroid,
                                                   sdqflags)
     else:
+        # The background determined from the flt file (unit=counts/s)
         AV_E_BKG_i = np.zeros(ncols, dtype=np.float32)
+        # For each column, the total number of good background rows 
+        # between both background regions, as seen in the flt file 
+        nrows_e_bkg_i = np.ones(ncols, dtype=np.float32)
+        # This for the calculation of the error
+        # Even though BACKCORR is not performed, we still need the
+        # number of good rows in the background region to calculate
+        # the variance arrays
+        # nrows_c_bkg_i: For each column, the total number of good background rows 
+        # between both background regions, as seen in the counts file 
+        av_c_bkg_i, nrows_c_bkg_i = getBackground(c_data, e_dq_data,
+                                                  xtract_info, centroid,
+                                                  sdqflags)
+        # Since we do not want to perform BACKCORR, manually override the
+        # measured background counts and set to zero.
+        # The background determined from the counts file (unit=counts) 
         av_c_bkg_i = np.zeros(ncols, dtype=np.float32)
     e_data_sub = e_data - AV_E_BKG_i
     height = xtract_info.field("height")[0]
