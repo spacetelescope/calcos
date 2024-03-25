@@ -408,7 +408,7 @@ def getScienceCentroid(rebinned_data, dq_array, xtract_info,
         # Now calculate the background.  Use the XTRACTAB reference file
         # to determine the background regions but center them on the 'center'
         # parameter
-        if backcorr is "OMIT":
+        if backcorr == "OMIT":
             background = 0
         else:
             background = getBackground(rebinned_data, goodcolumns, regions)
@@ -507,7 +507,7 @@ def getCentroidError(events, info, goodcolumns, regions, backcorr):
     counts_ij = rebinCounts(events, info)
     #
     # Now need to calculate the background
-    if backcorr is "OMIT":
+    if backcorr == "OMIT":
         background = 0
     else:
         background = getBackground(counts_ij, goodcolumns, regions)
