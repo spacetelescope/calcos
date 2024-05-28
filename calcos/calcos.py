@@ -1639,7 +1639,7 @@ class Association(object):
             self.global_switches["any"] = "PERFORM"
         for key in ["badtcorr", "brstcorr", "deadcorr", "doppcorr",
                     "dqicorr",  "flatcorr", "geocorr",
-                    "dgeocorr", "helcorr", "hvdscorr"
+                    "dgeocorr", "helcorr", "hvdscorr",
                     "phacorr",  "randcorr", "tempcorr", "x1dcorr",
                     "wavecorr", "trcecorr", "algncorr"]:
             if switches[key] == "PERFORM":
