@@ -243,6 +243,8 @@ def timetagBasicCalibration(input, inpha, outtag,
 
     doFlatcorr(events, info, switches, reffiles, phdr, headers[1])
 
+    doHvdscorr(events, info, switches, reffiles, phdr, headers[1])
+
     phdr["wavecals"] = ""               # initial value
     if info["tagflash"]:
         cosutil.printSwitch("WAVECORR", switches)
@@ -2111,7 +2113,14 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
         cosutil.printSwitch("YWLKCORR", switches)
         if switches["ywlkcorr"] == "PERFORM":
             cosutil.printRef("YWLKFILE", reffiles)
-            ycorrection = walkCorrection(events.field('xcorr'),
+            correct_size = (32, 1024)
+            if YWalkReffile_hasWrongSize(reffiles["ywlkfile"], info["segment"], correct_size):
+                cosutil.printWarning("You are running CALCOS with a YWLKFILE that is of different")
+                cosutil.printContinuation("dimensions than expected by the YWLKCORR routine in this")
+                cosutil.printContinuation("build of CalCOS. Data may be calibrated with an incorrect")
+                cosutil.printContinuation("Y walk correction, potentially resulting in incorrect")
+                cosutil.printContinuation("spectral extraction.")
+            ycorrection = walkCorrection(events.field('ycorr'),
                                          events.field('pha'),
                                          reffiles["ywlkfile"],
                                          info["segment"])
@@ -2119,6 +2128,19 @@ def doYWalkcorr(events, info, switches, reffiles, phdr):
             return ycorrection
         else:
             return None
+
+
+def YWalkReffile_hasWrongSize(ywalkfile, segment, correct_size):
+    fd = fits.open(ywalkfile)
+    for extension in fd[1:]:
+        if extension.header['SEGMENT'] == segment:
+            reference_array = extension.data
+            break
+    reference_data_shape = reference_array.shape
+    fd.close()
+    return reference_data_shape != correct_size
+    pass
+
 
 def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
     """Apply walk correction
@@ -2128,13 +2150,13 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
 
     Parameters
     ----------
-    slowCoordinate: numpy ndarray
-        The array of coordinates that is used to look up the correction in the
-        slow direction of the reference array
-
     fastCoordinate: numpy ndarray
         The array of coordinates that is used to look up the correction in the
         fast direction of the reference array
+
+    slowCoordinate: numpy ndarray
+        The array of coordinates that is used to look up the correction in the
+        slow direction of the reference array
 
     reference_file: string
         Name of reference file
@@ -2158,6 +2180,7 @@ def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
     delta = np.zeros(len(fastCoordinate))
     delta = bilinear_interpolation(fastCoordinate, slowCoordinate,
                            reference_array)
+    fd.close()
     return delta
 
 def bilinear_interpolation(fastCoordinate, slowCoordinate,
@@ -3131,6 +3154,76 @@ def doFlatcorr(events, info, switches, reffiles, phdr, hdr):
         fd.close()
 
         phdr["flatcorr"] = "COMPLETE"
+
+def doHvdscorr(events, info, switches, reffiles, phdr, hdr):
+    """Apply High Voltage Sensitivity Dependence Correction.
+
+    Parameters
+    ----------
+    events : astropy.io.fits record array
+        The data unit containing the events table.
+
+    info : dictionary
+        Header keywords and values.
+
+    switches : dictionary
+        Calibration switches.
+
+    reffiles : dictionary
+        Reference file names.
+
+    phdr : astropy.io.fits Header object
+        The input primary header.
+
+    hdr : astropy.io.fits Header object
+        The events extension header.
+    """
+
+    cosutil.printSwitch("HVDSCORR", switches)
+
+    if switches["hvdscorr"] == "PERFORM":
+
+        cosutil.printRef("HVDSTAB", reffiles)
+
+        if info["detector"] == "FUV":
+            segment = info['segment']
+            slope, intercept, zeropoint = getHVDSParamsfromReffile(phdr, reffiles)
+            hvkeyword = 'hvlevel' + segment[-1]
+            hv = hdr[hvkeyword]
+            epsmultiplier = intercept + slope*(hv - zeropoint)
+            epsilon = events.field("epsilon")
+            epsilon *= epsmultiplier
+            events['epsilon'][:] = epsilon
+
+        phdr["hvdscorr"] = "COMPLETE"
+
+def getHVDSParamsfromReffile(info, reffiles):
+    """Get straight line fit parameters from HVDSTAB reference file.
+
+    Parameters
+    ----------
+    info : dictionary
+        Header keywords and values.
+
+    reffiles : dictionary
+        Reference file names.
+
+    Returns
+    -------
+    (slope, intercept, zeropoint) : tuple of floats
+        Slope, intercept and zeropoint fit parameters from the reference file
+
+    """
+
+    segment = info['segment']
+    cenwave = info['cenwave']
+    filter = {"segment": segment, 'cenwave': cenwave}
+    hvdsrow = cosutil.getTable(reffiles["hvdstab"], filter, exactly_one=True,
+                               at_least_one=True)
+    slope = hvdsrow['slope']
+    intercept = hvdsrow['intercept']
+    zeropoint = hvdsrow['zeropoint']
+    return (slope, intercept, zeropoint)
 
 def convolveFlat(flat, dispaxis,
                  expstart, exptime, dopmagt, dopzerot, orbtpert):
