@@ -2139,7 +2139,6 @@ def YWalkReffile_hasWrongSize(ywalkfile, segment, correct_size):
     reference_data_shape = reference_array.shape
     fd.close()
     return reference_data_shape != correct_size
-    pass
 
 
 def walkCorrection(fastCoordinate, slowCoordinate, reference_file, segment):
