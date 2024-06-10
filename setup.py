@@ -1,40 +1,34 @@
 #!/usr/bin/env python
 
-import os
-from fnmatch import fnmatch
 from setuptools import setup, Extension
 from numpy import get_include as numpy_includes
-
-def c_sources(parent):
-    sources = []
-    for root, _, files in os.walk(parent):
-        for f in files:
-            fn = os.path.join(root, f)
-            if fnmatch(fn, '*.c'):
-                sources.append(fn)
-    return sources
+from pathlib import Path
 
 
-def c_includes(parent, depth=1):
-    includes = [parent]
-    for root, dirs, _ in os.walk(parent):
-        for d in dirs:
-            dn = os.path.join(root, d)
-            if len(dn.split(os.sep)) - 1 > depth:
-                continue
-            includes.append(dn)
-    return includes
+def c_sources(parent: str) -> list[str]:
+    return [str(filename) for filename in Path(parent).glob("*.c")]
 
 
-PACKAGENAME = 'calcos'
-SOURCES = c_sources('src')
-INCLUDES = c_includes('src') + [numpy_includes()]
+def c_includes(parent: str, depth: int = 1):
+    return [
+        parent,
+        *(
+            str(filename)
+            for filename in Path(parent).iterdir()
+            if filename.is_dir() and len(filename.parts) - 1 <= depth
+        ),
+    ]
+
+
+PACKAGENAME = "calcos"
+SOURCES = c_sources("src")
+INCLUDES = c_includes("src") + [numpy_includes()]
 
 
 setup(
     ext_modules=[
         Extension(
-            PACKAGENAME + '.ccos',
+            PACKAGENAME + ".ccos",
             sources=SOURCES,
             include_dirs=INCLUDES,
         ),
