@@ -71,7 +71,7 @@ norecursedirs = [
 ]
 junit_family = "xunit2"
 
-[tool.flake8]
+[tool.ruff.lint]
 exclude = [
     "setup.py",
     "__init__.py",
