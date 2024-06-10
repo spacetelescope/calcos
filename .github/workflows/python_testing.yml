@@ -29,7 +29,6 @@ jobs:
         TEST_BIGDATA: https://bytesalad.stsci.edu/artifactory
         lref: /grp/hst/cdbs/lref/
       envs: |
-        - linux: py39-xdist
         - linux: py310-xdist
         - linux: py311-xdist
         - macos: py311-xdist
