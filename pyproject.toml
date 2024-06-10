@@ -1,3 +1,47 @@
+[project]
+name = "calcos"
+description = "Calibration software for COS (Cosmic Origins Spectrograph)"
+requires-python = ">=3.9"
+authors = [
+    { name = "Phil Hodge", email="help@stsci.edu" },
+    { name = "Robert Jedrzejewski" },
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "astropy>=5.0.4",
+    "numpy<2.0",
+    "scipy",
+    "stsci.tools>=4.0.0",
+]
+dynamic = [
+    "version",
+]
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.scripts]
+calcos = "calcos:main"
+
+[project.optional-dependencies]
+docs = [
+    "sphinx<7",
+]
+test = [
+    "ci-watson",
+    "pytest",
+    "pytest-cov",
+    "codecov",
+]
+
 [build-system]
 requires = [
     "setuptools>=42.0",
@@ -5,4 +49,36 @@ requires = [
     "wheel",
     "numpy>=2.0.0rc2",
 ]
-build-backend = 'setuptools.build_meta'
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.package-data]
+calcos = [
+    "pars/*",
+    "*.help",
+]
+
+[tool.setuptools_scm]
+version_file = "calcos/version.py"
+
+[tool.pytest.ini_options]
+minversion = "3.0"
+norecursedirs = [
+    "build",
+    "doc/build",
+    "src",
+]
+junit_family = "xunit2"
+
+[tool.flake8]
+exclude = [
+    "setup.py",
+    "__init__.py",
+]
+ignore = [
+    "E265",
+    "F821",
+    "F841",
+]

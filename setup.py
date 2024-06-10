@@ -2,7 +2,7 @@
 
 import os
 from fnmatch import fnmatch
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, Extension
 from numpy import get_include as numpy_includes
 
 def c_sources(parent):
@@ -32,58 +32,11 @@ INCLUDES = c_includes('src') + [numpy_includes()]
 
 
 setup(
-    name=PACKAGENAME,
-    use_scm_version={'write_to': 'calcos/version.py'},
-    setup_requires=['setuptools_scm'],
-    install_requires=[
-        'astropy>=5.0.4',
-        'numpy<2.0',
-        'scipy',
-        'stsci.tools>=4.0.0',
-    ],
-    extras_require={
-        'docs': [
-            'sphinx<7',
-        ],
-        'test': [
-            'ci-watson',
-            'pytest',
-            'pytest-cov',
-            'codecov',
-        ],
-    },
-    packages=find_packages(),
-    package_data={
-        PACKAGENAME: [
-            'pars/*',
-            '*.help',
-        ],
-    },
     ext_modules=[
         Extension(
             PACKAGENAME + '.ccos',
             sources=SOURCES,
             include_dirs=INCLUDES,
         ),
-    ],
-    entry_points={
-        'console_scripts': {
-            'calcos = calcos:main',
-        },
-    },
-    author='Phil Hodge, Robert Jedrzejewski',
-    author_email='help@stsci.edu',
-    description='Calibration software for COS (Cosmic Origins Spectrograph)',
-    long_description='README.md',
-    long_description_content_type='text/x-rst',
-    url='https://github.com/spacetelescope/calcos',
-    license='BSD',
-    classifiers=[
-        'Intended Audience :: Science/Research',
-        'License :: OSI Approved :: BSD License',
-        'Operating System :: OS Independent',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: C',
-        'Topic :: Software Development :: Libraries :: Python Modules',
     ],
 )
