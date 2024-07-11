@@ -1,5 +1,4 @@
 from __future__ import absolute_import, division         # confidence high
-import os
 import astropy.io.fits as fits
 from . import cosutil
 from .calcosparam import *

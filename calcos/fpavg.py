@@ -1,5 +1,4 @@
 from __future__ import absolute_import, division         # confidence high
-import copy
 import math
 import numpy as np
 import astropy.io.fits as fits

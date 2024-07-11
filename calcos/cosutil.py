@@ -6,7 +6,6 @@ import os
 import shutil
 import sys
 import time
-import types
 import copy
 import numpy as np
 import numpy.linalg as LA
