@@ -3,7 +3,6 @@ import copy
 import os
 import numpy as np
 import astropy.io.fits as fits
-from astropy.stats import poisson_conf_interval
 from . import cosutil
 from . import ccos
 from . import dispersion

@@ -3,10 +3,8 @@
 from __future__ import absolute_import, division, print_function # confidence high
 import os
 import sys
-import string
 import getopt
 
-import numpy as np
 import astropy.io.fits as fits
 
 from . import calcosparam                      # parameter definitions

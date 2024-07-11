@@ -20,7 +20,6 @@ from . import getinfo
 from . import shiftfile
 from . import spwcs
 from . import timetag
-from . import trace
 from . import wavecal
 from .calcosparam import *       # parameter definitions
 

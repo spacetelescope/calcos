@@ -5,7 +5,6 @@
 #
 
 from __future__ import division, absolute_import
-import astropy.io.fits as fits
 import numpy as np
 import math
 
