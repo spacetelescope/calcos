@@ -24,6 +24,7 @@ from . import trace
 from . import wavecal
 from .calcosparam import *       # parameter definitions
 
+numpy._set_promotion_state("weak_and_warn")
 # These values for Observation.exp_type are used in this file only.
 EXP_UNKNOWN     = 0
 EXP_SCIENCE     = 1

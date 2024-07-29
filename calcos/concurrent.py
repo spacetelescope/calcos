@@ -957,7 +957,7 @@ class ConcurrentWavecal(object):
         # Get time as a single precision array, for ccos.getstartstop.
         time = cosutil.getColCopy(data=self.events, column="time")
         dq = np.zeros(len(time), dtype=np.int16)
-        nbins = int(math.ceil((time[-1] - time[0]) / self.delta_t))
+        nbins = int(math.ceil((np.float64(time[-1]) - np.float64(time[0])) / self.delta_t))
         istart = np.zeros(nbins, dtype=np.int32)
         istop = np.zeros(nbins, dtype=np.int32)
         src_counts = np.zeros(nbins, dtype=np.int32)
@@ -1121,7 +1121,7 @@ class ConcurrentWavecal(object):
                     t = min(t, self.time[-1])
                     lamp_off.append(t)
                     break
-
+#        np._set_promotion_state("weak_and_warn")
         if len(lamp_on) != len(lamp_off):
             raise RuntimeError("Internal error:  len(lamp_on) = %d, "
                                "len(lamp_off) = %d" % \

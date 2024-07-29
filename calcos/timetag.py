@@ -176,11 +176,11 @@ def timetagBasicCalibration(input, inpha, outtag,
     badt = doBadtcorr(events, info, switches, reffiles, phdr)
 
     doRandcorr(events, info, switches, reffiles, phdr)
-
+#    np._set_promotion_state("weak_and_warn")
     (stim_param, stim_countrate, stim_livetime) = initTempcorr(events,
             input, info, switches, reffiles, headers[1],
             cl_args["stimfile"])
-
+#    np._set_promotion_state("weak_and_warn")
     doTempcorr(stim_param, events, info, switches, reffiles, phdr)
 
     doGeocorr(events, info, switches, reffiles, phdr)
@@ -206,7 +206,7 @@ def timetagBasicCalibration(input, inpha, outtag,
         copyColumns(events)
 
     initHelcorr(events, info, headers[1])
-
+#    np._set_promotion_state("weak_and_warn")
     doDeadcorr(events, input, info, switches, reffiles, phdr, headers[1],
                stim_countrate, stim_livetime, cl_args["livetimefile"])
 
@@ -1612,7 +1612,7 @@ def computeThermalParam(time, x, y, dq,
         if sumstim[0] > 1:
             rms_s1[0] = math.sqrt(sumstim[3] / (sumstim[0] - 1.))
             rms_s1[1] = math.sqrt(sumstim[4] / (sumstim[0] - 1.))
-        else:
+    else:
             rms_s1[0] = math.sqrt(sumstim[3])
             rms_s1[1] = math.sqrt(sumstim[4])
     if total_counts2 > 0:
@@ -1624,7 +1624,6 @@ def computeThermalParam(time, x, y, dq,
         else:
             rms_s2[0] = math.sqrt(sumstim[8])
             rms_s2[1] = math.sqrt(sumstim[9])
-
     if total_counts1 > 0 and total_counts2 > 0:
         stim_countrate = (total_counts1 + total_counts2) / (2. * exptime)
     elif total_counts1 > 0:
@@ -1704,8 +1703,8 @@ def findStim(x, y, stim_ref, xwidth, ywidth):
         # The stim reference position is subtracted before taking the sum
         # and then added back to the average in order to reduce the
         # possibility of numerical roundoff errors.
-        sumx = np.sum((x-stim_ref[1]) * mask)
-        sumy = np.sum((y-stim_ref[0]) * mask)
+        sumx = np.sum((x-np.float32(stim_ref[1])) * mask)
+        sumy = np.sum((y-np.float32(stim_ref[0])) * mask)
         sx = sumx / n + stim_ref[1]
         sy = sumy / n + stim_ref[0]
         # sum of squared deviations, for computing RMS
@@ -1972,8 +1971,8 @@ def thermalDistortion(x, y, stim_param):
         j = i1[n]
         if x0[n] != 0. or xslope[n] != 1. or \
            y0[n] != 0. or yslope[n] != 1.:
-            x[i:j] = x0[n] + x[i:j] * xslope[n]
-            y[i:j] = y0[n] + y[i:j] * yslope[n]
+            x[i:j] = np.float32(x0[n]) + x[i:j] * np.float32(xslope[n])
+            y[i:j] = np.float32(y0[n]) + y[i:j] * np.float32(yslope[n])
             actually_done = True
 
     return actually_done
@@ -2974,7 +2973,7 @@ def initHelcorr(events, info, hdr):
     # get midpoint of exposure, MJD
     expstart = info["expstart"]
     time = events.field("time")
-    t_mid = expstart + (time[0] + time[len(time)-1]) / 2. / SEC_PER_DAY
+    t_mid = expstart + (np.float64(time[0]) + np.float64(time[len(time)-1])) / 2. / SEC_PER_DAY
 
     # Compute radial velocity and heliocentric correction factor (the latter
     # is actually not used here).
@@ -3551,7 +3550,7 @@ def deadtimeCorrection(events, deadtab, info,
                 countrate = 0.
                 livetime = 1.
             if livetime > 0.:
-                epsilon[i:j] = epsilon[i:j] / livetime
+                epsilon[i:j] = np.float32(epsilon[i:j] / livetime)
                 last_livetime = livetime
             first = False
 
@@ -3995,7 +3994,7 @@ def writeImages(x, y, epsilon, dq,
 
     # Use the Frequentist variance function.
     err_lower, err_upper = cosutil.errFrequentist(C_counts)
-    errC_rate = err_upper / exptime
+    errC_rate = np.float32(err_upper / exptime)
 
     if outcounts is not None:
         C_rate = C_counts / exptime
@@ -4050,8 +4049,8 @@ def makeImage(outimage, phdr, headers, sci_array, err_array, dq_array):
     fd[0].header["nextend"] = 3
     cosutil.updateFilename(fd[0].header, outimage)
 
-    makeImageHDU(fd, headers[1], sci_array, name="SCI")
-    makeImageHDU(fd, headers[2], err_array, name="ERR")
+    makeImageHDU(fd, headers[1], np.float32(sci_array), name="SCI")
+    makeImageHDU(fd, headers[2], np.float32(err_array), name="ERR")
     makeImageHDU(fd, headers[3], dq_array, name="DQ")
 
     fd.writeto(outimage, output_verify='silentfix')
