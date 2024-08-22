@@ -1,11 +1,8 @@
-import os
-
 from calcos import shiftfile
 
 def create_shift_file(filename):
     # Create the shift file for use in tests
-    shift_file = "shift_file.txt"
-    with open(shift_file, "w") as file:
+    with open(filename, "w") as file:
         file.write("#dataset\tfpoffset\tflash #\tstripe\tshift1\tshift2\n")
         for i in range(10):
             if i % 3 == 0:

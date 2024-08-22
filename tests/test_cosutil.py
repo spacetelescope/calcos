@@ -2,6 +2,7 @@ import io
 import os
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -113,15 +114,16 @@ def test_concat_arrays():
 
 def test_update_filename(tmp_path):
     # Setup
-    filename = str(tmp_path / "update_filename")
+    path = tmp_path / "update_filename.fits"
+    filename = str(path)
     generate_fits_file(filename)
     before_update_hdr = fits.open(filename, mode="update")
     # Test
-    cosutil.updateFilename(before_update_hdr[0].header, filename)
+    cosutil.updateFilename(before_update_hdr[0].header, path.stem)
     before_update_hdr.close()
     after_update_hdr = fits.open(filename)
     # Verity
-    assert filename == after_update_hdr[0].header["filename"]
+    assert path.stem == after_update_hdr[0].header["filename"]
     after_update_hdr.close()
 
 
@@ -364,8 +366,8 @@ def test_change_segment(tmp_path):
     filename2 = str(tmp_path / "testfits_b.fits")
     filename3 = str(tmp_path / "testfits.fits")
     # Expected
-    fname1 = filename1
-    fname2 = filename2
+    fname1 = filename2
+    fname2 = filename1
     fname3 = filename3
     # Test
     test_name1 = cosutil.changeSegment(filename1, "FUV", "FUVB")
@@ -524,8 +526,9 @@ def test_rename_file(tmp_path):
 
 def test_del_corrtag_wcs(tmp_path):
     # Setup
-    generate_fits_file(str(tmp_path / "del_corrtagWCS.fits"))
-    thdr = fits.getheader("del_corrtagWCS.fits", 3)
+    filename = str(tmp_path / "del_corrtagWCS.fits")
+    generate_fits_file(filename)
+    thdr = fits.getheader(filename, 3)
     tkey = ["TCTYP2", "TCRVL2", "TCRPX2", "TCDLT2", "TCUNI2", "TC2_2", "TC2_3",
             "TCTYP3", "TCRVL3", "TCRPX3", "TCDLT3", "TCUNI3", "TC3_2", "TC3_3"]
     # Test
@@ -776,16 +779,19 @@ def test_segment_specific_keyword():
 
 
 def test_find_ref_file(tmp_path):
-    generate_fits_file(str(tmp_path / "test.fits"))
-    fits.setval("wrong_file.fits", 'FILETYPE', value='FLAT FIELD REFERENCE IMAGE')
+    filename = str(tmp_path / "test.fits")
+    wrong_filename = str(tmp_path / "wrong_file.fits")
+    generate_fits_file(filename)
+    generate_fits_file(wrong_filename)
+    fits.setval(wrong_filename, 'FILETYPE', value='FLAT FIELD REFERENCE IMAGE')
     # Missing
     ref1 = {"keyword": "FLATFILE", "filename": "test_flt.fits", "calcos_ver": "3.0",
             "min_ver": "2.2", "filetype": "FLAT FIELD REFERENCE IMAGE"}
     # Bad version
-    ref2 = {"keyword": "FLATFILE", "filename": "test.fits", "calcos_ver": "2.21",
+    ref2 = {"keyword": "FLATFILE", "filename": filename, "calcos_ver": "2.21",
             "min_ver": "3.3", "filetype": "FLAT FIELD REFERENCE IMAGE"}
     # Wrong file
-    ref3 = {"keyword": "FLATFILE", "filename": "wrong_file.fits", "calcos_ver": "3.0",
+    ref3 = {"keyword": "FLATFILE", "filename": wrong_filename, "calcos_ver": "3.0",
             "min_ver": "2.3", "filetype": "IMAGE"}
     missing1 = {}
     missing2 = {}
@@ -798,8 +804,8 @@ def test_find_ref_file(tmp_path):
     bad_ver3 = {}
     # Actual values
     actual_missing = {"FLATFILE": "test_flt.fits"}
-    actual_bad_ver = {"FLATFILE": ("test.fits", "  the reference file must be at least version 3.3")}
-    actual_wrong_ver = {'FLATFILE': ('wrong_file.fits', 'IMAGE')}
+    actual_bad_ver = {"FLATFILE": (filename, "  the reference file must be at least version 3.3")}
+    actual_wrong_ver = {'FLATFILE': (wrong_filename, 'IMAGE')}
     # Test
     cosutil.findRefFile(ref1, missing1, wrong_f1, bad_ver1)
     cosutil.findRefFile(ref2, missing2, wrong_f2, bad_ver2)
@@ -832,7 +838,7 @@ def test_get_pedigree(tmp_path):
     refkey = "statflag"
     filename = str(tmp_path / "test_flt.file")
     generate_fits_file(filename)
-    err_msg = "Warning:  STATFLAG test_flt.file is a dummy file\n" \
+    err_msg = f"Warning:  STATFLAG {filename} is a dummy file\n" \
               "    so PERFORM will not be done.\n"
     # Test
     pedgr1 = cosutil.getPedigree(switch, refkey, filename)
