@@ -935,7 +935,7 @@ def test_get_switch(tmp_path):
 
 
 def test_temp_pulse_height_range(tmp_path):
-    filename = "pulseHeightRef.fits"
+    filename = str(tmp_path / "pulseHeightRef.fits")
     generate_fits_file(filename)
     true_pha_value = 4
     fits.setval(filename, "pharange", value=true_pha_value, ext=0)

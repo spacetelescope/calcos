@@ -1,7 +1,7 @@
 [project]
 name = "calcos"
 description = "Calibration software for COS (Cosmic Origins Spectrograph)"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
 authors = [
     { name = "Phil Hodge", email="help@stsci.edu" },
     { name = "Robert Jedrzejewski" },
