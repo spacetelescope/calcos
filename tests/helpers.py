@@ -130,8 +130,11 @@ class BaseCOS:
                                file)
             # If file is an association table, download raw files specified in the table
             if file.endswith('_asn.fits'):
-                asn_raws = raw_from_asn(file, '_rawtag_a.fits')
-                asn_raws += raw_from_asn(file, '_rawtag_b.fits')
+                if self.detector == 'nuv':
+                    asn_raws = raw_from_asn(file, '_rawtag.fits')
+                else:
+                    asn_raws = raw_from_asn(file, '_rawtag_a.fits')
+                    asn_raws += raw_from_asn(file, '_rawtag_b.fits')
                 for raw in asn_raws:  # Download RAWs in ASN.
                     get_bigdata('scsb-calcos', self.env, self.detector, 'input',
                                 raw)
