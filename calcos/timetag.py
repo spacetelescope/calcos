@@ -176,11 +176,11 @@ def timetagBasicCalibration(input, inpha, outtag,
     badt = doBadtcorr(events, info, switches, reffiles, phdr)
 
     doRandcorr(events, info, switches, reffiles, phdr)
-#    np._set_promotion_state("weak_and_warn")
+
     (stim_param, stim_countrate, stim_livetime) = initTempcorr(events,
             input, info, switches, reffiles, headers[1],
             cl_args["stimfile"])
-#    np._set_promotion_state("weak_and_warn")
+    
     doTempcorr(stim_param, events, info, switches, reffiles, phdr)
 
     doGeocorr(events, info, switches, reffiles, phdr)
@@ -206,7 +206,7 @@ def timetagBasicCalibration(input, inpha, outtag,
         copyColumns(events)
 
     initHelcorr(events, info, headers[1])
-#    np._set_promotion_state("weak_and_warn")
+
     doDeadcorr(events, input, info, switches, reffiles, phdr, headers[1],
                stim_countrate, stim_livetime, cl_args["livetimefile"])
 
@@ -1612,7 +1612,7 @@ def computeThermalParam(time, x, y, dq,
         if sumstim[0] > 1:
             rms_s1[0] = math.sqrt(sumstim[3] / (sumstim[0] - 1.))
             rms_s1[1] = math.sqrt(sumstim[4] / (sumstim[0] - 1.))
-    else:
+        else:
             rms_s1[0] = math.sqrt(sumstim[3])
             rms_s1[1] = math.sqrt(sumstim[4])
     if total_counts2 > 0:

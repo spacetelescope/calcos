@@ -1121,7 +1121,6 @@ class ConcurrentWavecal(object):
                     t = min(t, self.time[-1])
                     lamp_off.append(t)
                     break
-#        np._set_promotion_state("weak_and_warn")
         if len(lamp_on) != len(lamp_off):
             raise RuntimeError("Internal error:  len(lamp_on) = %d, "
                                "len(lamp_off) = %d" % \
