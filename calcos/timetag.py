@@ -1703,8 +1703,8 @@ def findStim(x, y, stim_ref, xwidth, ywidth):
         # The stim reference position is subtracted before taking the sum
         # and then added back to the average in order to reduce the
         # possibility of numerical roundoff errors.
-        sumx = np.sum((x-np.float32(stim_ref[1])) * mask)
-        sumy = np.sum((y-np.float32(stim_ref[0])) * mask)
+        sumx = np.sum((x-stim_ref[1]) * mask)
+        sumy = np.sum((y-stim_ref[0]) * mask)
         sx = sumx / n + stim_ref[1]
         sy = sumy / n + stim_ref[0]
         # sum of squared deviations, for computing RMS
@@ -1770,14 +1770,14 @@ def updateStimSum(sumstim, nevents1, s1, sumsq1, found_s1,
      n2, sum2y, sum2x, sumsq2y, sumsq2x) = sumstim
 
     if found_s1:
-        n1 = n1 + nevents1
+        n1 = n1 + np.float64(nevents1)
         sum1y = sum1y + s1[0] * nevents1
         sum1x = sum1x + s1[1] * nevents1
         sumsq1y = sumsq1y + sumsq1[0]
         sumsq1x = sumsq1x + sumsq1[1]
 
     if found_s2:
-        n2 = n2 + nevents2
+        n2 = n2 + np.float64(nevents2)
         sum2y = sum2y + s2[0] * nevents2
         sum2x = sum2x + s2[1] * nevents2
         sumsq2y = sumsq2y + sumsq2[0]
@@ -1971,8 +1971,8 @@ def thermalDistortion(x, y, stim_param):
         j = i1[n]
         if x0[n] != 0. or xslope[n] != 1. or \
            y0[n] != 0. or yslope[n] != 1.:
-            x[i:j] = np.float32(x0[n]) + x[i:j] * np.float32(xslope[n])
-            y[i:j] = np.float32(y0[n]) + y[i:j] * np.float32(yslope[n])
+            x[i:j] = x0[n] + x[i:j] * xslope[n]
+            y[i:j] = y0[n] + y[i:j] * yslope[n]
             actually_done = True
 
     return actually_done
@@ -2587,8 +2587,8 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
                 xshifts.append(int(round(max_shift1 + maxdopp + widen)))
                 xshifts.append(int(round(min_shift1 + mindopp - widen)))
             else:
-                xshifts.append(int(round(max_shift1 + widen)))
-                xshifts.append(int(round(min_shift1 - widen)))
+                xshifts.append(int(round(np.float64(max_shift1) + widen)))
+                xshifts.append(int(round(np.float64(min_shift1) - widen)))
             for xshift in range(min(xshifts), max(xshifts)+1):
                 cosutil.printMsg("Shifting to %d, %d" % (xshift, yshift))
                 shifted_dq = arrayShift(y_shifted_dq[int(lower_y):int(upper_y)], 0, xshift,
@@ -3550,7 +3550,7 @@ def deadtimeCorrection(events, deadtab, info,
                 countrate = 0.
                 livetime = 1.
             if livetime > 0.:
-                epsilon[i:j] = np.float32(epsilon[i:j] / livetime)
+                epsilon[i:j] = epsilon[i:j] / livetime
                 last_livetime = livetime
             first = False
 

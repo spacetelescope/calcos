@@ -108,6 +108,7 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 2017 Jan 30     Add bilinear_interpolation function for walk correction
 */
 
+# define PY_SSIZE_T_CLEAN
 # include <Python.h>
 
 # include <stdlib.h>
@@ -356,7 +357,6 @@ static PyObject *ccos_binevents(PyObject *self, PyObject *args) {
 	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
-
 	if (PyArray_TYPE(ox) == NPY_INT16) {
 	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_INT16,
 		NPY_IN_ARRAY);
@@ -4168,7 +4168,6 @@ static PyMethodDef ccos_methods[] = {
 	{NULL, NULL, 0, NULL}
 };
 
-#if defined(NPY_PY3K)
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
     "ccos",
@@ -4180,33 +4179,20 @@ static struct PyModuleDef moduledef = {
     NULL,
     NULL
 };
-#endif
 
-#if defined(NPY_PY3K)
 PyObject *PyInit_ccos(void) 
-#else
-PyMODINIT_FUNC initccos(void)
-#endif
+
 {
 	PyObject *mod;		/* the module */
 	PyObject *dict;		/* the module's dictionary */
 
-#if defined(NPY_PY3K)
 	mod = PyModule_Create(&moduledef);
-#else
-	mod = Py_InitModule("ccos", ccos_methods);
-#endif
 	import_array();
 
 	/* set the doc string */
 	dict = PyModule_GetDict(mod);
-#if defined(NPY_PY3K)
+
 	PyDict_SetItemString(dict, "__doc__",
 		PyUnicode_FromString(DocString()));
         return mod;
-#else
-	PyDict_SetItemString(dict, "__doc__",
-		PyString_FromString(DocString()));
-	return;
-#endif
 }

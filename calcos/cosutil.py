@@ -1987,7 +1987,6 @@ def flagOutsideActiveArea(dq_array, segment, brftab, x_offset,
 
     b_left += x_offset
     b_right += x_offset
-#    np._set_promotion_state("weak_and_warn")
     (ny, nx) = dq_array.shape
 
     if b_low >= 0:
