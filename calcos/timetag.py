@@ -4048,9 +4048,14 @@ def makeImage(outimage, phdr, headers, sci_array, err_array, dq_array):
     fd = fits.HDUList(primary_hdu)
     fd[0].header["nextend"] = 3
     cosutil.updateFilename(fd[0].header, outimage)
-
-    makeImageHDU(fd, headers[1], np.float32(sci_array), name="SCI")
-    makeImageHDU(fd, headers[2], np.float32(err_array), name="ERR")
+    if sci_array is not None:
+        makeImageHDU(fd, headers[1], np.float32(sci_array), name="SCI")
+    else:
+        makeImageHDU(fd, headers[1], sci_array, name="SCI")
+    if err_array is not None:
+        makeImageHDU(fd, headers[2], np.float32(err_array), name="ERR")
+    else:
+        makeImageHDU(fd, headers[2], err_array, name="ERR")
     makeImageHDU(fd, headers[3], dq_array, name="DQ")
 
     fd.writeto(outimage, output_verify='silentfix')
