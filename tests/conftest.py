@@ -15,7 +15,7 @@ pytest_plugins = ["pytest_ciwatson"]
 def pytest_report_header(config):
     import sys
     import warnings
-    from astropy.utils.introspection import resolve_name
+    import importlib
 
     s = "\nFull Python Version: \n{0}\n\n".format(sys.version)
 
@@ -24,7 +24,7 @@ def pytest_report_header(config):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
-                module = resolve_name(module_name)
+                module = importlib.import_module(module_name)
         except ImportError:
             s += "{0}: not available\n".format(module_name)
         else:
