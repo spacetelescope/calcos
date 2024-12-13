@@ -189,7 +189,7 @@ def createTimeline(input, fd, info, reffiles,
         rv_col = tl_data.field("radial_vel")
 
     for i in range(len(tl_time)):
-        mjd = tl_time[i] / SEC_PER_DAY + info["expstart"]
+        mjd = np.float64(tl_time[i]) / SEC_PER_DAY + info["expstart"]
         (rect_hst, vel_hst) = orb.getPos(mjd)
         (r, ra_hst, dec_hst) = rectToSph(rect_hst)
         # Assume that we want geocentric latitude.  The difference from

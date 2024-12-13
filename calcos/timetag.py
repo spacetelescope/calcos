@@ -180,7 +180,7 @@ def timetagBasicCalibration(input, inpha, outtag,
     (stim_param, stim_countrate, stim_livetime) = initTempcorr(events,
             input, info, switches, reffiles, headers[1],
             cl_args["stimfile"])
-
+    
     doTempcorr(stim_param, events, info, switches, reffiles, phdr)
 
     doGeocorr(events, info, switches, reffiles, phdr)
@@ -1624,7 +1624,6 @@ def computeThermalParam(time, x, y, dq,
         else:
             rms_s2[0] = math.sqrt(sumstim[8])
             rms_s2[1] = math.sqrt(sumstim[9])
-
     if total_counts1 > 0 and total_counts2 > 0:
         stim_countrate = (total_counts1 + total_counts2) / (2. * exptime)
     elif total_counts1 > 0:
@@ -1771,14 +1770,14 @@ def updateStimSum(sumstim, nevents1, s1, sumsq1, found_s1,
      n2, sum2y, sum2x, sumsq2y, sumsq2x) = sumstim
 
     if found_s1:
-        n1 = n1 + nevents1
+        n1 = n1 + np.float64(nevents1)
         sum1y = sum1y + s1[0] * nevents1
         sum1x = sum1x + s1[1] * nevents1
         sumsq1y = sumsq1y + sumsq1[0]
         sumsq1x = sumsq1x + sumsq1[1]
 
     if found_s2:
-        n2 = n2 + nevents2
+        n2 = n2 + np.float64(nevents2)
         sum2y = sum2y + s2[0] * nevents2
         sum2x = sum2x + s2[1] * nevents2
         sumsq2y = sumsq2y + sumsq2[0]
@@ -2588,8 +2587,8 @@ def  blurDQ(trace_dq, minmax_shift_dict, minmax_doppler, doppler_boundary, widen
                 xshifts.append(int(round(max_shift1 + maxdopp + widen)))
                 xshifts.append(int(round(min_shift1 + mindopp - widen)))
             else:
-                xshifts.append(int(round(max_shift1 + widen)))
-                xshifts.append(int(round(min_shift1 - widen)))
+                xshifts.append(int(round(np.float64(max_shift1) + widen)))
+                xshifts.append(int(round(np.float64(min_shift1) - widen)))
             for xshift in range(min(xshifts), max(xshifts)+1):
                 cosutil.printMsg("Shifting to %d, %d" % (xshift, yshift))
                 shifted_dq = arrayShift(y_shifted_dq[int(lower_y):int(upper_y)], 0, xshift,
@@ -2974,7 +2973,7 @@ def initHelcorr(events, info, hdr):
     # get midpoint of exposure, MJD
     expstart = info["expstart"]
     time = events.field("time")
-    t_mid = expstart + (time[0] + time[len(time)-1]) / 2. / SEC_PER_DAY
+    t_mid = expstart + (np.float64(time[0]) + np.float64(time[len(time)-1])) / 2. / SEC_PER_DAY
 
     # Compute radial velocity and heliocentric correction factor (the latter
     # is actually not used here).
@@ -3995,7 +3994,7 @@ def writeImages(x, y, epsilon, dq,
 
     # Use the Frequentist variance function.
     err_lower, err_upper = cosutil.errFrequentist(C_counts)
-    errC_rate = err_upper / exptime
+    errC_rate = np.float32(err_upper / exptime)
 
     if outcounts is not None:
         C_rate = C_counts / exptime
@@ -4049,9 +4048,14 @@ def makeImage(outimage, phdr, headers, sci_array, err_array, dq_array):
     fd = fits.HDUList(primary_hdu)
     fd[0].header["nextend"] = 3
     cosutil.updateFilename(fd[0].header, outimage)
-
-    makeImageHDU(fd, headers[1], sci_array, name="SCI")
-    makeImageHDU(fd, headers[2], err_array, name="ERR")
+    if sci_array is not None:
+        makeImageHDU(fd, headers[1], np.float32(sci_array), name="SCI")
+    else:
+        makeImageHDU(fd, headers[1], sci_array, name="SCI")
+    if err_array is not None:
+        makeImageHDU(fd, headers[2], np.float32(err_array), name="ERR")
+    else:
+        makeImageHDU(fd, headers[2], err_array, name="ERR")
     makeImageHDU(fd, headers[3], dq_array, name="DQ")
 
     fd.writeto(outimage, output_verify='silentfix')

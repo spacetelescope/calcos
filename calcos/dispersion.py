@@ -134,7 +134,7 @@ class Dispersion(object):
             Wavelength (or array of wavelengths) at x
         """
 
-        x_prime = x + self.delta
+        x_prime = np.float64(x) + np.float64(self.delta)
 
         sum = self.coeff[self.ncoeff-1]
         for i in range(self.ncoeff-2, -1, -1):
@@ -159,7 +159,7 @@ class Dispersion(object):
             Slope at x, in Angstroms per pixel
         """
 
-        x_prime = x + self.delta
+        x_prime = np.float64(x) + np.float64(self.delta)
 
         sum = (self.ncoeff - 1.) * self.coeff[self.ncoeff-1]
         for n in range(self.ncoeff-2, 0, -1):
