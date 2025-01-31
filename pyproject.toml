@@ -1,7 +1,7 @@
 [project]
 name = "calcos"
 description = "Calibration software for COS (Cosmic Origins Spectrograph)"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
 authors = [
     { name = "Phil Hodge", email="help@stsci.edu" },
     { name = "Robert Jedrzejewski" },
@@ -16,7 +16,6 @@ classifiers = [
 ]
 dependencies = [
     "astropy>=5.0.4",
-    "numpy<2.0",
     "scipy",
     "stsci.tools>=4.0.0",
 ]
@@ -46,7 +45,7 @@ requires = [
     "setuptools>=42.0",
     "setuptools_scm[toml]>=3.4",
     "wheel",
-    "oldest-supported-numpy",
+    "numpy>=2.0.0",
 ]
 build-backend = "setuptools.build_meta"
 

@@ -957,7 +957,7 @@ class ConcurrentWavecal(object):
         # Get time as a single precision array, for ccos.getstartstop.
         time = cosutil.getColCopy(data=self.events, column="time")
         dq = np.zeros(len(time), dtype=np.int16)
-        nbins = int(math.ceil((time[-1] - time[0]) / self.delta_t))
+        nbins = int(math.ceil((np.float64(time[-1]) - np.float64(time[0])) / self.delta_t))
         istart = np.zeros(nbins, dtype=np.int32)
         istop = np.zeros(nbins, dtype=np.int32)
         src_counts = np.zeros(nbins, dtype=np.int32)
@@ -1109,7 +1109,7 @@ class ConcurrentWavecal(object):
             for k in range(k_on, k_off+1):
                 if self.src_counts[k] > cutoff:
                     lamp_is_on = True
-                    t = t0 + k * self.delta_t
+                    t = np.float64(t0) + k * self.delta_t
                     lamp_on.append(t)
                     break
             if not lamp_is_on:
@@ -1117,11 +1117,10 @@ class ConcurrentWavecal(object):
             # search for the actual lamp turn-off time
             for k in range(k_off, k_on-1, -1):
                 if self.src_counts[k] > cutoff:
-                    t = t0 + (k+1) * self.delta_t
+                    t = np.float64(t0) + (k+1) * self.delta_t
                     t = min(t, self.time[-1])
                     lamp_off.append(t)
                     break
-
         if len(lamp_on) != len(lamp_off):
             raise RuntimeError("Internal error:  len(lamp_on) = %d, "
                                "len(lamp_off) = %d" % \
@@ -1168,8 +1167,8 @@ class ConcurrentWavecal(object):
             interval (t0, t0+delta_t).
         """
 
-        k_on = (lamp_on_i - t0) / self.delta_t
-        k_off = (lamp_off_i - t0) / self.delta_t
+        k_on = (lamp_on_i - np.float64(t0)) / self.delta_t
+        k_off = (lamp_off_i - np.float64(t0)) / self.delta_t
         k_on = int(math.floor(k_on))
         k_off = int(math.ceil(k_off))
         if k_on >= nbins or k_off < 0:

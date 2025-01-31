@@ -3,7 +3,7 @@ from generate_tempfiles import create_disptab_file
 import os
 
 
-def test_find_airglow_limits():
+def test_find_airglow_limits(tmp_path):
     """
     unit test for find_airglow_limits()
     test ran
@@ -23,7 +23,7 @@ def test_find_airglow_limits():
     inf = {"obstype": "SPECTROSCOPIC", "cenwave": 1055, "aperture": "PSA", "detector": "FUV",
            "opt_elem": "G130M", "segment": "FUVA"}
     seg = ["FUVA", "FUVB"]
-    disptab = create_disptab_file('49g17153l_disp.fits')
+    disptab = create_disptab_file(str(tmp_path / '49g17153l_disp.fits'))
     airglow_lines = ["Lyman_alpha", "N_I_1200", "O_I_1304", "O_I_1356", "N_I_1134"]
     actual_pxl = [
         [], [], (15421.504705213156, 15738.02214190493), (8853.838672375898, 9135.702216258482)]
@@ -39,6 +39,3 @@ def test_find_airglow_limits():
     # Verify
     for i in range(len(actual_pxl)):
         assert actual_pxl[i] == test_pxl[i]
-
-    # Cleanup
-    os.remove(disptab)

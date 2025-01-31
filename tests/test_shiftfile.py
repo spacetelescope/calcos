@@ -1,11 +1,8 @@
-import os
-
 from calcos import shiftfile
 
 def create_shift_file(filename):
     # Create the shift file for use in tests
-    shift_file = "shift_file.txt"
-    with open(shift_file, "w") as file:
+    with open(filename, "w") as file:
         file.write("#dataset\tfpoffset\tflash #\tstripe\tshift1\tshift2\n")
         for i in range(10):
             if i % 3 == 0:
@@ -21,20 +18,18 @@ def create_shift_file(filename):
 
     return
 
-def test_shift_file():
-    shift_file = "shift_file.txt"
+def test_shift_file(tmp_path):
+    shift_file = str(tmp_path / "shift_file.txt")
     create_shift_file(shift_file)
     # Test
     ob = shiftfile.ShiftFile(shift_file, 'abc123def', 'any')
     # Verify
     assert len(ob.user_shift_dict) > 0
-    # Cleanup
-    os.remove(shift_file)
 
 
-def test_get_shifts():
+def test_get_shifts(tmp_path):
     # Setup
-    shift_file = "shift_file.txt"
+    shift_file = str(tmp_path / "shift_file.txt")
     create_shift_file(shift_file)
     ob1 = shiftfile.ShiftFile(shift_file, 'ghi456jkl', 'any')
     ob2 = shiftfile.ShiftFile(shift_file, 'abc123def', 'any')
@@ -52,6 +47,4 @@ def test_get_shifts():
     for i in range(len(expected_values1)):
         assert expected_values1[i] == test_values1[i]
         assert expected_values2[i] == test_values2[i]
-    # Cleanup
-    os.remove(shift_file)
 
