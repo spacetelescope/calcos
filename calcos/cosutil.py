@@ -518,7 +518,7 @@ def getTable(table, filter, extension=1,
 
         # Test for for wildcards in the table.
         wild = None
-        if isinstance(column, np.chararray):
+        if column.dtype.type == np.str_:
             wild = (column == STRING_WILDCARD)
         if wild is not None:
             selected = np.logical_or(selected, wild)
