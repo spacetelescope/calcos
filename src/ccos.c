@@ -117,10 +117,10 @@ bin2d bins a 2-D image to a smaller 2-D image (block sum).
 # include <limits.h>
 # include <time.h>
 
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 # include <numpy/arrayobject.h>
 # include <numpy/npy_3kcompat.h>
 
-# define NPY_NO_DEPRECATED_API NPY_API_VERSION
 # define SZ_ERRMESS 1024
 
 /* This is the multiplier for the pseudo-random number generator.
@@ -357,19 +357,19 @@ static PyObject *ccos_binevents(PyObject *self, PyObject *args) {
 	    PyErr_SetString(PyExc_RuntimeError, "can't read arguments");
 	    return NULL;
 	}
-	if (PyArray_TYPE(ox) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) ox) == NPY_INT16) {
 	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
-	if (PyArray_TYPE(oy) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oy) == NPY_INT16) {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
 	if (x == NULL || y == NULL)
 	    return NULL;
@@ -383,7 +383,7 @@ static PyObject *ccos_binevents(PyObject *self, PyObject *args) {
 	    dq = NULL;
 	} else {
 	    dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	    if (dq == NULL)
 		return NULL;
 	}
@@ -391,7 +391,7 @@ static PyObject *ccos_binevents(PyObject *self, PyObject *args) {
 	    epsilon = NULL;
 	} else {
 	    epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	    if (epsilon == NULL)
 		return NULL;
 	}
@@ -439,8 +439,8 @@ static int binEventsToImage(PyArrayObject *x, PyArrayObject *y,
 	*/
 	f_x_offset = (float)x_offset;
 
-	x_type = x->descr->type_num;
-	y_type = y->descr->type_num;
+	x_type = PyArray_DESCR(x)->type_num;
+	y_type = PyArray_DESCR(y)->type_num;
 
 	n_events = PyArray_DIM(x, 0);
 	nx = PyArray_DIM(array, 1);	/* shape (ny,nx) */
@@ -540,12 +540,12 @@ static PyObject *ccos_bindq(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	lx = (PyArrayObject *)PyArray_FROM_OTF(olx, NPY_INT32, NPY_IN_ARRAY);
-	ly = (PyArrayObject *)PyArray_FROM_OTF(oly, NPY_INT32, NPY_IN_ARRAY);
-	ux = (PyArrayObject *)PyArray_FROM_OTF(oux, NPY_INT32, NPY_IN_ARRAY);
-	uy = (PyArrayObject *)PyArray_FROM_OTF(ouy, NPY_INT32, NPY_IN_ARRAY);
+	lx = (PyArrayObject *)PyArray_FROM_OTF(olx, NPY_INT32, NPY_ARRAY_IN_ARRAY);
+	ly = (PyArrayObject *)PyArray_FROM_OTF(oly, NPY_INT32, NPY_ARRAY_IN_ARRAY);
+	ux = (PyArrayObject *)PyArray_FROM_OTF(oux, NPY_INT32, NPY_ARRAY_IN_ARRAY);
+	uy = (PyArrayObject *)PyArray_FROM_OTF(ouy, NPY_INT32, NPY_ARRAY_IN_ARRAY);
 	flag = (PyArrayObject *)PyArray_FROM_OTF(oflag, NPY_INT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	if (lx == NULL || ly == NULL || ux == NULL || uy == NULL ||
 		flag == NULL)
 	    return NULL;
@@ -659,28 +659,28 @@ static PyObject *ccos_applydq(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	lx = (PyArrayObject *)PyArray_FROM_OTF(olx, NPY_INT32, NPY_IN_ARRAY);
-	ly = (PyArrayObject *)PyArray_FROM_OTF(oly, NPY_INT32, NPY_IN_ARRAY);
-	dx = (PyArrayObject *)PyArray_FROM_OTF(odx, NPY_INT32, NPY_IN_ARRAY);
-	dy = (PyArrayObject *)PyArray_FROM_OTF(ody, NPY_INT32, NPY_IN_ARRAY);
+	lx = (PyArrayObject *)PyArray_FROM_OTF(olx, NPY_INT32, NPY_ARRAY_IN_ARRAY);
+	ly = (PyArrayObject *)PyArray_FROM_OTF(oly, NPY_INT32, NPY_ARRAY_IN_ARRAY);
+	dx = (PyArrayObject *)PyArray_FROM_OTF(odx, NPY_INT32, NPY_ARRAY_IN_ARRAY);
+	dy = (PyArrayObject *)PyArray_FROM_OTF(ody, NPY_INT32, NPY_ARRAY_IN_ARRAY);
 	flag = (PyArrayObject *)PyArray_FROM_OTF(oflag, NPY_INT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	if (lx == NULL || ly == NULL || dx == NULL || dy == NULL ||
 		flag == NULL)
 	    return NULL;
-	if (PyArray_TYPE(ox) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) ox) == NPY_INT16) {
 	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
-	if (PyArray_TYPE(oy) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oy) == NPY_INT16) {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
 	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
 			NPY_ARRAY_INOUT_ARRAY2);
@@ -733,8 +733,8 @@ static int applyDQToEvents(int lx[], int ly[],
 	short c_dq;		/* data quality column value */
 
 	n_events = PyArray_DIM(x, 0);	/* rows in events table */
-	x_type = x->descr->type_num;
-	y_type = y->descr->type_num;
+	x_type = PyArray_DESCR(x)->type_num;
+	y_type = PyArray_DESCR(y)->type_num;
 
 	c_ux = PyMem_Malloc(nrows * sizeof(int));
 	c_uy = PyMem_Malloc(nrows * sizeof(int));
@@ -811,7 +811,7 @@ static PyObject *ccos_dq_or(PyObject *self, PyObject *args) {
 	}
 
 	dq_2d = (PyArrayObject *)PyArray_FROM_OTF(odq_2d, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	dq_1d = (PyArrayObject *)PyArray_FROM_OTF(odq_1d, NPY_INT16,
 			NPY_ARRAY_INOUT_ARRAY2);
 	if (dq_2d == NULL || dq_1d == NULL)
@@ -898,24 +898,24 @@ static PyObject *ccos_applyflat(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	if (PyArray_TYPE(ox) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) ox) == NPY_INT16) {
 	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
-	if (PyArray_TYPE(oy) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oy) == NPY_INT16) {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	} else {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	}
 	epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
 			NPY_ARRAY_INOUT_ARRAY2);
 	flat = (PyArrayObject *)PyArray_FROM_OTF(oflat, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	if (x == NULL || y == NULL || epsilon == NULL || flat == NULL)
 	    return NULL;
 
@@ -945,8 +945,8 @@ static void applyFlatField(PyArrayObject *x, PyArrayObject *y,
 	/* individual values */
 	float c_x, c_y, c_flat;
 
-	x_type = x->descr->type_num;
-	y_type = y->descr->type_num;
+	x_type = PyArray_DESCR(x)->type_num;
+	y_type = PyArray_DESCR(y)->type_num;
 
 	n_events = PyArray_DIM(x, 0);	/* rows in events table */
 	nx = PyArray_DIM(flat, 1);	/* shape (ny,nx) */
@@ -1012,7 +1012,7 @@ static PyObject *ccos_range(PyObject *self, PyObject *args) {
 	}
 
 	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT64,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	if (time == NULL)
 	    return NULL;
 
@@ -1035,7 +1035,7 @@ static PyObject *timeRange(PyArrayObject *time, double t0, double t1) {
 	PyObject *indices;
 
 	/* Get the data type of the input time array. */
-	time_type = time->descr->type_num;
+	time_type = PyArray_DESCR(time)->type_num;
 
 	if (t1 < t0) {			/* swap, if out of order */
 	    temp = t0;
@@ -1182,12 +1182,12 @@ static PyObject *ccos_unbinaccum(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	if (PyArray_TYPE(oimage) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oimage) == NPY_INT16) {
 	    image = (PyArrayObject *)PyArray_FROM_OTF(oimage, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    image = (PyArrayObject *)PyArray_FROM_OTF(oimage, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
 	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
 		NPY_ARRAY_INOUT_ARRAY2);
@@ -1229,7 +1229,7 @@ static int unbinImage(PyArrayObject *image, int x_offset,
 	int counts;			/* value of image at a pixel */
 	int n;				/* loop index over counts */
 
-	image_type = image->descr->type_num;
+	image_type = PyArray_DESCR(image)->type_num;
 
 	nx = PyArray_DIM(image, 1);		/* shape (ny,nx) */
 	ny = PyArray_DIM(image, 0);
@@ -1375,7 +1375,7 @@ static PyObject *ccos_convolve1d(PyObject *self, PyObject *args) {
 	flat = (PyArrayObject *)PyArray_FROM_OTF(oflat, NPY_FLOAT32,
 		NPY_ARRAY_INOUT_ARRAY2);
 	dopp = (PyArrayObject *)PyArray_FROM_OTF(odopp, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	if (flat == NULL || dopp == NULL)
 	    return NULL;
 
@@ -1543,21 +1543,21 @@ static PyObject *ccos_extractband(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	if (PyArray_TYPE(oindata) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oindata) == NPY_INT16) {
 	    indata = (PyArrayObject *)PyArray_FROM_OTF(oindata, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    indata = (PyArrayObject *)PyArray_FROM_OTF(oindata, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
 	if (indata == NULL)
 	    return NULL;
-	if (PyArray_TYPE(ooutdata) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) ooutdata) == NPY_INT16) {
 	    outdata = (PyArrayObject *)PyArray_FROM_OTF(ooutdata, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    outdata = (PyArrayObject *)PyArray_FROM_OTF(ooutdata, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
 	if (outdata == NULL)
 	    return NULL;
@@ -1601,8 +1601,8 @@ static int extract2DBand(PyArrayObject *indata,
 	*/
 	intercept -= slope * (double)x_offset;
 
-	data_type = indata->descr->type_num;
-	if (data_type != outdata->descr->type_num) {
+	data_type = PyArray_DESCR(indata)->type_num;
+	if (data_type != PyArray_DESCR(outdata)->type_num) {
 	    PyErr_SetString(PyExc_RuntimeError,
 			"indata and outdata must be of the same data type");
 	    return 1;
@@ -1749,7 +1749,7 @@ static PyObject *ccos_smoothbkg(PyObject *self, PyObject *args) {
 	    PyMem_Free(dummy_flags);
 	} else {
 	    flags = (PyArrayObject *)PyArray_FROM_OTF(oflags, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	    if (flags == NULL) {
 		Py_DECREF(data);
 		return NULL;
@@ -1898,11 +1898,11 @@ static PyObject *ccos_addlines(PyObject *self, PyObject *args) {
 	}
 
 	intensity = (PyArrayObject *)PyArray_FROM_OTF(ointensity,
-			NPY_FLOAT32, NPY_IN_ARRAY);
+			NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
 	wavelength = (PyArrayObject *)PyArray_FROM_OTF(owavelength,
-			NPY_FLOAT64, NPY_IN_ARRAY);
+			NPY_FLOAT64, NPY_ARRAY_IN_ARRAY);
 	x1d_wl = (PyArrayObject *)PyArray_FROM_OTF(ox1d_wl,
-			NPY_FLOAT64, NPY_IN_ARRAY);
+			NPY_FLOAT64, NPY_ARRAY_IN_ARRAY);
 	template = (PyArrayObject *)PyArray_FROM_OTF(otemplate,
 			NPY_FLOAT32, NPY_ARRAY_INOUT_ARRAY2);
 	if (intensity == NULL || wavelength == NULL ||
@@ -2184,9 +2184,9 @@ static PyObject *ccos_geocorrection(PyObject *self, PyObject *args) {
 	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
 			NPY_ARRAY_INOUT_ARRAY2);
 	x_image = (PyArrayObject *)PyArray_FROM_OTF(ox_image, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	y_image = (PyArrayObject *)PyArray_FROM_OTF(oy_image, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	if (x == NULL || y == NULL || x_image == NULL || y_image == NULL)
 	    return NULL;
 
@@ -2291,13 +2291,13 @@ static PyObject *ccos_walkcorrection(PyObject *self, PyObject *args) {
 	}
 
 	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	image = (PyArrayObject *)PyArray_FROM_OTF(o_image, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	delta = (PyArrayObject *)PyArray_FROM_OTF(o_delta, NPY_FLOAT32,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY);
 	if (x == NULL || y == NULL || image == NULL || delta == NULL)
 	    return NULL;
 
@@ -2414,17 +2414,17 @@ static PyObject *ccos_pha_check(PyObject *self, PyObject *args) {
 	}
 
 	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	pha = (PyArrayObject *)PyArray_FROM_OTF(opha, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY);
 	im_low = (PyArrayObject *)PyArray_FROM_OTF(oim_low, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	im_high = (PyArrayObject *)PyArray_FROM_OTF(oim_high, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	if (x == NULL || y == NULL || pha == NULL || dq == NULL ||
 		im_low == NULL || im_high == NULL)
 	    return NULL;
@@ -2571,15 +2571,15 @@ static PyObject *ccos_clear_rows(PyObject *self, PyObject *args) {
 	}
 
 	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY);
 	y_lower = (PyArrayObject *)PyArray_FROM_OTF(oy_lower, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	y_upper = (PyArrayObject *)PyArray_FROM_OTF(oy_upper, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	x_left  = (PyArrayObject *)PyArray_FROM_OTF(ox_left, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	x_right = (PyArrayObject *)PyArray_FROM_OTF(ox_right, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	if (dq == NULL ||
 	    y_lower == NULL || y_upper == NULL ||
 	    x_left  == NULL || x_right == NULL)
@@ -2696,11 +2696,11 @@ static PyObject *ccos_interp1d(PyObject *self, PyObject *args) {
 	}
 
 	x_a = (PyArrayObject *)PyArray_FROM_OTF(ox_a, NPY_FLOAT64,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	y_a = (PyArrayObject *)PyArray_FROM_OTF(oy_a, NPY_FLOAT64,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	x_b = (PyArrayObject *)PyArray_FROM_OTF(ox_b, NPY_FLOAT64,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	y_b = (PyArrayObject *)PyArray_FROM_OTF(oy_b, NPY_FLOAT64,
 		NPY_ARRAY_INOUT_ARRAY2);
 	if (x_a == NULL || y_a == NULL || x_b == NULL || y_b == NULL)
@@ -2839,11 +2839,11 @@ static PyObject *ccos_getstartstop(PyObject *self, PyObject *args) {
 	}
 
 	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	istart = (PyArrayObject *)PyArray_FROM_OTF(oistart, NPY_INT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY);
 	istop = (PyArrayObject *)PyArray_FROM_OTF(oistop, NPY_INT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY);
 	if (time == NULL || istart == NULL || istop == NULL)
 	    return NULL;
 
@@ -3004,22 +3004,22 @@ static PyObject *ccos_getbkgcounts(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	if (PyArray_TYPE(oy) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oy) == NPY_INT16) {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
-	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_IN_ARRAY);
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_ARRAY_IN_ARRAY);
 	istart = (PyArrayObject *)PyArray_FROM_OTF(oistart, NPY_INT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	istop = (PyArrayObject *)PyArray_FROM_OTF(oistop, NPY_INT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	bkg_counts = (PyArrayObject *)PyArray_FROM_OTF(obkg_counts, NPY_INT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY);
 	src_counts = (PyArrayObject *)PyArray_FROM_OTF(osrc_counts, NPY_INT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY);
 	if (y == NULL || dq == NULL || istart == NULL || istop == NULL ||
 		bkg_counts == NULL || src_counts == NULL)
 	    return NULL;
@@ -3082,7 +3082,7 @@ bkgsf 			i: background scale factor
 	/* individual values */
 	float c_y;
 
-	y_type = y->descr->type_num;
+	y_type = PyArray_DESCR(y)->type_num;
 
 	/* Fill in the values for the number of source and background
 	   counts within each time interval.
@@ -3175,17 +3175,17 @@ static PyObject *ccos_smallerbursts(PyObject *self, PyObject *args) {
 	}
 
 	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY);
 	istart = (PyArrayObject *)PyArray_FROM_OTF(oistart, NPY_INT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	istop = (PyArrayObject *)PyArray_FROM_OTF(oistop, NPY_INT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	bkg_counts = (PyArrayObject *)PyArray_FROM_OTF(obkg_counts, NPY_INT32,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY);
 	src_counts = (PyArrayObject *)PyArray_FROM_OTF(osrc_counts, NPY_INT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	if (time == NULL || dq == NULL || istart == NULL || istop == NULL ||
 		bkg_counts == NULL || src_counts == NULL)
 	    return NULL;
@@ -3424,8 +3424,8 @@ static PyObject *ccos_getbadtime(PyObject *self, PyObject *args) {
 	}
 
 	time = (PyArrayObject *)PyArray_FROM_OTF(otime, NPY_FLOAT32,
-		NPY_IN_ARRAY);
-	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_ARRAY_IN_ARRAY);
 	if (time == NULL || dq == NULL)
 	    return NULL;
 
@@ -3534,25 +3534,25 @@ static PyObject *ccos_xy_extract(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	if (PyArray_TYPE(oxi) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oxi) == NPY_INT16) {
 	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
-	if (PyArray_TYPE(oeta) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oeta) == NPY_INT16) {
 	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
 	if (xi == NULL || eta == NULL)
 	    return NULL;
 
 	outdata = (PyArrayObject *)PyArray_FROM_OTF(ooutdata, NPY_FLOAT64,
-		NPY_INOUT_ARRAY);
+		NPY_ARRAY_INOUT_ARRAY);
 	if (outdata == NULL)
 	    return NULL;
 
@@ -3560,7 +3560,7 @@ static PyObject *ccos_xy_extract(PyObject *self, PyObject *args) {
 	    dq = NULL;
 	} else {
 	    dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	    if (dq == NULL)
 		return NULL;
 	}
@@ -3568,7 +3568,7 @@ static PyObject *ccos_xy_extract(PyObject *self, PyObject *args) {
 	    epsilon = NULL;
 	} else {
 	    epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 	    if (epsilon == NULL)
 		return NULL;
 	}
@@ -3621,8 +3621,8 @@ static int extrFromEvents(PyArrayObject *xi, PyArrayObject *eta,
 	    return 1;
 	}
 
-	xi_type = xi->descr->type_num;
-	eta_type = eta->descr->type_num;
+	xi_type = PyArray_DESCR(xi)->type_num;
+	eta_type = PyArray_DESCR(eta)->type_num;
 
 	/* shape is (ny,nx), nx is in the dispersion direction */
 	nx = PyArray_DIM(outdata, 1);
@@ -3718,21 +3718,21 @@ static PyObject *ccos_xy_collapse(PyObject *self, PyObject *args) {
 	    return NULL;
 	}
 
-	if (PyArray_TYPE(oxi) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oxi) == NPY_INT16) {
 	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    xi = (PyArrayObject *)PyArray_FROM_OTF(oxi, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
-	if (PyArray_TYPE(oeta) == NPY_INT16) {
+	if (PyArray_TYPE((PyArrayObject*) oeta) == NPY_INT16) {
 	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_INT16,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	} else {
 	    eta = (PyArrayObject *)PyArray_FROM_OTF(oeta, NPY_FLOAT32,
-		NPY_IN_ARRAY);
+		NPY_ARRAY_IN_ARRAY);
 	}
-	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_IN_ARRAY);
+	dq = (PyArrayObject *)PyArray_FROM_OTF(odq, NPY_INT16, NPY_ARRAY_IN_ARRAY);
 	xdisp = (PyArrayObject *)PyArray_FROM_OTF(oxdisp, NPY_FLOAT64,
 		NPY_ARRAY_INOUT_ARRAY2);
 	if (xi == NULL || eta == NULL || dq == NULL || xdisp == NULL)
@@ -3778,8 +3778,8 @@ static int collapseFromEvents(PyArrayObject *xi, PyArrayObject *eta,
 	double c_xi, c_eta;
 	int i, j;		/* nearest integers to c_xi, c_eta */
 
-	xi_type = xi->descr->type_num;
-	eta_type = eta->descr->type_num;
+	xi_type = PyArray_DESCR(xi)->type_num;
+	eta_type = PyArray_DESCR(eta)->type_num;
 
 	for (i = 0;  i < length;  i++)
 	    xdisp[i] = 0.;
@@ -3842,16 +3842,16 @@ static PyObject *ccos_csum_3d(PyObject *self, PyObject *args) {
 	}
 
 	array = (PyArrayObject *)PyArray_FROM_OTF(oarray, NPY_FLOAT32,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY);
 	if (array == NULL)
 	    return NULL;
 
-	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32, NPY_IN_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32, NPY_IN_ARRAY);
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
 
 	epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
-			NPY_IN_ARRAY);
-	pha = (PyArrayObject *)PyArray_FROM_OTF(opha, NPY_INT16, NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
+	pha = (PyArrayObject *)PyArray_FROM_OTF(opha, NPY_INT16, NPY_ARRAY_IN_ARRAY);
 
 	if (x == NULL || y == NULL || epsilon == NULL || pha == NULL)
 	    return NULL;
@@ -3952,15 +3952,15 @@ static PyObject *ccos_csum_2d(PyObject *self, PyObject *args) {
 	}
 
 	array = (PyArrayObject *)PyArray_FROM_OTF(oarray, NPY_FLOAT32,
-			NPY_INOUT_ARRAY);
+			NPY_ARRAY_INOUT_ARRAY);
 	if (array == NULL)
 	    return NULL;
 
-	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32, NPY_IN_ARRAY);
-	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32, NPY_IN_ARRAY);
+	x = (PyArrayObject *)PyArray_FROM_OTF(ox, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+	y = (PyArrayObject *)PyArray_FROM_OTF(oy, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
 
 	epsilon = (PyArrayObject *)PyArray_FROM_OTF(oepsilon, NPY_FLOAT32,
-			NPY_IN_ARRAY);
+			NPY_ARRAY_IN_ARRAY);
 
 	if (x == NULL || y == NULL || epsilon == NULL)
 	    return NULL;
@@ -4037,9 +4037,9 @@ static PyObject *ccos_bin2d(PyObject *self, PyObject *args) {
 	}
 
 	array = (PyArrayObject *)PyArray_FROM_OTF(oarray,
-			NPY_FLOAT32, NPY_IN_ARRAY);
+			NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
 	binned_array = (PyArrayObject *)PyArray_FROM_OTF(obinned_array,
-			NPY_FLOAT32, NPY_INOUT_ARRAY);
+			NPY_FLOAT32, NPY_ARRAY_INOUT_ARRAY);
 	if (array == NULL || binned_array == NULL)
 	    return NULL;
 
