@@ -594,6 +594,29 @@ def getReferenceBackground(profile, goodcolumns, refcenter, regions):
     return background
 
 def getReferenceCentroid(proftab, info, goodcolumns, regions):
+    """Determine centroid from reference profile
+
+    Parameters
+    ----------
+
+    proftab : str
+        Name of PROFTAB reference file
+
+    info : dict
+        Dictionary of basic info for the exposure
+
+    goodcolumns : slice
+        Slice of good columns
+
+    regions : dict
+        Dictionary of info about extraction regions
+
+    Returns
+    -------
+
+    centroid : float
+        Calculated centroid
+    """
     #
     # Select the row on OPT_ELEM, CENWAVE, SEGMENT and APERTURE
     filter = {'OPT_ELEM': info['opt_elem'],
@@ -609,12 +632,20 @@ def getReferenceCentroid(proftab, info, goodcolumns, regions):
         cosutil.printMsg("Using profile reference file %s" % (proftab))
     #
     # Get the profile and center
+    # profile is a 2-d reference spectrum that is used to find out the
+    # encircled energy profile for this setting in each column
     profile = prof_row['PROFILE'][0]
     nrows, ncols = profile.shape
+    # profile only contains a range of rows, unlike the science data
+    # row_0 is where the first row of profile sits in the science data
     row_0 = prof_row['ROW_0'][0]
+    # refcenter is the center of the profile calculated using the full
+    # range of rows
     refcenter = prof_row['CENTER'][0]
     n_iterations = 5
     for iteration in range(n_iterations):
+        # profcenter is the row coordinate of the profile center in the
+        # profile array
         profcenter = refcenter - row_0
         cosutil.printMsg("Input Reference centroid = %f, row_0 = %d" %
                          (refcenter, row_0))
@@ -625,9 +656,16 @@ def getReferenceCentroid(proftab, info, goodcolumns, regions):
                                             profcenter, regions)
         centroid = getCentroid(profile, goodcolumns, rowstart, rowstop, 
                                background=background)
-        ref_centroid =  centroid + row_0
-        cosutil.printMsg("Measured reference centroid = %f" %
-                         (ref_centroid))
+        if centroid is None:
+            # If getCentroid is unable to determine the centroid, it returns None
+            # In that case, set ref_centroid to the value specified in the reference
+            # file, in full-height coordinates
+            ref_centroid = refcenter
+            cosutil.printWarning("Unable to determine centroid in reference spectrum")
+            cosutil.printContinuation(f"Using default value of {ref_centroid}")
+        else:
+            ref_centroid =  centroid + row_0
+            cosutil.printMsg(f"Measured reference centroid = {ref_centroid}")
         difference = (refcenter - ref_centroid)
         if abs(difference) < 0.005:
             cosutil.printMsg("Reference centroid calculation converged")
