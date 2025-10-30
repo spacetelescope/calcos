@@ -30,7 +30,7 @@ test = ["ci-watson", "pytest", "pytest-cov"]
 
 [build-system]
 requires = [
-  "setuptools>=42.0",
+  "setuptools>=61.2",
   "setuptools_scm[toml]>=3.4",
   "wheel",
   "numpy>=2.0.0",
