@@ -606,8 +606,6 @@ def globrate_tt(exptime, detector):
         The global count rate, counts per second
     """
 
-    global active_area
-
     if exptime <= 0.:
         return 0.
 
