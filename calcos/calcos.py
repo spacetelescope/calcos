@@ -2133,8 +2133,6 @@ class Observation(object):
     def openTrailer(self, first=False):
         """Open the trailer file for this file."""
 
-        global raw_input_trailer
-
         if raw_input_trailer:           # handled separately
             return
 
@@ -2144,8 +2142,6 @@ class Observation(object):
 
     def closeTrailer(self):
         """Close the trailer file for this file."""
-
-        global raw_input_trailer
 
         if raw_input_trailer:           # handled separately
             return

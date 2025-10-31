@@ -2933,7 +2933,6 @@ def openTrailer(filename):
     """
 
     global fd_trl
-    global write_to_trailer
 
     if not write_to_trailer:
         fd_trl = None

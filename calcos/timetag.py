@@ -1151,8 +1151,6 @@ def filterByPulseHeight(pha, dq, phatab, info, hdr):
         number of rejected events will be assigned.
     """
 
-    global active_area
-
     segment = info["segment"]
     filter = {"segment": segment}
     if cosutil.findColumn(phatab, "opt_elem"):
@@ -1315,8 +1313,6 @@ def doRandcorr(events, info, switches, reffiles, phdr):
     phdr: astropy.io.fits Header object
         Primary header.
     """
-
-    global active_area
 
     if info["detector"] == "FUV":
         cosutil.printSwitch("RANDCORR", switches)
@@ -2218,7 +2214,6 @@ def bilinear_interpolation(fastCoordinate, slowCoordinate,
 def applyWalkCorrection(events, xcorrection, ycorrection):
     """Apply the walk correction
     """
-    global active_area
     if xcorrection is not None:
         events['xcorr'] = np.where(active_area, events['xcorr'] - xcorrection,
                                    events['xcorr'])
@@ -2822,8 +2817,6 @@ def fuvDopplerRegions(eta, info, xtractab):
         appropriate to apply Doppler correction.  There is one element for
         each event in the table.
     """
-
-    global active_area
 
     region_flags = active_area.copy()
 
@@ -4488,9 +4481,6 @@ def updateFromWavecal(events, wavecal_info, wavecorr,
         is a wavecal or if wavecal processing was not done.
     """
 
-    global xcorr, ycorr, xdopp, ydopp, xfull, yfull
-    global active_area
-
     # Read info from wavecal parameters table.
     wcp_info = cosutil.getTable(reffiles["wcptab"],
                                 filter={"opt_elem": info["opt_elem"]},
@@ -4978,8 +4968,6 @@ def fuvPsaWcaRegions(eta, info, xtractab):
         region.
     """
 
-    global active_area
-
     psa_region_flags = active_area.copy()
     wca_region_flags = active_area.copy()
 
@@ -5262,8 +5250,6 @@ def getWavecalOffsets(events, info, wavecorr, xtractab, brftab):
         direction.
     """
 
-    global active_area
-
     minmax_shift_dict = {}
 
     # wavecorr can be set to SKIPPED for FUVB data if there is no wavecal
@@ -5362,8 +5348,6 @@ def copyColumns(events):
     events: astropy.io.fits record array
         The data unit containing the events table.
     """
-
-    global xcorr, ycorr, xdopp, ydopp, xfull, yfull
 
     xi  = events.field(xcorr)
     eta = events.field(ycorr)
