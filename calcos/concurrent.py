@@ -1924,8 +1924,6 @@ class NUVImagingWavecal(ConcurrentWavecal):
     def findShifts(self):
         """For each wavecal flash, find the shift in each axis."""
 
-        global X0, Y0, DX, DY
-
         fpoffset = self.info["fpoffset"]
         segment = self.segment_list[0]          # don't really need segment
 
