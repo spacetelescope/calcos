@@ -1,5 +1,3 @@
-from __future__ import division         # confidence high
-
 ta1image_range =  [8952, 8965]
 ta1bright_range = [9419, 9425]
 nuv_tv_dayrange = [264, 294]

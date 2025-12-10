@@ -1,7 +1,6 @@
-from __future__ import division         # confidence unknown
 import math
 import numpy as np
-import astropy.io.fits as fits
+from astropy.io import fits
 
 TWOPI       = 2. * math.pi
 SEC_PER_DAY = 86400.0

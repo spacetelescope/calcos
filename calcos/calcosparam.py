@@ -1,16 +1,4 @@
-from __future__ import division         # confidence high
-
 # This file defines parameters used by calcos.
-
-
-# Version numbers used to be defined here.  The d2to1 based install
-# keeps the version numbers in setup.cfg, where they get copied to
-# version.py at install time.  In principle, everybody who needs
-# version numbers could get them from version.py, but notice that
-# CALCOS_VERSION does not correspond to anything that is there.
-# Rather than having some versions in one file and some versions
-# in another, it seems conceptually cleaner to continue making
-# all the version information available here in calcosparam.
 from . import __version__
 
 CALCOS_VERSION_NUMBER = __version__

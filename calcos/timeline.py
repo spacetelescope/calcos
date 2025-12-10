@@ -1,8 +1,7 @@
-from __future__ import absolute_import, division         # confidence unknown
 import math
 import os
 import numpy as np
-import astropy.io.fits as fits
+from astropy.io import fits
 from . import cosutil
 from . import dispersion
 from . import orbit
@@ -35,7 +34,7 @@ def createTimeline(input, fd, info, reffiles,
     input: str
         Name of input file (used only for creating spt file name).
 
-    fd: pyfits HDUList object
+    fd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         List of HDUs in corrtag file.
 
     info: dictionary
@@ -327,12 +326,12 @@ def timelineHDU(nrows_timeline, hdr):
     nrows_timeline: int
         Number of rows for the timeline table.
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         EVENTS extension header.
 
     Returns
     -------
-    pyfits BinTableHDU object
+    ``astropy.io.fits.hdu.table.BinTableHDU`` object
         Header/data unit for a timeline table.
     """
 

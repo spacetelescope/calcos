@@ -4,8 +4,7 @@
 #  data - the TRCECORR and ALGNCORR steps
 #
 
-from __future__ import division, absolute_import
-import astropy.io.fits as fits
+from astropy.io import fits
 import numpy as np
 import math
 

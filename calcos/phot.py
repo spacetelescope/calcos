@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division         # confidence high
-
 from . import cosutil
 
 def doPhot(imphttab, obsmode, hdr):
@@ -19,7 +17,7 @@ def doPhot(imphttab, obsmode, hdr):
     obsmode: str
         Observation mode (e.g. "cos,nuv,mirrora,psa").
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         The first extension header, updated in-place.
     """
 

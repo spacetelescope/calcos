@@ -1,8 +1,7 @@
-from __future__ import absolute_import, division         # confidence high
 import copy
 import os
 import numpy as np
-import astropy.io.fits as fits
+from astropy.io import fits
 from astropy.stats import poisson_conf_interval
 from . import cosutil
 from . import ccos
@@ -415,15 +414,15 @@ def doExtract(ifd_e, ifd_c, ofd, nelem,
 
     Parameters
     ----------
-    ifd_e: pyfits ImageHDU object
+    ifd_e: ``astropy.io.fits.hdu.imageImageHDU`` object
         Header/data unit for either the effective count-rate image or for
         the corrtag events table
 
-    ifd_c: pyfits ImageHDU object
+    ifd_c: ``astropy.io.fits.hdu.image.ImageHDU`` object
         Header/data unit for the count-rate image, or None if the input is
         a corrtag events table
 
-    ofd: pyfits HDUList object
+    ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         List of header/data units for the output file, modified in-place
 
     nelem: int
@@ -729,7 +728,7 @@ def postargOffset(phdr, dispaxis):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         Primary header
 
     dispaxis: int
@@ -775,7 +774,7 @@ def getColumns(ifd_e, detector):
 
     Parameters
     ----------
-    ifd_e: pyfits ImageHDU object
+    ifd_e: ``astropy.io.fits.hdu.image.ImageHDU`` object
         Header/data unit for the corrtag events table
 
     detector: str
@@ -882,7 +881,7 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
     e_dq_data: 2-D array
         DQ data from the flt file
 
-    ofd_header: pyfits Header object
+    ofd_header: ``astropy.io.fits.header.Header`` object
         header of the output table (for updating keywords)
 
     segment: str
@@ -907,7 +906,7 @@ def extractSegmentBoxcar(e_data, c_data, e_dq_data, ofd_header, segment,
     axis: int
         The dispersion axis, 0 (Y) or 1 (X)
 
-    xtract_info: pyfits record object
+    xtract_info: ``astropy.io.fits.fitsrec.FITS_record`` object
         One row of the xtractab
 
     shift2: float
@@ -1304,7 +1303,7 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     e_dq_data: 2-D array
         DQ data from the flt file
 
-    ofd_header: pyfits Header object
+    ofd_header: ``astropy.io.fits.header.Header`` object
         header of the output table (for updating keywords)
 
     segment: str
@@ -1332,10 +1331,10 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
     axis: int
         The dispersion axis, 0 (Y) or 1 (X)
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         Extension header of the flt file
 
-    xtract_info: pyfits record object
+    xtract_info: ``astropy.io.fits.fitsrec.FITS_record`` object
         One row of the xtractab
 
     shift2: float
@@ -1345,8 +1344,9 @@ def extractSegmentTwozone(e_data, c_data, e_dq_data, ofd_header, segment,
         have been taken into account when binning to the flt and counts
         images.
 
-    proftab_info: pyfits record array
+    proftab_info: ``astropy.io.fits.fitsrec.FITS_record`` array
         Required row of the PROFTAB reference file
+
     info: dictionary
         Header keywords and values
 
@@ -1876,7 +1876,7 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
     dq_array: 2-D array
         DQ array, created from the bad pixel table
 
-    ofd_header: pyfits Header object
+    ofd_header: ``astropy.io.fits.header.Header`` object
         header of the output table (for updating keywords)
 
     segment: str
@@ -1904,7 +1904,7 @@ def extractCorrtag(xi, eta, dq, epsilon, dq_array,
     axis: int
         The dispersion axis, 0 (Y) or 1 (X)
 
-    xtract_info: pyfits record object
+    xtract_info: ``astropy.io.fits.fitsrec.FITS_record`` object
         One row of the xtractab
 
     shift1: float
@@ -2160,7 +2160,7 @@ def doFluxCorr(ofd, info, reffiles, tdscorr):
 
     Parameters
     ----------
-    ofd: pyfits HDUList object
+    ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         HDUList for the output table; the primary header will be modified
         to set FLUXCORR to COMPLETE, and TDSCORR may be set to either
         COMPLETE or SKIPPED
@@ -2319,7 +2319,7 @@ def getTdsFactors(tdstab, filter, t_obs):
     intercept = tds_info.field("intercept")[0]          # 2-D array
 
     # temporary, xxx
-    # This section is needed because pyfits currently ignores TDIMi.
+    # This section is needed because astropy.io.fits currently ignores TDIMi.
     maxt = len(time)
     maxwl = len(wl_tds)
     slope = np.reshape(slope, (maxt, maxwl))
@@ -2359,7 +2359,7 @@ def updateExtractionKeywords(hdr, segment, slope, height,
 
     Parameters
     ----------
-    ofd_header: pyfits Header object
+    ofd_header: ``astropy.io.fits.header.Header`` object
         Header of the output table.
 
     segment: str
@@ -2537,7 +2537,7 @@ def updateArchiveSearch(ofd):
 
     Parameters
     ----------
-    ofd: pyfits HDUList object
+    ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         Output, primary header will be modified in-place
     """
 
@@ -2736,13 +2736,13 @@ def updateGsagComment(phdr0, phdr1, phdr_list):
 
     Parameters
     ----------
-    phdr0: pyfits Header object
+    phdr0: ``astropy.io.fits.header.Header`` object
         Primary header of the first input file (for segment A)
 
-    phdr1: pyfits Header object
+    phdr1: ``astropy.io.fits.header.Header`` object
         Primary header of the second input file (for segment B)
 
-    phdr_list: list of pyfits Header objects
+    phdr_list: list of ``astropy.io.fits.header.Header`` objects
         Output primary headers, modified in-place
     """
 
@@ -2786,19 +2786,19 @@ def copySegments(data_a, nrows_a, data_b, nrows_b, outdata):
 
     Parameters
     ----------
-    data_a: pyfits recarray object
+    data_a: ``astropy.io.fits.fitsrec.FITS_rec`` object
         Data block for segment A (may have no data)
 
     nrows_a: int
         Length of data_a (may be zero)
 
-    data_b: pyfits recarray object
+    data_b: ``astropy.io.fits.fitsrec.FITS_rec`` object
         Data block for segment B (may have no data)
 
     nrows_b: int
         Length of data_b (may be zero)
 
-    outdata: pyfits recarray object
+    outdata: ``astropy.io.fits.fitsrec.FITS_rec`` object
         Data block with nrows_a + nrows_b rows
     """
 

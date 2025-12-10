@@ -1,9 +1,8 @@
-from __future__ import absolute_import, division         # confidence high
 import glob
 import math
 import os
 import numpy as np
-import astropy.io.fits as fits
+from astropy.io import fits
 from . import cosutil
 from . import ccos
 
@@ -185,10 +184,10 @@ def getInfo(input, phdr, hdr):
     input: str
         Name of input file
 
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         Primary header of input file
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         EVENTS extension header of input file
 
     Returns
@@ -476,10 +475,10 @@ def copyRows(data, ofd, i, j):
 
     Parameters
     ----------
-    data: pyfits record array
+    data: ``astropy.io.fits.fitsrec.FITS_rec`` record array
         The data block of the EVENTS table extension
 
-    ofd: pyfits HDUList object
+    ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         The data block of the EVENTS table extension
 
     i: int
@@ -497,12 +496,12 @@ def getGTI(ifd):
 
     Parameters
     ----------
-    ifd: pyfits HDUList object
-        The pyfits file handle for the input file
+    ifd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
+        The fits file handle for the input file
 
     Returns
     -------
-    pyfits BinTableHDU object, or None
+    ``astropy.io.fits.hdu.table.BinTableHDU`` object, or None
         The GTI extension from the input file, or None if there isn't one
     """
 
@@ -529,7 +528,7 @@ def createNewGTI(gti_hdu, t0, t1):
 
     Parameters
     ----------
-    gti_hdu: pyfits BinTableHDU object, or None
+    gti_hdu: ``astropy.io.fits.hdu.table.BinTableHDU`` object, or None
         The GTI table from the input file (may be None)
 
     t0: float
@@ -540,7 +539,7 @@ def createNewGTI(gti_hdu, t0, t1):
 
     Returns
     -------
-    pyfits BinTableHDU object
+    ``astropy.io.fits.hdu.table.BinTableHDU`` object
         A GTI table to append to the output file
     """
 
@@ -602,12 +601,12 @@ def getTimeline(ifd):
 
     Parameters
     ----------
-    ifd: pyfits HDUList object
-        The pyfits file handle for the input file.
+    ifd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
+        The fits file handle for the input file.
 
     Returns
     -------
-    pyfits BinTableHDU object, or None
+    ``astropy.io.fits.hdu.table.BinTableHDU`` object, or None
         The TIMELINE extension from the input file, if there is one.
     """
 
@@ -635,7 +634,7 @@ def createNewTimeline(timeline_hdu, t0, t1):
 
     Parameters
     ----------
-    timeline_hdu: pyfits BinTableHDU object, or None
+    timeline_hdu: ``astropy.io.fits.hdu.table.BinTableHDU`` object, or None
         The TIMELINE table from the input file (may be None).
 
     t0: float
@@ -646,7 +645,7 @@ def createNewTimeline(timeline_hdu, t0, t1):
 
     Returns
     -------
-    pyfits BinTableHDU object, or None
+    ``astropy.io.fits.hdu.table.BinTableHDU`` object, or None
         A TIMELINE table to append to the output file, or None.  If
         there is no TIMELINE extension in the input file (indicated by
         timeline_hdu being None) or if the time increment is zero or
@@ -701,7 +700,7 @@ def updateKeywords(info, out_gti_hdu, t0, t1, nevents, ofd):
     info: dictionary
         Keywords and values from the input header
 
-    out_gti_hdu: pyfits BinTableHDU object
+    out_gti_hdu: ``astropy.io.fits.hdu.table.BinTableHDU`` object
         Header/data unit for the GTI table for the output file
 
     t0: float
@@ -713,8 +712,8 @@ def updateKeywords(info, out_gti_hdu, t0, t1, nevents, ofd):
     nevents: int
         Number of events in the output EVENTS table
 
-    ofd: pyfits HDUList object
-        The pyfits file handle for the output file
+    ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
+        The fits file handle for the output file
     """
 
     phdr = ofd[0].header

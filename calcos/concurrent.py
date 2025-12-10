@@ -1,9 +1,8 @@
-from __future__ import absolute_import, division         # confidence high
 import copy
 import math
 import os
 import numpy as np
-import astropy.io.fits as fits
+from astropy.io import fits
 from . import cosutil
 from . import dispersion
 from . import extract
@@ -61,10 +60,10 @@ def processConcurrentWavecal(events, outflash, shift_file,
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: FITS Header object
         Primary header of corrtag file.
 
-    hdr: pyfits Header object
+    hdr: FITS Header object
         Events extension header of corrtag file.
 
     Returns
@@ -182,10 +181,10 @@ def initWavecal(events, outflash, shift_file, info, switches, reffiles,
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: FITS Header object
         Primary header of corrtag file.
 
-    hdr: pyfits Header object
+    hdr: FITS Header object
         Events extension header.
     """
 
@@ -223,10 +222,10 @@ class ConcurrentWavecal(object):
     @type reffiles: dictionary
 
     @ivar phdr: primary header of corrtag file
-    @type phdr: pyfits header object
+    @type phdr: FITS header object
 
     @ivar hdr: events extension header of corrtag file
-    @type hdr: pyfits header object
+    @type hdr: FITS header object
     """
 
     def __init__(self, events, outflash, shift_file,
@@ -1488,7 +1487,7 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         This method is called for the case of FUVB where there is no
         wavecal data but there is data for segment A.  The lampflash file
         for segment A will be copied to <rootname>_lampflash_b.fits.
-        The latter file will be opened (with pyfits), and the "FUVA" in
+        The latter file will be opened (with FITS), and the "FUVA" in
         the SEGMENT column will be changed to "FUVB"; the file should
         be closed later by calling closeOutFlash().
         """
@@ -1654,7 +1653,7 @@ class FUVConcurrentWavecal(ConcurrentWavecal):
         wavelength = disp_rel.evalDisp(pixel)
         disp_rel.close()
 
-        # note that the pyfits HDUList object self.ofd must exist at this time
+        # note that the FITS HDUList object self.ofd must exist at this time
         segment_col = self.ofd[1].data.field("segment")
         wavelength_col = self.ofd[1].data.field("wavelength")
         shift_disp_col = self.ofd[1].data.field("shift_disp")
