@@ -1,5 +1,3 @@
-from __future__ import division         # confidence high
-
 class ShiftFile(object):
     """Read shift_file.
 

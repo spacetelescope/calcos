@@ -1,6 +1,4 @@
 #! /usr/bin/env python
-
-from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import shutil
@@ -10,7 +8,7 @@ import types
 import copy
 import numpy as np
 import numpy.linalg as LA
-import astropy.io.fits as fits
+from astropy.io import fits
 from astropy.stats import poisson_conf_interval
 from . import ccos
 from .calcosparam import *       # parameter definitions
@@ -264,10 +262,10 @@ def copyExptimeKeywords(inhdr, outhdr):
 
     Parameters
     ----------
-    inhdr: pyfits Header object
+    inhdr: ``astropy.io.fits.header.Header`` object
         Input header.
 
-    outhdr: pyfits Header object
+    outhdr: ``astropy.io.fits.header.Header`` object
         Output header.
     """
 
@@ -285,10 +283,10 @@ def copyVoltageKeywords(inhdr, outhdr, detector):
 
     Parameters
     ----------
-    inhdr: pyfits Header object
+    inhdr: ``astropy.io.fits.header.Header`` object
         Input header.
 
-    outhdr: pyfits Header object
+    outhdr: ``astropy.io.fits.header.Header`` object
         Output header.
 
     detector: {"FUV", "NUV"}
@@ -314,10 +312,10 @@ def copySubKeywords(inhdr, outhdr, subarray):
 
     Parameters
     ----------
-    inhdr: pyfits Header Object
+    inhdr: ``astropy.io.fits.header.Header`` Object
         Input header.
 
-    outhdr: pyfits Header Object
+    outhdr: ``astropy.io.fits.header.Header`` Object
         Output header.
 
     subarray: boolean
@@ -348,7 +346,7 @@ def dummyGTI(exptime):
 
     Returns
     -------
-    pyfits BinTableHDU object
+    ``astropy.io.fits.hdu.table.BinTableHDU`` object
         Header/data unit for a GTI table covering the entire exposure.
     """
 
@@ -490,7 +488,7 @@ def getTable(table, filter, extension=1,
     Returns
     -------
     array_like or None
-        Pyfits table data object containing the selected row(s).  If the
+        ``astropy.io.fits.fitsrec.FITS_rec`` table data object containing the selected row(s).  If the
         input table is empty, or if no rows match the selection criteria,
         None will be returned.
     """
@@ -893,7 +891,7 @@ def getHeaders(input):
 
     Returns
     -------
-    list of pyfits Header objects
+    list of ``astropy.io.fits.header.Header`` objects
         A list of all the headers in the input FITS file.
     """
 
@@ -1493,7 +1491,7 @@ def flagOutOfBounds(hdr, dq_array, info, switches,
     Parameters
     ----------
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         the EVENTS or SCI extension header
 
     dq_array: array_like
@@ -1541,7 +1539,7 @@ def fuvFlagOutOfBounds(hdr, dq_array, info, switches,
     Parameters
     ----------
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         the EVENTS or SCI extension header
 
     dq_array: array_like
@@ -1822,7 +1820,7 @@ def nuvFlagOutOfBounds(hdr, dq_array, info, switches,
     Parameters
     ----------
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         the EVENTS or SCI extension header
 
     dq_array: array_like
@@ -2091,12 +2089,12 @@ def tableHeaderToImage(thdr):
 
     Parameters
     ----------
-    thdr: pyfits Header object
+    thdr: ``astropy.io.fits.header.Header`` object
         A header for a BINTABLE extension.
 
     Returns
     -------
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         A copy of thdr, with certain table WCS keywords renamed or deleted.
     """
 
@@ -2171,12 +2169,12 @@ def imageHeaderToTable(imhdr):
 
     Parameters
     ----------
-    imhdr: pyfits Header object
+    imhdr: ``astropy.io.fits.header.Header`` object
         A header for a FITS IMAGE HDU.
 
     Returns
     -------
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         A copy of imhdr, with certain image-specific keywords deleted.
     """
 
@@ -2212,12 +2210,12 @@ def delCorrtagWCS(thdr):
 
     Parameters
     ----------
-    thdr: pyfits Header object
+    thdr: ``astropy.io.fits.header.Header`` object
         A header for a BINTABLE extension.
 
     Returns
     -------
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         A copy of thdr, with certain table WCS keywords deleted.
     """
 
@@ -2242,7 +2240,7 @@ def updateFilename(phdr, filename):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         A primary header; keyword FILENAME will be modified in-place.
 
     filename: str
@@ -2527,7 +2525,7 @@ def doTagFlashStat(fd):
 
     Parameters
     ----------
-    fd: pyfits HDUList object
+    fd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         HDU list for the FITS file (opened by doSpecStat).
     """
 
@@ -2678,10 +2676,10 @@ def overrideKeywords(phdr, hdr, info, switches, reffiles):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         Primary header from input file.
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         Extension header from input file.
 
     info: dictionary
@@ -2727,7 +2725,7 @@ def updatePulseHeightKeywords(hdr, segment, low, high):
 
     Parameters
     ----------
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         header with keywords to be modified
 
     segment: str
@@ -2750,7 +2748,7 @@ def getPulseHeightRange(hdr, segment):
 
     Parameters
     ----------
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         Extension header of corrtag, counts, flt, etc.
 
     segment: str
@@ -2847,7 +2845,7 @@ def getSwitch(phdr, keyword):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         Primary header
 
     keyword: str
@@ -3223,7 +3221,7 @@ def getApertureKeyword(hdr):
 
     Parameters
     ----------
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         Primary header from which to get the APERTURE keyword
 
     Returns

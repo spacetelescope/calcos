@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division         # confidence high
 import copy
 import math
 import shutil
@@ -6,7 +5,7 @@ import time
 import types
 import numpy as np
 from numpy import random
-import astropy.io.fits as fits
+from astropy.io import fits
 
 from . import cosutil
 from . import ccos
@@ -245,7 +244,7 @@ def updateGlobrate(hdr, data, exptime):
 
     Parameters
     ----------
-    hdr: pyfits Header object
+    hdr: FITS Header object
         The input events extension header.
 
     data: array_like
@@ -277,10 +276,10 @@ def doPhotcorr(info, switches, imphttab, phdr, hdr):
     imphttab: str
         The name of the imaging photometric parameters table.
 
-    phdr: pyfits Header object
+    phdr: FITS Header object
         The primary header, photcorr keyword updated in-place.
 
-    hdr: pyfits Header object
+    hdr: FITS Header object
         The first extension header, updated in-place.
     """
 
@@ -306,7 +305,7 @@ def doDqicorr(info, switches, reffiles, phdr, dq_array):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: FITS Header object
         Primary header from input file.
 
     dq_array: array_like
@@ -476,7 +475,7 @@ def doFlatcorr(flt_sci, switches, reffiles, phdr):
     reffiles: dictionary
         Reference file names.
 
-    phdr: pyfits Header object
+    phdr: FITS Header object
         The input primary header.
     """
 
@@ -524,7 +523,7 @@ def updateSwitches(phdr, outflt, outcounts):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: FITS Header object
         The input primary header.
 
     outflt: str
@@ -599,10 +598,10 @@ def writeCsum(outcsum, phdr, hdr_list, csum_array,
     outcsum: str
         Name of output calcos sum image file.
 
-    phdr: pyfits Header object
+    phdr: FITS Header object
         Primary header.
 
-    hdr_list: list of pyfits Header objects
+    hdr_list: list of FITS Header objects
         List of sci extension headers.
 
     csum_array: array_like
@@ -712,10 +711,10 @@ def addExptimeKeywords(hdr_list, hdr):
 
     Parameters
     ----------
-    hdr_list: list of pyfits Header objects
+    hdr_list: list of FITS Header objects
         List of sci extension headers.
 
-    hdr: pyfits Header object
+    hdr: FITS Header object
         Output header, modified in-place
     """
 
@@ -743,7 +742,7 @@ def writePrimaryHDU(output, phdr, nextend):
     output: str
         Name of the output file (flt or counts).
 
-    phdr: pyfits Header object
+    phdr: FITS Header object
         Primary header of input file.
 
     nextend: int
@@ -782,13 +781,13 @@ def appendImset(output, imset, sci_array, err_array, dq_array,
     dq_array: array_like or None
         Data array for the DQ extension.
 
-    sci_hdr: pyfits Header object
+    sci_hdr: FITS Header object
         Header for SCI extension.
 
-    err_hdr: pyfits Header object
+    err_hdr: FITS Header object
         Header for ERR extension.
 
-    dq_hdr: pyfits Header object
+    dq_hdr: FITS Header object
         Header for DQ extension.
     """
 

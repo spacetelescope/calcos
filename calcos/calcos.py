@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-from __future__ import absolute_import, division, print_function # confidence high
 import sys
 import os
 import time
@@ -10,7 +9,7 @@ import copy
 
 import numpy
 import astropy
-import astropy.io.fits as fits
+from astropy.io import fits
 from . import accum
 from . import average
 from . import cosutil

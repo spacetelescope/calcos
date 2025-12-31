@@ -1,10 +1,9 @@
-from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import numpy as np
 from scipy.signal import windows as scipysignal
 from scipy import ndimage
-import astropy.io.fits as fits
+from astropy.io import fits
 from .calcosparam import *
 from . import ccos
 from . import cosutil

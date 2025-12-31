@@ -1,10 +1,9 @@
-from __future__ import absolute_import, division         # confidence high
 import math
 import os
 import time
 import numpy as np
 from numpy import random
-import astropy.io.fits as fits
+from astropy.io import fits
 
 from . import cosutil
 from . import burst
@@ -987,9 +986,6 @@ def saveNewGTI(ofd, gti):
 
     # Now append the updated GTI table.
     ofd.append(hdu)
-    # if we have pyfits 2.1.1dev462 or later, we could insert
-    # ofd.insert(2, hdu)
-
     ofd[0].header["nextend"] = len(ofd) - 1
 
 def doPhacorr(inpha, events, info, switches, reffiles, phdr, hdr):

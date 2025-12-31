@@ -1,4 +1,3 @@
-from __future__ import absolute_import, print_function
 from . import cosutil
 from . import dispersion
 from .calcosparam import *       # parameter definitions

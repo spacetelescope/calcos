@@ -1,6 +1,5 @@
-from __future__ import absolute_import
 import math
-import astropy.io.fits as fits
+from astropy.io import fits
 from .calcosparam import *
 from . import cosutil
 
@@ -209,7 +208,7 @@ class SpWCS(object):
 
         Parameters
         ----------
-        hdr: pyfits Header object
+        hdr: ``astropy.io.fits.header.Header`` object
             header to be updated in-place
 
         wcs_dict: dictionary
@@ -302,7 +301,7 @@ class SpWcsImage(SpWCS):
 
         Parameters
         ----------
-        wcs_info: pyfits record object
+        wcs_info: ``astropy.io.fits.fitsrec.FITS_record`` record object
             One row from the spwcstab
 
         alt: str
@@ -493,7 +492,7 @@ class SpWcsCorrtag(SpWCS):
     def computeKeywordValues(self, wcs_info, alt):
         """Determine the values of the WCS keywords.
 
-        wcs_info: pyfits record object
+        wcs_info: ``astropy.io.fits.fitsrec.FITS_record`` record object
             One row from the spwcstab
 
         alt: str

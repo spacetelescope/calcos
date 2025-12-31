@@ -1,8 +1,7 @@
-from __future__ import absolute_import, division         # confidence high
 import copy
 import math
 import numpy as np
-import astropy.io.fits as fits
+from astropy.io import fits
 from astropy.stats import poisson_conf_interval
 from . import cosutil
 from .calcosparam import *       # parameter definitions
@@ -132,7 +131,7 @@ def delSomeKeywords(hdr):
 
     Parameters
     ----------
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         Extension header to be modified
     """
 
@@ -149,7 +148,7 @@ def delExtraColumns(hdu):
 
     Parameters
     ----------
-    hdu: pyfits HDU object
+    hdu: ``astropy.io.fits.hdu.table.BinTableHDU`` object
         HDU object to be modified to be modified
     """
 
@@ -306,8 +305,8 @@ class OutputX1D(object):
     segments: list of str
         Segment names found in input x1d tables
 
-    ofd: pyfits HDUList object
-        Pyfits object for output file
+    ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
+        Astropy FITS object for output file
 
     nrows: int
         Number of rows to be written to the output table
@@ -351,7 +350,7 @@ class OutputX1D(object):
         # Compute length of output arrays.
         self.computeOutputInfo()
 
-        # Create ofd, the output pyfits object.
+        # Create ofd, the output HDUList object.
         self.createOutput()
 
         # Fill in the data in the output table.
@@ -553,7 +552,7 @@ class OutputX1D(object):
             self.output_nelem = output_nelem
 
     def createOutput(self):
-        """Create pyfits object for output file."""
+        """Create HDUList object for output file."""
 
         # Get header info from the input.
         ifd = fits.open(self.input[self.index_max_nelem],
@@ -690,7 +689,7 @@ class OutputX1D(object):
     def updateArchiveSearch(self, ofd):
         """Update the keywords giving min & max wavelengths.
 
-        ofd: pyfits HDUList object
+        ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
             For the output file, primary header modified in-place
         """
 
@@ -727,7 +726,7 @@ class Spectrum(object):
 
     Parameters
     ----------
-    ifd: pyfits HDUList object
+    ifd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         The list of header/data objects for an input file
 
     row: int
@@ -839,7 +838,7 @@ class Spectrum(object):
 
         Parameters
         ----------
-        ifd: pyfits HDUList object
+        ifd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
             The list of header/data objects for the current input file
         """
 
@@ -921,7 +920,7 @@ class Spectrum(object):
         detector: str
             FUV or NUV.
 
-        hdr: pyfits Header object
+        hdr: ``astropy.io.fits.header.Header`` object
             The header of the first extension.
 
         Returns
@@ -1115,7 +1114,7 @@ class OutputSpectrum(object):
 
     Parameters
     ----------
-    ofd: pyfits HDUList object
+    ofd: ``astropy.io.fits.hdu.hdulist.HDUList`` object
         For the output file
 
     inspec: list of Spectrum objects
@@ -1235,7 +1234,7 @@ class OutputSpectrum(object):
         sp: Spectrum object
             Current input spectrum
 
-        data: pyfits record array
+        data: ``astropy.io.fits.fitsrec.FITS_record`` object
             The current row of the output file
 
         sumweight: float

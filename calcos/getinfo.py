@@ -1,6 +1,5 @@
-from __future__ import absolute_import, division         # confidence high
 import os
-import astropy.io.fits as fits
+from astropy.io import fits
 from . import cosutil
 from .calcosparam import *
 
@@ -62,7 +61,7 @@ def getGeneralInfo(phdr, hdr):
     """Get keyword values from the primary and extension header.
 
     The input argument phdr is the primary header, and the second hdr is
-    the first extension header, as provided by the pyfits module.  The
+    the first extension header, as provided by the astropy fits module.  The
     function value is a dictionary of keyword = value pairs.  If a keyword
     is missing from the header, it will still be included in the dictionary,
     but its value will be set to the NOT_APPLICABLE string, or a reasonable
@@ -75,10 +74,10 @@ def getGeneralInfo(phdr, hdr):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         Primary header.
 
-    hdr: pyfits Header object
+    hdr: ``astropy.io.fits.header.Header`` object
         Extension header.
 
     Returns
@@ -249,7 +248,7 @@ def getSwitchValues(phdr):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         Primary header.
 
     Returns
@@ -273,7 +272,7 @@ def getSwitchValues(phdr):
 def getRefFileNames(phdr):
     """Get reference file names from the primary header.
 
-    The input argument phdr is the primary header, as provided by the pyfits
+    The input argument phdr is the primary header, as provided by the astropy fits
     module.  The function value is a dictionary of keyword = value pairs.
     If a keyword is missing from the header, it will still be included in
     the dictionary, but its value will be set to the NOT_APPLICABLE string.
@@ -285,7 +284,7 @@ def getRefFileNames(phdr):
 
     Parameters
     ----------
-    phdr: pyfits Header object
+    phdr: ``astropy.io.fits.header.Header`` object
         Primary header.
 
     Returns

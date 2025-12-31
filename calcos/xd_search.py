@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division         # confidence unknown
 import numpy as np
 from scipy.signal.windows import boxcar
 from scipy import ndimage

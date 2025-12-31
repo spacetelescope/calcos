@@ -1,13 +1,12 @@
 #! /usr/bin/env python
 
-from __future__ import absolute_import, division, print_function # confidence high
 import os
 import sys
 import string
 import getopt
 
 import numpy as np
-import astropy.io.fits as fits
+from astropy.io import fits
 
 from . import calcosparam                      # parameter definitions
 from . import cosutil

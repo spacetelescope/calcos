@@ -116,7 +116,7 @@ raw_csum: bool
 compress: bool
     If `csum` is True, setting 'compress' to True results in a csum FITS
     file that contains a compressed image.  This uses the on-the-fly
-    compression in pyfits, but the algorithm and parameters are the same
+    compression in astropy fits, but the algorithm and parameters are the same
     as in CFITSIO, so reading the resulting image using CFITSIO should be
     transparent.
 
