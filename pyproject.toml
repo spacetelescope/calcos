@@ -3,7 +3,7 @@ name = "calcos"
 description = "Calibration software for COS (Cosmic Origins Spectrograph)"
 requires-python = ">=3.10"
 authors = [
-  { name = "Phil Hodge", email = "help@stsci.edu" },
+  { name = "Phil Hodge" },
   { name = "Robert Jedrzejewski" },
 ]
 classifiers = [
