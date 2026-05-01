@@ -436,8 +436,9 @@ def getScienceCentroid(rebinned_data, dq_array, xtract_info,
             # number of iterations
             cosutil.printWarning("Centroid calculation did not converge")
             cosutil.printWarning("after %d iterations" % (n_iterations))
+            cosutil.printWarning(f"Setting centroid to default value of {startcenter}")
             status = NO_CONVERGENCE
-            centroid = difference
+            centroid = startcenter
     return status, centroid, goodcolumns, regions
 
 def getBackgroundDQ(dqexclude):
@@ -508,9 +509,12 @@ def getCentroidError(events, info, goodcolumns, regions):
     rowstop = regions['specstop']
     centroid = getCentroid(counts_ij, goodcolumns, rowstart, rowstop,
                            background)
-    error = calculateCentroidError(counts_ij, goodcolumns, regions,
-                                   centroid, background=background)
-    return error
+    if centroid is not None:
+        error = calculateCentroidError(counts_ij, goodcolumns, regions,
+                                       centroid, background=background)
+        return error
+    else:
+        return None
 
 def calculateCentroidError(data_ij, goodcolumns, regions,
                            centroid, background=0.0):
