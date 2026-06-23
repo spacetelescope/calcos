@@ -38,6 +38,8 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
+build = "cp311-*"  # build for CPython 3.11 Stable API
+skip = ["cp314t-*"]  # explicitly skip free-threaded builds
 test-command = 'python -c "from calcos import ccos"'
 
 [tool.cibuildwheel.linux]

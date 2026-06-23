@@ -23,6 +23,9 @@ def c_includes(parent: str, depth: int = 1):
 PACKAGENAME = "calcos"
 SOURCES = c_sources("src")
 INCLUDES = c_includes("src") + [numpy_includes()]
+MACROS = [
+    ("Py_LIMITED_API", 0x030B0000),  # PY_VERSION_HEX for 3.11
+]
 
 
 setup(
@@ -31,6 +34,8 @@ setup(
             PACKAGENAME + ".ccos",
             sources=SOURCES,
             include_dirs=INCLUDES,
+            define_macros=MACROS,
+            py_limited_api=True,
         ),
     ],
 )
