@@ -37,6 +37,9 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.cibuildwheel]
+test-command = 'python -c "from calcos import ccos"'
+
 [tool.setuptools]
 include-package-data = false
 
