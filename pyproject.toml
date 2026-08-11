@@ -37,6 +37,15 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.cibuildwheel]
+test-command = 'python -c "from calcos import ccos"'
+
+[tool.cibuildwheel.linux]
+archs = ["aarch64", "x86_64"]
+
+[tool.cibuildwheel.macos]
+archs = ["arm64", "x86_64"]
+
 [tool.setuptools]
 include-package-data = false
 
