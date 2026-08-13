@@ -61,6 +61,11 @@ version_file = "calcos/version.py"
 minversion = "9.0"
 norecursedirs = ["build", "doc/build", "src"]
 junit_family = "xunit2"
+filterwarnings = [
+    "error",
+    "ignore:unclosed file:ResourceWarning",
+    "ignore:Card is too long, comment will be truncated",
+]
 
 [tool.ruff.lint]
 exclude = ["setup.py", "__init__.py"]
